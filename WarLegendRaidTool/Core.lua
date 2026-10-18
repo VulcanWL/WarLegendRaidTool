@@ -254,7 +254,9 @@ local function SetAccess(v)
         -- replay what the modules missed while we were waiting for the guild name
         local list = buffered
         buffered = {}
-        if #list == 0 and was == false then list = { { "PLAYER_LOGIN" }, { "PLAYER_ENTERING_WORLD", false, false } } end
+        -- access refused first, granted later (slow guild data, joined the guild): for the modules it is
+        -- their login, so isLogin = true (cooldown text, alts, roster, version broadcast run once)
+        if #list == 0 and was == false then list = { { "PLAYER_LOGIN" }, { "PLAYER_ENTERING_WORLD", true, false } } end
         for _, e in ipairs(list) do Run(e[1], true, unpack(e, 2)) end
     else
         buffered = {}
@@ -702,7 +704,10 @@ local AR_LOCKED = AR.AddOnMessageLockdown or 11
 
 function W.SendRaw(prefix, msg, channel, target)
     if not channel then return "failed" end
-    if channel ~= "RAID" and channel ~= "PARTY" and channel ~= "GUILD" and channel ~= "INSTANCE_CHAT" then
+    -- WHISPER: an answer to one player (Readiness), only with a target
+    if channel == "WHISPER" then
+        if not target or target == "" then return "failed" end
+    elseif channel ~= "RAID" and channel ~= "PARTY" and channel ~= "GUILD" and channel ~= "INSTANCE_CHAT" then
         return "failed"
     end
     if C_ChatInfo and C_ChatInfo.SendAddonMessage then
@@ -833,7 +838,7 @@ function W.ReadTalentConfig(configID)
     for i, g in ipairs(groups) do ids[i] = g.groupID end
     local infos = (C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, ids)) or {}
     local t = { spent = {}, names = {}, total = 0 }
-    local most = -1
+    local most = 0 -- no point spent (talents reset): no main tree
     for i, g in ipairs(groups) do
         local spent = 0
         for _, info in ipairs(infos) do
@@ -853,7 +858,7 @@ function W.ClassicTalents(inspect)
     local tabs = GetNumTalentTabs(inspect)
     if not tabs or tabs == 0 then return nil end
     local t = { spent = {}, names = {}, total = 0 }
-    local most = -1
+    local most = 0 -- no point spent (talents reset): no main tree
     for tab = 1, tabs do
         local a, b = GetTalentTabInfo(tab, inspect)
         local name = type(a) == "string" and a or (type(b) == "string" and b) or ("#" .. tab)

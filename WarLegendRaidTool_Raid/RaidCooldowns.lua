@@ -31,7 +31,7 @@ local SPELLS = {
     { key = "rebirth", class = "DRUID", cd = 1800, ids = { 20484, 20739, 20742, 20747, 20748 } },
     { key = "soulstone", class = "WARLOCK", cd = 1800, ids = { 20707, 20762, 20763, 20764, 20765 },
         items = { 5232, 16892, 16893, 16895, 16896 } },
-    { key = "reinc", class = "SHAMAN", cd = 3600, ids = { 20608 } },
+    { key = "reinc", class = "SHAMAN", cd = 3600, ids = { 20608 }, reagent = 17030 }, -- needs an Ankh
     { key = "di", class = "PALADIN", cd = 3600, ids = { 19752 } },
     { key = "innervate", class = "DRUID", cd = 360, ids = { 29166 } },
     { key = "tranq", class = "DRUID", cd = 300, ids = { 740, 8918, 9862, 9863 } },
@@ -52,6 +52,7 @@ for _, e in ipairs(SPELLS) do
 end
 local GetTex = (C_Spell and C_Spell.GetSpellTexture) or GetSpellTexture
 local GetItemCD = (C_Container and C_Container.GetItemCooldown) or GetItemCooldown
+local GetCount = (C_Item and C_Item.GetItemCount) or GetItemCount
 
 local db
 local state = {}   -- name -> { addon = true, [key] = end time (0 = ready) }
@@ -95,6 +96,15 @@ local function ItemLeft(items)
     return best
 end
 
+-- true when one of these items is in my bags (nil: the client cannot tell)
+local function HasItem(ids)
+    if not GetCount then return nil end
+    for _, id in ipairs(ids) do
+        if (W.Safe(GetCount(id)) or 0) > 0 then return true end
+    end
+    return false
+end
+
 local function KnownRank(e)
     for i = #e.ids, 1, -1 do
         local id = e.ids[i]
@@ -106,14 +116,24 @@ end
 local function KnownList()
     local _, myClass = UnitClass("player")
     local parts, mine = {}, { addon = true }
+    local old, now = state[Me()], GetTime()
     for _, e in ipairs(SPELLS) do
         local left
         if e.items then
-            if myClass == e.class then left = ItemLeft(e.items) or 0 end
+            if myClass == e.class then
+                left = ItemLeft(e.items)
+                if not left then
+                    -- ready only with a stone in my bags; a stone used a moment ago keeps its running end
+                    if HasItem(e.items) ~= false then left = 0
+                    elseif old and old[e.key] and old[e.key] > now then left = old[e.key] - now end
+                end
+            end
         else
             local id = KnownRank(e)
             if id then left = Left(SpellCD(id)) or 0 end
         end
+        -- a spell that needs a reagent (Ankh) is not ready without it
+        if left == 0 and e.reagent and HasItem({ e.reagent }) == false then left = nil end
         if left then
             parts[#parts + 1] = e.key .. ":" .. (left > 0 and ToServer(GetTime() + left) or 0)
             mine[e.key] = left > 0 and GetTime() + left or 0
@@ -125,7 +145,8 @@ end
 
 local lastKnown = 0
 local function SendKnown()
-    if not W.InGroup() or W.InPvP() or GetTime() - lastKnown < 5 then return end
+    -- "Share my cooldowns" off: nothing is sent (else the others would see me ready forever)
+    if not (db and db.share) or not W.InGroup() or W.InPvP() or GetTime() - lastKnown < 5 then return end
     lastKnown = GetTime()
     W.Queue(PREFIX, W.Pack("K", KnownList())) -- queued: held through a lockdown, sent after
 end
@@ -334,12 +355,17 @@ W.OnRoster(function()
     Listen()
     UpdateWindow()
 end)
+-- this file is loaded on demand: Core replays its first PLAYER_ENTERING_WORLD with isLogin = false,
+-- so the first one seen here counts as the login / reload (the group knows nothing about me yet)
+local firstEnter = true
 W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload)
+    local fresh = isLogin or isReload or firstEnter
+    firstEnter = false
     wasInGroup = W.InGroup()
     Listen()
     UpdateWindow()
     -- a loading screen changes nothing for the others: tell them only after a login / reload
-    if (isLogin or isReload) and wasInGroup and not W.InPvP() then
+    if fresh and wasInGroup and not W.InPvP() then
         W.After(3, function() SendKnown(); if db.window then Ask() end end)
     end
 end)

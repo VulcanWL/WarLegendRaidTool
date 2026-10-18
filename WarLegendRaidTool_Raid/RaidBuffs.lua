@@ -38,19 +38,26 @@ W.RaidBuffs = RB
 local PREFIX = "WLRT_BUFF"
 local db
 
+-- classes a buff is useless on (no mana / no attack power): never counted as missing there
+local NO_MANA = { WARRIOR = true, ROGUE = true }
+local CASTERS = { MAGE = true, PRIEST = true, WARLOCK = true }
+-- talent = only some casters have it (never auto assigned), level = learned at that level,
+-- skip = classes that do not need it, noTank = not wanted on tanks (Salvation)
+-- WoW: Forever (class deep dives, Sept-Oct 2026): Divine Spirit is baseline for priests at level 30,
+-- Blessing of Kings is baseline for paladins (no longer talents)
 local BUFFS = {
-    { key = "int", class = "MAGE", text = L("Arcane Intellect"), ids = { 1459, 1460, 1461, 10156, 10157, 23028 } },
+    { key = "int", class = "MAGE", text = L("Arcane Intellect"), ids = { 1459, 1460, 1461, 10156, 10157, 23028 }, skip = NO_MANA },
     { key = "fort", class = "PRIEST", text = L("Fortitude"), ids = { 1243, 1244, 1245, 2791, 10937, 10938, 21562, 21564 } },
-    { key = "spirit", class = "PRIEST", text = L("Divine Spirit"), ids = { 14752, 14818, 14819, 27841, 27681 } },
-    { key = "shadow", class = "PRIEST", text = L("Shadow Protection"), ids = { 976, 10957, 10958, 27683 } },
+    { key = "spirit", class = "PRIEST", text = L("Divine Spirit"), ids = { 14752, 14818, 14819, 27841, 27681 }, level = 30, skip = NO_MANA },
+    { key = "shadow", class = "PRIEST", text = L("Shadow Protection"), ids = { 976, 10957, 10958, 27683 }, level = 30 },
     { key = "motw", class = "DRUID", text = L("Mark of the Wild"), ids = { 1126, 5232, 6756, 5234, 8907, 9884, 9885, 21849, 21850 } },
 }
 local BLESS = {
     { key = "kings", text = L("Kings"), ids = { 20217, 25898 } },
-    { key = "wisdom", text = L("Wisdom"), ids = { 19742, 19850, 19852, 19853, 19854, 25290, 25894, 25918 } },
-    { key = "might", text = L("Might"), ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 25782, 25916 } },
-    { key = "salvation", text = L("Salvation"), ids = { 1038, 25895 } },
-    { key = "light", text = L("Light"), ids = { 19977, 19978, 19979, 25890 } },
+    { key = "wisdom", text = L("Wisdom"), ids = { 19742, 19850, 19852, 19853, 19854, 25290, 25894, 25918 }, skip = NO_MANA },
+    { key = "might", text = L("Might"), ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 25782, 25916 }, skip = CASTERS },
+    { key = "salvation", text = L("Salvation"), ids = { 1038, 25895 }, level = 26, noTank = true },
+    { key = "light", text = L("Light"), ids = { 19977, 19978, 19979, 25890 }, level = 40 },
 }
 W.TranslateField(BUFFS, "text")
 W.TranslateField(BLESS, "text")
@@ -64,30 +71,49 @@ W.OnReady(function()
     if type(db.bless) ~= "table" then db.bless = {} end
 end)
 
--- Raid members: { name, class, group, unit } - name is "First Surname" on Forever, so two
+-- Raid members: { name, class, group, unit, level, tank } - name is "First Surname" on Forever, so two
 -- casters sharing a first name keep their own assignment
+local function IsTank(u, rosterRole)
+    if W.Safe(rosterRole) == "MAINTANK" then return true end
+    return UnitGroupRolesAssigned and W.Safe(UnitGroupRolesAssigned(u)) == "TANK" or false
+end
+
 local function Members()
     local list = {}
     if W.InRaid() then
         for i = 1, W.NumRaid() do
-            local _, _, group, _, _, class = GetRaidRosterInfo(i)
+            local _, _, group, level, _, class, _, _, _, role = GetRaidRosterInfo(i)
             local u = "raid" .. i
             local name = W.UnitDisplayName(u)
-            if name then list[#list + 1] = { name = name, class = class, group = group or 1, unit = u } end
+            if name then
+                list[#list + 1] = { name = name, class = class, group = group or 1, unit = u, level = W.Safe(level),
+                    tank = IsTank(u, role) }
+            end
         end
     else
         for _, u in ipairs(W.GroupUnits()) do
             local n = W.UnitDisplayName(u)
-            if n then list[#list + 1] = { name = n, class = W.UnitClassToken(u), group = 1, unit = u } end
+            if n then
+                list[#list + 1] = { name = n, class = W.UnitClassToken(u), group = 1, unit = u, level = W.Safe(UnitLevel(u)),
+                    tank = IsTank(u) }
+            end
         end
-        if #list == 0 then list[1] = { name = W.UnitDisplayName("player") or "?", class = W.UnitClassToken("player"), group = 1, unit = "player" } end
+        if #list == 0 then
+            list[1] = { name = W.UnitDisplayName("player") or "?", class = W.UnitClassToken("player"), group = 1, unit = "player",
+                level = W.Safe(UnitLevel("player")), tank = IsTank("player") }
+        end
     end
     return list
 end
 
-local function Casters(class, members)
+-- minLevel: only the casters who can have learned the spell (an unknown level is accepted)
+local function Casters(class, members, minLevel)
     local out = {}
-    for _, m in ipairs(members) do if m.class == class then out[#out + 1] = m.name end end
+    for _, m in ipairs(members) do
+        if m.class == class and not (minLevel and m.level and m.level > 0 and m.level < minLevel) then
+            out[#out + 1] = m.name
+        end
+    end
     table.sort(out)
     return out
 end
@@ -106,21 +132,35 @@ function RB.AutoAssign()
     local members = Members()
     local groups = UsedGroups(members)
     for _, b in ipairs(BUFFS) do
-        local casters = Casters(b.class, members)
-        local a = {}
-        if #casters > 0 then
-            -- groups split evenly: 1-2 to the first caster, 3-4 to the next...
-            for i, g in ipairs(groups) do
-                local c = casters[math.floor((i - 1) * #casters / #groups) + 1]
-                a[c] = a[c] or {}
-                a[c][g] = true
+        -- a talent buff stays as the leader set it: we cannot know who has the talent
+        if not b.talent then
+            local casters = Casters(b.class, members, b.level)
+            local a = {}
+            if #casters > 0 then
+                -- groups split evenly: 1-2 to the first caster, 3-4 to the next...
+                for i, g in ipairs(groups) do
+                    local c = casters[math.floor((i - 1) * #casters / #groups) + 1]
+                    a[c] = a[c] or {}
+                    a[c][g] = true
+                end
             end
+            db.assign[b.key] = a
         end
-        db.assign[b.key] = a
     end
+    -- paladins: the blessings every paladin of that level has
+    local levelOf = {}
+    for _, m in ipairs(members) do levelOf[m.name] = m.level end
+    local auto = {}
+    for _, b in ipairs(BLESS) do if not b.talent then auto[#auto + 1] = b end end
     local paladins = Casters("PALADIN", members)
     wipe(db.bless)
-    for i, p in ipairs(paladins) do db.bless[p] = BLESS[((i - 1) % #BLESS) + 1].key end
+    for i, p in ipairs(paladins) do
+        local lvl = levelOf[p]
+        for k = 0, #auto - 1 do
+            local b = auto[((i - 1 + k) % #auto) + 1]
+            if not (b.level and lvl and lvl > 0 and lvl < b.level) then db.bless[p] = b.key; break end
+        end
+    end
     RB.Refresh()
 end
 
@@ -212,15 +252,17 @@ function RB.Missing()
                     if id and SPELL_TO[id] then has[SPELL_TO[id]] = true end
                 end
             end
+            -- a buff the player does not need (Wisdom on a warrior, Might on a mage, Salvation on a tank)
+            local function Needs(b) return not (b.skip and b.skip[m.class]) and not (b.noTank and m.tank) end
             for _, b in ipairs(BUFFS) do
                 local caster
                 for c, set in pairs(Assign(b.key)) do if set[m.group] then caster = c end end
-                if caster and not has[b.key] then
+                if caster and not has[b.key] and Needs(b) then
                     miss[#miss + 1] = { buff = b.text, name = m.name, group = m.group, caster = caster }
                 end
             end
             for key, p in pairs(activeBless) do
-                if not has[key] and BLESS_BY[key] then
+                if not has[key] and BLESS_BY[key] and Needs(BLESS_BY[key]) then
                     miss[#miss + 1] = { buff = BLESS_BY[key].text, name = m.name, group = m.group, caster = p }
                 end
             end

@@ -113,13 +113,20 @@ local function Classify(unit)
     if level >= me + 3 and elite then return "redElite" end
 end
 
+-- one sound per kind every 10 s: a camp of elites shows ten nameplates at once
+local SOUND_GAP = 10
+local soundAt = {}
 local addEv = W.On("NAME_PLATE_UNIT_ADDED", function(unit)
     if not db.enabled or not OpenWorld() then return end
     local kind = Classify(unit)
     if not kind then return end
     seen[unit] = kind
     Create()
-    if db.sound and SOUNDS[kind] then PlaySound(SOUNDS[kind], "Ambience") end
+    local now = GetTime()
+    if db.sound and SOUNDS[kind] and now - (soundAt[kind] or 0) >= SOUND_GAP then
+        soundAt[kind] = now
+        PlaySound(SOUNDS[kind], "Ambience")
+    end
     Refresh()
 end, nil, true)
 local removeEv = W.On("NAME_PLATE_UNIT_REMOVED", function(unit)

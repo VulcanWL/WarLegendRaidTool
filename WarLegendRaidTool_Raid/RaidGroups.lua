@@ -253,11 +253,22 @@ function RG.AutoSort(preset)
     local counts = { 0, 0, 0, 0, 0, 0, 0, 0 }
     local buckets = { TANK = {}, HEALER = {}, DAMAGER = {} }
     local map = RG.MemberMap()
+    local noRole = 0
     for _, p in ipairs(preset.players) do
         if db.sortGroups[p.group or 1] then
             local m = map[p.name:lower()]
             local role = m and UnitGroupRolesAssigned and W.Safe(UnitGroupRolesAssigned(m.unit))
-            if role ~= "TANK" and role ~= "HEALER" then role = "DAMAGER" end
+            -- Classic raids rarely set roles: the raid's main tanks (and the combat role) count too
+            if role ~= "TANK" and role ~= "HEALER" and m and m.index then
+                local _, _, _, _, _, _, _, _, _, rosterRole, _, combatRole = GetRaidRosterInfo(m.index)
+                rosterRole, combatRole = W.Safe(rosterRole), W.Safe(combatRole)
+                if rosterRole == "MAINTANK" or combatRole == "TANK" then role = "TANK"
+                elseif combatRole == "HEALER" then role = "HEALER" end
+            end
+            if role ~= "TANK" and role ~= "HEALER" then
+                if role ~= "DAMAGER" then noRole = noRole + 1 end
+                role = "DAMAGER"
+            end
             table.insert(buckets[role], p)
             p.group = nil
         else
@@ -292,6 +303,9 @@ function RG.AutoSort(preset)
     for _, p in ipairs(buckets.DAMAGER) do Overflow(p) end
 
     W.Print(string.format(L("Auto sort: %d tank(s), %d healer(s), %d dps."), #buckets.TANK, #buckets.HEALER, #buckets.DAMAGER))
+    if noRole > 0 then
+        W.Print(string.format(L("%d player(s) without a role (not in the raid, or no role set): sorted as dps."), noRole))
+    end
 end
 
 ---------------------------------------------------------------------------

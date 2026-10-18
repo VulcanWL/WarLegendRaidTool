@@ -100,6 +100,8 @@ local FR = {
     ["Auto sort"] = "Tri auto",
     ["Auto sort options"] = "Options du tri auto",
     ["Auto sort: %d tank(s), %d healer(s), %d dps."] = "Tri auto : %d tank(s), %d soigneur(s), %d dps.",
+    ["%d player(s) without a role (not in the raid, or no role set): sorted as dps."] =
+        "%d joueur(s) sans rôle (absent du raid ou rôle non défini) : classé(s) en dps.",
     ["Auto-promoted players:"] = "Joueurs promus automatiquement :",
     ["AutoLog debug: "] = "AutoLog debug : ",
     ["Back"] = "Dos",

@@ -83,7 +83,7 @@ local CLASS_BUFFS = {
 		{ ids = { 20217, 25898 } }, -- Kings
 		{ ids = { 1038, 25895 } },  -- Salvation
 		{ ids = { 19977, 25890 } }, -- Light
-		{ ids = { 20911, 25899 } }, -- Sanctuary
+		-- no Sanctuary: the talent is removed in WoW: Forever (Paladin class deep dive, Oct 2026)
 	},
 }
 
@@ -148,6 +148,23 @@ function WarLegendPvP.GetDispelSpell(mouseButton)
 		end
 	end
 end
+
+-- a spell learned (low level battleground brackets) or a respec: my buffs / dispels are read again, and the
+-- dispel clicks of the ally buttons follow (SetBindings waits for the end of a fight by itself)
+local spellsChanged, rebindPending = CreateFrame("Frame"), false
+spellsChanged:RegisterEvent("SPELLS_CHANGED")
+spellsChanged:SetScript("OnEvent", function()
+	myBuffs, myDispels = nil, nil
+	if rebindPending or not (C_Timer and C_Timer.After) then return end
+	rebindPending = true
+	C_Timer.After(1, function() -- SPELLS_CHANGED comes in bursts: once is enough
+		rebindPending = false
+		local allies = WarLegendPvP.Allies and WarLegendPvP.Allies.Players
+		for _, playerButton in pairs(allies or {}) do
+			if playerButton.SetBindings then playerButton:SetBindings() end
+		end
+	end)
+end)
 
 ---------------------------------------------------------------------------
 -- Reading one unit (secret-safe: W.AuraByIndex gives false for an aura the client refuses)
