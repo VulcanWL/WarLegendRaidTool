@@ -32,6 +32,11 @@ Pas dans le zip des releases.
   `tools/sync.sh` (copie vers le jeu, saute un fichier modifié seulement là-bas), `CLAUDE.md` racine (charge
   AGENTS.md + STATUS.md), `docs/modules.md` (détail sorti d'AGENTS.md), règle « même session ou nouvelle ».
   Ouvrir désormais les sessions dans `C:\Dev\WarLegendRaidTool`.
+- **Contrôles croisés (17/10, non commité)** : `tools/check.js` vérifie aussi, sur les trois addons : `W.X` utilisé
+  jamais assigné ; `W.slash.x` ↔ HELP (Core) ↔ tableau « Commandes » du README (`/wl minimap`, traité dans `Slash`,
+  compte comme commande) ; `W.RegisterModule` ↔ `CATEGORIES` ; préfixes envoyés (`W.Send` / `SendLong` / `Queue`)
+  ↔ reçus (`W.OnAddon` / `OnAddonLong`), reçus par l'addon Raid ↔ `lodPrefix` ; `L("...")` sans `W.AddFR`.
+  0 problème sur le code actuel ; chaque contrôle testé cassé sur une copie (détecté). Plus besoin de script jetable.
 - **Prochaine étape** : test en jeu par l'utilisateur (`/reload`, puis Guilde > Métiers) :
   - le serveur Forever remplit-il vraiment `profession1ID` / `Rank` (lignes « Liste ») ?
   - en passant d'un métier à l'autre dans la fenêtre Naowh, une ligne « Métiers : ... enregistré » s'affiche-t-elle ?
@@ -70,6 +75,19 @@ Pas dans le zip des releases.
 - **Vérifié** : `node tools/check.js` 0 problème, `bash tools/sync.sh` fait. **Pas testé en jeu.**
 - **À tester** : `/reload`, `/wl` > Champs de bataille : cocher Synchro, changer un réglage dans Ennemis, ouvrir
   Alliés (même valeur) ; décocher, vérifier qu'un changement ne touche plus qu'un côté ; mode test pour voir les cadres.
+
+## IA locale (17/10, non commité)
+
+- **Fichiers** : `tools/ask-local.js` (nouveau), une puce « Local AI » dans `AGENTS.md` (Token economy).
+- **Fait** : le script interroge Ollama sur `127.0.0.1:11434` uniquement (le démarre si besoin : priorité basse,
+  un seul modèle, libéré 2 min après la dernière question). WoW lancé (`Wow*.exe`) : carte graphique partielle
+  (couches qui tiennent dans la VRAM libre moins `--reserve` 4096 Mo pour le jeu, VRAM du modèle déjà chargé
+  comptée), le reste sur 3 threads CPU. Sinon carte graphique entière. Modèle par défaut `gpt-oss:20b` ; `--model`,
+  `--gpu`, `--reserve`, `--threads`, `--unload`. Un plantage CUDA d'Ollama au rechargement est retenté une fois.
+- **Vérifié** (WoW lancé) : 11 couches sur 24 en VRAM (6,2 Go), 5,1 Go restent libres ; résumé d'`AutoLog.lua`
+  exact en 18-20 s (~19 tokens/s) contre 44-53 s en CPU seul. Traductions FR correctes mais avec l'apostrophe
+  typographique ’ : à relire. Effet sur les FPS pendant une réponse : à confirmer par l'utilisateur.
+- **Usage** : brouillons FR en nombre, résumés de longs logs / fichiers. Jamais pour l'API WoW ni le code.
 
 ## Pistes ouvertes (audit du 17/10, non corrigées)
 
