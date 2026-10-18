@@ -73,9 +73,16 @@ local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must sta
 local function LayoutTypeIcons(pb)
 	local list, bar = pb.WLTypeIcons, pb.healthBar
 	if not (list and bar) then return end
+	-- the symbols live inside the client's aura container: it may refuse some calls on them ("secret aspects"),
+	-- so each one goes through pcall and a refusal just leaves that symbol where it is
 	local shown, size = {}, 0
 	for _, it in ipairs(list) do
-		if it:IsVisible() then shown[#shown + 1] = it; size = it:GetWidth() or size end
+		local ok, visible = pcall(it.IsVisible, it)
+		if ok and visible then
+			shown[#shown + 1] = it
+			local okw, w = pcall(it.GetWidth, it)
+			if okw and type(w) == "number" and w > 0 then size = w end
+		end
 	end
 	local n = #shown
 	local total = n * (size + TYPE_GAP)
@@ -91,6 +98,10 @@ local function LayoutTypeIcons(pb)
 		-- the box width without my own shift; unknown before the first layout: then the symbols stay first
 		if w and w > 0 and (w + old[1] + old[2]) - total < math.min(textW, NAME_MIN) then mode, sl, sr = "after", 0, total end
 	end
+	-- nothing changed since the last pass: nothing to anchor again
+	local sig = mode .. ":" .. n .. ":" .. size .. ":" .. sl .. ":" .. sr
+	if pb.WLTypeSig == sig then return end
+	pb.WLTypeSig = sig
 	-- the name box: its left anchor is pushed right, its right anchor left
 	if hasName and (old[1] ~= sl or old[2] ~= sr) then
 		pb.WLNameShift = { sl, sr }
@@ -105,30 +116,37 @@ local function LayoutTypeIcons(pb)
 		end
 	end
 	for k, it in ipairs(shown) do
-		it:ClearAllPoints()
 		local step = (k - 1) * (size + TYPE_GAP)
-		if mode == "before" then it:SetPoint("LEFT", name, "LEFT", -total + step, 0)
-		elseif mode == "after" then it:SetPoint("LEFT", name, "RIGHT", TYPE_GAP + step, 0)
-		else it:SetPoint("RIGHT", bar, "RIGHT", -26 - step, 0) end -- left of the target counter
+		pcall(function()
+			it:ClearAllPoints()
+			if mode == "before" then it:SetPoint("LEFT", name, "LEFT", -total + step, 0)
+			elseif mode == "after" then it:SetPoint("LEFT", name, "RIGHT", TYPE_GAP + step, 0)
+			else it:SetPoint("RIGHT", bar, "RIGHT", -26 - step, 0) end -- left of the target counter
+		end)
 	end
 end
 NA.LayoutTypeIcons = LayoutTypeIcons
 
--- item: a frame or texture placed by LayoutTypeIcons (a frame re-places on show / hide)
+-- item: a frame or texture placed by LayoutTypeIcons. No script is set on it (the container's frames refuse
+-- HookScript): a throttled OnUpdate on a frame of mine, running only while the unit frame is shown, looks again.
 function NA.RegisterTypeIcon(pb, item)
 	pb.WLTypeIcons = pb.WLTypeIcons or {}
 	pb.WLTypeIcons[#pb.WLTypeIcons + 1] = item
-	if not pb.WLTypeHooked and hooksecurefunc then
-		pb.WLTypeHooked = true
-		local function relayout() LayoutTypeIcons(pb) end
+	if pb.WLTypeHooked then return end
+	pb.WLTypeHooked = true
+	local function again() pb.WLTypeSig = nil; LayoutTypeIcons(pb) end
+	if hooksecurefunc then
 		-- SetModulePositions anchors the name again from its settings: my shift is gone, apply it anew
-		pcall(hooksecurefunc, pb, "SetModulePositions", function() pb.WLNameShift = nil; LayoutTypeIcons(pb) end)
-		if pb.Name and pb.Name.SetName then pcall(hooksecurefunc, pb.Name, "SetName", relayout) end
+		pcall(hooksecurefunc, pb, "SetModulePositions", function() pb.WLNameShift = nil; again() end)
+		if pb.Name and pb.Name.SetName then pcall(hooksecurefunc, pb.Name, "SetName", again) end
 	end
-	if item.HookScript then
-		item:HookScript("OnShow", function() LayoutTypeIcons(pb) end)
-		item:HookScript("OnHide", function() LayoutTypeIcons(pb) end)
-	end
+	local ticker, acc = CreateFrame("Frame", nil, pb), 0
+	ticker:SetScript("OnUpdate", function(_, elapsed)
+		acc = acc + elapsed
+		if acc < 0.25 then return end
+		acc = 0
+		LayoutTypeIcons(pb)
+	end)
 end
 
 local function TypeIcon(button, unitFrame, slot)
@@ -158,7 +176,7 @@ local function HealthBarColor(button, unitFrame)
 	local tint = bar:CreateTexture(nil, "ARTWORK", nil, 7)
 	tint:SetAllPoints(fill)
 	AddDispelTexture(button, tint, fill:GetTexture())
-	button:HookScript("OnHide", function() tint:Hide() end)
+	pcall(button.HookScript, button, "OnHide", function() tint:Hide() end) -- the container may refuse scripts on its frames
 end
 
 local function InitButton(button, group, glowParent)
