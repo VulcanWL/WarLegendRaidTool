@@ -120,6 +120,11 @@ local db
 - Keep color codes (`|cff......|r`) and `%s` / `%d` identical in the French string.
 
 ## How to work here
+0. Read `STATUS.md` (next to this file) first: the feature in progress, the decisions already taken, the next step.
 1. Say which file(s) you will touch and why, in one or two lines.
-2. Read them, then edit with small, targeted changes in the existing style.
+2. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
+   `C:\Dev\WarLegendRaidTool`; copy every changed file to the same path in the game's AddOns folder too.
 3. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).
+4. At the end of the session, update `STATUS.md` (French, short): "Maintenant" (version published / unpushed
+   commits, feature in progress, files, decisions, what was verified, next step), move what is done to
+   "Historique", keep "Pistes ouvertes" current. It is not shipped (excluded from the release zip).

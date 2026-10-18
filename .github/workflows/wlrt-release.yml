@@ -37,7 +37,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           ZIP="WarLegendRaidTool-${VERSION}-forever.zip"
           zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP \
-            -x "*/AGENTS.md" "*/.git*" "*/Libs/LibStub/tests/*"
+            -x "*/AGENTS.md" "*/STATUS.md" "*/.git*" "*/Libs/LibStub/tests/*"
           INTERFACE="$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | sed 's/^## Interface:[[:space:]]*//' | tr -d '\r')"
           cat > release.json <<EOF
           {"releases":[{"name":"WarLegendRaidTool","version":"${VERSION}","filename":"${ZIP}","nolib":false,"metadata":[{"flavor":"forever","interface":${INTERFACE}}]}]}
