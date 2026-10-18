@@ -75,13 +75,25 @@ local function LayoutTypeIcons(pb)
 	if not (list and bar) then return end
 	-- the symbols live inside the client's aura container: it may refuse some calls on them ("secret aspects"),
 	-- so each one goes through pcall and a refusal just leaves that symbol where it is
-	local shown, size = {}, 0
+	-- The container's frames may answer "hidden / shown" with a secret value (it cannot even be tested): then
+	-- the symbol slots the container made are all reserved, shown or not, so the name never runs under one.
+	local shown, size, hidden = {}, 0, false
 	for _, it in ipairs(list) do
 		local ok, visible = pcall(it.IsVisible, it)
-		if ok and visible then
+		local secret = ok and issecretvalue and issecretvalue(visible)
+		if secret then hidden = true end
+		if ok and (secret or visible) then
 			shown[#shown + 1] = it
 			local okw, w = pcall(it.GetWidth, it)
-			if okw and type(w) == "number" and w > 0 then size = w end
+			if okw and not (issecretvalue and issecretvalue(w)) and type(w) == "number" and w > 0 then size = w end
+		end
+	end
+	if hidden then -- the ones whose answer was a plain "hidden" are reserved too
+		shown = {}
+		for _, it in ipairs(list) do
+			shown[#shown + 1] = it
+			local okw, w = pcall(it.GetWidth, it)
+			if okw and not (issecretvalue and issecretvalue(w)) and type(w) == "number" and w > 0 then size = w end
 		end
 	end
 	local n = #shown
