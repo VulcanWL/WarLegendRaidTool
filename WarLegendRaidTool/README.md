@@ -92,7 +92,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl summon` | Ouvre la liste de summon. |
 | `/wl trials` | Recrues en essai (selon le rang choisi) : depuis quand, nombre de raids, rappel à la fin de l'essai. |
 | `/wl bank` | Stock et or de mes persos banque (ceux de mon compte au rang « Banque »), avec recherche. |
-| `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers (Ctrl-clic sur une recette : chuchoter l'artisan). |
+| `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers, une ligne par membre et par métier (niveau, nombre de recettes), avec des filtres qui se combinent : nom du joueur, métier, niveau (de - à), recette ou objet. Seuls les membres qui ont l'addon y sont, une fois leurs données reçues (gardées après un redémarrage) ; les recettes d'un métier arrivent quand le membre l'a ouvert une fois. Ctrl-clic : chuchoter l'artisan. |
 | `/wl bg` | Historique de mes premades de BG, stats par joueur, records par BG (victoires les plus rapides). |
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP. |
