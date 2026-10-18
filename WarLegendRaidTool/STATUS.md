@@ -5,9 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (17/10/2026)
 
-- **Version publiée** : 1.27.4 (tag `v1.27.4`). `main` a des commits de plus, **non poussés, non publiés**
-  (Guilde > Métiers ci-dessous, et ce STATUS.md) : `git log v1.27.4..main`. Ils partiront avec la prochaine
-  release, quand l'utilisateur la demandera.
+- **Version publiée** : 1.27.5 (tag `v1.27.5`, 17/10) : Guilde > Métiers, harmonisation des menus, mode synchro
+  des Champs de bataille, outillage (`tools/`). Rien de non poussé sur `main`. **Rien de tout ça n'est encore testé en jeu.**
 - **Fonctionnalité en cours** : Guilde > Métiers, façon onglet Guilde de Retail.
 - **Fichiers** : `Guild.lua` (tout le module), `Settings.lua` (`profMin` / `profMax` hors des profils),
   `README.md` (ligne `/wl craft`).
@@ -40,6 +39,38 @@ Pas dans le zip des releases.
   - le Ctrl-clic chuchote-t-il un « Prénom Nom » ?
   Puis, si l'utilisateur le demande : version 1.27.5 + tag.
 
+## Harmonisation des menus (17/10, 1.27.5)
+
+- **Fichiers** : `Lib.lua` (`W.Cycle`), `Core.lua` (`CATEGORIES`, `OpenKey`, en-tête), `Settings.lua` (`SKIP_FIELDS.ui`),
+  `AGENTS.md`.
+- **Fait** :
+  - Guilde et Options ont les sections repliables « + / - » de Raid (`accordion = true`, une ouverte à la fois).
+    Chaque onglet garde sa section ouverte : `ui.openSection` (Raid, clé inchangée), `ui.openSection_me`,
+    `ui.openSection_options` (hors des profils).
+  - `W.Cycle` = menu déroulant `MenuUtil` (boutons radio, flèche comme le filtre Guilde > Métiers) ; sans `MenuUtil`,
+    un clic passe à la valeur suivante comme avant. Tous les choix à clic de l'addon (29 appels : Guilde, Options,
+    Raid, JcJ) en profitent, dont le style de la fenêtre et le style des cadres JcJ.
+  - En-tête : la langue FR/EN est aussi un menu déroulant ; style / langue : pas de popup de rechargement si on
+    choisit la valeur actuelle.
+  - Style : appliqué à `ADDON_LOADED` (`W.ResolveTheme`), lu par chaque widget à sa construction, aucun module ne le
+    met en cache au chargement : après `/reload`, il vaut partout (y compris addons _Raid / _PvP). Les cadres JcJ ont
+    leur propre style, par côté (choix existant, gardé).
+- **Vérifié** : `node tools/check.js` 0 problème, `bash tools/sync.sh` fait. **Pas testé en jeu.**
+- **À tester** : `/reload`, `/wl` : sections Guilde / Options repliables, un menu déroulant (ex. Guilde > Recrutement
+  intervalle, Options > Niveaux d'objet), style et langue de l'en-tête, puis un changement de style vérifié dans
+  plusieurs fenêtres.
+
+## Champs de bataille : mode synchro (17/10, 1.27.5)
+
+- **Fichier** : `PvP.lua` seulement (`BuildSide` : fonction locale `Set`, case à gauche des sous-onglets).
+- **Fait** : case « Synchro » à gauche d'Ennemis / Alliés (les deux boutons décalés à x = 104). Active : chaque
+  réglage par côté est aussi écrit sur l'autre côté (couleur de barre copiée, une table par côté), sauf le clic de
+  dissipation (alliés seulement). À l'activation rien n'est copié (choix de l'utilisateur). Option scalaire
+  `pvp.syncSides` (défaut `false`), donc pas de `TABLE_FIELDS`.
+- **Vérifié** : `node tools/check.js` 0 problème, `bash tools/sync.sh` fait. **Pas testé en jeu.**
+- **À tester** : `/reload`, `/wl` > Champs de bataille : cocher Synchro, changer un réglage dans Ennemis, ouvrir
+  Alliés (même valeur) ; décocher, vérifier qu'un changement ne touche plus qu'un côté ; mode test pour voir les cadres.
+
 ## Pistes ouvertes (audit du 17/10, non corrigées)
 
 - Emplacement 18 (à distance) : `SimExport.lua` dit qu'il n'existe pas sur Forever, `RaidInspect.lua`,
@@ -52,6 +83,8 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.27.5** (17/10) : Guilde > Métiers (liste de guilde, messages d'addon, liens de métier), sections repliables
+  et menus déroulants dans les trois onglets, case « Synchro » Ennemis / Alliés dans Champs de bataille.
 - **1.27.4** (17/10) : corrections de l'audit de compatibilité :
   - Readiness : réponses en chuchotement ;
   - CD de raid : annonce après un /reload, option de partage respectée, pierre d'âme / Ankh ;
@@ -62,7 +95,4 @@ Pas dans le zip des releases.
   Plus les notes de classes Forever : Rois et Esprit divin deviennent des sorts de base, Sanctuaire est retiré.
 - **1.27.3** (17/10) : niveaux d'objet de l'inspection qui fermaient l'infobulle ; la valeur de CVar suit
   les changements faits ailleurs.
-- **1.27.1 / 1.27.2** (17/10) : l'installation de la 1.27.1 a écrasé une journée de travail faite seulement
-  dans le dossier du jeu, restaurée depuis la conversation. Depuis : **on travaille dans le dépôt `C:\Dev`
-  et on copie chaque changement dans le dossier AddOns**.
-- Versions plus anciennes (1.22.1 à 1.27.0) : `git tag`, `git log`.
+- Versions plus anciennes (1.22.1 à 1.27.2) : `git tag`, `git log`.

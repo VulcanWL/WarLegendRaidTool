@@ -9,7 +9,8 @@ Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Recherche
 La fenêtre a trois onglets : **Raid** (sections Organisation, Préparation, Combat, Butin, JcJ : les outils d'une soirée,
 dans l'ordre), **Guilde** (Membres : guilde, recrues, carte ; Mes personnages : rerolls, banque, export sim) et
 **Options** (Addon : réglages, version, bugs ; Interface : cadres, options cachées, niveaux d'objet, texte de recharge,
-focus, qualité de vie). Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, voix du
+focus, qualité de vie), chacun avec des sections repliables « + / - » (une ouverte à la fois, retenue) ; les choix
+de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style).
 
@@ -95,7 +96,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers (premier onglet, puis Recrutement et Inactifs), une ligne par membre et par métier avec son relevé le plus récent (niveau, nombre de recettes), avec des filtres qui se combinent : nom du joueur, menu déroulant (Recette ou objet, Tous les métiers, puis chaque métier), niveau (de - à), recette ou objet. Trois sources, indiquées dans la colonne Source : la liste de guilde du serveur (comme l'onglet Guilde de Retail : 2 métiers principaux, niveau sans maximum, quand le serveur les donne), le WarLegend RaidTool du membre (tous ses métiers, niveau/max, recettes une fois le métier ouvert, fenêtre Blizzard ou Naowh ; messages d'addon invisibles, désactivables, jamais de chat) et les liens de métier (Maj-clic sur un lien pendant que l'onglet est ouvert : le métier seulement, un lien ne contient pas le niveau). Données gardées après un redémarrage. Ctrl-clic : chuchoter l'artisan. |
 | `/wl bg` | Historique de mes premades de BG, stats par joueur, records par BG (victoires les plus rapides). |
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
-| `/wl pvp` | Réglages des cadres PvP. |
+| `/wl pvp` | Réglages des cadres PvP, par côté (sous-onglets Ennemis / Alliés). Case « Synchro » à leur gauche : un réglage changé s'applique aux deux côtés (les réglages déjà différents restent tels quels). |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |
 | `/wl caps` | Chronos de BG au style Capping : capture des bases (Darkspear Island, Arathi 1 min, Alterac 5 min), début de la bataille, file d'attente, réapparition du drapeau. Style BigWigs : la barre passe au centre pour ses 5 dernières secondes, avec un gros décompte 5-4-3-2-1 et la voix. Maj-clic : /dire, Ctrl-clic : canal du BG. |
 | `/wl danger` | Alerte danger (monde ouvert) : message + son quand un joueur ennemi JcJ, un monstre « tête de mort » ou un élite rouge approche. |

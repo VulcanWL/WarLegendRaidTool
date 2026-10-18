@@ -11,6 +11,10 @@ local loaded, loadFailed, waitCombat = false, false, false
 
 W.AddFR({
     ["Battleground frames"] = "Cadres de CdB",
+    ["Sync"] = "Synchro",
+    ["Sync mode: a setting changed in Enemies or Allies applies to both sides."] =
+        "Mode synchro : un réglage changé dans Ennemis ou Alliés s'applique aux deux côtés.",
+    ["Settings already different stay as they are."] = "Les réglages déjà différents restent tels quels.",
     ["The PvP module is missing or disabled: install the folder WarLegendRaidTool_PvP next to WarLegendRaidTool."] =
         "Le module PvP est absent ou désactivé : installe le dossier WarLegendRaidTool_PvP à côté de WarLegendRaidTool.",
     ["Not in combat: the frames are loaded after the fight."] = "Pas en combat : les cadres seront chargés après le combat.",
@@ -112,7 +116,7 @@ local function MaybeLoad()
 end
 
 W.OnReady(function()
-    db = W.DB("pvp", { enabled = true })
+    db = W.DB("pvp", { enabled = true, syncSides = false })
     if type(db.bgMessages) ~= "table" then db.bgMessages = {} end
 end)
 W.On("PLAYER_ENTERING_WORLD", MaybeLoad)
@@ -234,55 +238,65 @@ end
 
 -- the frames of one side (Enemies / Allies)
 local function BuildSide(f, pvp, side)
+    -- sync mode: a change goes to both sides (the other tab rereads its values on show); the dispel click
+    -- exists only for the allies
+    local other = side == "Enemies" and "Allies" or "Enemies"
+    local function Set(key, v, moduleName)
+        pvp:SetSideSetting(side, key, v, moduleName)
+        if db.syncSides and key ~= "ClickDispel" then
+            if type(v) == "table" then v = { v[1], v[2], v[3] } end -- the bar color: one table per side
+            pvp:SetSideSetting(other, key, v, moduleName)
+        end
+    end
     W.Check(f, L("Show these frames"), function() return pvp:GetSideSetting(side, "Enabled") end,
-        function(v) pvp:SetSideSetting(side, "Enabled", v) end):SetPoint("TOPLEFT", 12, -4)
+        function(v) Set("Enabled", v) end):SetPoint("TOPLEFT", 12, -4)
     -- style of this side
     W.Label(f, L("Style:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -9)
     local styles = {}
     for _, s in ipairs(STYLES) do styles[#styles + 1] = { s[1], L(s[2]) } end
     W.Cycle(f, 120, styles, function() return pvp:GetSideSetting(side, "Style") end,
-        function(v) pvp:SetSideSetting(side, "Style", v) end):SetPoint("TOPLEFT", 290, -4)
+        function(v) Set("Style", v) end):SetPoint("TOPLEFT", 290, -4)
     -- edge of the texts: shadow (smooth) or the game's outline (sharper, a bit pixelated)
     W.Label(f, L("Text:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 424, -9)
     W.Cycle(f, 120, { { "shadow", L("Shadow") }, { "outline", L("Outline") }, { "thick", L("Thick outline") } },
         function() return pvp:GetSideSetting(side, "TextOutline") end,
-        function(v) pvp:SetSideSetting(side, "TextOutline", v) end):SetPoint("TOPLEFT", 464, -4)
+        function(v) Set("TextOutline", v) end):SetPoint("TOPLEFT", 464, -4)
 
     local rows = { { L("Width:"), "Width", WIDTHS }, { L("Height:"), "Height", HEIGHTS }, { L("Scale:"), "Scale", SCALES } }
     for i, row in ipairs(rows) do
         local x = 16 + (i - 1) * 140
         W.Label(f, row[1], "GameFontHighlightSmall"):SetPoint("TOPLEFT", x, -38)
         W.Cycle(f, 64, row[3], function() return pvp:GetSideSetting(side, row[2]) end,
-            function(v) pvp:SetSideSetting(side, row[2], v) end):SetPoint("TOPLEFT", x + 58, -33)
+            function(v) Set(row[2], v) end):SetPoint("TOPLEFT", x + 58, -33)
     end
 
     W.Check(f, L("Health in %"), function() return pvp:GetSideSetting(side, "HealthText") end,
-        function(v) pvp:SetSideSetting(side, "HealthText", v) end):SetPoint("TOPLEFT", 12, -62)
+        function(v) Set("HealthText", v) end):SetPoint("TOPLEFT", 12, -62)
     if side == "Allies" and pvp.GetDispelSpell then
         W.Check(f, L("Right-click: dispel, middle-click: 2nd dispel (my class)"),
             function() return pvp:GetSideSetting(side, "ClickDispel") end,
-            function(v) pvp:SetSideSetting(side, "ClickDispel", v) end):SetPoint("TOPLEFT", 220, -62)
+            function(v) Set("ClickDispel", v) end):SetPoint("TOPLEFT", 220, -62)
     end
 
     -- out of range: grey, and the distance it is checked at
     W.Check(f, L("Out of range: grey"), function() return pvp:GetSideSetting(side, "RangeDesat") end,
-        function(v) pvp:SetSideSetting(side, "RangeDesat", v) end):SetPoint("TOPLEFT", 12, -86)
+        function(v) Set("RangeDesat", v) end):SetPoint("TOPLEFT", 12, -86)
     W.Label(f, L("Range:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 236, -92)
     local ranges = {}
     for _, r in ipairs(RANGES) do ranges[#ranges + 1] = { r[1], type(r[1]) == "string" and L(r[2]) or r[2] } end
     W.Cycle(f, 84, ranges, function() return pvp:GetSideSetting(side, "Range") end,
-        function(v) pvp:SetSideSetting(side, "Range", v) end, { L("My spells: the range of my main spell, as the action buttons."),
+        function(v) Set("Range", v) end, { L("My spells: the range of my main spell, as the action buttons."),
             L("Blizzard: the check of Blizzard's raid frames (allies; my spells for the enemies).") }):SetPoint("TOPLEFT", 290, -87)
     -- the class / spec icon (on the right of the ally frames: the debuffs then stick to the bar)
     W.Check(f, L("Class icon"), function() return pvp:GetSideSetting(side, "Modules", "SpecClassPriorityOne") end,
-        function(v) pvp:SetSideSetting(side, "Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 392, -86)
+        function(v) Set("Modules", v, "SpecClassPriorityOne") end):SetPoint("TOPLEFT", 392, -86)
 
     -- health bar color: class color, or one color for every player of this side (color picker), and the name
     -- in the class color
     W.Label(f, L("Bar color:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -116)
     W.Cycle(f, 90, { { "class", L("Class") }, { "custom", L("One color") } },
         function() return pvp:GetSideSetting(side, "BarColorMode") end,
-        function(v) pvp:SetSideSetting(side, "BarColorMode", v) end):SetPoint("TOPLEFT", 134, -111)
+        function(v) Set("BarColorMode", v) end):SetPoint("TOPLEFT", 134, -111)
     local swatch = CreateFrame("Button", nil, f, W.BT)
     W.Size(swatch, 22, 18)
     swatch:SetPoint("TOPLEFT", 230, -113)
@@ -299,16 +313,16 @@ local function BuildSide(f, pvp, side)
     swatch:SetScript("OnClick", function()
         local c = pvp:GetSideSetting(side, "BarColor")
         PickColor(c[1], c[2], c[3], function(r, g, b)
-            pvp:SetSideSetting(side, "BarColor", { r, g, b })
+            Set("BarColor", { r, g, b })
             ShowSwatch()
         end)
     end)
     W.Tooltip(swatch, L("Bar color:"), { L("Click: choose the color of every bar of this side (\"One color\").") })
     W.Check(f, L("Name in the class color"), function() return pvp:GetSideSetting(side, "NameClassColor") end,
-        function(v) pvp:SetSideSetting(side, "NameClassColor", v) end):SetPoint("TOPLEFT", 270, -110)
+        function(v) Set("NameClassColor", v) end):SetPoint("TOPLEFT", 270, -110)
     -- the 1 px black frame around each player (by default: as the style)
     W.Check(f, L("Border"), function() return pvp:GetSideSetting(side, "Border") end,
-        function(v) pvp:SetSideSetting(side, "Border", v) end):SetPoint("TOPLEFT", 460, -110)
+        function(v) Set("Border", v) end):SetPoint("TOPLEFT", 460, -110)
 
     W.Label(f, L("Shown on each player:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -142)
     for i, moduleName in ipairs(pvp.ToggleableModules) do
@@ -317,7 +331,7 @@ local function BuildSide(f, pvp, side)
             local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
             W.Check(f, module.localizedModuleName or moduleName,
                 function() return pvp:GetSideSetting(side, "Modules", moduleName) end,
-                function(v) pvp:SetSideSetting(side, "Modules", v, moduleName) end
+                function(v) Set("Modules", v, moduleName) end
             ):SetPoint("TOPLEFT", 12 + col * 220, -158 - row * 24)
         end
     end
@@ -417,6 +431,16 @@ W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     p:HookScript("OnShow", ShowCount) -- after a reset, or a change made elsewhere
 
     local tabs = W.SubTabs(p, { L("Enemies"), L("Allies") }, nil, -224)
+    -- sync mode, on the left of the sub-tabs: they move right to make room
+    W.Check(p, L("Sync"), function() return db.syncSides end, function(v) db.syncSides = v end,
+        { L("Sync mode: a setting changed in Enemies or Allies applies to both sides."),
+            L("Settings already different stay as they are.") }):SetPoint("TOPLEFT", 8, -223)
+    local x = 104
+    for _, b in ipairs(tabs.buttons) do
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", x, -224)
+        x = x + b:GetWidth() + 4
+    end
     BuildSide(tabs.frames[1], pvp, "Enemies")
     BuildSide(tabs.frames[2], pvp, "Allies")
     tabs:Select(1)
