@@ -220,10 +220,17 @@ local function BuildPage(p, entries)
                     W.Label(p, L(e[2]), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 18, y - 5)
                     local vals = {}
                     for _, v in ipairs(e.values) do vals[#vals + 1] = { v[1], L(v[2]) } end
+                    local nVals, extra = #vals, nil
                     W.Cycle(p, 150, vals, function()
                         local cur = Get(cvar)
                         -- "41.000" and "41" are the same value
                         for _, v in ipairs(vals) do if tonumber(v[1]) and tonumber(cur) == tonumber(v[1]) then return v[1] end end
+                        -- a value that is not in the list (set elsewhere): show it as it is, not the first entry
+                        if cur and cur ~= "" then
+                            if extra then vals[nVals + 1] = nil end
+                            vals[nVals + 1] = { cur, cur }
+                            extra = true
+                        end
                         return cur
                     end, function(v) Set(cvar, v, true) end):SetPoint("TOPLEFT", 330, y)
                 else

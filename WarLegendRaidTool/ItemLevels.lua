@@ -239,6 +239,17 @@ local function InspectAverage(unit)
     AverageText(inspectAvg, value)
 end
 
+-- Repaint OUR marks only. Calling Blizzard's UpdateButtons here re-runs InspectPaperDollItemSlotButton_Update
+-- on every slot, which closes the item tooltip the cursor is on.
+local INSPECT_SLOTS = { "Head", "Neck", "Shoulder", "Back", "Chest", "Wrist", "Hands", "Waist", "Legs", "Feet",
+    "Finger0", "Finger1", "Trinket0", "Trinket1", "MainHand", "SecondaryHand", "Ranged" }
+local function RepaintInspect(unit)
+    for _, name in ipairs(INSPECT_SLOTS) do
+        local button = _G["Inspect" .. name .. "Slot"]
+        if button and button.GetID then Mark(button, GetInventoryItemLink(unit, button:GetID()), "inspect") end
+    end
+end
+
 local function HookInspect()
     if type(InspectPaperDollItemSlotButton_Update) ~= "function" then return end
     hooksecurefunc("InspectPaperDollItemSlotButton_Update", W.Timed("hook inspect window", function(button)
@@ -252,8 +263,7 @@ local function HookInspect()
             W.After(1.5, function()
                 inspectRetry = false
                 if InspectFrame and InspectFrame:IsShown() and InspectFrame.unit then
-                    if InspectPaperDollFrame and InspectPaperDollFrame.UpdateButtons then InspectPaperDollFrame:UpdateButtons()
-                    elseif InspectPaperDollFrame_UpdateButtons then InspectPaperDollFrame_UpdateButtons() end
+                    if On("inspect") then RepaintInspect(InspectFrame.unit) end
                     InspectAverage(InspectFrame.unit)
                 end
             end)
