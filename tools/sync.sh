@@ -4,6 +4,8 @@
 # A game file is overwritten only when it is missing or is a version git already knows (some past commit or the
 # index): a file changed ONLY in the game folder is skipped and listed, so no work is lost (see 1.27.1).
 # --force overwrites those too. Nothing is ever deleted in the game folder. Prints only what it did.
+# Only files git tracks (committed or "git add"-ed) are copied: untracked files are listed, ignored ones never seen.
+# Symbolic links are never followed, in the repo or in the game folder (skipped and listed).
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 GAME="${WLRT_GAME:-/c/Program Files (x86)/World of Warcraft/_classic_beta_/Interface/AddOns}"
@@ -12,9 +14,24 @@ FORCE=0
 cd "$REPO" || exit 1
 [ -d "$GAME" ] || { echo "Game AddOns folder not found: $GAME"; exit 1; }
 
-copied=0; skipped=0
-while IFS= read -r f; do
+ADDONS=(WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP)
+copied=0; skipped=0; untracked=0
+while IFS= read -r -d '' f; do
+    echo "NOT TRACKED (git add it to sync): $f"
+    untracked=$((untracked + 1))
+done < <(git ls-files -z -o --exclude-standard -- "${ADDONS[@]}")
+
+# -s gives "mode blob stage<TAB>path": mode 120000 is a symbolic link, even where git checked it out as a plain file
+while IFS= read -r -d '' entry; do
+    mode="${entry%% *}"
+    f="${entry#*$'\t'}"
     dst="$GAME/$f"
+    if [ "$mode" = "120000" ] || [ -L "$f" ] || [ -L "$dst" ]; then
+        echo "SKIP (symbolic link): $f"
+        skipped=$((skipped + 1))
+        continue
+    fi
+    [ -f "$f" ] || continue # in the index but deleted on disk
     [ -f "$dst" ] && cmp -s "$f" "$dst" && continue
     if [ -f "$dst" ] && [ $FORCE -eq 0 ]; then
         blob="$(git hash-object --path="$f" "$dst")"
@@ -26,7 +43,7 @@ while IFS= read -r f; do
     fi
     mkdir -p "$(dirname "$dst")"
     cp "$f" "$dst" && echo "copied: $f" && copied=$((copied + 1))
-done < <(git ls-files -co --exclude-standard -- WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP)
+done < <(git ls-files -z -s -- "${ADDONS[@]}")
 
-echo "$copied copied, $skipped skipped."
+echo "$copied copied, $skipped skipped, $untracked not tracked."
 [ $skipped -eq 0 ]

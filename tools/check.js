@@ -4,6 +4,8 @@
 // Prints only the problems, then one summary line. Exit code 1 when something is wrong.
 // Checks: UTF-8 BOM / CRLF, Lua 5.1 syntax, .toc entries <-> files, global writes, unknown lowercase
 // global reads, and names used above the line where the same file declares them local (nil in game).
+// Cross-file (three addons): W.X used but never assigned; W.slash.x <-> HELP (Core.lua) <-> README "Commandes";
+// W.RegisterModule keys <-> CATEGORIES; prefixes sent <-> received, raid addon prefixes <-> lodPrefix; L("...") without W.AddFR.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -58,7 +60,7 @@ function checkLua(file) {
         ast = luaparse.parse(src.replace(/^﻿/, ""), { luaVersion: "5.1", scope: true, locations: true });
     } catch (e) {
         report(file, e.line || 0, "syntax: " + e.message);
-        return;
+        return null;
     }
     // Locals declared directly in the chunk (file scope), with the line of their declaration.
     const fileLocals = new Map();
@@ -89,6 +91,7 @@ function checkLua(file) {
             report(file, line, "unknown lowercase global '" + n.name + "'");
         }
     });
+    return ast;
 }
 
 function luaFiles(dir) {
@@ -101,7 +104,154 @@ function luaFiles(dir) {
     return out;
 }
 
+// Value of a Lua string literal node (luaparse leaves .value null), else undefined.
+function luaStr(n) {
+    if (!n || n.type !== "StringLiteral") return undefined;
+    const raw = n.raw;
+    const long = raw.match(/^\[(=*)\[\n?([\s\S]*)\]\1\]$/);
+    if (long) return long[2];
+    const ESC = { n: "\n", t: "\t", r: "\r", a: "\x07", b: "\b", f: "\f", v: "\v", "\n": "\n" };
+    return raw.slice(1, -1).replace(/\\(\d{1,3}|[\s\S])/g, (_, c) =>
+        /^\d/.test(c) ? String.fromCharCode(+c) : (ESC[c] !== undefined ? ESC[c] : c));
+}
+
+// W.X (or WLRT.X): the field name X, else null.
+const W_BASES = new Set(["W", "WLRT"]);
+function wField(n) {
+    return n && n.type === "MemberExpression" && n.base.type === "Identifier" && W_BASES.has(n.base.name)
+        ? n.identifier.name : null;
+}
+
+// Name of the function called: "W.Send", "L", ... (null for anything more complex).
+function callee(n) {
+    if (n.type !== "CallExpression" && n.type !== "StringCallExpression" && n.type !== "TableCallExpression") return null;
+    const b = n.base;
+    if (b.type === "Identifier") return b.name;
+    const f = wField(b);
+    return f ? "W." + f : null;
+}
+const callArgs = (n) => n.arguments || (n.argument ? [n.argument] : []);
+
+// Checks across files and addons: W fields, /wl commands, module keys, addon-message prefixes, French texts.
+function crossChecks() {
+    const at = (file, n) => [file, n.loc.start.line];
+    const core = parsed.find((p) => p.addon === ADDONS[0] && path.basename(p.file) === "Core.lua");
+    const assigned = new Set(), used = []; // W fields
+    const slash = new Map(), modules = new Map(), sends = new Map(), recvs = new Map(), texts = [], fr = new Set();
+    const SEND = new Set(["W.Send", "W.SendLong", "W.SendRaw", "W.Queue"]), RECV = new Set(["W.OnAddon", "W.OnAddonLong"]);
+    const addKeys = (tbl) => {
+        if (tbl && tbl.type === "TableConstructorExpression") for (const f of tbl.fields) {
+            const k = f.type === "TableKey" ? luaStr(f.key) : undefined;
+            if (k !== undefined) fr.add(k);
+        }
+    };
+    for (const { file, addon, ast } of parsed) {
+        // local NAME = "string" constants of the file (addon-message prefixes are kept that way)
+        const consts = new Map();
+        const targets = new Set();
+        walk(ast, (n) => {
+            if (n.type === "LocalStatement") {
+                n.variables.forEach((v, i) => {
+                    const s = luaStr(n.init[i]);
+                    if (s !== undefined) consts.set(v.name, s);
+                    if (v.name === "FR") addKeys(n.init[i]); // Locale.lua's base French table
+                });
+            } else if (n.type === "AssignmentStatement") {
+                for (const t of n.variables) targets.add(t);
+            } else if (n.type === "FunctionDeclaration" && n.identifier) {
+                targets.add(n.identifier);
+            }
+        });
+        const prefixOf = (arg) => {
+            const s = luaStr(arg);
+            if (s !== undefined) return s;
+            return arg && arg.type === "Identifier" && consts.has(arg.name) ? consts.get(arg.name) : undefined;
+        };
+        walk(ast, (n) => {
+            const f = wField(n);
+            if (f) { if (targets.has(n)) assigned.add(f); else used.push([f, file, n]); }
+            if (n.type === "MemberExpression" && targets.has(n) && wField(n.base) === "slash") slash.set(n.identifier.name, at(file, n));
+            if (n.type === "IndexExpression" && targets.has(n) && wField(n.base) === "slash" && luaStr(n.index) !== undefined) {
+                slash.set(luaStr(n.index), at(file, n));
+            }
+            const c = callee(n);
+            if (!c) return;
+            const a = callArgs(n);
+            if (c === "W.AddFR") addKeys(a[0]);
+            else if (c === "L" || c === "W.L") { const s = luaStr(a[0]); if (s !== undefined) texts.push([s, file, n]); }
+            else if (c === "W.RegisterModule") { const s = luaStr(a[0]); if (s !== undefined) modules.set(s, at(file, n)); }
+            else if (SEND.has(c) || RECV.has(c)) {
+                const p = prefixOf(a[0]);
+                if (p === undefined) return; // a variable (the queue, the long-message layer): not a module's prefix
+                const m = SEND.has(c) ? sends : recvs;
+                if (!m.has(p)) m.set(p, { where: at(file, n), addon });
+            }
+        });
+    }
+
+    // 1. W.X read or called but never assigned in any of the three addons
+    for (const [f, file, n] of used) if (!assigned.has(f)) report(file, n.loc.start.line, "W." + f + " is never assigned (typo or removed function?)");
+
+    if (!core) { problems.push("Core.lua not found: /wl, CATEGORIES and lodPrefix checks skipped"); }
+    else {
+        // Core.lua tables: HELP (first string of each entry), CATEGORIES (every items list), lodPrefix (strings of its loop)
+        const help = new Map(), cats = new Map(), lod = new Map(), direct = new Map();
+        walk(core.ast, (n) => {
+            if (n.type === "LocalStatement" && n.variables[0].name === "HELP") {
+                for (const e of n.init[0].fields) {
+                    const s = luaStr(e.value.fields && e.value.fields[0] && e.value.fields[0].value);
+                    const m = s && s.match(/^\/wl\s+(\S+)/);
+                    if (m) help.set(m[1], e.loc.start.line);
+                }
+            } else if (n.type === "LocalStatement" && n.variables[0].name === "CATEGORIES") {
+                walk(n.init[0], (k) => {
+                    if (k.type === "TableKeyString" && k.key.name === "items") for (const i of k.value.fields) cats.set(luaStr(i.value), i.loc.start.line);
+                });
+            } else if (n.type === "ForGenericStatement" && n.body.some((st) => st.type === "AssignmentStatement" &&
+                    st.variables[0].type === "IndexExpression" && st.variables[0].base.name === "lodPrefix")) {
+                walk(n.iterators, (k) => { const s = luaStr(k); if (s !== undefined) lod.set(s, k.loc.start.line); });
+            } else if (n.type === "BinaryExpression" && n.operator === "==" && n.left.type === "Identifier" && n.left.name === "cmd") {
+                const s = luaStr(n.right); // commands handled directly in Slash (/wl minimap)
+                if (s) direct.set(s, n.loc.start.line);
+            }
+        });
+        // README.md "Commandes" section: first word after /wl in the first cell of each row
+        const readme = path.join(root, ADDONS[0], "README.md");
+        const doc = new Map();
+        if (fs.existsSync(readme)) {
+            let inCmds = false;
+            fs.readFileSync(readme, "utf8").split("\n").forEach((l, i) => {
+                if (/^## /.test(l)) inCmds = /^## Commandes/.test(l);
+                const m = inCmds && l.match(/^\|\s*`\/wl\s+([^\s`]+)/);
+                if (m) doc.set(m[1], i + 1);
+            });
+        } else problems.push(path.relative(root, readme) + ": not found");
+        const coreFile = core.file;
+        // 2. /wl sub-commands <-> HELP <-> README
+        const cmds = new Set([...slash.keys(), ...direct.keys()]);
+        for (const c of cmds) {
+            const w = slash.get(c) || [coreFile, direct.get(c)];
+            if (!help.has(c)) report(w[0], w[1], "/wl " + c + " missing from HELP (Core.lua)");
+            if (!doc.has(c)) report(w[0], w[1], "/wl " + c + " missing from README.md Commandes");
+        }
+        for (const [c, line] of help) if (!cmds.has(c)) report(coreFile, line, "HELP lists /wl " + c + " but no W.slash." + c);
+        for (const [c, line] of doc) if (!cmds.has(c)) report(readme, line, "README lists /wl " + c + " but no W.slash." + c);
+        // 3. module keys <-> CATEGORIES
+        for (const [k, w] of modules) if (!cats.has(k)) report(w[0], w[1], "module '" + k + "' missing from CATEGORIES (Core.lua)");
+        for (const [k, line] of cats) if (!modules.has(k)) report(coreFile, line, "CATEGORIES lists '" + k + "' but no W.RegisterModule(\"" + k + "\")");
+        // 4b. prefixes received by the raid addon must wake it up (lodPrefix), and only those
+        for (const [p, r] of recvs) if (r.addon === ADDONS[1] && !lod.has(p)) report(r.where[0], r.where[1], "prefix " + p + " received by the raid addon but missing from lodPrefix (Core.lua)");
+        for (const [p, line] of lod) if (!recvs.has(p) || recvs.get(p).addon !== ADDONS[1]) report(coreFile, line, "lodPrefix lists " + p + " but the raid addon does not receive it");
+    }
+    // 4. prefixes sent but never received, and the reverse
+    for (const [p, s] of sends) if (!recvs.has(p)) report(s.where[0], s.where[1], "prefix " + p + " is sent but never received (W.OnAddon / W.OnAddonLong)");
+    for (const [p, r] of recvs) if (!sends.has(p)) report(r.where[0], r.where[1], "prefix " + p + " is received but never sent (W.Send / W.SendLong / W.Queue)");
+    // 5. L("text") without a French text (W.AddFR, Locale.lua's FR)
+    for (const [s, file, n] of texts) if (!fr.has(s)) report(file, n.loc.start.line, "no French text for L(" + JSON.stringify(s) + ")");
+}
+
 let count = 0;
+const parsed = []; // { file, addon, ast } of every file that parsed, for the cross-file checks
 for (const addon of ADDONS) {
     const dir = path.join(root, addon);
     if (!fs.existsSync(dir)) { problems.push(addon + ": folder not found under " + root); continue; }
@@ -126,9 +276,11 @@ for (const addon of ADDONS) {
     for (const f of luaFiles(dir)) {
         count++;
         if (!listed.has(path.normalize(f).toLowerCase())) report(f, 1, "not listed in " + addon + ".toc (WoW will not load it)");
-        checkLua(f);
+        const ast = checkLua(f);
+        if (ast) parsed.push({ file: f, addon, ast });
     }
 }
+if (parsed.length) crossChecks();
 
 for (const p of problems) console.log(p);
 console.log(count + " Lua files checked, " + problems.length + " problem(s).");

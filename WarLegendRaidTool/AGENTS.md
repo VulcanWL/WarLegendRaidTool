@@ -109,7 +109,9 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
    `C:\Dev\WarLegendRaidTool`; then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
    and skips (lists) any file changed only there — never overwrite those without asking.
 4. Before saying the code is verified, and before every push: `node tools/check.js` (syntax Lua 5.1, BOM / CRLF, .toc,
-   globals, names used above their `local` declaration). Read every line it prints. Never filter its output.
+   globals, names used above their `local` declaration; across the three addons: `W.X` never assigned, `/wl` commands
+   vs HELP / README, module keys vs `CATEGORIES`, addon prefixes sent vs received vs `lodPrefix`, `L()` without French).
+   Read every line it prints. Never filter its output. No need to re-check those by hand.
 5. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).
 6. At the end of the session, update `STATUS.md` (French, short): "Maintenant" (version published / unpushed
    commits, feature in progress, files, decisions, what was verified, next step), move what is done to
@@ -124,3 +126,9 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
 - Web pages: `get_page_text` / `read_page` or a `zoom` on one region rather than full screenshots.
 - Batch independent reads / searches in one call. No sub-agents for code search here: a targeted Grep is cheaper.
 - Never trade a needed check for tokens: say the trade-off instead.
+- **Local AI** (Ollama on the user's PC, nothing leaves it): `node tools/ask-local.js "instruction" --file path`.
+  The script reads the files, so you only read its short answer. Use it when it saves real reading: summary of a long
+  log / diff / error dump / big file you would otherwise read, first French draft of many new `L()` strings. Not for
+  a few lines (slower than doing it yourself), never for WoW API, code or design decisions; check what it returns.
+  While WoW runs it puts on the graphics card only what fits with 4 GB of video memory left free for the game, the
+  rest on 3 CPU threads at low priority. An answer takes about 20 s to 1 minute: run long ones in the background.
