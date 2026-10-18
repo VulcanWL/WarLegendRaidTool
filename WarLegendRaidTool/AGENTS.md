@@ -102,6 +102,8 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
    feature or module), when the current feature is done and verified, or when the session is long (about 100 exchanges,
    or a compaction already happened). Same session for a fix, a follow-up or a test result of the current work. When it
    is "new session", update `STATUS.md` first so the next one starts from it.
+   **Vague request** (which module, which behaviour, what "done" looks like is unclear): ask short questions first
+   (`AskUserQuestion`, 1 to 4 questions with choices) instead of exploring the code to guess. The user prefers that.
 2. Say which file(s) you will touch and why, in one or two lines.
 3. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
    `C:\Dev\WarLegendRaidTool`; then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
