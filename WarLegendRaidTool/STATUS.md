@@ -5,7 +5,7 @@ Pas dans le zip des releases.
 
 ## Maintenant (18/10/2026)
 
-- **Version publiée** : 1.28.1 (tag `v1.28.1`) : sécurité des messages d'addon (1.27.6), tableau de bord de guilde
+- **Version publiée** : 1.28.2 (tag `v1.28.2`, correctif « secret boolean » de NativeAuras + option Barre d'énergie, testés en jeu, aucune erreur) ; base 1.28.1 : sécurité des messages d'addon (1.27.6), tableau de bord de guilde
   (`/wl dashboard`), échange de loot du Loot Council, symboles de dispel avant / après le nom, partage de `/wl` avec
   WoWHead Looter (répartiteur dans `Core.lua`, `ClaimSlash`), outillage (hook `pre-push`, hook Claude Code, `sync.sh`
   qui retient ses dernières copies).
@@ -19,10 +19,11 @@ Pas dans le zip des releases.
      README. Pas encore testée en jeu.
   3. `tools/sync.sh` (retient ce qu'il copie dans `.git/wlrt-synced`) et `AGENTS.md` (le dossier du jeu doit toujours
      avoir la dernière version).
+- **Non commité (après la 1.28.2)** : onglet **Transports** dans Carte de guilde (`Transports.lua`, `TransportsData.lua` généré par `node tools/gen-transports.js <dossier Nauticus>`, données MIT de NauticusClassicResurrected). Apprentissage par points de déclenchement, partage GUILD `WLRT_TRANSP`, pastilles carte + minicarte, arrêt total en PvP / donjon. **Jamais testé en jeu** (icône `Minimap\Tracking\FlightMaster`, `UnitOnTaxi`, `GetServerTime`, déclencheurs à vérifier).
 - **Règle** : après chaque changement, `bash tools/sync.sh` puis confirmer que le dossier du jeu est à jour ; jamais de tag
   avec le jeu en retard. Les erreurs Lua se lisent dans `WTFAccount...SavedVariables!BugGrabber.lua` (écrit au
   `/reload`) avec un petit script luaparse, ou `/wl bugs`.
-- **Prochaine étape** : 1.28.2 préparée (commits + .toc + tag local `v1.28.2`), test en jeu confirmé par l'utilisateur ; reste le push de `main` puis du tag, sur son accord.
+- **Prochaine étape** : 1.28.2 publiée (main + tag poussés) ; il reste à tester en jeu les points 1.28.0 ci-dessous.
 - **À tester aussi (1.28.0, jamais testé en jeu)** : tableau de bord (pièces de set via le 16e retour de `GetItemInfo`
   et gemmes via `GetItemStats`, API non vérifiées sur Forever), échange du Loot Council (`ClickTradeButton`,
   `UnitName("NPC")`), `/wl` avec WoWHead Looter installé.

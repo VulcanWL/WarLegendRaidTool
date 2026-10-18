@@ -45,5 +45,7 @@ MoveFrames.lua
 InterfaceOptions.lua
 ItemLevels.lua
 GuildPositions.lua
+TransportsData.lua
+Transports.lua
 Settings.lua
 VersionCheck.lua

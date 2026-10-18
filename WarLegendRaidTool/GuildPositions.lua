@@ -5,6 +5,7 @@
 local W = WLRT
 W.AddFR({
     ["Guild map"] = "Carte de guilde",
+    ["Members"] = "Membres",
     ["Share my position with the guild"] = "Partager ma position avec la guilde",
     ["Show the guild on the world map"] = "Afficher la guilde sur la carte du monde",
     ["Show the guild on the minimap"] = "Afficher la guilde sur la minicarte",
@@ -232,7 +233,10 @@ W.On("PLAYER_LOGOUT", StopSharing)
 
 W.RegisterModule("GuildPositions", "Guild map", function(p)
     W.Title(p, L("Guild map"))
-    local y = -40
+    local tabs = W.SubTabs(p, { L("Members"), L("Transports") })
+    if W.TransportsPanel then W.TransportsPanel(tabs.frames[2]) end
+    p = tabs.frames[1]
+    local y = -8
     if standalone then
         local warn = W.Label(p, L("The GuildMap addon is loaded: disable it, this module replaces it (members with GuildMap are still seen)."), "GameFontHighlight")
         warn:SetPoint("TOPLEFT", 16, y)
@@ -265,6 +269,7 @@ W.RegisterModule("GuildPositions", "Guild map", function(p)
     info:SetWidth(680)
     info:SetJustifyH("LEFT")
     info:SetTextColor(0.7, 0.7, 0.7)
+    tabs:Select(1)
 end)
 
 W.slash.map = function() W.Toggle("GuildPositions") end
