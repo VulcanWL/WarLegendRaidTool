@@ -478,7 +478,7 @@ end
 
 Receive.N = function(t, from, full)
     local c = Cand(t, from, full)
-    if c then c.note = (t[4] or ""):sub(1, MAX_NOTE); LC.RefreshVote() end
+    if c then c.note = W.Plain(t[4], MAX_NOTE); LC.RefreshVote() end
 end
 
 -- votes: voter and candidate are full identities (t[4] = the candidate's key)
@@ -504,8 +504,10 @@ Receive.A = function(t, from, full)
     local item = S.items[tonumber(t[3]) or 0]
     if not item then return end
     local c = item.cands[t[4]]
-    local winner = c and c.name or W.BaseName(t[4] or "?")
-    item.winner, item.winnerName, item.winResp = t[4], winner, t[5]
+    local winner = c and c.name or W.Plain(W.BaseName(t[4] or "?"), 40)
+    local resp = (t[5] == "" or RESP_BY[t[5]]) and t[5] or "pass" -- a known answer only (it is saved in the history)
+    t[5] = resp
+    item.winner, item.winnerName, item.winResp = t[4], winner, resp
     local votes = 0
     if c then for _ in pairs(c.votes) do votes = votes + 1 end end
     Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes })

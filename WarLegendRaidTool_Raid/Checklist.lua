@@ -75,18 +75,18 @@ local function Decode(s)
 end
 
 -- L = list shared, Q = how many do you have, A = answer
-W.OnAddonLong(PREFIX, function(msg, from, _, full)
+W.OnAddonLong(PREFIX, function(msg, from, channel, full)
     local t = W.Unpack(msg)
     local unit, class = W.UnitByName(full or from)
     local isMe = unit and W.UnitIsMe(unit)
-    if t[1] == "L" and not isMe and W.IsGroupLead(full or from) then
+    if t[1] == "L" and not isMe and W.IsGroupLead(full or from, channel) then
         local items = Decode(t[2])
         local who = unit and W.UnitDisplayName(unit) or from
         W.Confirm(string.format(L("%s shares a consumables list (%d items). Replace your list?"), who, #items), function()
             db.items = items
             CL.Refresh()
         end, L("Replace"))
-    elseif t[1] == "Q" and W.IsGroupLead(full or from) then
+    elseif t[1] == "Q" and W.IsGroupLead(full or from, channel) then
         local items = Decode(t[2])
         local ans = {}
         for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end

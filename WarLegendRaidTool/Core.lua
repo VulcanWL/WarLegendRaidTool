@@ -403,9 +403,18 @@ W.OnRoster(function() W.MaybeLoadRaid() end)
 function Dispatch(prefix, msg, channel, sender)
     local fn = addonHandlers[prefix]
     if not fn then
-        -- a message for a raid module that is not loaded yet: load it, then deliver the message
+        -- a message for a raid module that is not loaded yet: load it, then deliver the message.
+        -- Only from my group / guild (a whisper of a stranger must not load anything), and after the fight.
         if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true then
+            local who = W.Safe(sender)
+            if type(who) ~= "string" or who == "" then return end
+            if not GROUP_CHANNELS[channel] then
+                if channel ~= "WHISPER" then return end
+                local full = W.FullName(who)
+                if not (W.UnitByName(full) or W.GuildMember(full)) then return end
+            end
             if #pendingMsgs < 50 then pendingMsgs[#pendingMsgs + 1] = { prefix, msg, channel, sender } end
+            if InCombatLockdown() then waitCombat = true; return end -- loaded after the fight, messages kept
             W.LoadRaid()
         end
         return
@@ -1975,6 +1984,10 @@ function W.IndexTabsSlowly()
     local function step()
         if allIndexed then slowIndexing = false; return end
         if InCombatLockdown() then W.After(1, step); return end
+        -- not in a battleground: the frames load there already, the tabs are built once outside (a first
+        -- search still builds what is missing, see W.SearchOptions)
+        local inInstance, kind = IsInInstance()
+        if inInstance and kind == "pvp" then W.After(10, step); return end
         i = i + 1
         local m = W.modules[i]
         if not m then allIndexed = true; slowIndexing = false; return end

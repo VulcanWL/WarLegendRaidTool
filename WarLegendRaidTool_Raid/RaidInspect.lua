@@ -183,8 +183,10 @@ local function RequestReports()
     W.Send(REQ_PREFIX, "1")
 end
 
+local lastReport = -1000
 W.OnAddon(REQ_PREFIX, function(_, from, _, full)
-    if not W.IsMe(full or from) then W.After(math.random() * 2, SelfReport) end
+    if GetTime() - lastReport < 10 then return end -- a flood of requests gets one report
+    if not W.IsMe(full or from) then lastReport = GetTime(); W.After(math.random() * 2, SelfReport) end
 end)
 
 W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
@@ -200,7 +202,7 @@ W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
     if tal ~= "" then
         local spent = {}
         for n in tal:gmatch("%d+") do spent[#spent + 1] = tonumber(n) end
-        rec.talents = { spent = spent, best = tree ~= "" and tree or nil }
+        rec.talents = { spent = spent, best = tree ~= "" and W.Plain(tree, 40) or nil }
     end
     rec.read, rec.far, rec.state, rec.hasAddon, rec.loading = Now(), false, "ready", true, false
     if pending == guid then pending = nil end

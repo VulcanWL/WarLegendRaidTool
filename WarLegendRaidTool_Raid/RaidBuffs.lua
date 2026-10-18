@@ -211,14 +211,18 @@ end
 
 -- Popup on the caster's screen
 local popup
-W.OnAddon(PREFIX, function(msg, from, _, full)
+W.OnAddon(PREFIX, function(msg, from, channel, full)
     local t = W.Unpack(msg)
-    if t[1] ~= "A" or not W.IsGroupLead(full or from) then return end
+    if t[1] ~= "A" or not W.IsGroupLead(full or from, channel) then return end
     -- full name match; a bare first name (older version of the addon) still matches mine
     local target = (t[2] or ""):lower()
     if target ~= (W.UnitDisplayName("player") or ""):lower()
         and (W.HasFullPart(t[2] or "") or target ~= (W.Safe(UnitName("player")) or ""):lower()) then return end
-    db.mine = t[3]
+    -- the lines are separated by " | ": split first, then every line is plain text
+    local lines = {}
+    for line in ((t[3] or "") .. " | "):gmatch("(.-) | ") do lines[#lines + 1] = W.Plain(line, 120) end
+    local shown = table.concat(lines, "\n")
+    db.mine = table.concat(lines, " | ")
     if not popup then
         popup = W.Window("WLRTBuffPopup", 420, 90, L("Your buffs"))
         popup:SetPoint("TOP", 0, -140)
@@ -226,10 +230,10 @@ W.OnAddon(PREFIX, function(msg, from, _, full)
         popup.text:SetPoint("TOPLEFT", 14, -38)
         popup.text:SetWidth(392)
     end
-    popup.text:SetText(((t[3] or ""):gsub(" | ", "\n")))
+    popup.text:SetText(shown)
     popup:SetHeight(50 + popup.text:GetHeight())
     popup:Show()
-    W.Print(L("Your buffs") .. ": " .. (t[3] or ""))
+    W.Print(L("Your buffs") .. ": " .. db.mine)
     W.After(30, function() popup:Hide() end)
 end)
 

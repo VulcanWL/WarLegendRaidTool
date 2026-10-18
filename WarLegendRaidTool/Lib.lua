@@ -132,6 +132,15 @@ function W.CSV(...)
     return table.concat(out, ",")
 end
 
+-- Free text from another player, shown as plain text: "|" is doubled (no color, texture or link escape
+-- works), control characters go, length is cut. Use it on every received string that is displayed or saved.
+function W.Plain(s, max)
+    if type(s) ~= "string" then return "" end
+    if max and #s > max then s = s:sub(1, max) end -- cut first: a cut after doubling could leave one "|"
+    s = s:gsub("[%z\1-\31]", " "):gsub("|", "||")
+    return s
+end
+
 -- Fields separated by "^" (never used in names, links are sent as item strings)
 function W.Pack(...)
     local t = { ... }
@@ -265,8 +274,10 @@ end
 function W.GuildInfo(name) return W.GuildMember(name) end
 
 -- Leader / assistant check for messages that change shared things
-function W.IsGroupLead(name)
-    if not W.InGroup() then return true end
+-- channel: where the message came from. Alone, only my own local test messages ("LOCAL") count as a
+-- leader: a guild member's GUILD / WHISPER message must not pass as one.
+function W.IsGroupLead(name, channel)
+    if not W.InGroup() then return channel == "LOCAL" end
     local unit = W.UnitByName(name)
     if not unit then return false end
     if UnitIsGroupLeader and UnitIsGroupLeader(unit) then return true end

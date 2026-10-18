@@ -763,7 +763,7 @@ W.AddFR({
 
 W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     if not db or W.IsMe(full or from) or not db.acceptShared then return end
-    if not W.IsGroupLead(full or from) then return end
+    if not W.IsGroupLead(full or from, channel) then return end
     local id, i, total, payload = msg:match("^P:(%d+):(%d+):(%d+):(.*)$")
     if not id then return end
     i, total = tonumber(i), tonumber(total)

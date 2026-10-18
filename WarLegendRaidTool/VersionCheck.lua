@@ -62,6 +62,7 @@ end
 W.OnAddon(VER, function(msg, from, _, full)
     local unit = W.UnitByName(full or from)
     if not unit or W.UnitIsMe(unit) or msg == "" or #msg > 20 then return end
+    if not msg:match("^[%w%.%-]+$") then return end -- a version number, nothing else
     known[W.UnitKey(unit)] = msg
     if Newer(msg, W.version) and not warned then
         warned = true
@@ -69,7 +70,10 @@ W.OnAddon(VER, function(msg, from, _, full)
     end
     if W.IsShown("VersionCheck") then RefreshList() end
 end)
-W.OnAddon(VERQ, function(_, from, _, full) if not W.IsMe(full or from) then Broadcast() end end)
+W.OnAddon(VERQ, function(_, from, _, full)
+    if GetTime() - lastBroadcast < 10 then return end -- a flood of requests gets one answer
+    if not W.IsMe(full or from) then Broadcast() end
+end)
 
 -- My version goes out after a login / reload and when I join a group, never in battlegrounds /
 -- arenas; the others ask (Refresh) when they need it. Loading screens and roster moves send nothing.

@@ -293,15 +293,15 @@ end
 
 -- Who may check me: "guild" = a leader / assistant of my group who is in my guild (default),
 -- "group" = any leader / assistant of my group, "off" = nobody
-local function MayAsk(from, full)
+local function MayAsk(from, full, channel)
     local who = db.answerFrom
-    if who == "off" or not W.IsGroupLead(full or from) then return false end
+    if who == "off" or not W.IsGroupLead(full or from, channel) then return false end
     return who == "group" or W.GuildMember(full or from) ~= nil
 end
 
 -- A leader asks: check my character against their list, answer them, tell me what I miss
-W.OnAddonLong(PREFIX_ASK, function(text, from, _, full)
-    if from == Me() or not MayAsk(from, full) then return end
+W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
+    if from == Me() or not MayAsk(from, full, channel) then return end
     local id, list = text:match("^(%d+)\n(.*)$")
     if not id then return end
     local reqs = Parse(list)
@@ -309,12 +309,12 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, _, full)
     local parts, missing = {}, {}
     for i, r in ipairs(res) do
         parts[i] = r[1] .. "," .. r[2]
-        if r[1] == "0" then missing[#missing + 1] = Label(reqs[i]) end
+        if r[1] == "0" then missing[#missing + 1] = W.Plain(Label(reqs[i]), 60) end -- the label comes from the asker
     end
     local answer = id .. "#" .. table.concat(parts, ";")
     W.After(math.random() * 2, function() W.Queue(PREFIX_ANS, answer, "WHISPER", full or from) end)
     if #missing > 0 then
-        W.Print(string.format(L("Readiness check from %s: you are missing %s"), from, table.concat(missing, ", ")))
+        W.Print(string.format(L("Readiness check from %s: you are missing %s"), W.Plain(from, 40), table.concat(missing, ", ")))
     else
         W.Print(string.format(L("Readiness check from %s: you are ready."), from))
     end
@@ -327,7 +327,7 @@ W.OnAddon(PREFIX_ANS, function(msg, from, _, full)
     local res = {}
     for s, v in (body .. ";"):gmatch("([01%?]),([^;]*);") do
         if #res >= MAX_REQ then break end
-        res[#res + 1] = { s, v:sub(1, 20) }
+        res[#res + 1] = { s, W.Plain(v, 20) }
     end
     results[W.UnitKey(W.UnitByName(full or from))] = res -- the answering unit's full identity
     RefreshTable()

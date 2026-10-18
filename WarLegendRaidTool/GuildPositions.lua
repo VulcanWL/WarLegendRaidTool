@@ -154,7 +154,7 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
         members[full] = m
         count = count + 1
     end
-    m.name = (type(name) == "string" and name ~= "" and #name <= 60) and name or full
+    m.name = (type(name) == "string" and name ~= "" and #name <= 60) and W.Plain(name, 60) or full
     m.level = level or 0
     m.class = type(class) == "string" and class:upper() or "WARRIOR"
     m.mapID, m.x, m.y, m.t = mapID, x, y, GetTime()

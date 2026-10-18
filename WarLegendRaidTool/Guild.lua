@@ -488,20 +488,31 @@ function G.Ask()
     W.SendLong(PREFIX, "Q", "GUILD")
 end
 
-local answering
+-- The "trade:..." reference of a real profession link ("|cff......|Htrade:GUID:ids|h[name]|h|r"), nil for
+-- anything else: a forged link must not reach SetItemRef with another link type.
+local function TradeRef(link)
+    if type(link) ~= "string" then return nil end
+    return link:match("^|c%x%x%x%x%x%x%x%x|H(trade:[%w:%-]+)|h%[[^%]|]*%]|h|r$")
+        or link:match("^|H(trade:[%w:%-]+)|h%[[^%]|]*%]|h$")
+end
+
+local answering, lastAnswer = false, -1000
 W.OnAddonLong(PREFIX, function(msg, from, _, full)
     local who = full or from
     if W.IsMe(who) or not W.GuildMember(who) then return end -- guild members only
     local t = W.Unpack(msg)
     if t[1] == "Q" then
-        if answering then return end
+        -- one answer per 2 minutes at most, whoever asks: a flood of "Q" must not make the whole guild send
+        if answering or GetTime() - lastAnswer < 120 then return end
         answering = true
+        lastAnswer = GetTime()
         W.After(2 + math.random() * 10, function() answering = false; G.Broadcast() end)
     elseif t[1] == "D" then
         local e = { t = time(), profs = {}, rec = {}, links = {} }
         for item in (t[2] or ""):gmatch("[^;]+") do
             local n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$")
-            if n and #n <= 40 then
+            if n and #n <= 40 and #e.profs < 20 then
+                n = W.Plain(n, 40)
                 e.profs[#e.profs + 1] = { n = n, r = tonumber(r), m = tonumber(m), id = tonumber(ProfKey(n, tonumber(id))) }
             end
         end
@@ -509,7 +520,7 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
             if #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
         end
         for prof, link in (t[4] or ""):gmatch("([^\30\31]+)\31([^\30]+)") do
-            if #prof <= 40 and #link <= 4000 and link:find("|Htrade:", 1, true) then e.links[prof] = link end
+            if #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
         end
         local key, name = W.Key(who), W.FullName(who)
         -- nothing readable sent (their client gave no skill yet): what we already have from them stays
@@ -1059,11 +1070,12 @@ end
 -- profession window shows his recipes), shift-click = put the link in the chat box.
 ---------------------------------------------------------------------------
 local function OpenProfessionLink(link)
+    if not TradeRef(link) then return end
     if IsShiftKeyDown() and ChatEdit_InsertLink then
         ChatEdit_InsertLink(link)
         return
     end
-    local ref = link:match("|H(.-)|h")
+    local ref = TradeRef(link)
     if ref and SetItemRef then pcall(SetItemRef, ref, link, "LeftButton") end
 end
 
