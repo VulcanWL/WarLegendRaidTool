@@ -10,6 +10,7 @@ W.AddFR({
     ["Offline for at least (days):"] = "Hors ligne depuis au moins (jours) :",
     ["Hide officers"] = "Cacher les officiers",
     ["Level"] = "Niveau",
+    ["Rank"] = "Rang", -- also in LootCouncil.lua, but that file is in the raid addon (not always loaded)
     ["Offline since"] = "Absent depuis",
     ["Public note"] = "Note publique",
     ["%d members"] = "%d membres",
@@ -48,6 +49,8 @@ W.AddFR({
     ["Profession:"] = "Métier :",
     ["Skill:"] = "Niveau :",
     ["Recipe or item:"] = "Recette ou objet :",
+    ["Recipe or item"] = "Recette ou objet",
+    ["All professions"] = "Tous les métiers",
     ["Profession"] = "Métier",
     ["Skill"] = "Niveau",
     ["Recipes"] = "Recettes",
@@ -199,7 +202,7 @@ local PROFS = {
     { id = 393, en = "Skinning", fr = "Dépeçage", spell = 8613 },
     { id = 197, en = "Tailoring", fr = "Couture", spell = 3908 },
     { id = 185, en = "Cooking", fr = "Cuisine", spell = 2550 },
-    { id = 129, en = "First Aid", fr = "Secourisme", spell = 3273 },
+    { id = 129, en = "First Aid", fr = "Secourisme", spell = 3273, alt = { "Premiers soins" } }, -- the French link says "Premiers soins"
     { id = 356, en = "Fishing", fr = "Pêche", spell = 7620 },
 }
 local profById = {}
@@ -210,6 +213,7 @@ local function ProfByName()
     profByName = {}
     for _, p in ipairs(PROFS) do
         profByName[p.en:lower()], profByName[p.fr:lower()] = p.id, p.id
+        for _, a in ipairs(p.alt or {}) do profByName[a:lower()] = p.id end
         local n = W.SpellName(p.spell)
         if n then profByName[n:lower()] = p.id end
     end
@@ -761,27 +765,103 @@ end
 
 -- The filters of the Professions tab, all applied together:
 -- prof = a profession key ("" = all), min / max = skill range (0 = no limit), name = part of a member's name
+-- The first choice of the profession menu: the recipe / item view (every profession), not a profession
+local RECIPE_VIEW = "*recipe"
+
 local function Filters()
-    return { prof = db.profFilter or "", min = tonumber(db.profMin) or 0, max = tonumber(db.profMax) or 0,
+    local choice = db.profFilter or ""
+    return { prof = choice == RECIPE_VIEW and "" or choice, recipeView = choice == RECIPE_VIEW,
+        min = tonumber(db.profMin) or 0, max = tonumber(db.profMax) or 0,
         name = UI.nameSearch and SearchText(UI.nameSearch:GetText()) or "" }
 end
 
--- Everything known about a member's professions, one entry per profession, best source first:
--- "wl" = shared by their WarLegend RaidTool (skill and maximum read on their game), "roster" = the guild
--- roster of the server (skill, no maximum), "link" = a profession link (the profession only, skill unknown)
+---------------------------------------------------------------------------
+-- One player, one entry: older versions saved the same player under other keys (the bare first name
+-- "Vulcan", an old capitalized "Vulcan Wl"), so old readings showed next to new ones. Once the guild roster
+-- tells who is who, they are merged under the current key, each profession keeping its most recent
+-- reading, and the old keys are removed from the saved data (they do not come back after a restart).
+---------------------------------------------------------------------------
+local function MergeEntries(list)
+    table.sort(list, function(a, b) return (a.e.t or 0) < (b.e.t or 0) end) -- oldest first: newer ones override
+    local m = { profs = {}, rec = {}, links = {} }
+    local skills = {} -- profession key -> { x, time }
+    for _, it in ipairs(list) do
+        local e = it.e
+        for _, x in ipairs(e.profs or {}) do
+            local pk, t = ProfKey(x.n, x.id), x.t or e.t or 0
+            if not skills[pk] or t >= skills[pk].t then
+                skills[pk] = { x = { n = x.n, id = x.id, r = x.r, m = x.m, t = t }, t = t }
+            end
+        end
+        for _, field in ipairs({ "rec", "links" }) do
+            for prof, v in pairs(e[field] or {}) do
+                local pk = ProfKey(prof)
+                for old in pairs(m[field]) do if ProfKey(old) == pk then m[field][old] = nil end end
+                m[field][prof] = v
+            end
+        end
+        if e.t and e.t > (m.t or 0) then m.t = e.t end
+        if e.srv and (e.srvT or 0) >= (m.srvT or 0) then m.srv, m.srvT = e.srv, e.srvT end
+        for pk, t in pairs(e.lk or {}) do
+            m.lk = m.lk or {}
+            if t > (m.lk[pk] or 0) then m.lk[pk] = t end
+        end
+        if e.lkT and e.lkT > (m.lkT or 0) then m.lkT = e.lkT end
+        m.name = e.name or m.name
+    end
+    for _, s in pairs(skills) do m.profs[#m.profs + 1] = s.x end
+    table.sort(m.profs, function(a, b) return ProfLabel(ProfKey(a.n, a.id)) < ProfLabel(ProfKey(b.n, b.id)) end)
+    return m
+end
+
+function G.Consolidate()
+    if not W.IsInGuild() or #W.GuildMembers() == 0 then return 0 end -- who is who needs the roster
+    local d = Data()
+    local groups = {}
+    for key, e in pairs(d) do
+        if type(e) == "table" then
+            local k, full = MemberKey(EntryName(key, e))
+            if k then
+                groups[k] = groups[k] or { full = full, list = {} }
+                table.insert(groups[k].list, { key = key, e = e })
+            end
+        end
+    end
+    local merged = 0
+    for k, g in pairs(groups) do
+        -- a lone first name nobody or several members have: who it is is unknown, it stays as it is
+        local unknown = #g.list == 1 and not W.HasFullPart(g.full)
+        if not unknown and (#g.list > 1 or g.list[1].key ~= k) then
+            local m = MergeEntries(g.list)
+            for _, it in ipairs(g.list) do d[it.key] = nil end
+            if W.HasFullPart(g.full) then m.name = g.full end
+            d[k] = m
+            merged = merged + #g.list - 1
+        end
+    end
+    return merged
+end
+
+-- Everything known about a member's professions, one entry per profession: for the skill, the most recent
+-- reading wins. "wl" = shared by their WarLegend RaidTool (skill and maximum read on their game), "roster" =
+-- the guild roster of the server (skill, no maximum). "link" = a profession link: the profession only, used
+-- when no skill reading exists (a link is no reading of the skill).
 local function Known(e)
-    local out, seen = {}, {}
+    local best = {}
     for _, x in ipairs(e.profs or {}) do
-        local pk = ProfKey(x.n, x.id)
-        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, r = x.r, m = x.m, src = "wl", t = e.t } end
+        local pk, t = ProfKey(x.n, x.id), x.t or e.t or 0
+        if not best[pk] or t > best[pk].t then best[pk] = { key = pk, r = x.r, m = x.m, src = "wl", t = t } end
     end
     for _, x in ipairs(e.srv or {}) do
-        local pk = ProfKey(x.n, x.id)
-        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, r = x.r, src = "roster", t = e.srvT } end
+        local pk, t = ProfKey(x.n, x.id), e.srvT or 0
+        -- a newer roster reading replaces an older one, but an unknown rank never hides a known skill
+        if not best[pk] or (x.r and t > best[pk].t) then best[pk] = { key = pk, r = x.r, src = "roster", t = t } end
     end
     for pk, t in pairs(e.lk or {}) do
-        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, src = "link", t = t } end
+        if not best[pk] then best[pk] = { key = pk, src = "link", t = t } end
     end
+    local out = {}
+    for _, x in pairs(best) do out[#out + 1] = x end
     return out
 end
 
@@ -916,7 +996,7 @@ function G.RefreshProfs()
     local f = Filters()
     local search = SearchText(UI.search:GetText())
     local rows, members = MemberRows(f)
-    local recipeMode = search ~= ""
+    local recipeMode = search ~= "" or f.recipeView
     if recipeMode then
         rows = {}
         for _, r in ipairs(G.FindCrafters(search, nil, f)) do
@@ -950,18 +1030,28 @@ function G.RefreshProfs()
 end
 
 -- "All", then the professions present in the data (and the one chosen, even when nobody has it any more)
+-- The profession menu: "Recipe or item" (the recipe view), "All professions", then the 12 professions of
+-- Forever by their skill line ID (names in the addon's language) and any other one found in the data
 local function ProfFilterValues()
     local seen, vals = {}, {}
     local function add(key)
-        if key ~= "" and not seen[key] then seen[key] = true; vals[#vals + 1] = { key, ProfLabel(key) } end
+        if key ~= "" and key ~= RECIPE_VIEW and not seen[key] then seen[key] = true; vals[#vals + 1] = { key, ProfLabel(key) } end
     end
+    for _, p in ipairs(PROFS) do add(tostring(p.id)) end
     for _, e in pairs(Data()) do
         for _, x in ipairs(Known(e)) do add(x.key) end
     end
     add(db.profFilter or "")
     table.sort(vals, function(a, b) return a[2] < b[2] end)
-    table.insert(vals, 1, { "", L("All") })
+    table.insert(vals, 1, { "", L("All professions") })
+    table.insert(vals, 1, { RECIPE_VIEW, L("Recipe or item") })
     return vals
+end
+
+local function FilterLabel(key)
+    if key == RECIPE_VIEW then return L("Recipe or item") end
+    if (key or "") == "" then return L("All professions") end
+    return ProfLabel(key)
 end
 
 ---------------------------------------------------------------------------
@@ -1040,18 +1130,35 @@ local function BuildProfs(p)
     UI.nameSearch:SetScript("OnTextChanged", G.RefreshProfs)
     local profLbl = W.Label(p, L("Profession:"), "GameFontHighlightSmall")
     profLbl:SetPoint("LEFT", UI.nameSearch, "RIGHT", 16, 0)
+    -- a drop-down menu (the game's MenuUtil, as Naowh Forever uses it); on a client without it, a click
+    -- goes to the next choice
     local filterBtn
-    filterBtn = W.Button(p, L("All"), 140, 22, function()
+    local function Choose(key)
+        db.profFilter = key
+        filterBtn:SetText(FilterLabel(key))
+        G.RefreshProfs()
+    end
+    filterBtn = W.Button(p, "", 150, 22, function(self)
         local vals = ProfFilterValues()
+        if MenuUtil and MenuUtil.CreateContextMenu then
+            MenuUtil.CreateContextMenu(self, function(_, root)
+                for i, v in ipairs(vals) do
+                    root:CreateRadio(v[2], function() return (db.profFilter or "") == v[1] end, function() Choose(v[1]) end)
+                    if i == 2 and root.CreateDivider then root:CreateDivider() end
+                end
+            end)
+            return
+        end
         local idx = 1
         for i, v in ipairs(vals) do if v[1] == db.profFilter then idx = i end end
-        local nxt = vals[(idx % #vals) + 1]
-        db.profFilter = nxt[1]
-        filterBtn:SetText(nxt[2])
-        G.RefreshProfs()
+        Choose(vals[(idx % #vals) + 1][1])
     end)
     filterBtn:SetPoint("LEFT", profLbl, "RIGHT", 8, 0)
-    filterBtn:SetText(db.profFilter ~= "" and ProfLabel(db.profFilter) or L("All"))
+    filterBtn:SetText(FilterLabel(db.profFilter))
+    local arrow = filterBtn:CreateTexture(nil, "OVERLAY")
+    arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+    W.Size(arrow, 12, 12)
+    arrow:SetPoint("RIGHT", -6, -3)
     local skillLbl = W.Label(p, L("Skill:"), "GameFontHighlightSmall")
     skillLbl:SetPoint("LEFT", filterBtn, "RIGHT", 16, 0)
     local function SkillBox(field, anchor)
@@ -1133,6 +1240,7 @@ local function BuildProfs(p)
         -- the server's roster (as Retail's guild list), listened to only while this tab is open
         ListenRoster(true)
         G.ReadRoster()
+        G.Consolidate() -- one entry per player (old keys merged), before anything is shown
         W.RequestGuildRoster(); G.Ask(); G.RefreshProfs()
     end)
     p:HookScript("OnHide", function() ListenRoster(false) end)
@@ -1177,23 +1285,29 @@ end
 
 W.RegisterModule("Guild", L("Guild"), function(p)
     W.Title(p, L("Guild"))
-    UI.tabs = W.SubTabs(p, { L("Inactive"), L("Professions"), L("Recruitment") })
-    BuildInactive(UI.tabs.frames[1])
-    BuildProfs(UI.tabs.frames[2])
-    BuildRecruit(UI.tabs.frames[3])
+    -- the professions first (what the tab is opened for), the officer tools at the end
+    UI.tabs = W.SubTabs(p, { L("Professions"), L("Recruitment"), L("Inactive") })
+    BuildProfs(UI.tabs.frames[1])
+    BuildRecruit(UI.tabs.frames[2])
+    BuildInactive(UI.tabs.frames[3])
     UI.tabs:Select(1)
 end, function()
     if UI.tabs then UI.tabs:Select(UI.tabs.current or 1) end
 end)
 
-W.On("GUILD_ROSTER_UPDATE", function() if W.IsShown("Guild") then G.RefreshInactive(); G.RefreshProfs() end end)
+-- the first roster of the session also merges old duplicate entries, tab open or not (the saved data stays clean)
+local consolidated = false
+W.On("GUILD_ROSTER_UPDATE", function()
+    if not consolidated and db and #W.GuildMembers() > 0 then consolidated = true; G.Consolidate() end
+    if W.IsShown("Guild") then G.RefreshInactive(); G.RefreshProfs() end
+end)
 
 -- /wl craft <name or item link>: who can craft it, in the chat; alone: the Professions tab
 W.slash.craft = function(rest)
     local search = SearchText(rest)
     if search == "" or not db then
         if not W.IsShown("Guild") then W.Toggle("Guild") end
-        if UI.tabs then UI.tabs:Select(2) end
+        if UI.tabs then UI.tabs:Select(1) end -- Professions is the first tab
         return
     end
     local found = G.FindCrafters(search, "")
