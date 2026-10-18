@@ -52,6 +52,9 @@ W.AddFR({
     ["Width:"] = "Largeur :",
     ["Height:"] = "Hauteur :",
     ["Scale:"] = "Échelle :",
+    ["Power bar:"] = "Barre d'énergie :",
+    ["Height of the power bar (energy, mana, rage) under the health bar. Only on the frames that show it."] =
+        "Hauteur de la barre d'énergie (énergie, mana, rage) sous la barre de vie. Seulement sur les cadres qui l'affichent.",
     ["Health in %"] = "Vie en %",
     ["Shown on each player:"] = "Affiché sur chaque joueur :",
     ["The PvP module had an error while loading: see BugSack (/bugsack)."] =
@@ -203,7 +206,8 @@ end
 -- value lists of the cycle buttons
 local STYLES = { { "auto", "Auto" }, { "eui", "EllesmereUI" }, { "blizzard", "Blizzard" }, { "flat", "Flat" },
     { "smooth", "Smooth" }, { "classic", "Classic" } }
-local WIDTHS, HEIGHTS, SCALES = {}, {}, {}
+local WIDTHS, HEIGHTS, SCALES, POWER_HEIGHTS = {}, {}, {}, {}
+for _, v in ipairs({ 3, 5, 8, 10, 12, 14 }) do POWER_HEIGHTS[#POWER_HEIGHTS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 140, 160, 180, 200, 220, 240, 260 }) do WIDTHS[#WIDTHS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 18, 22, 26, 28, 32, 38, 47 }) do HEIGHTS[#HEIGHTS + 1] = { v, tostring(v) } end
 for _, v in ipairs({ 0.8, 0.9, 1, 1.1, 1.2, 1.3 }) do SCALES[#SCALES + 1] = { v, tostring(v) } end
@@ -262,12 +266,14 @@ local function BuildSide(f, pvp, side)
         function() return pvp:GetSideSetting(side, "TextOutline") end,
         function(v) Set("TextOutline", v) end):SetPoint("TOPLEFT", 464, -4)
 
-    local rows = { { L("Width:"), "Width", WIDTHS }, { L("Height:"), "Height", HEIGHTS }, { L("Scale:"), "Scale", SCALES } }
+    local rows = { { L("Width:"), "Width", WIDTHS }, { L("Height:"), "Height", HEIGHTS }, { L("Scale:"), "Scale", SCALES },
+        { L("Power bar:"), "PowerHeight", POWER_HEIGHTS,
+            L("Height of the power bar (energy, mana, rage) under the health bar. Only on the frames that show it.") } }
     for i, row in ipairs(rows) do
         local x = 16 + (i - 1) * 140
         W.Label(f, row[1], "GameFontHighlightSmall"):SetPoint("TOPLEFT", x, -38)
         W.Cycle(f, 64, row[3], function() return pvp:GetSideSetting(side, row[2]) end,
-            function(v) Set(row[2], v) end):SetPoint("TOPLEFT", x + 58, -33)
+            function(v) Set(row[2], v) end, row[4] and { row[4] } or nil):SetPoint("TOPLEFT", x + 58, -33)
     end
 
     W.Check(f, L("Health in %"), function() return pvp:GetSideSetting(side, "HealthText") end,

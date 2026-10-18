@@ -324,6 +324,8 @@ function WarLegendPvP:BuildProfile()
 			if s.Scale then cfg.Framescale = s.Scale end
 			if s.Width then cfg.BarWidth = s.Width end
 			if s.Height then cfg.BarHeight = s.Height end
+			-- WarLegend: height of the power bar (energy / mana / rage) under the health bar, Modules/Power.lua
+			if s.PowerHeight and cfg.ButtonModules.Power then cfg.ButtonModules.Power.Height = s.PowerHeight end
 			if s.X and s.Y then cfg.Position_X, cfg.Position_Y = s.X, s.Y end
 			if s.HealthText ~= nil and cfg.ButtonModules.healthBar then
 				cfg.ButtonModules.healthBar.HealthTextEnabled = s.HealthText
@@ -374,6 +376,8 @@ function WarLegendPvP:GetSideSetting(side, key, moduleName)
 		return s.Scale or cfg.Framescale
 	elseif key == "Width" then
 		return s.Width or cfg.BarWidth
+	elseif key == "PowerHeight" then
+		return s.PowerHeight or (cfg.ButtonModules.Power and cfg.ButtonModules.Power.Height) or 5
 	elseif key == "Height" then
 		return s.Height or cfg.BarHeight
 	elseif key == "HealthText" then
