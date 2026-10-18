@@ -137,12 +137,12 @@ function crossChecks() {
     const at = (file, n) => [file, n.loc.start.line];
     const core = parsed.find((p) => p.addon === ADDONS[0] && path.basename(p.file) === "Core.lua");
     const assigned = new Set(), used = []; // W fields
-    const slash = new Map(), modules = new Map(), sends = new Map(), recvs = new Map(), texts = [], fr = new Set();
+    const slash = new Map(), modules = new Map(), sends = new Map(), recvs = new Map(), texts = [], fr = new Map(); // English text -> { value, file, line }
     const SEND = new Set(["W.Send", "W.SendLong", "W.SendRaw", "W.Queue"]), RECV = new Set(["W.OnAddon", "W.OnAddonLong"]);
-    const addKeys = (tbl) => {
+    const addKeys = (tbl, file) => {
         if (tbl && tbl.type === "TableConstructorExpression") for (const f of tbl.fields) {
             const k = f.type === "TableKey" ? luaStr(f.key) : undefined;
-            if (k !== undefined) fr.add(k);
+            if (k !== undefined) fr.set(k, { value: luaStr(f.value), file, line: f.loc.start.line });
         }
     };
     for (const { file, addon, ast } of parsed) {
@@ -154,7 +154,7 @@ function crossChecks() {
                 n.variables.forEach((v, i) => {
                     const s = luaStr(n.init[i]);
                     if (s !== undefined) consts.set(v.name, s);
-                    if (v.name === "FR") addKeys(n.init[i]); // Locale.lua's base French table
+                    if (v.name === "FR") addKeys(n.init[i], file); // Locale.lua's base French table
                 });
             } else if (n.type === "AssignmentStatement") {
                 for (const t of n.variables) targets.add(t);
@@ -177,7 +177,7 @@ function crossChecks() {
             const c = callee(n);
             if (!c) return;
             const a = callArgs(n);
-            if (c === "W.AddFR") addKeys(a[0]);
+            if (c === "W.AddFR") addKeys(a[0], file);
             else if (c === "L" || c === "W.L") { const s = luaStr(a[0]); if (s !== undefined) texts.push([s, file, n]); }
             else if (c === "W.RegisterModule") { const s = luaStr(a[0]); if (s !== undefined) modules.set(s, at(file, n)); }
             else if (SEND.has(c) || RECV.has(c)) {
@@ -248,14 +248,29 @@ function crossChecks() {
     for (const [p, r] of recvs) if (!sends.has(p)) report(r.where[0], r.where[1], "prefix " + p + " is received but never sent (W.Send / W.SendLong / W.Queue)");
     // 5. L("text") without a French text (W.AddFR, Locale.lua's FR)
     for (const [s, file, n] of texts) if (!fr.has(s)) report(file, n.loc.start.line, "no French text for L(" + JSON.stringify(s) + ")");
+    // 6. the French text keeps the English one's %s / %d (same order: string.format is positional) and color codes
+    const specs = (t) => (t.replace(/%%/g, "").match(/%[-+ #0]*\d*(?:\.\d+)?[sdifgx]/g) || []).join(" ");
+    const colors = (t) => (t.match(/\|c[0-9a-fA-F]{8}/g) || []).length + "/" + (t.match(/\|r/g) || []).length;
+    for (const [en, e] of fr) {
+        if (typeof e.value !== "string") continue;
+        if (specs(en) !== specs(e.value)) report(e.file, e.line, "French text changes the format codes of " + JSON.stringify(en) + " (" + specs(en) + " vs " + specs(e.value) + ")");
+        else if (colors(en) !== colors(e.value)) report(e.file, e.line, "French text changes the color codes (|c / |r) of " + JSON.stringify(en));
+    }
 }
 
 let count = 0;
+const versions = new Set();
 const parsed = []; // { file, addon, ast } of every file that parsed, for the cross-file checks
 for (const addon of ADDONS) {
     const dir = path.join(root, addon);
     if (!fs.existsSync(dir)) { problems.push(addon + ": folder not found under " + root); continue; }
     const toc = path.join(dir, addon + ".toc");
+    try { // the three .toc files carry the same ## Version (the release workflow refuses the tag otherwise)
+        const v = (fs.readFileSync(toc, "utf8").match(/^## Version:\s*(\S+)/m) || [])[1];
+        if (!v) problems.push(path.relative(root, toc) + ": no ## Version line");
+        else if (versions.size && !versions.has(v)) problems.push(path.relative(root, toc) + ": ## Version " + v + " differs from " + [...versions][0]);
+        versions.add(v);
+    } catch (e) { /* a missing .toc is reported below */ }
     const listed = new Set();
     // Files reached through the .toc, directly or through an .xml it lists (<Script file=> / <Include file=>).
     const addEntry = (base, rel, from, line) => {
