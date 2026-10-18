@@ -86,6 +86,42 @@ local function Evaluate(rec)
     return wait
 end
 
+-- the guild dashboard keeps the last complete reading of each player (Guild > Dashboard)
+local SLOT_LETTER = { [1] = "H", [3] = "S", [5] = "C", [6] = "W", [7] = "L", [8] = "F", [9] = "B", [10] = "G" } -- head shoulders chest waist legs feet bracers gloves
+local GetStats = (C_Item and C_Item.GetItemStats) or GetItemStats
+
+-- the set worn the most (item set ID = 16th value of GetItemInfo): its piece count and the slots; empty gem sockets
+local function Extras(rec)
+    local bySet, gems = {}, 0
+    for slot, link in pairs(rec.links) do
+        local setID = select(16, W.GetItemInfo(link))
+        if type(setID) == "number" and setID > 0 then
+            bySet[setID] = bySet[setID] or { n = 0, slots = {} }
+            bySet[setID].n = bySet[setID].n + 1
+            if SLOT_LETTER[slot] then bySet[setID].slots[#bySet[setID].slots + 1] = SLOT_LETTER[slot] end
+        end
+        if GetStats then
+            local ok, stats = pcall(GetStats, link)
+            if ok and type(stats) == "table" then
+                for k, v in pairs(stats) do
+                    if type(k) == "string" and k:find("^EMPTY_SOCKET_") and type(v) == "number" then gems = gems + v end
+                end
+            end
+        end
+    end
+    local best
+    for _, x in pairs(bySet) do if not best or x.n > best.n then best = x end end
+    table.sort(best and best.slots or {})
+    return { gems = gems, set = best and best.n or 0, setSlots = best and table.concat(best.slots, " ") or "" }
+end
+
+local function Keep(rec, unit)
+    if not (W.DashboardGear and unit and rec.ilvl and not rec.loading and rec.links) then return end
+    if W.Safe(UnitGUID(unit)) ~= rec.guid then return end
+    -- a self-report has no item links: the set and gems read at the last inspection stay
+    W.DashboardGear(unit, rec.ilvl, #(rec.missing or {}), rec.enchantable, next(rec.links) and Extras(rec) or nil)
+end
+
 local function ReadUnit(rec, unit)
     rec.links = {}
     for _, slot in ipairs(ILVL_SLOTS) do
@@ -109,6 +145,7 @@ local function ReadUnit(rec, unit)
     end
     if Evaluate(rec) then loading = true end
     rec.read, rec.far, rec.state = Now(), false, unit == "player" and "self" or "ready"
+    Keep(rec, unit)
     dirty = true
 end
 
@@ -205,6 +242,7 @@ W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
         rec.talents = { spent = spent, best = tree ~= "" and W.Plain(tree, 40) or nil }
     end
     rec.read, rec.far, rec.state, rec.hasAddon, rec.loading = Now(), false, "ready", true, false
+    Keep(rec, unit)
     if pending == guid then pending = nil end
     if UI.Refresh then UI.Refresh() end
 end)
@@ -252,7 +290,7 @@ ticker:SetScript("OnUpdate", function(_, e)
         local still = false
         for _, rec in ipairs(members) do
             if rec.loading and rec.links then
-                if Evaluate(rec) then still = true end
+                if Evaluate(rec) then still = true else Keep(rec, rec.unit) end
             end
         end
         loading = still

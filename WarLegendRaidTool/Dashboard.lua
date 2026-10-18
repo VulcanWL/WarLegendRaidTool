@@ -37,7 +37,7 @@ local L = W.L
 
 local db
 local UI = {}
-local ROWS, ROW_H = 20, 17
+local ROWS, ROW_H = 15, 19
 local GEAR_MAX, GEAR_KEEP = 600, 60 * 86400 -- players kept / seconds a reading is kept
 local WEEK = 7 * 86400
 
@@ -126,16 +126,16 @@ local function Collect()
             totals.tracked = totals.tracked + 1
             local days = math.floor((now - (g.t or now)) / 86400)
             local short = W.BaseName(g.name)
-            out.ilvl[#out.ilvl + 1] = { name = short, text = tostring(g.ilvl), sort = g.ilvl,
+            out.ilvl[#out.ilvl + 1] = { name = short, class = g.class, text = tostring(g.ilvl), sort = g.ilvl,
                 tip = { g.name, string.format(L("Item level read %d day(s) ago"), days) } }
             local gems, miss = g.gems or 0, g.miss or 0
             if miss + gems > 0 then
                 totals.miss = totals.miss + miss + gems
-                out.ench[#out.ench + 1] = { name = short, text = "|cffcc0000" .. (miss + gems) .. "|r", sort = miss + gems,
+                out.ench[#out.ench + 1] = { name = short, class = g.class, text = "|cffff5555" .. (miss + gems) .. "|r", sort = miss + gems,
                     tip = { g.name, string.format(L("%d enchant(s) and %d gem(s) missing"), miss, gems) } }
             end
             if (g.set or 0) > 0 then
-                out.set[#out.set + 1] = { name = short, text = tostring(g.set), sort = g.set,
+                out.set[#out.set + 1] = { name = short, class = g.class, text = tostring(g.set), sort = g.set,
                     tip = { g.name, string.format(L("%d piece(s) of the set worn most: %s"), g.set, g.setSlots or "") } }
             end
         end
@@ -144,7 +144,7 @@ local function Collect()
     totals.nights = nights
     for _, c in pairs(counts) do
         if IsMember(c.name) then
-            out.week[#out.week + 1] = { name = W.BaseName(c.name), text = tostring(c.n), sort = c.n,
+            out.week[#out.week + 1] = { name = W.BaseName(c.name), class = c.class, text = tostring(c.n), sort = c.n,
                 tip = { c.name, string.format(L("%d raid(s) this week"), c.n) } }
         end
     end
@@ -153,106 +153,57 @@ local function Collect()
 end
 
 ---------------------------------------------------------------------------
--- Widgets: the look of the audit summary sheet (dark title bars, light lists, colored rank cells)
+-- Widgets
 ---------------------------------------------------------------------------
-local DARK, LIGHT = { 0.25, 0.25, 0.25 }, { 0.95, 0.95, 0.95 }
--- rank cells: 1 orange, 2-5 purple, 6-10 blue, 11-20 green (like the sheet)
+local RANK_COLORS = { { 1, 0.5, 0 }, { 0.64, 0.21, 0.93 }, { 0, 0.44, 0.87 } } -- like the sheet: orange, purple, blue, then green
 local function RankColor(i)
-    if i == 1 then return 1, 0.6, 0.1 end
-    if i <= 5 then return 0.62, 0.36, 0.85 end
-    if i <= 10 then return 0.2, 0.5, 0.85 end
-    return 0.2, 0.85, 0.2
+    local c = RANK_COLORS[i]
+    if c then return c[1], c[2], c[3] end
+    if i <= 10 then return 0.12, 0.62, 0.12 end
+    return 0.35, 0.35, 0.35
 end
 
-local function Paint(tex, c) W.SetColor(tex, c[1], c[2], c[3], 1) end
-
--- a dark bar with a white label
-local function Bar(parent, w, h, text, font)
-    local f = CreateFrame("Frame", nil, parent)
-    W.Size(f, w, h)
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetAllPoints()
-    Paint(f.bg, DARK)
-    f.text = f:CreateFontString(nil, "OVERLAY", font or "GameFontHighlightSmall")
-    f.text:SetPoint("CENTER")
-    f.text:SetTextColor(1, 1, 1)
-    f.text:SetText(text or "")
+local function Tile(p, x, label)
+    local f = W.Panel(p, 144, 46)
+    f:SetPoint("TOPLEFT", x, -64)
+    f.label = W.Label(f, label, "GameFontNormalSmall")
+    f.label:SetPoint("TOP", 0, -6)
+    f.value = W.Label(f, "-", "GameFontHighlightLarge")
+    f.value:SetPoint("BOTTOM", 0, 7)
     return f
 end
 
--- label bar over a value cell (red when it asks for attention, light gray otherwise, pale yellow for the setting)
-local function Tile(p, x, w, label)
-    local f = CreateFrame("Frame", nil, p)
-    W.Size(f, w, 40)
-    f:SetPoint("TOPLEFT", x, -46)
-    f.head = Bar(f, w, 18, label)
-    f.head:SetPoint("TOP")
-    f.cell = CreateFrame("Frame", nil, f)
-    W.Size(f.cell, w, 22)
-    f.cell:SetPoint("TOP", f.head, "BOTTOM")
-    f.cell.bg = f.cell:CreateTexture(nil, "BACKGROUND")
-    f.cell.bg:SetAllPoints()
-    Paint(f.cell.bg, LIGHT)
-    f.value = f.cell:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    f.value:SetPoint("CENTER")
-    f.value:SetTextColor(0, 0, 0)
-    return f
-end
-
-local function SetTile(t, text, color)
-    t.value:SetText(text)
-    Paint(t.cell.bg, color or LIGHT)
-end
-
-local function Board(p, x, w, title, valueHead, emptyText)
-    local f = CreateFrame("Frame", nil, p)
-    W.Size(f, w, 22 + 18 + ROWS * ROW_H)
-    f:SetPoint("TOPLEFT", x, -94)
-    f.body = f:CreateTexture(nil, "BACKGROUND")
-    f.body:SetAllPoints()
-    Paint(f.body, LIGHT)
-    f.head = Bar(f, w, 22, title, "GameFontNormal")
-    f.head:SetPoint("TOP")
-    local function Sub(text, point, x2, width, just)
-        local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        fs:SetPoint(point, x2, -26)
-        fs:SetWidth(width)
-        fs:SetJustifyH(just)
-        fs:SetTextColor(0.1, 0.1, 0.1)
-        fs:SetText(text)
-    end
-    Sub("#", "TOPLEFT", 0, 20, "CENTER")
-    Sub(L("Name"), "TOPLEFT", 26, 90, "LEFT")
-    Sub(valueHead, "TOPRIGHT", -4, 50, "RIGHT")
-    f.empty = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    f.empty:SetPoint("TOP", 0, -60)
-    f.empty:SetWidth(w - 24)
-    f.empty:SetText(emptyText)
+local function Board(p, x, title, emptyText)
+    local f = W.Panel(p, 184, 30 + ROWS * ROW_H + 4)
+    f:SetPoint("TOPLEFT", x, -120)
+    f.title = W.Label(f, title, "GameFontNormal")
+    f.title:SetPoint("TOP", 0, -8)
+    f.empty = W.Label(f, emptyText, "GameFontDisableSmall")
+    f.empty:SetPoint("TOP", 0, -40)
+    f.empty:SetWidth(160)
     f.rows = {}
     for i = 1, ROWS do
         local r = CreateFrame("Button", nil, f)
-        W.Size(r, w, ROW_H - 1)
-        r:SetPoint("TOPLEFT", 0, -42 - (i - 1) * ROW_H)
+        W.Size(r, 176, ROW_H - 1)
+        r:SetPoint("TOPLEFT", 4, -28 - (i - 1) * ROW_H)
         local hl = r:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
-        W.SetColor(hl, 0, 0, 0, 0.08)
-        r.cell = r:CreateTexture(nil, "BACKGROUND")
-        r.cell:SetPoint("TOPLEFT")
-        r.cell:SetPoint("BOTTOMLEFT")
-        r.cell:SetWidth(20)
+        W.SetColor(hl, 1, 1, 1, 0.08)
+        r.bar = r:CreateTexture(nil, "BACKGROUND")
+        r.bar:SetPoint("TOPLEFT")
+        r.bar:SetPoint("BOTTOMLEFT")
+        r.bar:SetWidth(18)
         r.rank = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.rank:SetPoint("CENTER", r.cell, "CENTER")
+        r.rank:SetPoint("CENTER", r.bar, "CENTER")
         r.name = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        r.name:SetPoint("LEFT", 26, 0)
-        r.name:SetWidth(96)
+        r.name:SetPoint("LEFT", 24, 0)
+        r.name:SetWidth(102)
         r.name:SetJustifyH("LEFT")
         r.name:SetWordWrap(false)
-        r.name:SetTextColor(0, 0, 0)
-        r.val = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        r.val = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         r.val:SetPoint("RIGHT", -4, 0)
         r.val:SetWidth(44)
         r.val:SetJustifyH("RIGHT")
-        r.val:SetTextColor(0, 0, 0)
         r:SetScript("OnEnter", function(self)
             if not self.tip then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -266,14 +217,14 @@ local function Board(p, x, w, title, valueHead, emptyText)
     return f
 end
 
-local function FillBoard(board, entries)
+local function Fill(board, entries)
     board.empty:SetShown(#entries == 0)
     for i = 1, ROWS do
         local r, e = board.rows[i], entries[i]
         if e then
-            W.SetColor(r.cell, RankColor(i))
+            r.bar:SetColorTexture(RankColor(i))
             r.rank:SetText(i)
-            r.name:SetText(e.name)
+            r.name:SetText(W.ColorName(e.name, e.class))
             r.val:SetText(e.text)
             r.tip = e.tip
             r:Show()
@@ -287,47 +238,32 @@ end
 local function Refresh()
     if not db or not UI.tiles then return end
     local out, t = Collect()
-    SetTile(UI.tiles.miss, t.miss, t.miss > 0 and { 0.9, 0.42, 0.42 } or nil)
-    SetTile(UI.tiles.members, t.members)
-    SetTile(UI.tiles.nights, t.nights)
-    SetTile(UI.tiles.tracked, t.tracked)
-    SetTile(UI.tiles.view, L("This week"), { 1, 0.95, 0.8 })
-    FillBoard(UI.ilvl, out.ilvl)
-    FillBoard(UI.set, out.set)
-    FillBoard(UI.ench, out.ench)
-    FillBoard(UI.week, out.week)
-    local guild = GetGuildInfo and W.Safe((GetGuildInfo("player"))) or nil
-    local realm = W.Safe(GetRealmName and GetRealmName() or "")
-    UI.title.text:SetText(string.format(L("Guild summary of %s"),
-        (guild or "?") .. ((realm and realm ~= "") and (" (" .. realm .. ")") or "")))
-    UI.stamp:SetText(L("Refreshed:") .. "\n" .. date("%d/%m %H:%M"))
+    UI.tiles.miss.value:SetText(t.miss > 0 and ("|cffff5555" .. t.miss .. "|r") or "0")
+    UI.tiles.members.value:SetText(t.members)
+    UI.tiles.nights.value:SetText(t.nights)
+    UI.tiles.tracked.value:SetText(t.tracked)
+    Fill(UI.ilvl, out.ilvl)
+    Fill(UI.set, out.set)
+    Fill(UI.ench, out.ench)
+    Fill(UI.week, out.week)
 end
 
 W.RegisterModule("Dashboard", L("Dashboard"), function(p)
-    local width, gap = 768, 8
-    UI.title = Bar(p, width, 30, "", "GameFontHighlightLarge")
-    UI.title:SetPoint("TOPLEFT", 12, -8)
-    UI.stamp = UI.title:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    UI.stamp:SetPoint("LEFT", 8, 0)
-    UI.stamp:SetJustifyH("LEFT")
-    local refresh = W.Button(p, L("Refresh"), 80, 20, function() W.RequestGuildRoster(); Refresh() end)
-    refresh:SetPoint("RIGHT", UI.title, "RIGHT", -6, 0)
-    refresh:SetFrameLevel(UI.title:GetFrameLevel() + 2)
-
-    local tw = math.floor((width - 4 * gap) / 5)
-    UI.tiles = {}
-    for i, def in ipairs({ { "miss", L("Missing enchants / gems") }, { "members", L("Members") }, { "nights", L("Raids this week") },
-        { "tracked", L("Players tracked") }, { "view", L("Raid view") } }) do
-        UI.tiles[def[1]] = Tile(p, 12 + (i - 1) * (tw + gap), tw, def[2])
-    end
-
-    local bw = math.floor((width - 3 * gap) / 4)
-    UI.ilvl = Board(p, 12, bw, L("Average item level"), "iLvL", L("No data yet: open Raid Inspect in a raid."))
-    UI.set = Board(p, 12 + (bw + gap), bw, L("Set pieces worn"), L("Pieces"), L("No set piece found in the inspected gear."))
-    UI.ench = Board(p, 12 + 2 * (bw + gap), bw, L("Missing enchants / gems"), L("Missing"), L("Nobody is missing an enchant or a gem."))
-    UI.week = Board(p, 12 + 3 * (bw + gap), bw, L("Raids done this week"), L("Raids"), L("No raid this week yet (Attendance)."))
+    W.Title(p, L("Dashboard"))
+    W.Button(p, L("Refresh"), 90, 22, function() W.RequestGuildRoster(); Refresh() end):SetPoint("TOPLEFT", 200, -14)
     local note = W.Label(p, L("Raid data is kept for the players you inspected; only guild members are listed."), "GameFontDisableSmall")
-    note:SetPoint("BOTTOMLEFT", 14, 6)
+    note:SetPoint("TOPLEFT", 14, -42)
+
+    UI.tiles = {
+        miss = Tile(p, 14, L("Missing enchants / gems")),
+        members = Tile(p, 164, L("Members")),
+        nights = Tile(p, 314, L("Raids this week")),
+        tracked = Tile(p, 464, L("Players tracked")),
+    }
+    UI.ilvl = Board(p, 14, L("Average item level"), L("No data yet: open Raid Inspect in a raid."))
+    UI.set = Board(p, 204, L("Set pieces worn"), L("No set piece found in the inspected gear."))
+    UI.ench = Board(p, 394, L("Missing enchants / gems"), L("Nobody is missing an enchant or a gem."))
+    UI.week = Board(p, 584, L("Raids done this week"), L("No raid this week yet (Attendance)."))
     p:SetScript("OnShow", function() W.RequestGuildRoster(); Refresh() end)
 end, function() Refresh() end)
 

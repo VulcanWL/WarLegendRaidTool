@@ -1475,7 +1475,7 @@ local CATEGORIES = {
         { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "DuelTimer", "DangerAlert" } },
     } },
     { key = "me", title = "Guild", accordion = true, sections = {
-        { key = "members", title = "Members", items = { "Guild", "Roster", "GuildPositions" } },
+        { key = "members", title = "Members", items = { "Guild", "Dashboard", "Roster", "GuildPositions" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
     { key = "options", title = "Options", accordion = true, sections = {
@@ -2246,6 +2246,7 @@ W.AddFR({
     ["PvP frames settings"] = "réglages des cadres PvP",
     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
+    ["guild dashboard (item level, enchants, attendance, loots)"] = "tableau de bord de la guilde (niveau d'objets, enchants, présences, loots)",
     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
     ["warning when an enemy player or a dangerous mob is near"] = "alerte quand un joueur ennemi ou un monstre dangereux approche",
     ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
@@ -2290,6 +2291,7 @@ local HELP = {
     { "/wl sim", "simulator export (simc, oxm, json)" },
     { "/wl summon", "summon list" },
     { "/wl trials", "guild trials (by rank)" },
+    { "/wl dashboard", "guild dashboard (item level, enchants, attendance, loots)" },
     { "/wl bank", "stock of my bank characters" },
     { "/wl craft [item]", "who can craft it in the guild (name or item link)" },
     { "/wl bg", "my premade history and records" },
@@ -2332,6 +2334,56 @@ SLASH_WARLEGENDRT1 = "/wl"
 SLASH_WARLEGENDRT2 = "/wlrt"
 SLASH_WARLEGENDRT3 = "/warlegend"
 SlashCmdList["WARLEGENDRT"] = Slash
+
+-- Another addon that also answers "/wl" (WoWHead Looter: /wl loc, /wl id, /wl reset): the game gives "/wl" to one
+-- of the two handlers, not the one we choose. So once every addon is loaded, both entries of SlashCmdList get the
+-- same dispatcher: our commands go to Slash, everything else (and everything, for a player outside the guild) to
+-- the other addon's own handler, left untouched. /wl reset <name> is ours only when <name> is one of our saved
+-- data keys; a bare /wl reset is the other addon's.
+W.AddFR({
+    ["/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."] =
+        "/wl est partagé avec un autre addon (%s) : les deux fonctionnent, |cffffffff/wlrt|r ouvre toujours WarLegend.",
+})
+local function ClaimSlash()
+    local others = {}
+    for key, fn in pairs(SlashCmdList) do
+        if key ~= "WARLEGENDRT" and type(fn) == "function" then
+            for i = 1, 20 do
+                local c = _G["SLASH_" .. key .. i]
+                if type(c) ~= "string" then break end
+                if c:lower() == "/wl" then others[#others + 1] = key; break end
+            end
+        end
+    end
+    if #others == 0 then return end
+    table.sort(others)
+    local otherName = others[1]
+    local other = SlashCmdList[otherName]
+    local known, noticed = {}, false
+    for _, h in ipairs(HELP) do
+        local c = h[1]:match("^/wl%s+(%S+)")
+        if c then known[c:lower()] = true end
+    end
+    local function Dispatcher(msg)
+        msg = msg or ""
+        local cmd, rest = msg:match("^(%S*)%s*(.-)$")
+        cmd = (cmd or ""):lower()
+        local mine = cmd == "" or cmd == "minimap" or known[cmd] or W.slash[cmd] or false
+        if mine and cmd == "reset" then
+            local key = (rest or ""):match("^(%S+)")
+            mine = key ~= nil and type(W.db[key]) == "table"
+        end
+        if not mine or not W.Allowed() then return other(msg) end
+        if not noticed then
+            noticed = true
+            W.Print(string.format(L("/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."), otherName))
+        end
+        Slash(msg)
+    end
+    SlashCmdList["WARLEGENDRT"] = Dispatcher
+    for _, key in ipairs(others) do SlashCmdList[key] = Dispatcher end
+end
+W.On("PLAYER_LOGIN", ClaimSlash, true)
 
 -- /rc exists before the raid addon is loaded; its real handler (ReadyCheck.lua) replaces this one
 SLASH_WLRTREADYCHECK1 = "/rc"
