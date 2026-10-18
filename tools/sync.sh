@@ -16,6 +16,13 @@ cd "$REPO" || exit 1
 
 ADDONS=(WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP)
 copied=0; skipped=0; untracked=0
+# What this script last copied (path -> blob): a game file still equal to it is OUR previous copy (an edit not committed
+# yet), so it is safe to replace; only a game file that is neither in git nor our last copy is someone's own change.
+STATE="$(git rev-parse --git-dir)/wlrt-synced"
+declare -A synced
+if [ -f "$STATE" ]; then
+    while IFS=$'	' read -r blob path; do [ -n "$path" ] && synced["$path"]="$blob"; done < "$STATE"
+fi
 while IFS= read -r -d '' f; do
     echo "NOT TRACKED (git add it to sync): $f"
     untracked=$((untracked + 1))
@@ -35,15 +42,21 @@ while IFS= read -r -d '' entry; do
     [ -f "$dst" ] && cmp -s "$f" "$dst" && continue
     if [ -f "$dst" ] && [ $FORCE -eq 0 ]; then
         blob="$(git hash-object --path="$f" "$dst")"
-        if ! git cat-file -e "$blob" 2>/dev/null; then
+        if ! git cat-file -e "$blob" 2>/dev/null && [ "$blob" != "${synced[$f]:-}" ]; then
             echo "SKIP (changed only in the game folder): $f"
             skipped=$((skipped + 1))
             continue
         fi
     fi
     mkdir -p "$(dirname "$dst")"
-    cp "$f" "$dst" && echo "copied: $f" && copied=$((copied + 1))
+    if cp "$f" "$dst"; then
+        echo "copied: $f"
+        copied=$((copied + 1))
+        synced["$f"]="$(git hash-object --path="$f" "$dst")"
+    fi
 done < <(git ls-files -z -s -- "${ADDONS[@]}")
 
+for f in "${!synced[@]}"; do printf '%s	%s
+' "${synced[$f]}" "$f"; done > "$STATE"
 echo "$copied copied, $skipped skipped, $untracked not tracked."
 [ $skipped -eq 0 ]

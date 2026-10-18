@@ -107,7 +107,10 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
 2. Say which file(s) you will touch and why, in one or two lines.
 3. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
    `C:\Dev\WarLegendRaidTool`; then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
-   and skips (lists) any file changed only there — never overwrite those without asking.
+   and skips (lists) any file changed only there — never overwrite those without asking. **After every change the game
+   folder must hold the newest version** (the user plays from it): run it after each edit, read its output (a new file
+   must be `git add`-ed to be copied), and say in the report that the game folder is up to date. Before a release:
+   `bash tools/sync.sh` must show nothing skipped except `STATUS.md`; never tag with the game folder behind.
 4. Before saying the code is verified, and before every push: `node tools/check.js` (syntax Lua 5.1, BOM / CRLF, .toc,
    globals, names used above their `local` declaration; across the three addons: `W.X` never assigned, `/wl` commands
    vs HELP / README, module keys vs `CATEGORIES`, addon prefixes sent vs received vs `lodPrefix`, `L()` without French).
