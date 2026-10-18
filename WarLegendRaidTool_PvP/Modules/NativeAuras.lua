@@ -69,10 +69,10 @@ local function TypeIcon(button, unitFrame, slot)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	local bar = unitFrame.healthBar
 	if not (styles and styles.CustomAsset and button.AddDispelTypeTexture and bar) then return end
-	local size = math.max(10, math.floor((bar:GetHeight() or 20) * 0.7))
+	local size = math.max(12, math.floor((bar:GetHeight() or 20) * 0.85)) -- big enough to be seen at a glance
 	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
 	holder:SetSize(size, size)
-	holder:SetPoint("RIGHT", bar, "RIGHT", -22 - (slot - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
+	holder:SetPoint("RIGHT", bar, "RIGHT", -26 - (slot - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 	holder:SetFrameLevel(bar:GetFrameLevel() + 5)
 	local tex = holder:CreateTexture(nil, "OVERLAY")
 	tex:SetAllPoints(holder)

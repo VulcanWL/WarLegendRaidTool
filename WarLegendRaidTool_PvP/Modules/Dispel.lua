@@ -292,7 +292,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	local function TypeIcons(debuffs)
 		local bar = playerButton.healthBar
 		if not bar then return end
-		local size = math.max(10, math.floor((bar:GetHeight() or 20) * 0.7))
+		local size = math.max(12, math.floor((bar:GetHeight() or 20) * 0.85)) -- big enough to be seen at a glance
 		local n = 0
 		for _, d in ipairs(debuffs) do
 			if d.dtype and n < MAX_DEBUFFS then
@@ -301,7 +301,7 @@ function dispel:AttachToPlayerButton(playerButton)
 				if not t then t = bar:CreateTexture(nil, "OVERLAY", nil, 7); typeIcons[n] = t end
 				t:SetSize(size, size)
 				t:ClearAllPoints()
-				t:SetPoint("RIGHT", bar, "RIGHT", -22 - (n - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
+				t:SetPoint("RIGHT", bar, "RIGHT", -26 - (n - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 				t:SetAtlas("RaidFrame-Icon-Debuff" .. d.dtype)
 				t:Show()
 			end
