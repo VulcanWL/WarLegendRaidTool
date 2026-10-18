@@ -2,7 +2,7 @@
 ## Title: |cffffffffWar|r|cffce1918Legend|r RaidTool
 ## Notes: WarLegend raid & guild tools: raid groups, loot council (RCLootCouncil style), loot log, soft-res, buff assignments, consumables checklist, attendance, who pulled, ready check, inspect, aura tracking, raid cooldowns, readiness, alts, guild professions/inactive/recruitment. /wl
 ## Author: WarLegend
-## Version: 1.28.1
+## Version: 1.28.2
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 ## Notes-frFR: Outils de raid et de guilde WarLegend : groupes, loot council (style RCLootCouncil), loot log, soft-res, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
 ## SavedVariables: WarLegendRaidToolDB

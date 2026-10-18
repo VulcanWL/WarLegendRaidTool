@@ -3,7 +3,31 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (17/10/2026)
+## Maintenant (18/10/2026)
+
+- **Version publiée** : 1.28.1 (tag `v1.28.1`) : sécurité des messages d'addon (1.27.6), tableau de bord de guilde
+  (`/wl dashboard`), échange de loot du Loot Council, symboles de dispel avant / après le nom, partage de `/wl` avec
+  WoWHead Looter (répartiteur dans `Core.lua`, `ClaimSlash`), outillage (hook `pre-push`, hook Claude Code, `sync.sh`
+  qui retient ses dernières copies).
+- **Non commité, déjà dans le dossier du jeu** (à tester puis publier en 1.28.2) :
+  1. `WarLegendRaidTool_PvP/Modules/NativeAuras.lua` : **correctif de l'erreur `attempt to perform boolean test on local
+     'visible' (a secret boolean value)`** (x464 dans la 1.28.1, `LayoutTypeIcons`). `IsVisible` renvoie une valeur
+     secrète sur les cadres du conteneur : on teste `issecretvalue` et on réserve alors la place de tous les symboles.
+     **À confirmer en jeu après `/reload` : plus d'erreur, symboles et nom sans chevauchement.**
+  2. Option **Barre d'énergie** (hauteur 3 à 14 px, par côté) : `WarLegendRaidTool_PvP/Main.lua` (`BuildProfile`,
+     `GetSideSetting` clé `PowerHeight`), `WarLegendRaidTool/PvP.lua` (4e menu de la ligne Largeur / Hauteur / Échelle),
+     README. Pas encore testée en jeu.
+  3. `tools/sync.sh` (retient ce qu'il copie dans `.git/wlrt-synced`) et `AGENTS.md` (le dossier du jeu doit toujours
+     avoir la dernière version).
+- **Règle** : après chaque changement, `bash tools/sync.sh` puis confirmer que le dossier du jeu est à jour ; jamais de tag
+  avec le jeu en retard. Les erreurs Lua se lisent dans `WTFAccount...SavedVariables!BugGrabber.lua` (écrit au
+  `/reload`) avec un petit script luaparse, ou `/wl bugs`.
+- **Prochaine étape** : 1.28.2 préparée (commits + .toc + tag local `v1.28.2`), test en jeu confirmé par l'utilisateur ; reste le push de `main` puis du tag, sur son accord.
+- **À tester aussi (1.28.0, jamais testé en jeu)** : tableau de bord (pièces de set via le 16e retour de `GetItemInfo`
+  et gemmes via `GetItemStats`, API non vérifiées sur Forever), échange du Loot Council (`ClickTradeButton`,
+  `UnitName("NPC")`), `/wl` avec WoWHead Looter installé.
+
+## Avant (17/10/2026)
 
 - **Version publiée** : 1.27.5 (tag `v1.27.5`, 17/10) : Guilde > Métiers, harmonisation des menus, mode synchro
   des Champs de bataille, outillage (`tools/`). Rien de non poussé sur `main`. **Rien de tout ça n'est encore testé en jeu.**
