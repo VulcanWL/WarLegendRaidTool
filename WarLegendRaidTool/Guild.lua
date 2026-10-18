@@ -76,6 +76,26 @@ W.AddFR({
     ["Cooking"] = "Cuisine",
     ["First Aid"] = "Secourisme",
     ["Fishing"] = "Pêche",
+    ["Source"] = "Source",
+    ["Roster"] = "Liste",
+    ["Link"] = "Lien",
+    ["Shared by their WarLegend RaidTool (read on their own game)."] =
+        "Partagé par son WarLegend RaidTool (lu sur son propre jeu).",
+    ["From the guild roster (game server): main professions only, no maximum skill."] =
+        "Depuis la liste de guilde (serveur du jeu) : métiers principaux seulement, sans niveau maximum.",
+    ["From a profession link: it names the profession, not the skill level."] =
+        "Depuis un lien de métier : il donne le métier, pas le niveau.",
+    ["Skill unknown"] = "Niveau inconnu",
+    ["Professions: %s %s saved (%d recipes)."] = "Métiers : %s %s enregistré (%d recettes).",
+    ["Profession link saved: %s - %s (a link gives no skill level)."] =
+        "Lien de métier enregistré : %s - %s (un lien ne donne pas le niveau).",
+    ["This profession link belongs to nobody in the guild."] = "Ce lien de métier n'appartient à personne de la guilde.",
+    ["Share my professions with the guild's WarLegend RaidTool users (hidden addon messages, no chat)"] =
+        "Partager mes métiers avec les utilisateurs WarLegend RaidTool de la guilde (messages d'addon invisibles, pas de chat)",
+    ["Sources: guild roster (server), the member's WarLegend RaidTool, profession links (Shift-click one while this tab is open)."] =
+        "Sources : liste de guilde (serveur), WarLegend RaidTool du membre, liens de métier (Maj-clic sur un lien pendant que cet onglet est ouvert).",
+    ["The game server gives no profession in the guild roster yet, and no member has shared theirs."] =
+        "Le serveur du jeu ne donne encore aucun métier dans la liste de guilde, et aucun membre n'a partagé les siens.",
 })
 local L = W.L
 
@@ -83,17 +103,19 @@ local G = {}
 W.Guild = G
 local PREFIX = "WLRT_PROF"
 local db
+local UI = {}
 
 W.OnReady(function()
     db = W.DB("guild", { inactiveDays = 14, hideOfficers = true, channel = "LookingForGroup", interval = 15, remind = false,
-        last = 0, sel = 1, profFilter = "", profMin = 0, profMax = 0 })
+        last = 0, sel = 1, profFilter = "", profMin = 0, profMax = 0, profShare = true })
     if type(db.msgs) ~= "table" then db.msgs = { L("<{guild}> is recruiting for its raids! All classes welcome, friendly and motivated. Whisper {me} for info."), "", "" } end
     if type(db.data) ~= "table" then db.data = {} end
     -- members who have not synced for 90 days (left the guild...) are forgotten: the saved file stays small
     local cutoff, me, myKey = time() - 90 * 86400, W.Safe(UnitName("player")), W.UnitKey("player")
     for _, members in pairs(db.data) do
         for name, e in pairs(members) do
-            if name ~= me and name ~= myKey and type(e) == "table" and (e.t or 0) < cutoff then members[name] = nil end
+            local seen = type(e) == "table" and math.max(e.t or 0, e.srvT or 0, e.lkT or 0) or 0
+            if name ~= me and name ~= myKey and seen < cutoff then members[name] = nil end
         end
     end
 end)
@@ -247,75 +269,169 @@ local function MyEntry()
     return me
 end
 
--- Reads the learned recipes of the open profession window (own window only).
+-- "id:skill:max;..." of a profession list: tells whether something changed
+local function SkillText(list)
+    local t = {}
+    for _, x in ipairs(list or {}) do t[#t + 1] = (x.id or x.n) .. ":" .. (x.r or 0) .. ":" .. (x.m or 0) end
+    return table.concat(t, ";")
+end
+
+-- GetProfessions() read again, plus a profession only the profession window gave before (kept)
+local function MergeSkills(profs, old)
+    local have = {}
+    for _, x in ipairs(profs) do have[ProfKey(x.n, x.id)] = true end
+    for _, x in ipairs(old or {}) do
+        if not have[ProfKey(x.n, x.id)] then profs[#profs + 1] = x end
+    end
+    return profs
+end
+
+-- Full identity and data key of a guild member, from any name form the game gives
+local function MemberKey(name)
+    if not name or name == "" then return nil end
+    local full
+    if W.HasFullPart(name) then
+        full = W.FullName(name)
+    else
+        local m = W.GuildMember(name) -- a bare first name: only when one member has it
+        full = m and m.full or name
+    end
+    return full:lower(), full
+end
+
+-- A profession seen through a link (or someone's list opened from a link): the profession only, never a
+-- skill level, which a link does not hold. Only for guild members; my own data comes from my game.
+local function RecordLinkedProfession(name, profKey, link)
+    local key, full = MemberKey(name)
+    if not key or not W.GuildMember(full) then return false end
+    if key == W.UnitKey("player") then return true end
+    local e = Data()[key]
+    if not e then
+        e = {}
+        Store(key, full, e)
+    end
+    e.lk = e.lk or {}
+    e.lk[profKey] = time()
+    e.lkT = time()
+    if link then
+        e.links = e.links or {}
+        e.links[ProfLabel(profKey)] = link
+    end
+    return true
+end
+
+-- The profession of the open window, as Naowh Forever reads it: the child profession when it has a skill,
+-- else the base one. Returns its key, name, skill and maximum (nil when the window gives none).
+local function OpenProfession()
+    local T = C_TradeSkillUI
+    local child = T.GetChildProfessionInfo and T.GetChildProfessionInfo()
+    local base = T.GetBaseProfessionInfo and T.GetBaseProfessionInfo()
+    local src = (child and (W.Safe(child.maxSkillLevel) or 0) > 0) and child or base
+    if not src then return nil end
+    local name = W.Safe(base and base.professionName) or W.Safe(src.professionName)
+    if name == "" then name = nil end
+    local id = W.Safe(base and base.professionID) or W.Safe(src.professionID)
+    if not name and not id then return nil end
+    return ProfKey(name, id), name, W.Safe(src.skillLevel), W.Safe(src.maxSkillLevel)
+end
+
+-- Reads the open profession window: my skill and learned recipes in my own window, the profession alone
+-- in someone else's (opened from their link).
 -- WoW: Forever uses the modern profession API (C_TradeSkillUI, ProfessionsFrame), like Naowh Forever:
 -- recipe IDs are spell IDs (Forever's new recipes have 7-digit ones, e.g. 1259342 Simple Poultice).
-local function ScanRecipes()
-    if not C_TradeSkillUI or not C_TradeSkillUI.GetAllRecipeIDs then return end
-    if (C_TradeSkillUI.IsTradeSkillLinked and C_TradeSkillUI.IsTradeSkillLinked())
-        or (C_TradeSkillUI.IsTradeSkillGuild and C_TradeSkillUI.IsTradeSkillGuild())
-        or (C_TradeSkillUI.IsNPCCrafting and C_TradeSkillUI.IsNPCCrafting()) then return end
-    local base = C_TradeSkillUI.GetBaseProfessionInfo and C_TradeSkillUI.GetBaseProfessionInfo()
-    local prof = base and base.professionName
-    if (not prof or prof == "") and C_TradeSkillUI.GetChildProfessionInfo then
-        local child = C_TradeSkillUI.GetChildProfessionInfo()
-        prof = child and child.professionName
+-- The window can switch to another profession without closing (its profession tabs, Naowh's window):
+-- each profession has its own 30 s gap between two reads, not one gap for all.
+local SCAN_GAP, SKILL_SEND_GAP = 30, 600
+local lastScanOf, announced = {}, {}
+local lastSkillSend = -SKILL_SEND_GAP
+local function ScanRecipes(force)
+    local T = C_TradeSkillUI
+    if not T or not T.GetAllRecipeIDs then return end
+    if (T.IsTradeSkillGuild and T.IsTradeSkillGuild()) or (T.IsNPCCrafting and T.IsNPCCrafting()) then return end
+    local key, prof, skill, max = OpenProfession()
+    if not key then return end
+    if not force and lastScanOf[key] and GetTime() - lastScanOf[key] < SCAN_GAP then return end
+    lastScanOf[key] = GetTime()
+    if T.IsTradeSkillLinked then
+        local linked, who = T.IsTradeSkillLinked()
+        if linked then
+            if RecordLinkedProfession(W.Safe(who), key) and G.RefreshProfs then G.RefreshProfs() end
+            return true
+        end
     end
-    if not prof or prof == "" then return end
     local ids = {}
-    for _, id in ipairs(C_TradeSkillUI.GetAllRecipeIDs() or {}) do
-        local info = C_TradeSkillUI.GetRecipeInfo(id)
+    for _, id in ipairs(T.GetAllRecipeIDs() or {}) do
+        local info = T.GetRecipeInfo(id)
         if info and info.learned then ids[#ids + 1] = id end
     end
-    if #ids == 0 then return end
     table.sort(ids)
     local me = MyEntry()
-    local list = table.concat(ids, ",")
-    local changed = me.rec[prof] ~= list
-    me.rec[prof] = list -- compact text: a few KB per member instead of a table of numbers
+    prof = prof or ProfLabel(key)
+    local recipesChanged = false
+    if #ids > 0 then
+        local list = table.concat(ids, ",")
+        -- one list per profession, whatever the language it was saved in (compact text: a few KB per member)
+        for p in pairs(me.rec) do if p ~= prof and ProfKey(p) == key then me.rec[p] = nil end end
+        if me.rec[prof] ~= list then me.rec[prof] = list; recipesChanged = true end
+    end
     -- the profession link (as a shift-click on the profession): the others open my recipe list with it
-    if C_TradeSkillUI.GetTradeSkillListLink then
-        local ok, link = pcall(C_TradeSkillUI.GetTradeSkillListLink)
+    if T.GetTradeSkillListLink then
+        local ok, link = pcall(T.GetTradeSkillListLink)
         link = ok and W.Safe(link)
         if type(link) == "string" and link:find("|Htrade:", 1, true) then
             me.links = me.links or {}
-            if me.links[prof] ~= link then me.links[prof] = link; changed = true end
+            for p in pairs(me.links) do if p ~= prof and ProfKey(p) == key then me.links[p] = nil end end
+            if me.links[prof] ~= link then me.links[prof] = link; recipesChanged = true end
         end
     end
+    -- the skill as the window shows it, also for a profession GetProfessions() did not give
+    local before = SkillText(me.profs)
     local profs = OwnProfessions()
-    if #profs > 0 then me.profs = profs end
+    if #profs == 0 then profs = me.profs or {} end
+    if skill and skill > 0 then
+        local found
+        for _, x in ipairs(profs) do if ProfKey(x.n, x.id) == key then found = x end end
+        if not found then
+            found = { n = prof, id = tonumber(key), m = 0 }
+            profs[#profs + 1] = found
+        end
+        found.r = skill
+        if max and max > 0 then found.m = max end
+    end
+    me.profs = profs
     me.t = time()
-    if changed then G.Broadcast() end
+    local skillChanged = SkillText(profs) ~= before
+    if recipesChanged or not announced[key] then
+        announced[key] = #ids
+        local s = skill and ((max and max > 0) and (skill .. "/" .. max) or tostring(skill)) or ""
+        W.Print(string.format(L("Professions: %s %s saved (%d recipes)."), ProfLabel(key), s, #ids))
+    end
+    if recipesChanged or (skillChanged and GetTime() - lastSkillSend >= SKILL_SEND_GAP) then
+        lastSkillSend = GetTime()
+        G.Broadcast()
+    end
     if G.RefreshProfs then G.RefreshProfs() end
     return true
 end
 
--- The list update fires on every craft: once the window has been read, wait 30 s before
--- reading it again (opening a profession or learning a recipe still reads it right away).
-local SCAN_GAP = 30
-local scanPending, lastScan = false, -SCAN_GAP
 local function Scan(force)
-    if not force and GetTime() - lastScan < SCAN_GAP then return end
-    local ok, done = pcall(ScanRecipes)
-    if ok and done then lastScan = GetTime() end
+    local ok, err = pcall(ScanRecipes, force)
+    if not ok then geterrorhandler()(err) end -- shown by BugSack: a silent failure is what hid this before
 end
+local scanPending = false
 W.On("TRADE_SKILL_LIST_UPDATE", function()
-    if scanPending or GetTime() - lastScan < SCAN_GAP then return end
+    if scanPending then return end
     scanPending = true
-    W.After(1, function() scanPending = false; Scan() end)
+    W.After(1, function() scanPending = false; Scan(false) end)
 end)
 W.On("TRADE_SKILL_SHOW", function() W.After(1.5, function() Scan(true) end) end)
+W.On("TRADE_SKILL_DATA_SOURCE_CHANGED", function() W.After(1, function() Scan(true) end) end) -- another profession
 W.On("NEW_RECIPE_LEARNED", function() W.After(1, function() Scan(true) end) end)
 
 -- My skill levels can be read at any time (no window needed): kept up to date in my entry. A skill-up is
 -- sent to the guild at most once every 10 minutes (it also leaves with the next recipe scan or answer).
-local SKILL_SEND_GAP = 600
-local skillPending, lastSkillSend = false, -SKILL_SEND_GAP
-local function SkillText(list)
-    local t = {}
-    for _, x in ipairs(list or {}) do t[#t + 1] = (x.id or x.n) .. ":" .. x.r .. ":" .. x.m end
-    return table.concat(t, ";")
-end
+-- A profession only the window gave (not in GetProfessions) is kept.
+local skillPending = false
 W.On("SKILL_LINES_CHANGED", function()
     if skillPending or not W.IsInGuild() then return end
     skillPending = true
@@ -324,6 +440,7 @@ W.On("SKILL_LINES_CHANGED", function()
         local profs = OwnProfessions()
         if #profs == 0 then return end
         local me = MyEntry()
+        MergeSkills(profs, me.profs)
         if SkillText(profs) == SkillText(me.profs) then return end
         me.profs, me.t = profs, time()
         if G.RefreshProfs then G.RefreshProfs() end
@@ -349,11 +466,13 @@ local function Encode(e)
     return W.Pack("D", table.concat(p, ";"), table.concat(r, ";"), table.concat(l, "\30"))
 end
 
+-- Hidden addon messages to the guild's WarLegend RaidTool users (never a chat line). Only my own data
+-- (read on my game): what the roster or a link told me about others stays on my side.
 function G.Broadcast()
-    if not W.IsInGuild() then return end
+    if not W.IsInGuild() or not (db and db.profShare) then return end
     local me = MyEntry()
     local profs = OwnProfessions()
-    if #profs > 0 then me.profs = profs end -- the client gave nothing (not ready yet): the last read stays
+    if #profs > 0 then me.profs = MergeSkills(profs, me.profs) end -- the client gave nothing (not ready yet): the last read stays
     me.t = me.t or time()
     W.SendLong(PREFIX, Encode(me), "GUILD")
 end
@@ -392,6 +511,8 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
         -- nothing readable sent (their client gave no skill yet): what we already have from them stays
         local old = Data()[key]
         if #e.profs == 0 and old and old.profs and #old.profs > 0 then e.profs = old.profs end
+        -- what the guild roster (server) and their links told me is mine, not in their message: kept
+        if old then e.srv, e.srvT, e.lk, e.lkT = old.srv, old.srvT, old.lk, old.lkT end
         Store(key, name, e)
         G.RefreshProfs()
     end
@@ -400,6 +521,140 @@ end)
 W.On("PLAYER_ENTERING_WORLD", function(isLogin)
     if isLogin then W.After(40, function() if W.IsInGuild() then G.Broadcast() end end) end
 end)
+
+---------------------------------------------------------------------------
+-- The guild roster of the game server, as Retail's guild list reads it: C_Club member info has
+-- profession1ID / profession1Rank / profession1Name and the same for profession2 (ClubDocumentation of the
+-- Forever client). Main professions only, no maximum skill, and the server may leave them empty: only what
+-- it really gives is saved (.srv of the member).
+---------------------------------------------------------------------------
+local guidNames = {} -- GUID -> full name, from the roster: tells whose a profession link is
+local focusedClub
+
+local function GuildClub()
+    if not (C_Club and C_Club.GetGuildClubId and C_Club.GetClubMembers and C_Club.GetMemberInfo) then return nil end
+    local ok, id = pcall(C_Club.GetGuildClubId)
+    return ok and W.Safe(id) or nil
+end
+
+-- Reads every member's professions from the roster; returns how many members had one (nil: not ready yet)
+function G.ReadRoster()
+    local clubId = GuildClub()
+    if not clubId then return nil end
+    if C_Club.AreMembersReady then
+        local ok, ready = pcall(C_Club.AreMembersReady, clubId)
+        if not (ok and W.Safe(ready)) then
+            -- as the guild window does: ask the server for the members, CLUB_MEMBERS_UPDATED follows
+            if C_Club.FocusMembers and focusedClub ~= clubId and pcall(C_Club.FocusMembers, clubId) then focusedClub = clubId end
+            return nil
+        end
+    end
+    local ok, ids = pcall(C_Club.GetClubMembers, clubId)
+    ids = ok and W.Safe(ids)
+    if type(ids) ~= "table" then return nil end -- kept secret (chat lockdown): read again later
+    local d, now, count = Data(), time(), 0
+    for _, memberId in ipairs(ids) do
+        local okInfo, info = pcall(C_Club.GetMemberInfo, clubId, memberId)
+        if okInfo and type(info) == "table" and not W.Safe(info.isSelf) then
+            local key, full = MemberKey(W.Safe(info.name))
+            local guid = W.Safe(info.guid)
+            if key and guid then guidNames[guid] = full end
+            local list = {}
+            for slot = 1, 2 do
+                local id = W.Safe(info["profession" .. slot .. "ID"])
+                local rank = W.Safe(info["profession" .. slot .. "Rank"])
+                local pname = W.Safe(info["profession" .. slot .. "Name"])
+                if type(id) == "number" and id > 0 then
+                    local pk = ProfKey(pname, id)
+                    list[#list + 1] = { id = tonumber(pk) or id, n = pname or ProfLabel(pk), r = (type(rank) == "number" and rank > 0) and rank or nil }
+                end
+            end
+            local e = key and d[key]
+            if key and #list > 0 then
+                if not e then
+                    e = {}
+                    Store(key, full, e)
+                end
+                e.srv, e.srvT = list, now
+                count = count + 1
+            elseif e and e.srv then
+                e.srv = nil -- the server no longer lists a profession for this member
+            end
+        end
+    end
+    return count
+end
+
+local function UnfocusRoster()
+    if focusedClub and C_Club.UnfocusMembers and not (CommunitiesFrame and CommunitiesFrame:IsShown()) then
+        pcall(C_Club.UnfocusMembers, focusedClub)
+    end
+    focusedClub = nil
+end
+
+-- the roster changes in bursts (a guild of hundreds): read once, a moment after, and only while the tab is open
+local rosterPending = false
+local function RosterChanged()
+    if rosterPending or not (UI.profsTab and UI.profsTab:IsVisible()) then return end
+    rosterPending = true
+    W.After(2, function()
+        rosterPending = false
+        if G.ReadRoster() then G.RefreshProfs() end
+    end)
+end
+local clubEvents = {
+    W.On("CLUB_MEMBERS_UPDATED", RosterChanged, nil, true),
+    W.On("CLUB_MEMBER_UPDATED", RosterChanged, nil, true),
+}
+local function ListenRoster(on)
+    for _, h in ipairs(clubEvents) do W.Activate(h, on) end
+    if not on then UnfocusRoster() end
+end
+
+---------------------------------------------------------------------------
+-- Profession links: |Htrade:<owner GUID>:<profession spell>:<skill line>|h[Name]|h on Forever (as saved by the
+-- game's own GetTradeSkillListLink). It names the owner and the profession: no skill level, none is guessed.
+-- Shift-click one (own spellbook, chat...) while the Professions tab is open: it is saved for that member.
+---------------------------------------------------------------------------
+local function LinkOwner(guid)
+    if guid == W.Safe(UnitGUID("player")) then return W.UnitDisplayName("player") end
+    if guidNames[guid] then return guidNames[guid] end
+    if GetPlayerInfoByGUID then
+        local ok, _, _, _, _, _, name = pcall(GetPlayerInfoByGUID, guid)
+        name = ok and W.Safe(name)
+        if name and name ~= "" then return name end
+    end
+end
+
+function G.ImportLink(link)
+    if type(link) ~= "string" then return false end
+    local guid, line = link:match("|Htrade:([^:|]+):%d+:(%d+)")
+    if not guid then return false end
+    local profKey = ProfKey(nil, tonumber(line))
+    local owner = LinkOwner(guid)
+    local _, full = MemberKey(owner)
+    if not full or not W.GuildMember(full) then
+        W.Print(L("This profession link belongs to nobody in the guild."))
+        return false
+    end
+    RecordLinkedProfession(full, profKey, link)
+    W.Print(string.format(L("Profession link saved: %s - %s (a link gives no skill level)."), full, ProfLabel(profKey)))
+    G.RefreshProfs()
+    return true
+end
+
+if hooksecurefunc and ChatEdit_InsertLink then
+    hooksecurefunc("ChatEdit_InsertLink", W.Timed("hook profession link", function(link)
+        if not W.Allowed() or W.IsOff("Guild") then return end
+        if UI.profsTab and UI.profsTab:IsVisible() and type(link) == "string" and link:find("|Htrade:", 1, true) then
+            G.ImportLink(link)
+            -- the recipe box may have the focus and take the link too: a profession is not a recipe to search
+            W.After(0, function()
+                if UI.search and (UI.search:GetText() or ""):find("|Htrade:", 1, true) then UI.search:SetText("") end
+            end)
+        end
+    end))
+end
 
 ---------------------------------------------------------------------------
 -- Recruitment
@@ -439,9 +694,8 @@ end
 W.On("PLAYER_LOGIN", function() W.After(30, StartTick) end)
 
 ---------------------------------------------------------------------------
--- Panel
+-- Panel (UI is declared at the top: the roster and link code above use it)
 ---------------------------------------------------------------------------
-local UI = {}
 
 function G.RefreshInactive()
     if not UI.inactive or not UI.inactive:IsVisible() then return end
@@ -512,21 +766,46 @@ local function Filters()
         name = UI.nameSearch and SearchText(UI.nameSearch:GetText()) or "" }
 end
 
--- The member's skill in one profession (the entry received from them), or nil
-local function SkillOf(e, key)
+-- Everything known about a member's professions, one entry per profession, best source first:
+-- "wl" = shared by their WarLegend RaidTool (skill and maximum read on their game), "roster" = the guild
+-- roster of the server (skill, no maximum), "link" = a profession link (the profession only, skill unknown)
+local function Known(e)
+    local out, seen = {}, {}
     for _, x in ipairs(e.profs or {}) do
-        if ProfKey(x.n, x.id) == key then return x end
+        local pk = ProfKey(x.n, x.id)
+        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, r = x.r, m = x.m, src = "wl", t = e.t } end
+    end
+    for _, x in ipairs(e.srv or {}) do
+        local pk = ProfKey(x.n, x.id)
+        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, r = x.r, src = "roster", t = e.srvT } end
+    end
+    for pk, t in pairs(e.lk or {}) do
+        if not seen[pk] then seen[pk] = true; out[#out + 1] = { key = pk, src = "link", t = t } end
+    end
+    return out
+end
+
+-- The member's skill in one profession, or nil
+local function SkillOf(e, key)
+    for _, x in ipairs(Known(e)) do
+        if x.key == key then return x end
     end
 end
 
+-- an unknown skill (link) never passes a skill filter: it is not guessed
 local function PassSkill(x, f)
-    if f.min > 0 and not (x and (x.r or 0) >= f.min) then return false end
-    if f.max > 0 and not (x and (x.r or 0) <= f.max) then return false end
+    if f.min > 0 and not (x and x.r and x.r >= f.min) then return false end
+    if f.max > 0 and not (x and x.r and x.r <= f.max) then return false end
     return true
 end
 
 local function PassName(name, f)
     return f.name == "" or name:lower():find(f.name, 1, true) ~= nil
+end
+
+-- Members who left the guild are hidden once the roster is known (their data ages out after 90 days)
+local function InGuild(name, rosterKnown)
+    return not rosterKnown or W.GuildMember(name) ~= nil
 end
 
 -- Number of recipes received for one profession, nil when that window was never opened by the member
@@ -585,31 +864,39 @@ local function CrafterNames(names)
     return table.concat(out, ", ")
 end
 
--- "150/300", green at the maximum of the current rank
+-- "150/300" (green at the maximum of the current rank), "150" from the roster, "?" from a link
 local function SkillCell(x)
-    local r, m = x.r or 0, x.m or 0
+    if not x.r then return "|cff777777?|r" end
+    local r, m = x.r, x.m or 0
     local text = m > 0 and (r .. "/" .. m) or tostring(r)
     return (m > 0 and r >= m) and ("|cff33ff66" .. text .. "|r") or text
+end
+
+local SOURCE_TEXT = { wl = "|cffce1918WL|r", roster = "Roster", link = "Link" }
+local function SourceCell(src)
+    if src == "wl" then return SOURCE_TEXT.wl end
+    return "|cffaaaaaa" .. L(SOURCE_TEXT[src] or src) .. "|r"
 end
 
 -- One row per member and profession, only from the data really received
 local function MemberRows(f)
     local rows, members = {}, 0
+    local rosterKnown = #W.GuildMembers() > 0
     for key, e in pairs(Data()) do
-        if e.profs and #e.profs > 0 then
+        local known = Known(e)
+        local name = EntryName(key, e)
+        if #known > 0 and InGuild(name, rosterKnown) then
             members = members + 1
-            local name = EntryName(key, e)
             if PassName(name, f) then
                 local g = W.GuildInfo(name)
                 local online = g and g.online
-                for _, x in ipairs(e.profs) do
-                    local pk = ProfKey(x.n, x.id)
-                    if (f.prof == "" or pk == f.prof) and PassSkill(x, f) then
-                        local count = RecipeCount(e, pk)
-                        rows[#rows + 1] = { member = key, name = name, prof = pk, skill = x.r or 0, noRecipes = count == nil,
-                            label = ProfLabel(pk), online = online,
-                            cells = { (online and "|cff33ff66*|r " or "  ") .. W.ColorName(name, g and g.class), ProfLabel(pk),
-                                SkillCell(x), count and tostring(count) or "|cff777777-|r", W.Ago(e.t) } }
+                for _, x in ipairs(known) do
+                    if (f.prof == "" or x.key == f.prof) and PassSkill(x, f) then
+                        local count = RecipeCount(e, x.key)
+                        rows[#rows + 1] = { member = key, name = name, prof = x.key, skill = x.r or -1, src = x.src,
+                            noRecipes = count == nil, label = ProfLabel(x.key), online = online,
+                            cells = { (online and "|cff33ff66*|r " or "  ") .. W.ColorName(name, g and g.class), ProfLabel(x.key),
+                                SkillCell(x), count and tostring(count) or "|cff777777-|r", SourceCell(x.src), W.Ago(x.t) } }
                     end
                 end
             end
@@ -649,6 +936,7 @@ function G.RefreshProfs()
     elseif members == 0 then
         -- nothing received yet: what to do, and why WoW needs it
         UI.empty:SetText("|cffffcc00" .. L("No profession data yet.") .. "|r\n\n"
+            .. L("The game server gives no profession in the guild roster yet, and no member has shared theirs.") .. "\n\n"
             .. L("Ask the guild members to open each of their professions once, with WarLegend RaidTool installed (open yours too).") .. "\n\n"
             .. L("WoW only lets an addon read a player's professions from that player's own game, and the recipe list only while the profession window is open. Their addon then sends them to the guild.") .. "\n\n"
             .. L("What is received is saved: it stays after closing this window or restarting the game."))
@@ -668,7 +956,7 @@ local function ProfFilterValues()
         if key ~= "" and not seen[key] then seen[key] = true; vals[#vals + 1] = { key, ProfLabel(key) } end
     end
     for _, e in pairs(Data()) do
-        for _, x in ipairs(e.profs or {}) do add(ProfKey(x.n, x.id)) end
+        for _, x in ipairs(Known(e)) do add(x.key) end
     end
     add(db.profFilter or "")
     table.sort(vals, function(a, b) return a[2] < b[2] end)
@@ -799,17 +1087,25 @@ local function BuildProfs(p)
         if not d.member then return end
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
         GameTooltip:AddLine(d.name or d.member, 1, 1, 1)
+        if d.src == "wl" then
+            GameTooltip:AddLine(L("Shared by their WarLegend RaidTool (read on their own game)."), 0.8, 0.8, 0.8, true)
+        elseif d.src == "roster" then
+            GameTooltip:AddLine(L("From the guild roster (game server): main professions only, no maximum skill."), 0.8, 0.8, 0.8, true)
+        elseif d.src == "link" then
+            GameTooltip:AddLine(L("From a profession link: it names the profession, not the skill level."), 0.8, 0.8, 0.8, true)
+        end
+        if d.src and d.skill and d.skill < 0 then GameTooltip:AddLine(L("Skill unknown"), 1, 0.5, 0.3) end
         if d.noRecipes then GameTooltip:AddLine(L("Recipes not received yet: this member must open this profession once."), 1, 0.82, 0, true) end
         GameTooltip:AddLine(L("Click: open his profession. Shift-click: link it in the chat."), 0.8, 0.8, 0.8, true)
         GameTooltip:AddLine(L("Ctrl-click: whisper him."), 0.8, 0.8, 0.8, true)
         GameTooltip:Show()
     end
     -- one row per member and profession; the recipe search has its own columns
-    UI.profs = W.Table(p, { { L("Name"), 230 }, { L("Profession"), 160 }, { L("Skill"), 90, "CENTER" },
-        { L("Recipes"), 80, "CENTER" }, { L("Updated"), 80, "CENTER" } }, 394)
+    UI.profs = W.Table(p, { { L("Name"), 210 }, { L("Profession"), 140 }, { L("Skill"), 80, "CENTER" },
+        { L("Recipes"), 70, "CENTER" }, { L("Source"), 70, "CENTER" }, { L("Updated"), 70, "CENTER" } }, 370)
     UI.profs:SetPoint("TOPLEFT", 10, -64)
     UI.profs.onClick, UI.profs.onEnter = OnClick, OnEnter
-    UI.recipes = W.Table(p, { { L("Recipe"), 230 }, { L("Profession"), 140 }, { L("Crafters"), 380 } }, 394)
+    UI.recipes = W.Table(p, { { L("Recipe"), 230 }, { L("Profession"), 140 }, { L("Crafters"), 380 } }, 370)
     UI.recipes:SetPoint("TOPLEFT", 10, -64)
     UI.recipes.onClick, UI.recipes.onEnter = OnClick, OnEnter
     UI.recipes:Hide()
@@ -820,7 +1116,9 @@ local function BuildProfs(p)
     UI.empty:SetJustifyH("CENTER")
     UI.empty:Hide()
 
-    local h1 = W.Label(p, L("Only members who have the addon appear here, once their data has been received."), "GameFontDisableSmall")
+    W.Check(p, L("Share my professions with the guild's WarLegend RaidTool users (hidden addon messages, no chat)"),
+        function() return db.profShare end, function(v) db.profShare = v end):SetPoint("BOTTOMLEFT", 10, 36)
+    local h1 = W.Label(p, L("Sources: guild roster (server), the member's WarLegend RaidTool, profession links (Shift-click one while this tab is open)."), "GameFontDisableSmall")
     h1:SetPoint("BOTTOMLEFT", 14, 22)
     local h2 = W.Label(p, L("Open each of your professions once so the addon can read your recipes."), "GameFontDisableSmall")
     h2:SetPoint("BOTTOMLEFT", 14, 6)
@@ -829,10 +1127,15 @@ local function BuildProfs(p)
         local mine = W.IsInGuild() and OwnProfessions() or {}
         if #mine > 0 then
             local me = MyEntry()
+            MergeSkills(mine, me.profs)
             if SkillText(mine) ~= SkillText(me.profs) then me.profs, me.t = mine, me.t or time() end
         end
+        -- the server's roster (as Retail's guild list), listened to only while this tab is open
+        ListenRoster(true)
+        G.ReadRoster()
         W.RequestGuildRoster(); G.Ask(); G.RefreshProfs()
     end)
+    p:HookScript("OnHide", function() ListenRoster(false) end)
 end
 
 local function BuildRecruit(p)
