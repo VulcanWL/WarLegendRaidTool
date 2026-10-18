@@ -1,0 +1,8 @@
+{
+    "name": "wlrt-tools",
+    "private": true,
+    "description": "Offline checks for WarLegend RaidTool (not shipped)",
+    "dependencies": {
+        "luaparse": "0.3.1"
+    }
+}

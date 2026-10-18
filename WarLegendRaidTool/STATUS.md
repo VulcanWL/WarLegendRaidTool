@@ -28,7 +28,11 @@ Pas dans le zip des releases.
   - Onglets : Métiers, Recrutement, Inactifs. Filtre de métier en menu déroulant (`MenuUtil`, comme Naowh) :
     « Recette ou objet », « Tous les métiers », puis les 12 métiers.
 - **Vérifié** : syntaxe des 68 fichiers (luaparse 5.1), traductions de `Guild.lua` (77 textes), 3 tests
-  simulés avec fengari (79 vérifications). Les scripts sont dans le scratchpad, pas dans le dépôt.
+  simulés avec fengari (79 vérifications, scripts fengari dans un scratchpad, pas dans le dépôt).
+- **Outillage (17/10, non commité)** : `tools/check.js` (toutes les vérifications, 0 problème sur 68 fichiers),
+  `tools/sync.sh` (copie vers le jeu, saute un fichier modifié seulement là-bas), `CLAUDE.md` racine (charge
+  AGENTS.md + STATUS.md), `docs/modules.md` (détail sorti d'AGENTS.md), règle « même session ou nouvelle ».
+  Ouvrir désormais les sessions dans `C:\Dev\WarLegendRaidTool`.
 - **Prochaine étape** : test en jeu par l'utilisateur (`/reload`, puis Guilde > Métiers) :
   - le serveur Forever remplit-il vraiment `profession1ID` / `Rank` (lignes « Liste ») ?
   - en passant d'un métier à l'autre dans la fenêtre Naowh, une ligne « Métiers : ... enregistré » s'affiche-t-elle ?
@@ -61,12 +65,4 @@ Pas dans le zip des releases.
 - **1.27.1 / 1.27.2** (17/10) : l'installation de la 1.27.1 a écrasé une journée de travail faite seulement
   dans le dossier du jeu, restaurée depuis la conversation. Depuis : **on travaille dans le dépôt `C:\Dev`
   et on copie chaque changement dans le dossier AddOns**.
-- **1.27.0** (16/10) : Déplacer les cadres (`/wl move`), Options d'interface (`/wl cvar`), Niveaux d'objet
-  (`/wl ilvl`), Carte de guilde (`/wl map`), onglet Réglages (modules, profils), `/wl craft`.
-- **1.26.0** (16/10) : chronos façon BigWigs (voix, gros décompte), chrono de duel, « Tout tester ».
-- **1.25.0** (16/10) : beaucoup de travail sur les cadres BG (dissipations, styles, portée, mana), chronos de
-  capture façon Capping, recrues, banque perso, historique BG, `/wl help`, recherche d'option.
-- **1.24.x** (16/10) : addon PvP (cadres ennemis / alliés, reprise de BattleGroundEnemies), `/wl bugs`,
-  releases automatiques par tag (zip `-forever` pour WowUp-CF), valeurs secrètes de Forever.
-- **1.23.0** (15/10) : pas de doublon avec Naowh Forever / EllesmereUI.
-- **1.22.1** (15/10) : premier envoi (addon principal et modules de raid).
+- Versions plus anciennes (1.22.1 à 1.27.0) : `git tag`, `git log`.

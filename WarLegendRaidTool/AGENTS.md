@@ -28,44 +28,19 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - `Core.lua` — events, saved DB, access check, group/guild helpers, UI widgets, main window, `/wl`.
 - `Lib.lua` — addon-message queue, item/name helpers, extra widgets (SubTabs, Table, Confirm...).
 - One file per module (`AutoLog.lua`, `Focus.lua`, `CombatTimer.lua` are small, good examples).
-- **Two addons**: the raid modules (RaidGroups, LootCouncil, RaidBuffs, ReadyCheck, Checklist, WhoPulled, RaidInspect,
-  AuraTracker, RaidCooldowns, Readiness) live in the sibling folder `../WarLegendRaidTool_Raid` (load-on-demand, like BigWigs
-  zone modules), listed in ITS `.toc`. `Core.lua` loads it (`W.LoadRaid`) in a group, in a dungeon / raid, with Aura Tracking on,
-  when `/wl` opens, or when one of its addon messages arrives (prefixes listed in `lodPrefix`: a new prefix there too).
-  In that addon `W.OnReady` runs after the whole file is loaded, `W.On` handlers for login / entering world are replayed once.
-- **Third addon**: `../WarLegendRaidTool_PvP` (battleground enemy / ally frames, BattleGroundEnemies cleaned up), loaded on
-  demand by `PvP.lua` (`W.LoadPvP`) in a battleground or when its tab opens. `Modules/Dispel.lua` there: ally frames show what
-  MY class can dispel and give, `Modules/CrowdControl.lua` the CC on the class icon. Both use `Modules/NativeAuras.lua`:
-  Blizzard's `CreateFrame("AuraContainer")` (Forever 12.1 aura system) shows the auras itself, also the secret ones.
-  Trinket / DR tracking is NOT possible in battlegrounds (the client hides that data there).
-- Guild-side modules of the main addon: `Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank,
-  `/wl trials`), `GuildBank.lua` (stock of MY account's characters at the bank rank, read from `Alts.lua`, `/wl bank`),
-  `BGStats.lua` (my guild premades, players, fastest wins per battleground, `/wl bg`). These three are **personal only:
-  no addon messages** — the user chose that; do not add guild sync to them without being asked.
-
-- `Settings.lua`: Settings > General (the options of the addon as a whole: minimap button, preload of the raid modules,
-  countdown voice, overlap switch; an option that concerns the whole addon goes there, not in a module's panel), Settings > Modules (`W.SetModuleOn(key, on)` / `W.IsOff(key)`: Core skips the `W.On`, `W.OnRoster`,
-  `W.OnAddon` handlers and the test of that module's FILE, found with `W.Where`; one module per file) and Settings > Profile
-  (export / import of the options as one text). A profile holds the scalars of every `W.db` key plus the option tables
-  listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): **a new option saved as a table goes in `TABLE_FIELDS`**.
-  A module with its own event frame (not `W.On`) checks `W.IsOff("Key")` in its OnEvent.
-- `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
-  Blizzard's (`HookScript`, `hooksecurefunc`), and works out of combat. Do not add action bars, unit / group frames,
-  buffs or the minimap there: EllesmereUI moves them, and moving secure frames is what breaks MoveAny.
-- `InterfaceOptions.lua` (`/wl cvar`): hidden game options as CVars (from Advanced Interface Options) and a CVar browser.
-  A CVar is set out of combat only, through `pcall`, and only one that exists on the client is shown. The values set
-  there are kept in `db.cvars` (put back at login, in the profiles); a change made elsewhere updates them (SetCVar hooks).
-- `ItemLevels.lua` (`/wl ilvl`): from SimpleItemLevel. Marks live on a child frame of each Blizzard item button, kept in a
-  weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
-- `GuildPositions.lua` (`/wl map`): guild members on the maps. It **sends addon messages to the GUILD** (the user asked for it),
-  with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
-  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc).
-- **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test
-  must end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
-- **Cost** (`/wl perf`): every `W.On` handler, `W.After` timer, roster and ready function is timed (max of one run,
-  count, total). A hook on Blizzard code that can run often (`hooksecurefunc`, `HookScript`, tooltip callbacks) is
-  wrapped with `W.Timed("label", fn)` so it shows there too (see `ItemLevels.lua`). Anything that must run every
-  frame (`OnUpdate`) is only set while its frame is shown, and throttled (0.1 s or more) when a timer text is enough.
+- **Raid addon** `../WarLegendRaidTool_Raid` (raid modules, load-on-demand via `W.LoadRaid`; a new addon-message prefix
+  goes in `lodPrefix` too) and **PvP addon** `../WarLegendRaidTool_PvP` (battleground frames, `W.LoadPvP`; trinket / DR
+  tracking is NOT possible in battlegrounds). Each lists its files in ITS `.toc`.
+- `Roster.lua`, `GuildBank.lua`, `BGStats.lua` are **personal only: no addon messages** (the user's choice).
+  `GuildPositions.lua` does send to the GUILD with GuildMap's prefix `GuildMapEx1`: keep that format.
+- Options: a whole-addon option goes in Settings > General; **a new option saved as a table goes in `TABLE_FIELDS`**
+  (`Settings.lua`); a module with its own event frame checks `W.IsOff("Key")` in its OnEvent.
+- `MoveFrames.lua` never moves a protected frame (no action bars, unit / group frames, buffs, minimap). CVars are set out
+  of combat through `pcall`. `ItemLevels.lua` writes nothing in Blizzard's tables.
+- Tests (`W.RegisterTest`) end by themselves and never send messages. Frequent hooks on Blizzard code are wrapped in
+  `W.Timed("label", fn)`; an `OnUpdate` runs only while its frame is shown, throttled.
+- **Detail behind these rules**: `C:\Dev\WarLegendRaidTool\docs\modules.md` — read the part about a file only when you
+  change that file.
 
 ## Commands and docs
 - A new `/wl` sub-command goes in `W.slash` **and** in the `HELP` list of `Core.lua` (`/wl help`, with its French text)
@@ -120,11 +95,30 @@ local db
 - Keep color codes (`|cff......|r`) and `%s` / `%d` identical in the French string.
 
 ## How to work here
-0. Read `STATUS.md` (next to this file) first: the feature in progress, the decisions already taken, the next step.
-1. Say which file(s) you will touch and why, in one or two lines.
-2. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
-   `C:\Dev\WarLegendRaidTool`; copy every changed file to the same path in the game's AddOns folder too.
-3. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).
-4. At the end of the session, update `STATUS.md` (French, short): "Maintenant" (version published / unpushed
+Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this file and `STATUS.md`).
+0. Read `STATUS.md` (next to this file) first, unless it is already loaded: feature in progress, decisions, next step.
+1. **Same or new session**: at the start of every user request, say in one line whether it is better done in this
+   session or in a new one, to save tokens. New session when the request does not build on this session's work (another
+   feature or module), when the current feature is done and verified, or when the session is long (about 100 exchanges,
+   or a compaction already happened). Same session for a fix, a follow-up or a test result of the current work. When it
+   is "new session", update `STATUS.md` first so the next one starts from it.
+2. Say which file(s) you will touch and why, in one or two lines.
+3. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
+   `C:\Dev\WarLegendRaidTool`; then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
+   and skips (lists) any file changed only there — never overwrite those without asking.
+4. Before saying the code is verified, and before every push: `node tools/check.js` (syntax Lua 5.1, BOM / CRLF, .toc,
+   globals, names used above their `local` declaration). Read every line it prints. Never filter its output.
+5. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).
+6. At the end of the session, update `STATUS.md` (French, short): "Maintenant" (version published / unpushed
    commits, feature in progress, files, decisions, what was verified, next step), move what is done to
-   "Historique", keep "Pistes ouvertes" current. It is not shipped (excluded from the release zip).
+   "Historique" (last three versions only: git tags keep the rest), keep "Pistes ouvertes" current.
+   It is not shipped (excluded from the release zip).
+
+## Token economy (the user asked for it; quality first)
+- Search before reading: `Grep -n` for the function, then read that range. `Core.lua` (100 KB), `Guild.lua`,
+  `RaidGroups.lua`, `LootCouncil.lua`, PvP `Main.lua` are big: never read them whole, never re-read a range you
+  already have and did not change. List of Core's API: `grep -n "^function W\." WarLegendRaidTool/Core.lua`.
+- Keep command output short: `git diff --stat`, `grep -c`, `| head`, `| tail`. No `cat` of big files or logs.
+- Web pages: `get_page_text` / `read_page` or a `zoom` on one region rather than full screenshots.
+- Batch independent reads / searches in one call. No sub-agents for code search here: a targeted Grep is cheaper.
+- Never trade a needed check for tokens: say the trade-off instead.

@@ -13,3 +13,7 @@
 /WarLegendRaidTool/*.rar
 /WarLegendRaidTool/*.zip
 *.bak
+!/CLAUDE.md
+!/docs/
+!/tools/
+/tools/node_modules/
