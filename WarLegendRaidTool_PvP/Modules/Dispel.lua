@@ -298,15 +298,18 @@ function dispel:AttachToPlayerButton(playerButton)
 			if d.dtype and n < MAX_DEBUFFS then
 				n = n + 1
 				local t = typeIcons[n]
-				if not t then t = bar:CreateTexture(nil, "OVERLAY", nil, 7); typeIcons[n] = t end
+				if not t then
+					t = bar:CreateTexture(nil, "OVERLAY", nil, 7)
+					typeIcons[n] = t
+					NA.RegisterTypeIcon(playerButton, t) -- placed before / after the name (NativeAuras.lua)
+				end
 				t:SetSize(size, size)
-				t:ClearAllPoints()
-				t:SetPoint("RIGHT", bar, "RIGHT", -26 - (n - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 				t:SetAtlas("RaidFrame-Icon-Debuff" .. d.dtype)
 				t:Show()
 			end
 		end
 		for i = n + 1, #typeIcons do typeIcons[i]:Hide() end
+		NA.LayoutTypeIcons(playerButton)
 	end
 
 	-- debuffs on the right of the frame; buffs on the left when f.left exists (aura containers), else after the debuffs

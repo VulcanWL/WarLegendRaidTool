@@ -65,6 +65,72 @@ local TYPE_ICONS = {
 	Disease = { asset = "RaidFrame-Icon-DebuffDisease" },
 	Poison = { asset = "RaidFrame-Icon-DebuffPoison" },
 }
+-- Placement of the dispel type symbols of a unit frame (the container's and the fallback ones of Dispel.lua):
+-- BEFORE the name when the name is shown (the name is pushed right by the width of the symbols), AFTER it
+-- (the name is cut shorter on its right) when the name box is too narrow to stay readable beside them, and at the
+-- right edge of the health bar when there is no name. Redone when the name, the frame or a symbol changes.
+local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must stay readable beside them
+local function LayoutTypeIcons(pb)
+	local list, bar = pb.WLTypeIcons, pb.healthBar
+	if not (list and bar) then return end
+	local shown, size = {}, 0
+	for _, it in ipairs(list) do
+		if it:IsVisible() then shown[#shown + 1] = it; size = it:GetWidth() or size end
+	end
+	local n = #shown
+	local total = n * (size + TYPE_GAP)
+	local name = pb.Name
+	local cfg = name and name.config
+	local hasName = name and name.Enabled ~= false and cfg and cfg.Points and name:IsShown() and true or false
+	local old = pb.WLNameShift or { 0, 0 }
+	local sl, sr, mode = 0, 0, "bar"
+	if hasName and n > 0 then
+		local w = name:GetWidth()
+		local textW = name:GetStringWidth() or 0
+		mode, sl, sr = "before", total, 0
+		-- the box width without my own shift; unknown before the first layout: then the symbols stay first
+		if w and w > 0 and (w + old[1] + old[2]) - total < math.min(textW, NAME_MIN) then mode, sl, sr = "after", 0, total end
+	end
+	-- the name box: its left anchor is pushed right, its right anchor left
+	if hasName and (old[1] ~= sl or old[2] ~= sr) then
+		pb.WLNameShift = { sl, sr }
+		local es = name:GetEffectiveScale()
+		for j = 1, cfg.ActivePoints do
+			local pc = cfg.Points[j]
+			local rel = pc and pc.RelativeFrame and pb:GetAnchor(pc.RelativeFrame)
+			if rel and pc.Point then
+				local dx = pc.Point:find("LEFT") and sl or (pc.Point:find("RIGHT") and -sr or 0)
+				name:SetPoint(pc.Point, rel, pc.RelativePoint, ((pc.OffsetX or 0) + dx) / es, (pc.OffsetY or 0) / es)
+			end
+		end
+	end
+	for k, it in ipairs(shown) do
+		it:ClearAllPoints()
+		local step = (k - 1) * (size + TYPE_GAP)
+		if mode == "before" then it:SetPoint("LEFT", name, "LEFT", -total + step, 0)
+		elseif mode == "after" then it:SetPoint("LEFT", name, "RIGHT", TYPE_GAP + step, 0)
+		else it:SetPoint("RIGHT", bar, "RIGHT", -26 - step, 0) end -- left of the target counter
+	end
+end
+NA.LayoutTypeIcons = LayoutTypeIcons
+
+-- item: a frame or texture placed by LayoutTypeIcons (a frame re-places on show / hide)
+function NA.RegisterTypeIcon(pb, item)
+	pb.WLTypeIcons = pb.WLTypeIcons or {}
+	pb.WLTypeIcons[#pb.WLTypeIcons + 1] = item
+	if not pb.WLTypeHooked and hooksecurefunc then
+		pb.WLTypeHooked = true
+		local function relayout() LayoutTypeIcons(pb) end
+		-- SetModulePositions anchors the name again from its settings: my shift is gone, apply it anew
+		pcall(hooksecurefunc, pb, "SetModulePositions", function() pb.WLNameShift = nil; LayoutTypeIcons(pb) end)
+		if pb.Name and pb.Name.SetName then pcall(hooksecurefunc, pb.Name, "SetName", relayout) end
+	end
+	if item.HookScript then
+		item:HookScript("OnShow", function() LayoutTypeIcons(pb) end)
+		item:HookScript("OnHide", function() LayoutTypeIcons(pb) end)
+	end
+end
+
 local function TypeIcon(button, unitFrame, slot)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	local bar = unitFrame.healthBar
@@ -72,8 +138,8 @@ local function TypeIcon(button, unitFrame, slot)
 	local size = math.max(12, math.floor((bar:GetHeight() or 20) * 0.85)) -- big enough to be seen at a glance
 	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
 	holder:SetSize(size, size)
-	holder:SetPoint("RIGHT", bar, "RIGHT", -26 - (slot - 1) * (size + 1), 0) -- left of the target counter (right edge of the bar)
 	holder:SetFrameLevel(bar:GetFrameLevel() + 5)
+	NA.RegisterTypeIcon(unitFrame, holder) -- its place depends on the name
 	local tex = holder:CreateTexture(nil, "OVERLAY")
 	tex:SetAllPoints(holder)
 	pcall(button.AddDispelTypeTexture, button, tex, {

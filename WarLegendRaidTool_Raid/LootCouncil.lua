@@ -46,6 +46,7 @@ W.AddFR({
     ["You must be master looter or raid leader/assist."] = "Il faut être responsable du butin ou chef ou assistant du raid.",
     ["Loot session started (%d items)."] = "Session de loot lancée (%d objets).",
     ["Loot session ended."] = "Session de loot terminée.",
+    ["%d item(s) won by %s added to the trade."] = "%d objet(s) gagné(s) par %s ajouté(s) à l'échange.",
     ["Trade %s to %s (item not in the loot window)."] = "Échange %s à %s (objet absent de la fenêtre de loot).",
     ["Could not give %s to %s (out of range or not eligible?)."] = "Impossible de donner %s à %s (hors de portée ou pas éligible ?).",
     ["Autopassed %s (cannot use)."] = "Passé auto %s (inutilisable).",
@@ -893,6 +894,74 @@ local function GiveLoot(str, key, display)
     return false, false
 end
 
+-- Items a winner must get by trade (not in the loot window): when that player opens a trade with me, they are
+-- put in the trade window (RCLootCouncil does the same). Nothing is given before both of us accept.
+local owed, OWED_MAX = {}, 40 -- { id, key, name }
+local tradePlaced -- the owed entries put in the trade window now open
+local NumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
+local LinkOf = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
+local PickupItem = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem
+
+local function Owe(str, key, name)
+    local id = W.ItemID(str)
+    if not id then return end
+    if #owed >= OWED_MAX then table.remove(owed, 1) end
+    owed[#owed + 1] = { id = id, key = key, name = name }
+end
+
+-- first bag slot holding item id that is not in `used`
+local function FindInBags(id, used)
+    if not (NumSlots and LinkOf) then return nil end
+    for bag = 0, NUM_BAG_SLOTS or 4 do
+        for slot = 1, NumSlots(bag) or 0 do
+            local at = bag .. ":" .. slot
+            if not used[at] and W.ItemID(W.Safe(LinkOf(bag, slot))) == id then return bag, slot, at end
+        end
+    end
+end
+
+W.On("TRADE_SHOW", function()
+    if #owed == 0 or not db or not db.enabled or not (ClickTradeButton and PickupItem and CursorHasItem) then return end
+    local partner = W.Safe(UnitName("NPC"))
+    local unit = partner and W.UnitByName(partner)
+    local key = unit and W.UnitKey(unit)
+    if not key or CursorHasItem() then return end
+    local used, placed, shown = {}, {}, 0
+    for _, o in ipairs(owed) do
+        if o.key == key and shown < 6 then -- the trade window holds 6 items
+            local bag, slot, at = FindInBags(o.id, used)
+            if bag then
+                PickupItem(bag, slot)
+                if CursorHasItem() then
+                    ClickTradeButton(shown + 1)
+                    if CursorHasItem() then ClearCursor() else
+                        used[at] = true
+                        shown = shown + 1
+                        placed[#placed + 1] = o
+                    end
+                end
+            end
+        end
+    end
+    if shown == 0 then return end
+    W.Print(string.format(L("%d item(s) won by %s added to the trade."), shown, W.Plain(placed[1].name, 40)))
+    tradePlaced = placed
+end)
+
+-- once the trade is over, what left my bags is no longer owed
+W.On("TRADE_CLOSED", function()
+    local placed = tradePlaced
+    tradePlaced = nil
+    if not placed then return end
+    W.After(1, function()
+        for _, o in ipairs(placed) do
+            if not FindInBags(o.id, {}) then
+                for i = #owed, 1, -1 do if owed[i] == o then table.remove(owed, i) end end
+            end
+        end
+    end)
+end)
+
 -- key = the candidate's full identity (W.UnitKey)
 function LC.AskAward(idx, key)
     if not S or not FromML(W.UnitFullName("player")) then return end
@@ -907,6 +976,7 @@ function LC.AskAward(idx, key)
                 W.Print(string.format(L("Could not give %s to %s (out of range or not eligible?)."), W.ItemLink(item.str), name))
             elseif key ~= MyKey() then
                 W.Print(string.format(L("Trade %s to %s (item not in the loot window)."), W.ItemLink(item.str), name))
+                Owe(item.str, key, name) -- put in the trade window when that player opens a trade with me
             end
         end
         Send("A", S.sid, idx, key, c and c.resp or "")
