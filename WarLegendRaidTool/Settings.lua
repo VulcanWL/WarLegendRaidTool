@@ -103,7 +103,7 @@ end
 local SKIP = { schema = true, minimap = true }
 -- saved scalars that are state, not options (this window's place, the language of this client...)
 local SKIP_FIELDS = {
-    ui = { lastModule = true, category = true, openSection = true, point = true, relPoint = true, x = true, y = true, lang = true },
+    ui = { lastModule = true, category = true, openSection = true, openSection_me = true, openSection_options = true, point = true, relPoint = true, x = true, y = true, lang = true },
     guild = { last = true, sel = true, profFilter = true, profMin = true, profMax = true },
     cooldownText = { previous = true },
     roster = { remindDay = true },

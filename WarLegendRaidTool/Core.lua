@@ -1452,10 +1452,10 @@ local function SavePos()
     ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
 end
 
--- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP,
--- with collapsible sections (accordion = true: one open at a time, the tab is long). Guild = the guild and
--- my characters. Options = the addon itself and the interface tools (nothing to do with a raid or the
--- guild). The short tabs show every section open. English keys, translated when the window is built.
+-- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP.
+-- Guild = the guild and my characters. Options = the addon itself and the interface tools (nothing to do
+-- with a raid or the guild). Every tab has collapsible sections (accordion = true: one open at a time, the
+-- "+" / "-" sign on its header), each tab remembers its own. English keys, translated when the window is built.
 -- Modules not listed go to the last section of the last tab.
 local CATEGORIES = {
     { key = "pve", title = "Raid", accordion = true, sections = {
@@ -1465,11 +1465,11 @@ local CATEGORIES = {
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
         { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "DuelTimer", "DangerAlert" } },
     } },
-    { key = "me", title = "Guild", sections = {
+    { key = "me", title = "Guild", accordion = true, sections = {
         { key = "members", title = "Members", items = { "Guild", "Roster", "GuildPositions" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
-    { key = "options", title = "Options", sections = {
+    { key = "options", title = "Options", accordion = true, sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife" } },
     } },
@@ -1495,6 +1495,11 @@ W.AddFR({
     ["Auto Promote"] = "Promotion auto",
     ["Marks Bar"] = "Barre de marques",
 })
+
+-- saved key of the open section of a tab (Raid keeps the key it always had)
+local function OpenKey(catKey)
+    return catKey == "pve" and "openSection" or ("openSection_" .. tostring(catKey))
+end
 
 local function Contains(list, m)
     for _, x in ipairs(list) do if x == m then return true end end
@@ -1552,13 +1557,13 @@ function W.Select(key, fromSection, fromCategory)
     for _, b in ipairs(m.buttons or {}) do b.sel:Show(); b.text:SetTextColor(1, 1, 1) end
     local ui = W.DB("ui")
     ui.lastModule = m.key
-    -- the menu shows the tab and the section of the selected tool (PvP / Guild tabs have no
-    -- collapsible section: the open PvE section is kept for when you come back)
-    local cat, sec = Locate(m, fromCategory or ui.category, fromSection or ui.openSection)
+    -- the menu shows the tab and the section of the selected tool (each tab keeps its open section
+    -- for when you come back)
+    local cat, sec = Locate(m, fromCategory or ui.category, fromSection or ui[OpenKey(fromCategory or ui.category)])
     if cat then
         ui.category = cat
         for _, c in ipairs(main.categories or {}) do
-            if c.key == cat and c.accordion then ui.openSection = sec end
+            if c.key == cat and c.accordion then ui[OpenKey(cat)] = sec end
         end
     end
     if main.LayoutMenu then main.LayoutMenu() end
@@ -1642,28 +1647,28 @@ function W.BuildMain()
     sub:SetText("|cffccccccRAIDTOOL|r  |cff777777v" .. W.version .. "|r")
     local close = W.CloseButton(main, 30)
     close:SetPoint("TOPRIGHT", blizz and -6 or 0, blizz and -6 or 0)
-    -- style selector (needs a reload)
+    -- style selector, a drop-down (needs a reload)
     local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" } }
     local styleBtn = W.Cycle(main, 140, styles, function() return W.DB("ui").style or "auto" end, function(v)
+        if v == (W.DB("ui").style or "auto") then return end
         W.DB("ui").style = v
         W.ConfirmReload(L("Reload the interface to apply the new style?"))
     end, { L("Follows your interface: EllesmereUI when installed, else the Blizzard look.") })
     styleBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, -4)
     W.Size(styleBtn, 140, 20)
-    -- language: FR / EN (needs a reload); shows the language that will be used
+    -- language: FR / EN, a drop-down like the style (needs a reload); shows the language that will be used
     local function NextLang()
         local cur = W.DB("ui").lang
         if cur ~= "fr" and cur ~= "en" then cur = W.LANG end
         return cur
     end
-    local langBtn
-    langBtn = W.Button(main, NextLang() == "fr" and "FR" or "EN", 40, 20, function()
-        local nxt = NextLang() == "fr" and "en" or "fr"
-        W.DB("ui").lang = nxt
-        langBtn:SetText(nxt == "fr" and "FR" or "EN")
-        W.ConfirmReload(nxt == "fr" and "Recharger l'interface pour passer l'addon en français ?"
+    local langBtn = W.Cycle(main, 52, { { "fr", "FR" }, { "en", "EN" } }, NextLang, function(v)
+        if v == NextLang() then return end
+        W.DB("ui").lang = v
+        W.ConfirmReload(v == "fr" and "Recharger l'interface pour passer l'addon en français ?"
             or "Reload the interface to switch the addon to English?")
     end, { L("Language of the addon: French / English (needs a reload).") })
+    W.Size(langBtn, 52, 20)
     langBtn:SetPoint("RIGHT", styleBtn, "LEFT", -6, 0)
 
     -- search box: a tool or an option (any check box, button or text of the tabs), results under it
@@ -1850,7 +1855,7 @@ function W.BuildMain()
     for _, cat in ipairs(cats) do
         for _, sec in ipairs(cat.sections) do
             if #sec.list > 0 and sec.title then
-                -- section header (PvE): click to open / close (accordion)
+                -- section header: click to open / close (accordion)
                 local h = CreateFrame("Button", nil, main)
                 W.Size(h, BTN_W, 20)
                 local hbg = h:CreateTexture(nil, "BACKGROUND")
@@ -1871,7 +1876,8 @@ function W.BuildMain()
                 if cat.accordion then
                     h:SetScript("OnClick", function()
                         local ui = W.DB("ui")
-                        ui.openSection = ui.openSection ~= sec.key and sec.key or nil
+                        local k = OpenKey(cat.key)
+                        ui[k] = ui[k] ~= sec.key and sec.key or nil
                         LayoutMenu()
                     end)
                 else
@@ -1898,7 +1904,7 @@ function W.BuildMain()
             for _, sec in ipairs(cat.sections) do
                 local isOpen = true
                 if sec.header then
-                    isOpen = (not cat.accordion) or sec.key == ui.openSection
+                    isOpen = (not cat.accordion) or sec.key == ui[OpenKey(cat.key)]
                     sec.header:SetShown(active)
                     if active then
                         sec.header:ClearAllPoints()

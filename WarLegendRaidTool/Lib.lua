@@ -380,22 +380,43 @@ if hooksecurefunc then
     if ChatEdit_InsertLink then hooksecurefunc("ChatEdit_InsertLink", Insert) end
 end
 
--- Button that cycles through values: values = { {value, text}, ... }
+-- Drop-down menu of values: values = { {value, text}, ... }. The game's MenuUtil, like the Guild >
+-- Professions filter; on a client without it, a click goes to the next value.
 function W.Cycle(parent, w, values, get, set, tip)
     local b
-    local function Text()
+    -- the saved value, or the first one when it is not in the list (it is the one shown)
+    local function Current()
         local cur = get()
-        for _, v in ipairs(values) do if v[1] == cur then return v[2] end end
-        return values[1] and values[1][2] or "?"
+        for _, v in ipairs(values) do if v[1] == cur then return cur end end
+        return values[1] and values[1][1]
     end
-    b = W.Button(parent, "", w, 22, function()
-        if #values == 0 then return end -- a list filled later (wowaudit encounters) may still be empty
-        local cur, idx = get(), 0
-        for i, v in ipairs(values) do if v[1] == cur then idx = i end end
-        local nxt = values[(idx % #values) + 1]
-        set(nxt[1])
+    local function Text()
+        local cur = Current()
+        for _, v in ipairs(values) do if v[1] == cur then return v[2] end end
+        return "?"
+    end
+    local function Choose(value)
+        set(value)
         b:SetText(Text())
+    end
+    b = W.Button(parent, "", w, 22, function(self)
+        if #values == 0 then return end -- a list filled later (wowaudit encounters) may still be empty
+        if MenuUtil and MenuUtil.CreateContextMenu then
+            MenuUtil.CreateContextMenu(self, function(_, root)
+                for _, v in ipairs(values) do
+                    root:CreateRadio(v[2], function() return Current() == v[1] end, function() Choose(v[1]) end)
+                end
+            end)
+            return
+        end
+        local cur, idx = Current(), 0
+        for i, v in ipairs(values) do if v[1] == cur then idx = i end end
+        Choose(values[(idx % #values) + 1][1])
     end, tip)
+    local arrow = b:CreateTexture(nil, "OVERLAY")
+    arrow:SetTexture("Interface\\Buttons\\Arrow-Down-Up")
+    W.Size(arrow, 12, 12)
+    arrow:SetPoint("RIGHT", -6, -3)
     b:SetText(Text())
     b:HookScript("OnShow", function() b:SetText(Text()) end)
     b.Sync = function() b:SetText(Text()) end
