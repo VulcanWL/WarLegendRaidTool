@@ -5,7 +5,7 @@ Pas dans le zip des releases.
 
 ## Maintenant (18/10/2026)
 
-- **Version publiée** : 1.28.2 (tag `v1.28.2`, correctif « secret boolean » de NativeAuras + option Barre d'énergie, testés en jeu, aucune erreur) ; base 1.28.1 : sécurité des messages d'addon (1.27.6), tableau de bord de guilde
+- **Version publiée** : 1.28.3 (tag `v1.28.3`, onglet Transports de la carte de guilde en plus de la 1.28.2 : correctif « secret boolean » de NativeAuras + option Barre d'énergie, testés en jeu, aucune erreur) ; base 1.28.1 : sécurité des messages d'addon (1.27.6), tableau de bord de guilde
   (`/wl dashboard`), échange de loot du Loot Council, symboles de dispel avant / après le nom, partage de `/wl` avec
   WoWHead Looter (répartiteur dans `Core.lua`, `ClaimSlash`), outillage (hook `pre-push`, hook Claude Code, `sync.sh`
   qui retient ses dernières copies).
