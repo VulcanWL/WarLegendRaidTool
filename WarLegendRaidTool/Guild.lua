@@ -41,6 +41,9 @@ W.AddFR({
     ["Click: open his profession. Shift-click: link it in the chat."] =
         "Clic : ouvrir son métier. Maj-clic : le lier dans le chat.",
     ["Ctrl-click: whisper him."] = "Ctrl-clic : le chuchoter.",
+    ["Online members only"] = "Membres en ligne seulement",
+    ["Shows only the members online now (the list and the crafters of a recipe)."] =
+        "N'affiche que les membres en ligne maintenant (la liste et les artisans d'une recette).",
     ["Nobody has a recipe named \"%s\" (only members who have the addon and opened their professions)."] =
         "Personne n'a de recette « %s » (seulement les membres qui ont l'addon et ont ouvert leurs métiers).",
     ["Who can craft \"%s\":"] = "Qui peut fabriquer « %s » :",
@@ -110,7 +113,8 @@ local UI = {}
 
 W.OnReady(function()
     db = W.DB("guild", { inactiveDays = 14, hideOfficers = true, channel = "LookingForGroup", interval = 15, remind = false,
-        last = 0, sel = 1, profFilter = "", profMin = 0, profMax = 0, profShare = true })
+        last = 0, sel = 1, profFilter = "", profMin = 0, profMax = 0, profShare = true, profSort = "", profSortDesc = false,
+        profOnline = false })
     if type(db.msgs) ~= "table" then db.msgs = { L("<{guild}> is recruiting for its raids! All classes welcome, friendly and motivated. Whisper {me} for info."), "", "" } end
     if type(db.data) ~= "table" then db.data = {} end
     -- members who have not synced for 90 days (left the guild...) are forgotten: the saved file stays small
@@ -783,7 +787,7 @@ local function Filters()
     local choice = db.profFilter or ""
     return { prof = choice == RECIPE_VIEW and "" or choice, recipeView = choice == RECIPE_VIEW,
         min = tonumber(db.profMin) or 0, max = tonumber(db.profMax) or 0,
-        name = UI.nameSearch and SearchText(UI.nameSearch:GetText()) or "" }
+        name = UI.nameSearch and SearchText(UI.nameSearch:GetText()) or "", online = db.profOnline and true or false }
 end
 
 ---------------------------------------------------------------------------
@@ -918,7 +922,7 @@ function G.FindCrafters(search, filter, f)
     local by = {}
     for key, e in pairs(d) do
         local name = EntryName(key, e)
-        if PassName(name, f) then
+        if PassName(name, f) and (not f.online or Online(name)) then
             for prof, list in pairs(e.rec or {}) do
                 local pk = ProfKey(prof)
                 if (f.prof == "" or pk == f.prof) and PassSkill(SkillOf(e, pk), f) then
@@ -978,14 +982,14 @@ local function MemberRows(f)
         local name = EntryName(key, e)
         if #known > 0 and InGuild(name, rosterKnown) then
             members = members + 1
-            if PassName(name, f) then
-                local g = W.GuildInfo(name)
-                local online = g and g.online
+            local g = W.GuildInfo(name)
+            local online = g and g.online
+            if PassName(name, f) and (not f.online or online) then
                 for _, x in ipairs(known) do
                     if (f.prof == "" or x.key == f.prof) and PassSkill(x, f) then
                         local count = RecipeCount(e, x.key)
-                        rows[#rows + 1] = { member = key, name = name, prof = x.key, skill = x.r or -1, src = x.src,
-                            noRecipes = count == nil, label = ProfLabel(x.key), online = online,
+                        rows[#rows + 1] = { member = key, name = name, prof = x.key, skill = x.r or -1, max = x.m or 0, src = x.src,
+                            noRecipes = count == nil, label = ProfLabel(x.key), sortName = name:lower(), online = online,
                             cells = { (online and "|cff33ff66*|r " or "  ") .. W.ColorName(name, g and g.class), ProfLabel(x.key),
                                 SkillCell(x), count and tostring(count) or "|cff777777-|r", SourceCell(x.src), W.Ago(x.t) } }
                     end
@@ -993,13 +997,39 @@ local function MemberRows(f)
             end
         end
     end
-    -- one profession chosen: the best first (who can craft the most); else by name, then profession
-    table.sort(rows, function(a, b)
-        if f.prof ~= "" and a.skill ~= b.skill then return a.skill > b.skill end
-        if a.name ~= b.name then return a.name < b.name end
-        return a.label < b.label
-    end)
+    local by, desc = G.ProfSort(f)
+    table.sort(rows, function(a, b) return G.ProfLess(a, b, by, desc) end)
     return rows, members
+end
+
+-- Sort of the list: the column header clicked (Name, Profession, Skill; again: the other way), saved in db.profSort.
+-- Never chosen: as before, the best first for one profession, else by name. It sorts on what the cells show: the
+-- name without the online mark, the profession's label in this language, the skill (then the maximum); an unknown
+-- skill ("?") stays last both ways. The ties end on the name, the profession, then the data key: the same list always
+-- comes in the same order (table.sort is not stable).
+local SORT_KEYS = { name = true, prof = true, skill = true }
+function G.ProfSort(f)
+    if SORT_KEYS[db.profSort] then return db.profSort, db.profSortDesc and true or false end
+    if f and f.prof ~= "" then return "skill", true end
+    return "name", false
+end
+
+function G.ProfLess(a, b, by, desc)
+    if by == "skill" then
+        local ua, ub = a.skill < 0, b.skill < 0
+        if ua ~= ub then return ub end
+        if a.skill ~= b.skill then if desc then return a.skill > b.skill end return a.skill < b.skill end
+        if a.max ~= b.max then if desc then return a.max > b.max end return a.max < b.max end
+    elseif by == "prof" then
+        if a.label ~= b.label then if desc then return a.label > b.label end return a.label < b.label end
+        if a.skill ~= b.skill then return a.skill > b.skill end -- one profession: the best first, "?" last
+    end
+    if a.sortName ~= b.sortName then
+        if by == "name" and desc then return a.sortName > b.sortName end
+        return a.sortName < b.sortName
+    end
+    if a.label ~= b.label then return a.label < b.label end
+    return a.member < b.member
 end
 
 function G.RefreshProfs()
@@ -1018,6 +1048,7 @@ function G.RefreshProfs()
         end
         UI.recipes:SetData(rows)
     else
+        UI.profs:SetSortMark(G.ProfSort(f))
         UI.profs:SetData(rows)
     end
     UI.profs:SetShown(not recipeMode)
@@ -1194,8 +1225,12 @@ local function BuildProfs(p)
     UI.search:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
     UI.search:SetScript("OnTextChanged", G.RefreshProfs)
     W.LinkTarget(UI.search) -- shift-click an item while typing: its name is searched
+    local onlineCheck = W.Check(p, L("Online members only"), function() return db.profOnline end,
+        function(v) db.profOnline = v; UI.profs:ScrollToTop(); G.RefreshProfs() end,
+        { L("Shows only the members online now (the list and the crafters of a recipe).") })
+    onlineCheck:SetPoint("LEFT", UI.search, "RIGHT", 12, 0)
     UI.status = W.Label(p, "", "GameFontNormalSmall")
-    UI.status:SetPoint("LEFT", UI.search, "RIGHT", 16, 0)
+    UI.status:SetPoint("LEFT", onlineCheck.label, "RIGHT", 16, 0)
 
     local function OnClick(d)
         if not d.member then return end
@@ -1220,10 +1255,22 @@ local function BuildProfs(p)
         GameTooltip:Show()
     end
     -- one row per member and profession; the recipe search has its own columns
-    UI.profs = W.Table(p, { { L("Name"), 210 }, { L("Profession"), 140 }, { L("Skill"), 80, "CENTER" },
-        { L("Recipes"), 70, "CENTER" }, { L("Source"), 70, "CENTER" }, { L("Updated"), 70, "CENTER" } }, 370)
+    UI.profs = W.Table(p, { { L("Name"), 210, sort = "name" }, { L("Profession"), 140, sort = "prof" },
+        { L("Skill"), 80, "CENTER", sort = "skill" }, { L("Recipes"), 70, "CENTER" }, { L("Source"), 70, "CENTER" },
+        { L("Updated"), 70, "CENTER" } }, 370)
     UI.profs:SetPoint("TOPLEFT", 10, -64)
     UI.profs.onClick, UI.profs.onEnter = OnClick, OnEnter
+    -- a header clicked: sort by it; the same one again: the other way (a skill starts with the best)
+    UI.profs.onSort = function(key)
+        local by, desc = G.ProfSort(Filters())
+        if key == by then
+            db.profSort, db.profSortDesc = key, not desc
+        else
+            db.profSort, db.profSortDesc = key, key == "skill"
+        end
+        UI.profs:ScrollToTop()
+        G.RefreshProfs()
+    end
     UI.recipes = W.Table(p, { { L("Recipe"), 230 }, { L("Profession"), 140 }, { L("Crafters"), 380 } }, 370)
     UI.recipes:SetPoint("TOPLEFT", 10, -64)
     UI.recipes.onClick, UI.recipes.onEnter = OnClick, OnEnter

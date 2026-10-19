@@ -127,6 +127,25 @@ W.On("PLAYER_REGEN_ENABLED", function()
     if waitCombat then waitCombat = false; MaybeLoad() end
 end)
 
+-- The queue pops (status "confirm": the "Enter battle" window): the frames are loaded right then, outside, so their
+-- first load (about 150 ms, /wl perf) is not paid at the end of the loading screen in the battleground. In combat it
+-- waits: entering the battleground still loads them (MaybeLoad above). Off once loaded.
+local queueEv
+local function QueuePopped(queueId)
+    if not GetBattlefieldStatus then return false end
+    if queueId then return W.Safe(GetBattlefieldStatus(queueId)) == "confirm" end
+    for i = 1, (GetMaxBattlefieldID and W.Safe(GetMaxBattlefieldID())) or 3 do
+        if W.Safe(GetBattlefieldStatus(i)) == "confirm" then return true end
+    end
+    return false
+end
+queueEv = W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
+    if loaded or loadFailed then W.Activate(queueEv, false); return end
+    if not db or not db.enabled or W.access ~= true or InCombatLockdown() then return end
+    if not QueuePopped(W.Safe(queueId)) then return end
+    if W.LoadPvP() then W.Activate(queueEv, false) end
+end)
+
 W.slash.pvp = function() W.Toggle("PvPFrames") end
 
 -- /wl pvpcheck: are the 12.x addon restrictions active in this battleground? (runs only when typed)

@@ -451,6 +451,7 @@ function W.Confirm(text, onYes, yesText)
         tinsert(UISpecialFrames, "WLRTConfirm")
     end
     confirm.text:SetText(text)
+    confirm:SetHeight(math.max(130, (confirm.text:GetStringHeight() or 0) + 96)) -- a long text (profile import) stays inside
     confirm.yes:SetText(yesText or L("Yes"))
     confirm.yes:SetScript("OnClick", function() confirm:Hide(); onYes() end)
     confirm:Show()
@@ -585,7 +586,16 @@ function W.Pulse(frame, duration)
     end)
 end
 
--- Simple column table built on W.ScrollList: cols = { {title, width, justify} }
+W.AddFR({
+    ["Click: sort by this column (again: the other way)."] = "Clic : trier par cette colonne (encore : dans l'autre sens).",
+})
+
+-- Simple column table built on W.ScrollList: cols = { {title, width, justify, sort = key} }
+-- A column with "sort" has a clickable header: holder.onSort(key) is called, holder:SetSortMark(key, desc) shows the
+-- arrow. Only the rows on screen exist: a list of thousands of lines keeps a few dozen frames (WoW never frees a
+-- frame), moved and filled again when the list scrolls.
+local SORT_UP = " |TInterface\\Buttons\\Arrow-Up-Up:10:10:0:-2|t"
+local SORT_DOWN = " |TInterface\\Buttons\\Arrow-Down-Up:10:10:0:2|t"
 function W.Table(parent, cols, h, rowH)
     rowH = rowH or 18
     local width = 0
@@ -601,10 +611,26 @@ function W.Table(parent, cols, h, rowH)
         fs:SetJustifyH(c[3] or "LEFT")
         fs:SetTextColor(0.85, 0.85, 0.85)
         holder.heads[#holder.heads + 1] = fs
+        if c.sort then
+            local b = CreateFrame("Button", nil, holder)
+            b:SetPoint("TOPLEFT", x - 2, 2)
+            W.Size(b, c[2], 16)
+            local hl = b:CreateTexture(nil, "HIGHLIGHT")
+            hl:SetAllPoints()
+            W.SetColor(hl, 1, 1, 1, 0.08)
+            b:SetScript("OnClick", function() if holder.onSort then holder.onSort(c.sort) end end)
+            W.Tooltip(b, c[1], { L("Click: sort by this column (again: the other way).") })
+        end
         c.x = x
         x = x + c[2]
     end
-    local list = W.ScrollList(holder, width, h - 18, rowH, function(content)
+    function holder:SetSortMark(key, desc)
+        for i, c in ipairs(cols) do
+            if c.sort then self.heads[i]:SetText(c[1] .. (c.sort == key and (desc and SORT_DOWN or SORT_UP) or "")) end
+        end
+    end
+    local listH = h - 18
+    local list = W.ScrollList(holder, width, listH, rowH, function(content)
         local r = CreateFrame("Button", nil, content)
         local hl = r:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
@@ -625,15 +651,43 @@ function W.Table(parent, cols, h, rowH)
         return r
     end)
     list.sf:SetPoint("TOPLEFT", holder, "TOPLEFT", 0, -16)
-    -- data = { {cells = {...}, ...}, ... }
-    function holder:SetData(data)
-        for i, d in ipairs(data) do
-            local r = list:Row(i)
+    local data = {}
+    local visible = math.ceil(listH / rowH) + 1
+    -- the rows on screen: row j shows line first + j, at that line's place in the full-height content
+    local function Render()
+        local n = #data
+        local first = math.floor((list.sf:GetVerticalScroll() or 0) / rowH)
+        local shown = 0
+        for j = 1, visible do
+            local idx = first + j
+            local d = data[idx]
+            if not d then break end
+            local r = list:Row(j)
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", list.content, "TOPLEFT", 0, -(idx - 1) * rowH)
+            if not r.stripe then
+                r.stripe = r:CreateTexture(nil, "BACKGROUND")
+                r.stripe:SetAllPoints()
+                W.SetColor(r.stripe, 1, 1, 1, 0.035)
+            end
+            r.stripe:SetShown(idx % 2 == 0) -- the stripes follow the lines, not the recycled rows
             r.data = d
             for k = 1, #cols do r.cells[k]:SetText(d.cells[k] or "") end
+            shown = j
         end
-        list:Finish(#data)
+        for j = shown + 1, #list.rows do list.rows[j]:Hide() end
     end
+    list.sf:HookScript("OnVerticalScroll", Render)
+    -- data = { {cells = {...}, ...}, ... }
+    function holder:SetData(d)
+        data = d or {}
+        list.content:SetHeight(math.max(#data * rowH, 1))
+        -- a shorter list (a filter): never left scrolled below its end
+        local maxScroll = math.max(0, #data * rowH - listH)
+        if (list.sf:GetVerticalScroll() or 0) > maxScroll then list.sf:SetVerticalScroll(maxScroll) end
+        Render()
+    end
+    function holder:ScrollToTop() list.sf:SetVerticalScroll(0) end
     holder.list = list
     return holder
 end

@@ -12,6 +12,13 @@ local FR = {
     ["Reload the interface to apply the new style?"] = "Recharger l'interface pour appliquer le nouveau style ?",
     ["Reload"] = "Recharger",
     ["Follows your interface: EllesmereUI when installed, else the Blizzard look."] = "Suit ton interface : EllesmereUI s'il est installé, sinon le style Blizzard.",
+    ["Style: WL v3 Cyan"] = "Style : WL v3 Cyan",
+    ["Style: WL v3 Red"] = "Style : WL v3 Rouge",
+    ["Style: WL v3 Gold"] = "Style : WL v3 Or",
+    ["Style: WL v3 Violet"] = "Style : WL v3 Violet",
+    ["Style: WL v3 Monochrome"] = "Style : WL v3 Monochrome",
+    ["WL v3: the look of Sashoof's WarLegend v3 addon (slate panels, five accent colors)."] =
+        "WL v3 : le style de l'addon WarLegend v3 de Sashoof (panneaux ardoise, cinq couleurs d'accent).",
     ["Checking your guild..."] = "Vérification de ta guilde...",
     ["This addon is reserved for members of the %s guild."] = "Cet addon est réservé aux membres de la guilde %s.",
     ["Lvl"] = "Niv",

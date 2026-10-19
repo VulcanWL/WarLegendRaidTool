@@ -938,6 +938,8 @@ end
 --   "blizzard" default WoW Forever UI -> Blizzard dialog frames, red buttons, gold text
 --   "flat"     WarLegend flat black/red (warlegend.net)
 --   "sashoof"  SashoofUI look: dark navy panels, cyan accent (the "War Legend Classic Forever" UI)
+--   "wl3..."   the look of Sashoof's WarLegend v3 addon: slate panels, one of its five accents
+--              (wl3 cyan, wl3red, wl3gold, wl3violet, wl3mono) and the logo of that color
 -- "auto" (default) picks eui when available, else blizzard. Changing it needs a /reload.
 ---------------------------------------------------------------------------
 local skin
@@ -950,16 +952,30 @@ local PALETTES = {
         hover = { 0.16, 0.05, 0.05 }, headTop = { 0.02, 0.02, 0.02 }, headBottom = { 0.09, 0.03, 0.03 }, side = { 0.05, 0.05, 0.05 } },
     sashoof = { panel = { 0.043, 0.078, 0.106 }, light = { 0.075, 0.125, 0.165 }, border = { 0.11, 0.2, 0.26 },
         hover = { 0.05, 0.17, 0.23 }, headTop = { 0.03, 0.07, 0.1 }, headBottom = { 0.05, 0.12, 0.16 }, side = { 0.027, 0.055, 0.075 } },
+    wl3 = { panel = { 0.035, 0.043, 0.055 }, light = { 0.095, 0.11, 0.13 }, border = { 0.19, 0.23, 0.27 },
+        hover = { 0.13, 0.155, 0.18 }, headTop = { 0.035, 0.043, 0.055 }, headBottom = { 0.065, 0.078, 0.095 }, side = { 0.065, 0.078, 0.095 } },
+}
+-- WarLegend v3 styles: accent color and logo (Media\WLLogo*.tga, from Sashoof's addon)
+local WL3 = {
+    wl3 = { 0.64, 0.76, 0.77, "WLLogoBlue" }, wl3red = { 0.80, 0.27, 0.20, "WLLogoRed" },
+    wl3gold = { 0.91, 0.70, 0.36, "WLLogoGold" }, wl3violet = { 0.66, 0.45, 0.92, "WLLogoViolet" },
+    wl3mono = { 0.78, 0.81, 0.84, "WLLogoWhite" },
 }
 local PAL = PALETTES.flat
-function W.IsFlat() return W.style == "flat" or W.style == "sashoof" end
+function W.IsFlat() return W.style == "flat" or W.style == "sashoof" or WL3[W.style] ~= nil end
 function W.ResolveTheme()
     local pref = (W.db and W.db.ui and W.db.ui.style) or "auto"
     if pref == "auto" then pref = skin and "eui" or "blizzard" end
     if pref == "eui" and not skin then pref = "blizzard" end
     W.style = pref
-    PAL = PALETTES[pref] or PALETTES.flat
-    if pref == "eui" then
+    PAL = PALETTES[WL3[pref] and "wl3" or pref] or PALETTES.flat
+    if WL3[pref] then
+        local a = WL3[pref]
+        W.R, W.G, W.B = a[1], a[2], a[3]
+        W.LOGO_TEX = "Interface\\AddOns\\" .. ADDON .. "\\Media\\" .. a[4]
+        W.LOGO = string.format("|cffffffffWAR|r|cff%02x%02x%02xLEGEND|r",
+            math.floor(a[1] * 255 + 0.5), math.floor(a[2] * 255 + 0.5), math.floor(a[3] * 255 + 0.5))
+    elseif pref == "eui" then
         local r, g, b = skin.GetAccentColor()
         W.R, W.G, W.B = r or BRAND[1], g or BRAND[2], b or BRAND[3]
         local font = skin.GetFont and skin.GetFont()
@@ -1472,10 +1488,10 @@ local CATEGORIES = {
         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "CombatTimer", "WhoPulled", "AutoLog", "CCAlert" } },
         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "DuelTimer", "DangerAlert" } },
+        { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "Minotaure", "DuelTimer", "DangerAlert" } },
     } },
     { key = "me", title = "Guild", accordion = true, sections = {
-        { key = "members", title = "Members", items = { "Guild", "Dashboard", "Roster", "GuildPositions" } },
+        { key = "members", title = "Members", items = { "Guild", "Dashboard", "Classes", "Roster", "GuildPositions", "Layers" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
     { key = "options", title = "Options", accordion = true, sections = {
@@ -1657,14 +1673,17 @@ function W.BuildMain()
     local close = W.CloseButton(main, 30)
     close:SetPoint("TOPRIGHT", blizz and -6 or 0, blizz and -6 or 0)
     -- style selector, a drop-down (needs a reload)
-    local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" } }
-    local styleBtn = W.Cycle(main, 140, styles, function() return W.DB("ui").style or "auto" end, function(v)
+    local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" },
+        { "wl3", L("Style: WL v3 Cyan") }, { "wl3red", L("Style: WL v3 Red") }, { "wl3gold", L("Style: WL v3 Gold") },
+        { "wl3violet", L("Style: WL v3 Violet") }, { "wl3mono", L("Style: WL v3 Monochrome") } }
+    local styleBtn = W.Cycle(main, 160, styles, function() return W.DB("ui").style or "auto" end, function(v)
         if v == (W.DB("ui").style or "auto") then return end
         W.DB("ui").style = v
         W.ConfirmReload(L("Reload the interface to apply the new style?"))
-    end, { L("Follows your interface: EllesmereUI when installed, else the Blizzard look.") })
+    end, { L("Follows your interface: EllesmereUI when installed, else the Blizzard look."),
+        L("WL v3: the look of Sashoof's WarLegend v3 addon (slate panels, five accent colors).") })
     styleBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, -4)
-    W.Size(styleBtn, 140, 20)
+    W.Size(styleBtn, 160, 20)
     -- language: FR / EN, a drop-down like the style (needs a reload); shows the language that will be used
     local function NextLang()
         local cur = W.DB("ui").lang
@@ -2263,6 +2282,9 @@ W.AddFR({
     ["guild members on the world map and the minimap"] = "les membres de la guilde sur la carte du monde et la minicarte",
     ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
     ["my premade history and records"] = "historique et records de mes premades",
+    ["my layer and the guild members' layers"] = "mon layer et ceux des membres de la guilde",
+    ["the guild by class: class leaders, declared roles, my profile"] = "la guilde par classe : responsables, rôles déclarés, mon profil",
+    ["Minotaure: guild PvP season ranking and weekly challenges"] = "Minotaure : classement JcJ de saison de la guilde et défis de la semaine",
 })
 local HELP = {
     { "/wl", "open / close the window" },
@@ -2275,6 +2297,8 @@ local HELP = {
     { "/wl cvar", "hidden game options (camera, nameplates, combat text) and every CVar" },
     { "/wl ilvl", "item levels on the character sheet, inspect, bags, loot and tooltips" },
     { "/wl map", "guild members on the world map and the minimap" },
+    { "/wl layer", "my layer and the guild members' layers" },
+    { "/wl classes", "the guild by class: class leaders, declared roles, my profile" },
     { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
     { "/wl logdebug", "combat log auto-start debug" },
@@ -2295,6 +2319,7 @@ local HELP = {
     { "/wl bank", "stock of my bank characters" },
     { "/wl craft [item]", "who can craft it in the guild (name or item link)" },
     { "/wl bg", "my premade history and records" },
+    { "/wl mino", "Minotaure: guild PvP season ranking and weekly challenges" },
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },

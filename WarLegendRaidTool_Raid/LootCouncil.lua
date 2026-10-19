@@ -1096,7 +1096,22 @@ function LC.AddSR(name, id)
     return true
 end
 
+-- at most 3 answers per player in 10 s: a flood of "!sr" whispers must not make me whisper back in a loop
+-- (the game's anti-spam would mute me)
+local REPLY_WINDOW, REPLY_MAX = 10, 3
+local replies, repliesCount = {}, 0 -- [sender] = { start, count }
 local function Reply(to, text)
+    local now, r = GetTime(), replies[to]
+    if not r or now - r[1] > REPLY_WINDOW then
+        if not r then
+            repliesCount = repliesCount + 1
+            if repliesCount > 200 then wipe(replies); repliesCount = 1 end -- stays small over an evening
+        end
+        r = { now, 0 }
+        replies[to] = r
+    end
+    if r[2] >= REPLY_MAX then return end
+    r[2] = r[2] + 1
     W.SendChat(W.TAG:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. text, "WHISPER", to)
 end
 

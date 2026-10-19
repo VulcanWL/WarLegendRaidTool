@@ -88,7 +88,7 @@ local function InviteFromKeyword(name)
 end
 
 local whisperEv = W.On("CHAT_MSG_WHISPER", function(msg, sender)
-    if not db or not db.enabled then return end
+    if not db or not db.enabled or W.Overlap("autoInvite") then return end -- WarLegend v3 already invites
     msg, sender = W.Safe(msg), W.Safe(sender)
     if not sender or sender == "" or not IsKeyword(msg) then return end
     InviteFromKeyword(sender)
@@ -243,6 +243,7 @@ W.RegisterModule("InviteTool", "Invite Tool", function(p)
     W.Title(p, L("Invite Tool"))
     W.Check(p, L("Invite on keyword whisper"), function() return db.enabled end,
         function(v) db.enabled = v; Watch() end):SetPoint("TOPLEFT", 12, -40)
+    W.OverlapNote(p, "autoInvite", "TOPLEFT", 300, -46)
     W.Label(p, L("Keywords (comma separated):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -74)
     local box = W.EditBox(p, 220, 80)
     box:SetPoint("TOPLEFT", 240, -70)

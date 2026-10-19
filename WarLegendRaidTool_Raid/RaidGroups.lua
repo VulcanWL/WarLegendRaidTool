@@ -700,19 +700,26 @@ function RG.Serialize(name, preset)
     return table.concat(parts, ";")
 end
 
+-- A shared or pasted string comes from someone else: the preset name is shown in the confirmation and the lists,
+-- so no escape sequence ("|" textures, colors, links) and no control character; the class is a class token only;
+-- a raid holds 40 players.
 function RG.Deserialize(str)
     local name, preset = nil, { players = {} }
     for chunk in string.gmatch(str or "", "[^;]+") do
         if not name then
-            name = chunk
-        else
+            name = chunk:gsub("[%c|]", ""):sub(1, 40)
+            if name:match("^%s*$") then name = "Preset" end
+        elseif #preset.players < 40 then
             local n, c, g, i, ma = strsplit(",", chunk)
             n = n and W.SanitizeName(n)
             if n and n ~= "" and n ~= "#boss" then
                 g = tonumber(g) or 1
                 if g < 1 or g > 8 then g = 1 end
+                i = tonumber(i) or 0
+                if i < 0 or i > 8 or i % 1 ~= 0 then i = 0 end
+                c = (c and #c <= 12 and c:match("^%u+$")) and c or nil
                 preset.players[#preset.players + 1] = {
-                    name = n, class = (c and c ~= "" and c or nil), group = g, icon = tonumber(i) or 0,
+                    name = n, class = c, group = g, icon = i,
                     -- 5th field = main assist number (old RaidPresets strings had x,y floats here)
                     ma = (ma and ma:match("^[1-8]$")) and tonumber(ma) or nil }
             end

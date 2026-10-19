@@ -32,6 +32,16 @@ local function EUI(test)
     end
 end
 
+-- WarLegend v3 (Sashoof): its saved table, only there while that addon is enabled. Its "Groups" module invites on a
+-- keyword whisper unless invite.mode is "off" (its auto promotion never acts: no overlap there).
+local function WL3Invite()
+    local d = _G.WarLegendDB
+    local c = type(d) == "table" and d.config
+    if type(c) ~= "table" or type(c.invite) ~= "table" then return false end
+    if type(c.modules) == "table" and c.modules.Groups == false then return false end
+    return c.invite.mode ~= nil and c.invite.mode ~= "off"
+end
+
 -- WarLegend feature -> { addon name, test }, first match wins
 local PROVIDERS = {
     combatTimer = { { "Naowh Forever", Naowh("combatTimer") } },
@@ -46,6 +56,7 @@ local PROVIDERS = {
     questTurnIn = { { "Naowh Forever", Naowh("questTurnIn") } },
     deleteConfirm = { { "Naowh Forever", Naowh("deleteConfirm") } },
     autoLog = { { "EllesmereUI", EUI(function(d) return type(d.autoLogging) == "table" and d.autoLogging.enabled == true end) } },
+    autoInvite = { { "WarLegend v3", function() local ok, on = pcall(WL3Invite); return ok and on == true end } },
 }
 
 -- one switch for every feature (Overlap panel notes): "use ours anyway"

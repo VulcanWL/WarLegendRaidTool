@@ -61,8 +61,13 @@ local function OnEnter(self)
     GameTooltip:Show()
 end
 
+-- WoW never frees a frame: the pins of a member who is forgotten (60 s silent, in an instance, in my group) go back
+-- here and are reused, else every evening would add new frames
+local spare = {}
 local function NewPin()
-    local f = CreateFrame("Button", nil, UIParent)
+    local f = table.remove(spare)
+    if f then return f end
+    f = CreateFrame("Button", nil, UIParent)
     f.icon = f:CreateTexture(nil, "ARTWORK")
     f.icon:SetAllPoints()
     f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -113,10 +118,20 @@ local function Place(m)
     end
 end
 
+local function Release(f)
+    if not f then return end
+    f.member = nil
+    f:Hide()
+    spare[#spare + 1] = f
+end
+
 local function Forget(full)
     local m = members[full]
     if not m then return end
     Unpin(m)
+    Release(m.world)
+    Release(m.mini)
+    m.world, m.mini = nil, nil
     m.gone = true
     count = count - 1
     members[full] = nil

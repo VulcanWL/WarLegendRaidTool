@@ -31,6 +31,17 @@ W.AddFR({
     ["Replace your settings with this profile?"] = "Remplacer tes réglages par ce profil ?",
     ["Profile imported: reload to apply it."] = "Profil importé : recharge pour l'appliquer.",
     ["Not in combat."] = "Pas en combat.",
+    ["This profile also:"] = "Ce profil, en plus :",
+    ["%d macro line(s) that run code (/run, /script...) removed"] = "%d ligne(s) de macro qui exécutent du code (/run, /script...) retirée(s)",
+    ["invites whoever whispers the keyword"] = "invite quiconque chuchote le mot-clé",
+    ["accepts the invites suggested by the group"] = "accepte les invitations suggérées par le groupe",
+    ["accepts group invites from friends and guild"] = "accepte les invitations de groupe des amis et de la guilde",
+    ["repairs with the guild bank money"] = "répare avec l'argent de la banque de guilde",
+    ["sells grey items at vendors"] = "vend les objets gris chez les marchands",
+    ["answers the readiness checks of any group leader"] = "répond aux vérifications de n'importe quel chef de groupe",
+    ["shares your position with the guild"] = "partage ta position avec la guilde",
+    ["sets %d game option(s) at every login: %s"] = "règle %d option(s) du jeu à chaque connexion : %s",
+    ["promotes to assistant: %d name(s) or rank(s)"] = "promeut assistant : %d nom(s) ou rang(s)",
 })
 local L = W.L
 
@@ -104,12 +115,13 @@ local SKIP = { schema = true, minimap = true }
 -- saved scalars that are state, not options (this window's place, the language of this client...)
 local SKIP_FIELDS = {
     ui = { lastModule = true, category = true, openSection = true, openSection_me = true, openSection_options = true, point = true, relPoint = true, x = true, y = true, lang = true },
-    guild = { last = true, sel = true, profFilter = true, profMin = true, profMax = true },
+    guild = { last = true, sel = true, profFilter = true, profMin = true, profMax = true, profSort = true, profSortDesc = true, profOnline = true },
     cooldownText = { previous = true },
     roster = { remindDay = true },
     bgStats = { recordMap = true },
     inviteTool = { offByDefault = true },
     raidGroups = { migrated = true, selected = true },
+    dangerAlert = { logClass = true },
 }
 -- tables that are options: "point" / "emphPoint" in any module (a frame position), and these.
 -- A new option saved as a table goes here, or it is not in the profiles.
@@ -124,6 +136,7 @@ local TABLE_FIELDS = {
     checklist = { items = true },
     moveFrames = { winPos = true, winScale = true, elemPos = true, tipPoint = true },
     interfaceOptions = { cvars = true },
+    classes = { leaders = true },
 }
 local function IsTableOption(key, field)
     return field == "point" or field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false
@@ -205,6 +218,79 @@ local function Apply(data)
     end
 end
 
+-- Before an import: a shared profile must not act behind the player's back. The macro lines that run code
+-- (/run, /script, /dump, /console, /click) are removed from it (the "Custom" clicks of the battleground frames run
+-- their text as a macro), and the confirmation lists the game options (CVars) and the automatic actions it turns on.
+local RUN_CMDS = { run = true, script = true, dump = true, console = true, click = true }
+local function StripMacros(t, depth)
+    if depth > 8 then return 0 end
+    local removed = 0
+    for k, v in pairs(t) do
+        if type(v) == "string" and v:find("/", 1, true) then
+            local kept, cut = {}, 0
+            for line in (v .. "\n"):gmatch("(.-)\n") do
+                local cmd = line:match("^%s*/(%S+)")
+                if cmd and RUN_CMDS[cmd:lower()] then cut = cut + 1 else kept[#kept + 1] = line end
+            end
+            if cut > 0 then t[k] = table.concat(kept, "\n"); removed = removed + cut end
+        elseif type(v) == "table" then
+            removed = removed + StripMacros(v, depth + 1)
+        end
+    end
+    return removed
+end
+
+-- { module key, field, value that acts on its own, what it does }
+local RISKY = {
+    { "inviteTool", "enabled", true, "invites whoever whispers the keyword" },
+    { "inviteTool", "acceptSuggested", true, "accepts the invites suggested by the group" },
+    { "qol", "acceptInvites", true, "accepts group invites from friends and guild" },
+    { "qol", "repairGuild", true, "repairs with the guild bank money" },
+    { "qol", "sellJunk", true, "sells grey items at vendors" },
+    { "readiness", "answerFrom", "group", "answers the readiness checks of any group leader" },
+    { "guildPositions", "share", true, "shares your position with the guild" },
+}
+
+local function Review(data)
+    local lines = {}
+    if type(data.pvp) == "table" then
+        local cut = StripMacros(data.pvp, 1)
+        if cut > 0 then lines[#lines + 1] = string.format(L("%d macro line(s) that run code (/run, /script...) removed"), cut) end
+    end
+    local main = data.main
+    for _, r in ipairs(RISKY) do
+        local t, cur = main[r[1]], W.db[r[1]]
+        if type(t) == "table" and t[r[2]] == r[3] and not (type(cur) == "table" and cur[r[2]] == r[3]) then
+            lines[#lines + 1] = L(r[4])
+        end
+    end
+    local io = main.interfaceOptions
+    if type(io) == "table" and type(io.cvars) == "table" then
+        local mine = type(W.db.interfaceOptions) == "table" and type(W.db.interfaceOptions.cvars) == "table" and W.db.interfaceOptions.cvars or {}
+        local names = {}
+        for cvar, v in pairs(io.cvars) do
+            if type(cvar) == "string" and mine[cvar] ~= v then names[#names + 1] = W.Plain(cvar, 40) end
+        end
+        table.sort(names)
+        if #names > 0 then
+            local shown = {}
+            for i = 1, math.min(6, #names) do shown[i] = names[i] end
+            lines[#lines + 1] = string.format(L("sets %d game option(s) at every login: %s"), #names,
+                table.concat(shown, ", ") .. (#names > 6 and ", ..." or ""))
+        end
+    end
+    local ap = main.autoPromote
+    if type(ap) == "table" then
+        local n = 0
+        for _, list in ipairs({ ap.names, ap.ranks }) do
+            if type(list) == "table" then for _ in pairs(list) do n = n + 1 end end
+        end
+        if n > 0 then lines[#lines + 1] = string.format(L("promotes to assistant: %d name(s) or rank(s)"), n) end
+    end
+    if #lines == 0 then return "" end
+    return "\n\n|cffff9900" .. L("This profile also:") .. "|r\n- " .. table.concat(lines, "\n- ")
+end
+
 ---------------------------------------------------------------------------
 -- Tab
 ---------------------------------------------------------------------------
@@ -262,7 +348,7 @@ local function BuildProfile(p)
         if InCombatLockdown() then W.Print(L("Not in combat.")); return end
         local data, err = Parse(box:GetText())
         if not data then W.Print(err); return end
-        W.Confirm(L("Replace your settings with this profile?"), function()
+        W.Confirm(L("Replace your settings with this profile?") .. Review(data), function()
             Apply(data)
             W.ConfirmReload(L("Profile imported: reload to apply it."))
         end)

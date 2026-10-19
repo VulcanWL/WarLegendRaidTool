@@ -21,6 +21,14 @@ Read only the part about the file you are changing. The rules that always apply 
 players, fastest wins per battleground, `/wl bg`). Roster, GuildBank and BGStats send nothing: the user chose that; do not
 add guild sync to them without being asked.
 
+## Modules taken from Sashoof's WarLegend v3 addon (rewritten here, they DO send to the GUILD)
+`Layers.lua` (`WLRT_LAYER`: creature GUID zone part, two creatures within 30 s confirm, numbers are local aliases per map),
+`Classes.lua` (`WLRT_PROFILE`: my role / spec / availability; `W.MyRole()`; class leaders in `TABLE_FIELDS`),
+`Minotaure.lua` (`WLRT_MINO`: 28-day UTC seasons from 1791763200, fixed rules 5 / 30 / 200 a day, peers shown as declared).
+Each answers a `"?"` request, throttled. `DangerAlert.lua` keeps the enemy players seen (`db.seen`, 200 at most, personal).
+`Overlap.lua`: `autoInvite` is covered by WarLegend v3 while its `WarLegendDB.config.invite.mode` is not "off".
+The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share the `wl3` palette in `Core.lua`.
+
 ## Settings.lua
 - Settings > General: the options of the addon as a whole (minimap button, preload of the raid modules, countdown voice,
   overlap switch). An option that concerns the whole addon goes there, not in a module's panel.
