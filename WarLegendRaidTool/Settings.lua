@@ -137,6 +137,7 @@ local TABLE_FIELDS = {
     moveFrames = { winPos = true, winScale = true, elemPos = true, tipPoint = true },
     interfaceOptions = { cvars = true },
     classes = { leaders = true },
+    dangerAlert = { framesPoint = true },
 }
 local function IsTableOption(key, field)
     return field == "point" or field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false

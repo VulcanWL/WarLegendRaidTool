@@ -26,6 +26,9 @@ add guild sync to them without being asked.
 `Classes.lua` (`WLRT_PROFILE`: my role / spec / availability; `W.MyRole()`; class leaders in `TABLE_FIELDS`),
 `Minotaure.lua` (`WLRT_MINO`: 28-day UTC seasons from 1791763200, fixed rules 5 / 30 / 200 a day, peers shown as declared).
 Each answers a `"?"` request, throttled. `DangerAlert.lua` keeps the enemy players seen (`db.seen`, 200 at most, personal).
+Its enemy player frames (open world) are light rows of its own, not the PvP addon (never loaded for them): one per GUID,
+fed by nameplate / target / focus / mouseover events, no nameplate scan. The click buttons are secure, anchored to the
+holder (never to the rows), changed out of combat only; in combat a clickable row stays (grey) until the combat ends.
 `Overlap.lua`: `autoInvite` is covered by WarLegend v3 while its `WarLegendDB.config.invite.mode` is not "off".
 The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share the `wl3` palette in `Core.lua`.
 

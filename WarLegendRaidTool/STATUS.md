@@ -5,10 +5,19 @@ Pas dans le zip des releases.
 
 ## Maintenant (19/10/2026)
 
-- **Version publiée** : 1.30.0-beta (tag `v1.30.0-beta`, depuis `main`) = la fusion avec l'addon WarLegend v3 de
-  Sashoof (son accord est obtenu), faite d'abord dans le projet séparé `C:\Dev\WarLegendRaidTool Merge` (bêtas
-  `1.29.1-merge-beta-a` à `-f`), puis rapatriée ici. Le numéro continue de monter pour que WowUp-CF et l'onglet Version
-  proposent la mise à jour (1.0 aurait été plus petit que 1.29.1).
+- **Version publiée** : 1.31.0-beta (tag `v1.31.0-beta`, depuis `main`, publiée pour que la guilde teste) : cadres des
+  joueurs ennemis en monde ouvert dans l'Alerte danger (`DangerAlert.lua`, option `frames` éteinte par défaut, `framesClick` allumée, `framesPoint` dans
+  `TABLE_FIELDS` de `Settings.lua`, README, `docs/modules.md`). Cadres légers à nous, PAS l'addon PvP (jamais chargé
+  pour ça). Choix de l'utilisateur : 40 au plus (2 colonnes de 20), nom + couleur de classe + PV seulement, grisé puis
+  retiré après 15 s, clic pour cibler (`/targetexact`, boutons sécurisés ancrés au conteneur, changés hors combat
+  seulement ; en combat une ligne cliquable reste grise jusqu'à la fin du combat, un nouvel ennemi devient cliquable
+  après). Événements actifs seulement option allumée et hors instance ; `UNIT_HEALTH` seulement s'il y a des lignes ;
+  vie dessinée 5 fois / s au plus ; une vérification / s des lignes affichées. Valeurs secrètes jamais comparées.
+  Vérifié hors jeu : `check.js` 0 problème ; banc fengari (scratchpad, non gardé) : aucune action protégée en combat,
+  plafond 40 (84 cadres créés en tout), mort / instance vident tout, aucun gestionnaire actif en instance.
+  **Rien testé en jeu.** Ensuite : retours de la guilde (Test, clic en / hors combat, `/wl perf`, vie = nombre ou %).
+- **1.30.0-beta** = la fusion avec l'addon WarLegend v3 de Sashoof (son accord est obtenu), faite d'abord dans le projet
+  séparé `C:\Dev\WarLegendRaidTool Merge`, puis rapatriée ici ; le numéro continue de monter pour WowUp-CF.
 - **Ménage** : branche `tools/local-ai-bug-mode` supprimée (contenu sur `main`), dossier Merge supprimé (bêtas et
   sauvegarde `backup\` de l'addon 1.29.1 et des SavedVariables, à la demande de l'utilisateur). Anciennes Releases et tags
   GitHub gardés. L'addon WarLegend v3 de Sashoof est à retirer du jeu par l'utilisateur.
@@ -38,6 +47,7 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.31.0-beta** (19/10) : cadres des joueurs ennemis en monde ouvert (Alerte danger, 40 au plus, clic pour cibler).
 - **1.30.0-beta** (19/10) : fusion WarLegend v3 (styles WL v3 + logos `Media/WLLogo*.tga`, `Layers.lua`,
   `Classes.lua`, `Minotaure.lua`, liste des ennemis vus de l'alerte danger, invitation sur mot-clé coupée si WarLegend v3
   invite déjà) ; performances (Layers et alerte danger coupés en instance, Layers allégé, cadres de BG chargés quand la
@@ -46,6 +56,4 @@ Pas dans le zip des releases.
   lignes visibles.
 - **1.29.0 / 1.29.1-beta** (18-19/10) : addon ouvert à tous (`GUILD_RESTRICTED = false`), module Loot sparkles (actif par
   défaut).
-- **1.28.3** (18/10) : onglet Transports de la carte de guilde ; 1.28.2 : correctif « secret boolean » de NativeAuras,
-  option Barre d'énergie des cadres JcJ.
 - Versions plus anciennes : `git tag`, `git log`.

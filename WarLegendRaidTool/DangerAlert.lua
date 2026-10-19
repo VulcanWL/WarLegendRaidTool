@@ -4,6 +4,7 @@
 -- Cost: one look per nameplate that appears / goes away, nothing in instances, battlegrounds and on a taxi.
 -- Option: a list of the enemy players seen (the Radar of Sashoof's WarLegend v3 addon), from nameplates, target and
 -- mouseover in the open world, kept on this computer (200 at most).
+-- Option: enemy player frames on the side of the screen (open world, 40 at most, click to target), see below.
 local W = WLRT
 W.AddFR({
     ["Danger alert"] = "Alerte danger",
@@ -11,7 +12,7 @@ W.AddFR({
     ["Enemy players flagged for PvP"] = "Joueurs ennemis en mode JcJ",
     ["Skull and red elite mobs"] = "Monstres « tête de mort » et élites rouges",
     ["Play a sound"] = "Jouer un son",
-    ["Lock the warning"] = "Verrouiller l'alerte",
+    ["Lock the warning and the frames"] = "Verrouiller l'alerte et les cadres",
     ["Test"] = "Test",
     ["Reset position"] = "Réinitialiser la position",
     ["WARNING"] = "ALERTE",
@@ -38,13 +39,24 @@ W.AddFR({
     ["%d min"] = "%d min",
     ["%d h"] = "%d h",
     ["%d d"] = "%d j",
+    ["Enemy player frames"] = "Cadres des joueurs ennemis",
+    ["Enemy players: %d"] = "Joueurs ennemis : %d",
+    ["Enemy player frames on the side of the screen (open world)"] =
+        "Cadres des joueurs ennemis sur le côté de l'écran (monde ouvert)",
+    ["One row per enemy player shown by a nameplate, the target, the focus or the mouseover: name, class color, health. Grey once no longer seen, gone after 15 s; 40 at most. Drag the title to move them (Test shows them)."] =
+        "Une ligne par joueur ennemi montré par une barre de nom, la cible, la focalisation ou le survol : nom, couleur de classe, points de vie. Grisée quand il n'est plus vu, retirée après 15 s ; 40 au plus. Faire glisser le titre pour les déplacer (Test les affiche).",
+    ["Click a frame to target the player"] = "Cliquer sur un cadre pour cibler le joueur",
+    ["Secure buttons, changed out of combat only: in combat a new player can be clicked once the combat is over. Switch it off if it costs too much."] =
+        "Boutons sécurisés, modifiés hors combat seulement : en combat, un nouveau joueur devient cliquable à la fin du combat. À couper si cela coûte trop.",
 })
 local L = W.L
 local db
 
 W.OnReady(function()
-    db = W.DB("dangerAlert", { enabled = false, players = true, mobs = true, sound = true, locked = false, log = false, logClass = "" })
+    db = W.DB("dangerAlert", { enabled = false, players = true, mobs = true, sound = true, locked = false, log = false, logClass = "",
+        frames = false, framesClick = true })
     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -90 } end
+    if type(db.framesPoint) ~= "table" then db.framesPoint = { "TOPRIGHT", "TOPRIGHT", -30, -200 } end
     if type(db.seen) ~= "table" then db.seen = {} end
 end)
 
@@ -202,6 +214,374 @@ end, nil, true)
 local targetEv = W.On("PLAYER_TARGET_CHANGED", function() if OpenWorld() then Record("target") end end, nil, true)
 local mouseEv = W.On("UPDATE_MOUSEOVER_UNIT", function() if OpenWorld() then Record("mouseover") end end, nil, true)
 
+-- Enemy player frames (open world, the idea of the battleground frames): one row per enemy player (GUID) that a
+-- nameplate, the target, the focus or the mouseover shows: name, class color, health. A row no unit shows any more goes
+-- grey (its last health stays on the bar) and leaves after 15 s. Rows are slots made once and reused, 40 at most.
+-- Click to target: secure buttons anchored to the holder (not to the rows, which stay free in combat), changed out of
+-- combat only. In combat a clickable row stays where it is (grey if the player left) until the combat ends; a new
+-- player gets a free row that becomes clickable after the combat.
+-- Cost: nothing while the option is off, in an instance or on a taxi; one look per nameplate / target / focus /
+-- mouseover change; health events only while a row is shown, drawn 5 times a second at most; one check a second
+-- of the rows shown (units gone, 15 s out).
+local MAX_ROWS, PER_COLUMN, ROW_W, ROW_H, LOST = 40, 20, 150, 14, 15
+local holder, header, made = nil, nil, 0
+local rows, clicks = {}, {}
+local slots, byGuid, byUnit, pool = {}, {}, {}, {} -- slots[i] = entry shown on row i; byUnit[unit token] = entry
+local count, framesOn, clickPending, testing, ticking, dirty = 0, false, false, false, false, false
+local fHealthEv, fMaxEv, fRegenEv, Tick
+
+local function SlotXY(i)
+    local col, r = math.floor((i - 1) / PER_COLUMN), (i - 1) % PER_COLUMN
+    return -col * (ROW_W + 4), -16 - r * (ROW_H + 1)
+end
+
+local function PlaceHolder()
+    local p = db.framesPoint
+    holder:ClearAllPoints()
+    holder:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+end
+
+-- the holder shows nothing itself; the secure buttons make it protected: never moved in combat
+local function Holder()
+    if holder then return holder end
+    holder = CreateFrame("Frame", "WLRTDangerFrames", UIParent)
+    holder:SetSize(ROW_W, 16 + PER_COLUMN * (ROW_H + 1))
+    holder:SetFrameStrata("MEDIUM")
+    holder:SetClampedToScreen(true)
+    holder:SetMovable(true)
+    header = CreateFrame("Frame", nil, holder)
+    header:SetPoint("TOPRIGHT")
+    header:SetSize(ROW_W, 14)
+    header:EnableMouse(true)
+    header:RegisterForDrag("LeftButton")
+    header:SetScript("OnDragStart", function()
+        if not db.locked and not InCombatLockdown() then holder:StartMoving() end
+    end)
+    header:SetScript("OnDragStop", function()
+        if InCombatLockdown() then return end
+        holder:StopMovingOrSizing()
+        local point, _, rel, x, y = holder:GetPoint()
+        db.framesPoint = { point, rel, x, y }
+    end)
+    header.text = header:CreateFontString(nil, "OVERLAY")
+    W.SetFont(header.text, W.FONT, 11, "OUTLINE")
+    header.text:SetPoint("RIGHT")
+    header:Hide()
+    PlaceHolder()
+    return holder
+end
+
+local function Row(i)
+    if rows[i] then return rows[i] end
+    local row = CreateFrame("StatusBar", nil, Holder())
+    row:SetSize(ROW_W, ROW_H)
+    row:SetPoint("TOPRIGHT", holder, "TOPRIGHT", SlotXY(i))
+    row:SetStatusBarTexture(W.BAR_TEXTURE)
+    row:SetMinMaxValues(0, 1)
+    row:SetValue(1)
+    row.bg = row:CreateTexture(nil, "BACKGROUND")
+    row.bg:SetAllPoints()
+    W.SetColor(row.bg, 0.05, 0.05, 0.05, 0.7)
+    row.name = row:CreateFontString(nil, "OVERLAY")
+    W.SetFont(row.name, W.FONT, 10, "OUTLINE")
+    row.name:SetPoint("LEFT", 3, 0)
+    row.name:SetPoint("RIGHT", -40, 0)
+    row.name:SetJustifyH("LEFT")
+    row.name:SetWordWrap(false)
+    row.hp = row:CreateFontString(nil, "OVERLAY")
+    W.SetFont(row.hp, W.FONT, 10, "OUTLINE")
+    row.hp:SetPoint("RIGHT", -3, 0)
+    row:Hide()
+    rows[i] = row
+    if i > made then made = i end
+    return row
+end
+
+-- out of combat only (SyncClicks)
+local function Click(i)
+    if clicks[i] then return clicks[i] end
+    local c = CreateFrame("Button", nil, Holder(), "SecureActionButtonTemplate")
+    c:SetSize(ROW_W, ROW_H)
+    c:SetPoint("TOPRIGHT", holder, "TOPRIGHT", SlotXY(i))
+    c:SetFrameLevel(holder:GetFrameLevel() + 5) -- above the rows: its highlight shows
+    c:RegisterForClicks("AnyUp", "AnyDown")
+    c:SetAttribute("type1", "macro")
+    c:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    clicks[i] = c
+    return c
+end
+
+-- as the battleground frames (WarLegendRaidTool_PvP Main.lua GetTargetMacro): "First Surname" or "Name-Realm"
+local function TargetMacro(name)
+    local first, rest = name:match("^([^%s%-]+)[%s%-](.+)$")
+    if not first then return "/cleartarget\n/targetexact " .. name end
+    return "/cleartarget\n/targetexact " .. first .. " " .. rest ..
+        "\n/targetexact [noexists] " .. first .. "-" .. rest ..
+        "\n/targetexact [noexists] " .. first
+end
+
+-- health can be a secret value: only handed to the bar and the font string (as HealthBar.lua of the PvP addon)
+local function HealthText(v)
+    if AbbreviateNumbers then return AbbreviateNumbers(v) end
+    if issecretvalue and issecretvalue(v) then return v end
+    return AbbreviateLargeNumbers and AbbreviateLargeNumbers(v) or v
+end
+
+local function Health(e)
+    local row, u = rows[e.slot], e.unit
+    if not row or not u then return end
+    local hp, max = UnitHealth(u), UnitHealthMax(u)
+    row:SetMinMaxValues(0, max)
+    row:SetValue(hp)
+    row.hp:SetFormattedText("%s", HealthText(hp))
+    e.hp, e.max = W.Safe(hp), W.Safe(max) -- for a grey row moved to another slot
+end
+
+local function Paint(i)
+    local e, row = slots[i], rows[i]
+    if not e then
+        if row and not testing then row:Hide() end
+        return
+    end
+    row = row or Row(i)
+    row.name:SetText(e.name)
+    if e.unit then
+        row:SetStatusBarColor(W.ClassColor(e.class))
+        row:SetAlpha(1)
+        Health(e)
+    else
+        row:SetStatusBarColor(0.4, 0.4, 0.4)
+        row:SetAlpha(0.6)
+        if e.moved then
+            if e.hp and e.max then
+                row:SetMinMaxValues(0, e.max)
+                row:SetValue(e.hp)
+                row.hp:SetFormattedText("%s", HealthText(e.hp))
+            else
+                row:SetMinMaxValues(0, 1)
+                row:SetValue(1)
+                row.hp:SetText("")
+            end
+        end
+    end
+    e.moved = nil
+    row:Show()
+end
+
+local function SyncClicks()
+    if InCombatLockdown() then
+        clickPending = true
+        W.Activate(fRegenEv, true)
+        return
+    end
+    clickPending = false
+    local want = framesOn and db.framesClick
+    for i = 1, MAX_ROWS do
+        local e, c = want and slots[i], clicks[i]
+        if e then
+            c = c or Click(i)
+            if c.macro ~= e.macro then c:SetAttribute("macrotext1", e.macro); c.macro = e.macro end
+            c.entry = e
+            c:Show()
+        elseif c then
+            c.entry = nil
+            c:Hide()
+        end
+    end
+end
+
+-- rows packed from the top, except in combat while a click can target them
+local function Layout()
+    if not (db.framesClick and InCombatLockdown()) then
+        local n = 0
+        for i = 1, MAX_ROWS do
+            local e = slots[i]
+            if e then
+                n = n + 1
+                if i ~= n then slots[i], slots[n], e.slot, e.moved = nil, e, n, true end
+            end
+        end
+    end
+    for i = 1, made do Paint(i) end
+    SyncClicks()
+end
+
+local function Clickable(e)
+    local c = clicks[e.slot]
+    return c and c.entry == e and c.macro == e.macro and c:IsShown()
+end
+
+local function Changed()
+    if header then
+        header.text:SetFormattedText(L("Enemy players: %d"), testing and 5 or count)
+        header:SetShown(count > 0 or testing)
+    end
+    W.Activate(fHealthEv, framesOn and count > 0)
+    W.Activate(fMaxEv, framesOn and count > 0)
+    if count > 0 and not ticking then ticking = true; W.After(1, Tick) end
+end
+
+local function Remove(e)
+    for u, x in pairs(byUnit) do if x == e then byUnit[u] = nil end end
+    slots[e.slot], byGuid[e.guid] = nil, nil
+    count = count - 1
+    pool[#pool + 1] = e
+end
+
+-- the unit that showed this player does not any more: another one that still does, or grey
+local function Rebind(e)
+    e.unit = nil
+    for u, x in pairs(byUnit) do
+        if x == e then
+            if W.Safe(UnitGUID(u)) == e.guid then e.unit = u; break end
+            byUnit[u] = nil
+        end
+    end
+    if e.unit then e.lost = nil elseif not e.lost then e.lost = GetTime() end
+end
+
+local function NewEntry(unit, guid)
+    if count >= MAX_ROWS then return nil end
+    local name = W.UnitDisplayName(unit)
+    if not name then return nil end
+    local i = 1
+    while slots[i] do i = i + 1 end
+    local e = table.remove(pool) or {}
+    e.guid, e.name, e.class, e.slot, e.macro = guid, name, W.UnitClassToken(unit), i, TargetMacro(name)
+    e.unit, e.lost, e.hp, e.max, e.moved, e.dirty = nil, nil, nil, nil, nil, nil
+    slots[i], byGuid[guid] = e, e
+    count = count + 1
+    return e
+end
+
+local function Bind(unit)
+    local e, new
+    if W.Safe(UnitIsPlayer(unit)) and W.Safe(UnitIsEnemy("player", unit)) then
+        local guid = W.Safe(UnitGUID(unit))
+        if guid then
+            e = byGuid[guid]
+            if not e then e = NewEntry(unit, guid); new = e ~= nil end
+        end
+    end
+    local old = byUnit[unit]
+    if not e and not old then return end
+    byUnit[unit] = e
+    if old and old ~= e and old.unit == unit then Rebind(old); Paint(old.slot) end
+    if e then
+        -- the mouseover gets no health events: keep the unit it already had
+        if not e.unit or unit ~= "mouseover" then e.unit, e.lost = unit, nil end
+        Paint(e.slot)
+    end
+    Changed()
+    if new and db.framesClick then SyncClicks() end -- in combat: after the combat
+end
+
+local function Unbind(unit)
+    local e = byUnit[unit]
+    if not e then return end
+    byUnit[unit] = nil
+    if e.unit == unit then Rebind(e); Paint(e.slot) end
+end
+
+Tick = function()
+    ticking = false
+    if not framesOn then return end
+    local now, lockdown, gone = GetTime(), InCombatLockdown(), false
+    for i = 1, MAX_ROWS do
+        local e = slots[i]
+        if e then
+            if e.unit and W.Safe(UnitGUID(e.unit)) ~= e.guid then
+                Rebind(e)
+                Paint(i)
+            elseif e.unit == "mouseover" then
+                Health(e)
+            end
+            if e.lost and now - e.lost >= LOST and not (lockdown and Clickable(e)) then Remove(e); gone = true end
+        end
+    end
+    if gone then Layout() end
+    Changed()
+end
+
+local function ClearFrames()
+    for i = 1, MAX_ROWS do
+        local e = slots[i]
+        if e then Remove(e) end
+    end
+    wipe(byUnit)
+    for i = 1, made do Paint(i) end
+    Changed()
+    SyncClicks()
+end
+
+local function Flush()
+    dirty = false
+    for i = 1, MAX_ROWS do
+        local e = slots[i]
+        if e and e.dirty then
+            e.dirty = nil
+            Health(e)
+        end
+    end
+end
+
+local function OnHealth(unit)
+    local e = byUnit[unit]
+    if not e or e.unit ~= unit then return end
+    e.dirty = true
+    if not dirty then dirty = true; W.After(0.2, Flush) end
+end
+
+local fAddEv = W.On("NAME_PLATE_UNIT_ADDED", function(unit) if OpenWorld() then Bind(unit) end end, nil, true)
+local fRemoveEv = W.On("NAME_PLATE_UNIT_REMOVED", function(unit)
+    if byUnit[unit] then Unbind(unit); Changed() end
+end, nil, true)
+local fTargetEv = W.On("PLAYER_TARGET_CHANGED", function() if OpenWorld() then Bind("target") end end, nil, true)
+local fFocusEv = W.On("PLAYER_FOCUS_CHANGED", function() if OpenWorld() then Bind("focus") end end, nil, true)
+local fMouseEv = W.On("UPDATE_MOUSEOVER_UNIT", function() if OpenWorld() then Bind("mouseover") end end, nil, true)
+fHealthEv = W.On("UNIT_HEALTH", OnHealth, nil, true)
+fMaxEv = W.On("UNIT_MAXHEALTH", OnHealth, nil, true)
+local fDeadEv = W.On("PLAYER_DEAD", ClearFrames, nil, true)
+-- end of combat: the players gone during the combat leave, the clicks follow the rows again
+fRegenEv = W.On("PLAYER_REGEN_ENABLED", function()
+    if framesOn then
+        local now = GetTime()
+        for i = 1, MAX_ROWS do
+            local e = slots[i]
+            if e and e.lost and now - e.lost >= LOST then Remove(e) end
+        end
+        Layout()
+        Changed()
+    elseif clickPending then
+        SyncClicks()
+    end
+    W.Activate(fRegenEv, db.frames and true or false)
+end, nil, true)
+
+local TEST_CLASSES = { "WARRIOR", "MAGE", "PRIEST", "ROGUE", "HUNTER" }
+local function StopFramesTest()
+    if not testing then return end
+    testing = false
+    for i = 1, made do Paint(i) end
+    Changed()
+end
+local function TestFrames()
+    if count > 0 then return end
+    testing = true
+    for i = 1, 5 do
+        local row, hp = Row(i), 4000 - i * 600
+        row.name:SetText(L("Enemy player") .. " " .. i)
+        if i == 5 then row:SetStatusBarColor(0.4, 0.4, 0.4) else row:SetStatusBarColor(W.ClassColor(TEST_CLASSES[i])) end
+        row:SetAlpha(i == 5 and 0.6 or 1)
+        row:SetMinMaxValues(0, 4000)
+        row:SetValue(hp)
+        row.hp:SetText(tostring(hp))
+        row:Show()
+    end
+    Changed()
+    W.After(5, StopFramesTest)
+end
+
 -- the events only in the open world: in an instance the handlers did nothing (an instance always comes with a
 -- loading screen, so PLAYER_ENTERING_WORLD switches them back); the taxi stays a test in the handlers
 local function Apply()
@@ -214,6 +594,15 @@ local function Apply()
     W.Activate(mouseEv, log)
     wipe(seen)
     Refresh()
+    framesOn = db and db.frames and world and true or false
+    W.Activate(fAddEv, framesOn)
+    W.Activate(fRemoveEv, framesOn)
+    W.Activate(fTargetEv, framesOn)
+    W.Activate(fFocusEv, framesOn)
+    W.Activate(fMouseEv, framesOn)
+    W.Activate(fDeadEv, framesOn)
+    W.Activate(fRegenEv, (db and db.frames) or clickPending)
+    ClearFrames()
 end
 W.On("PLAYER_ENTERING_WORLD", Apply)
 
@@ -223,9 +612,11 @@ local function Test()
     Refresh()
     if db.sound and SOUNDS.pvp then PlaySound(SOUNDS.pvp, "Ambience") end
     C_Timer.After(5, function() seen.test = nil; Refresh() end)
+    if db.frames then TestFrames() end
 end
 W.RegisterTest("Danger alert", function() return db and db.enabled end, Test,
     function() if seen.test then seen.test = nil; Refresh() end end)
+W.RegisterTest("Enemy player frames", function() return db and db.frames end, TestFrames, StopFramesTest)
 
 W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Title(p, L("Danger alert"))
@@ -236,15 +627,26 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Check(p, L("Skull and red elite mobs"), function() return db.mobs end, function(v) db.mobs = v end)
         :SetPoint("TOPLEFT", 32, -90)
     W.Check(p, L("Play a sound"), function() return db.sound end, function(v) db.sound = v end):SetPoint("TOPLEFT", 32, -114)
-    W.Check(p, L("Lock the warning"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 32, -138)
+    W.Check(p, L("Lock the warning and the frames"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 32, -138)
     W.Button(p, L("Test"), 110, 22, Test):SetPoint("TOPLEFT", 16, -172)
     W.Button(p, L("Reset position"), 160, 22, function()
         db.point = { "TOP", "TOP", 0, -90 }
         if frame then Place() end
+        if InCombatLockdown() then return end -- the frames' holder is protected (secure buttons)
+        db.framesPoint = { "TOPRIGHT", "TOPRIGHT", -30, -200 }
+        if holder then PlaceHolder() end
     end):SetPoint("TOPLEFT", 132, -172)
     local info = W.Label(p, L("Uses the nameplates: enemy nameplates must be shown (V key) to see what is around."), "GameFontHighlightSmall")
-    info:SetPoint("TOPLEFT", 16, -210)
+    info:SetPoint("TOPLEFT", 16, -204)
     info:SetTextColor(0.7, 0.7, 0.7)
+    W.Check(p, L("Enemy player frames on the side of the screen (open world)"), function() return db.frames end,
+        function(v) db.frames = v; Apply() end,
+        { L("One row per enemy player shown by a nameplate, the target, the focus or the mouseover: name, class color, health. Grey once no longer seen, gone after 15 s; 40 at most. Drag the title to move them (Test shows them).") })
+        :SetPoint("TOPLEFT", 12, -222)
+    W.Check(p, L("Click a frame to target the player"), function() return db.framesClick end,
+        function(v) db.framesClick = v; SyncClicks() end,
+        { L("Secure buttons, changed out of combat only: in combat a new player can be clicked once the combat is over. Switch it off if it costs too much.") })
+        :SetPoint("TOPLEFT", 32, -246)
 
     -- enemy players seen
     local list
@@ -277,19 +679,19 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     end
     W.Check(p, L("Keep a list of the enemy players seen (open world)"), function() return db.log end,
         function(v) db.log = v; Apply() end, { L("Nameplates, target and mouseover; kept on this computer, 200 players at most. Idea: the Radar of Sashoof's WarLegend v3 addon.") })
-        :SetPoint("TOPLEFT", 12, -240)
+        :SetPoint("TOPLEFT", 12, -280)
     local classes = { { "", L("All classes") } }
     for _, c in ipairs({ "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }) do
         classes[#classes + 1] = { c, W.ColorName((LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[c]) or c, c) }
     end
     W.Cycle(p, 150, classes, function() return db.logClass end, function(v) db.logClass = v; Fill() end)
-        :SetPoint("TOPLEFT", 400, -240)
+        :SetPoint("TOPLEFT", 400, -280)
     W.Button(p, L("Clear the list"), 130, 22, function()
         W.Confirm(L("Clear the list of the enemy players seen?"), function() wipe(db.seen); Fill() end)
-    end):SetPoint("TOPLEFT", 560, -240)
+    end):SetPoint("TOPLEFT", 560, -280)
     list = W.Table(p, { { L("Enemy player"), 200 }, { L("Level"), 50, "CENTER" }, { L("Guild"), 160 }, { L("Zone"), 160 },
-        { L("Seen"), 70, "CENTER" }, { L("Times"), 50, "CENTER" } }, 270)
-    list:SetPoint("TOPLEFT", 10, -272)
+        { L("Seen"), 70, "CENTER" }, { L("Times"), 50, "CENTER" } }, 230)
+    list:SetPoint("TOPLEFT", 10, -312)
     p:SetScript("OnShow", Fill)
 end)
 
