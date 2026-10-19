@@ -112,5 +112,6 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 
 - Voix du décompte **Amy**, **David**, **Jim** et police **Noto Sans** : reprises de [BigWigs](https://github.com/BigWigsMods/BigWigs)
   (licences CC BY-NC 3.0 / CC0 / SIL OFL, détail dans `Media/Sounds/Countdown/README.txt` et `Media/Fonts/Noto_license.txt`).
+- Scintillements du butin (Options > Interface) : idée de ForeverLootSparkles (Ashtar Senior, GPL-3.0) ; seules les variables de console sont reprises, aucun code.
 - Cadres de champ de bataille : basés sur BattleGroundEnemies (Bullsei).
 - Carte de guilde : idée et messages de GuildMap (Portalz, Devetik) ; librairie HereBeDragons (Nevcairiel, BSD), détail dans `Libs/README.txt`. Transports : idée et données de routes de NauticusClassicResurrected (psynct, licence MIT).

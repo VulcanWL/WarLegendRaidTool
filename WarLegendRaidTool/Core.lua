@@ -1480,7 +1480,7 @@ local CATEGORIES = {
     } },
     { key = "options", title = "Options", accordion = true, sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
-        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife" } },
+        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife", "LootSparkles" } },
     } },
 }
 

@@ -47,5 +47,6 @@ ItemLevels.lua
 GuildPositions.lua
 TransportsData.lua
 Transports.lua
+LootSparkles.lua
 Settings.lua
 VersionCheck.lua
