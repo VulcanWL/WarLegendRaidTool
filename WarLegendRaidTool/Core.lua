@@ -231,7 +231,7 @@ W.On("RAID_ROSTER_UPDATE", RosterChanged) -- older clients
 W.GUILD_NAME = "War Legend"
 -- true: only members of GUILD_NAME can use the addon. Set to false to let everybody use it;
 -- nothing else changes.
-W.GUILD_RESTRICTED = true
+W.GUILD_RESTRICTED = false
 W.access = (not W.GUILD_RESTRICTED) and true or nil -- nil = not known yet, true / false
 local function Norm(s) return ((s or ""):lower():gsub("[%s%-_'%.]", "")) end
 local accessChecks = 0

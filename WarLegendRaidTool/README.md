@@ -14,7 +14,7 @@ de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bo
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style).
 
-> L'addon est réservé aux membres de la guilde **War Legend** (message affiché sinon).
+> L'addon est ouvert à tous les joueurs (le réglage `W.GUILD_RESTRICTED` de `Core.lua` permet de le réserver à la guilde **War Legend**).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.
 
 ## Installation
