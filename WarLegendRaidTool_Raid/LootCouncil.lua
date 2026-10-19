@@ -206,7 +206,51 @@ local WEAPON = {
     [16] = Set("WARRIOR HUNTER ROGUE"), [18] = Set("WARRIOR HUNTER ROGUE"), [19] = Set("PRIEST MAGE WARLOCK"),
 }
 
+-- "Classes: Rogue, Mage" line of the tooltip (tier tokens, class sets...): set of class tokens, nil if none or not loaded.
+-- Read once per item id and kept (a tooltip is only parsed when the item has none yet).
+local classNameToken, scanTip
+local classLine = {} -- item id -> false (no class line) or set
+local function ClassLine(str)
+    local id = W.ItemID(str)
+    if not id then return nil end
+    local known = classLine[id]
+    if known ~= nil then return known or nil end
+    if not ITEM_CLASSES_ALLOWED then return nil end
+    if not classNameToken then
+        classNameToken = {}
+        for _, names in ipairs({ LOCALIZED_CLASS_NAMES_MALE or {}, LOCALIZED_CLASS_NAMES_FEMALE or {} }) do
+            for token, name in pairs(names) do classNameToken[name] = token end
+        end
+    end
+    if not scanTip then scanTip = CreateFrame("GameTooltip", "WLRTLCScanTip", nil, "GameTooltipTemplate") end
+    scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+    local ok = pcall(scanTip.SetHyperlink, scanTip, "item:" .. id)
+    local lines = ok and scanTip:NumLines() or 0
+    if lines == 0 then scanTip:Hide(); return nil end -- item not loaded yet: not kept, asked again next time
+    local pattern = "^" .. ITEM_CLASSES_ALLOWED:gsub("%%s", "(.+)") .. "$"
+    local set
+    for i = 1, lines do
+        local fs = _G["WLRTLCScanTipTextLeft" .. i]
+        local text = fs and W.Safe(fs:GetText())
+        local list = type(text) == "string" and text:match(pattern)
+        if list then
+            set = {}
+            for name in (list .. ", "):gmatch("(.-), ") do
+                local token = classNameToken[name]
+                if token then set[token] = true end
+            end
+            if not next(set) then set = nil end -- class names not understood: no restriction
+            break
+        end
+    end
+    scanTip:Hide()
+    classLine[id] = set or false
+    return set
+end
+
 function LC.CanUse(str, class)
+    local restricted = ClassLine(str)
+    if restricted and class and not restricted[class] then return false end
     local _, _, _, loc, _, classID, subID = W.GetItemInfoInstant(str)
     if not classID then return true end
     if loc == "INVTYPE_CLOAK" then return true end

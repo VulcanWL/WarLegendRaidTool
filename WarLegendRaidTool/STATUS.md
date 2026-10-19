@@ -10,6 +10,8 @@ Pas dans le zip des releases.
   de moins de 5 min, pas en combat ni en instance, pas déjà groupé, chef ou assistant en groupe). Comparé à Overlord 9.9.40
   (détection équivalente, lui invite déjà). **Rien testé en jeu.** Radar / distance des barres de nom : inchangé (plafond
   du jeu 41 ; test `/run SetCVar("nameplateMaxDistance",60)` à faire).
+- **Non publié** : Loot Council, `LC.CanUse` lit aussi la ligne « Classes : … » de l'infobulle (jetons de tier, `LootCouncil.lua`,
+  `ClassLine`) pour la passe auto. Rien testé en jeu. Piste : contrôles avant attribution (comme `CanGiveLoot` de RCLootCouncil).
 - Avant : 1.31.0-beta (tag `v1.31.0-beta`, depuis `main`, publiée pour que la guilde teste) : cadres des
   joueurs ennemis en monde ouvert dans l'Alerte danger (`DangerAlert.lua`, option `frames` éteinte par défaut, `framesClick` allumée, `framesPoint` dans
   `TABLE_FIELDS` de `Settings.lua`, README, `docs/modules.md`). Cadres légers à nous, PAS l'addon PvP (jamais chargé
