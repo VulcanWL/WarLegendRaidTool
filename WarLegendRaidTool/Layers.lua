@@ -23,8 +23,20 @@ W.AddFR({
     ["%d min"] = "%d min",
     ["%d h"] = "%d h",
     ["(me)"] = "(moi)",
-    ["Click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
-        "Clic : chuchoter. Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
+    ["Invite to my layer"] = "Inviter sur mon layer",
+    ["Selected: %s"] = "Sélectionné : %s",
+    ["Click a player on another layer of my zone, then Invite."] = "Clique un joueur sur un autre layer de ma zone, puis Inviter.",
+    ["Invite: not in combat or in an instance."] = "Invitation impossible en combat ou en instance.",
+    ["Invite: my layer is unknown."] = "Invitation impossible : mon layer est inconnu.",
+    ["Invite: %s is already in my group."] = "Invitation impossible : %s est déjà dans mon groupe.",
+    ["Invite: only the leader or an assistant can invite."] = "Invitation impossible : seul le chef ou un assistant peut inviter.",
+    ["Invite: %s is not on another layer of my zone."] = "Invitation impossible : %s n'est pas sur un autre layer de ma zone.",
+    ["Invite: the reading of %s is older than 5 minutes."] = "Invitation impossible : la lecture de %s date de plus de 5 minutes.",
+    ["[WarLegend] We are on different layers: I am inviting you to my group, accept to join my layer."] =
+        "[WarLegend] Nous sommes sur des layers différents : je t'invite dans mon groupe, accepte pour rejoindre mon layer.",
+    ["Invitation sent to %s."] = "Invitation envoyée à %s.",
+    ["Click: select. Right click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
+        "Clic : sélectionner. Clic droit : chuchoter. Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
     ["Method from Sashoof's WarLegend v3 addon."] = "Méthode reprise de l'addon WarLegend v3 de Sashoof.",
 })
 local L = W.L
@@ -46,6 +58,9 @@ local voteAt, voteId, voteMap = {}, {}, nil
 local lastLook = -1000
 local guild = {} -- W.Key(full name) -> { name, full, id, map, zone, at }
 local UI = {}
+local selected -- full name of the selected row
+local WHISPER_GAP = 60 -- one invitation whisper per player per minute
+local lastWhisper = {}
 
 W.OnReady(function()
     db = W.DB("layers", { on = true, share = true })
@@ -196,6 +211,46 @@ W.On("PLAYER_ENTERING_WORLD", Reset)
 W.On("ZONE_CHANGED_NEW_AREA", Reset)
 
 ---------------------------------------------------------------------------
+-- Invite a guild member who is on another layer of my zone (the group puts him on my layer)
+---------------------------------------------------------------------------
+local function Invite(full)
+    if C_PartyInfo and C_PartyInfo.InviteUnit then C_PartyInfo.InviteUnit(full)
+    elseif InviteUnit then InviteUnit(full) end
+end
+
+local function InGroupWith(key)
+    for _, u in ipairs(W.GroupUnits()) do
+        local f = W.UnitFullName(u)
+        if f and W.Key(f) == key then return true end
+    end
+    return false
+end
+
+local function InviteSelected()
+    if not selected then return end
+    local key = W.Key(selected)
+    local e = guild[key]
+    local name = e and e.name or selected
+    if InCombatLockdown() or IsInInstance() then W.Print(L("Invite: not in combat or in an instance.")); return end
+    if not current then W.Print(L("Invite: my layer is unknown.")); return end
+    if not e or e.map ~= current.map or e.id == current.id then
+        W.Print(string.format(L("Invite: %s is not on another layer of my zone."), name)); return
+    end
+    if GetServerTime() - e.at > FRESH then
+        W.Print(string.format(L("Invite: the reading of %s is older than 5 minutes."), name)); return
+    end
+    if InGroupWith(key) then W.Print(string.format(L("Invite: %s is already in my group."), name)); return end
+    if W.InGroup() and not W.CanLead() then W.Print(L("Invite: only the leader or an assistant can invite.")); return end
+    local now = GetTime()
+    if now - (lastWhisper[key] or -1000) >= WHISPER_GAP then
+        lastWhisper[key] = now
+        SendChatMessage(L("[WarLegend] We are on different layers: I am inviting you to my group, accept to join my layer."), "WHISPER", nil, e.full)
+    end
+    Invite(e.full)
+    W.Print(string.format(L("Invitation sent to %s."), name))
+end
+
+---------------------------------------------------------------------------
 -- Window tab
 ---------------------------------------------------------------------------
 function Refresh()
@@ -229,6 +284,7 @@ function Refresh()
         local old = now - e.at > FRESH
         local same = current and not e.me and e.map == current.map and e.id == current.id
         local name = W.ColorName(e.name, m and m.class or (e.me and select(2, UnitClass("player")))) .. (e.me and (" " .. L("(me)")) or "")
+        if selected and W.Key(e.full) == W.Key(selected) then name = "|cffffff00> |r" .. name end
         local layer = string.format(L("Layer %d"), e.n)
         rows[#rows + 1] = { full = e.full, me = e.me, cells = {
             name,
@@ -239,6 +295,14 @@ function Refresh()
         } }
     end
     UI.table:SetData(rows)
+    if UI.sel then
+        local e = selected and guild[W.Key(selected)]
+        UI.sel:SetText(e and string.format(L("Selected: %s"), e.name) or "|cffaaaaaa" .. L("Click a player on another layer of my zone, then Invite.") .. "|r")
+        if UI.invite then
+            local ok = e and current and e.map == current.map and e.id ~= current.id and GetServerTime() - e.at <= FRESH
+            if ok then UI.invite:Enable() else UI.invite:Disable() end
+        end
+    end
 end
 
 W.RegisterModule("Layers", L("Layers"), function(p)
@@ -255,12 +319,24 @@ W.RegisterModule("Layers", L("Layers"), function(p)
     UI.table = W.Table(p, { { L("Player"), 220 }, { L("Zone"), 220 }, { L("Layer"), 90, "CENTER" },
         { "", 110, "CENTER" }, { L("Seen"), 80, "CENTER" } }, 360)
     UI.table:SetPoint("TOPLEFT", 10, -124)
-    UI.table.onClick = function(d)
-        if not d.me and ChatFrame_SendTell then ChatFrame_SendTell(d.full) end
+    UI.table.onClick = function(d, btn)
+        if d.me then return end
+        if btn == "RightButton" then
+            if ChatFrame_SendTell then ChatFrame_SendTell(d.full) end
+        else
+            selected = d.full
+            Refresh()
+        end
     end
-    local hint = W.Label(p, L("Click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."),
+    UI.invite = W.Button(p, L("Invite to my layer"), 150, 22, InviteSelected)
+    UI.invite:SetPoint("TOPLEFT", 10, -494)
+    UI.sel = W.Label(p, "", "GameFontHighlightSmall")
+    UI.sel:SetPoint("LEFT", UI.invite, "RIGHT", 10, 0)
+    UI.sel:SetWidth(600)
+    UI.sel:SetJustifyH("LEFT")
+    local hint = W.Label(p, L("Click: select. Right click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."),
         "GameFontDisableSmall")
-    hint:SetPoint("TOPLEFT", 16, -494)
+    hint:SetPoint("TOPLEFT", 16, -522)
     hint:SetWidth(780)
     hint:SetJustifyH("LEFT")
     local credit = W.Label(p, L("Method from Sashoof's WarLegend v3 addon."), "GameFontDisableSmall")

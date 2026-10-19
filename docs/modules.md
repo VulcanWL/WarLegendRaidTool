@@ -22,7 +22,7 @@ players, fastest wins per battleground, `/wl bg`). Roster, GuildBank and BGStats
 add guild sync to them without being asked.
 
 ## Modules taken from Sashoof's WarLegend v3 addon (rewritten here, they DO send to the GUILD)
-`Layers.lua` (`WLRT_LAYER`: creature GUID zone part, two creatures within 30 s confirm, numbers are local aliases per map),
+`Layers.lua` (`WLRT_LAYER`: creature GUID zone part, two creatures within 30 s confirm, numbers are local aliases per map), Invite button (whisper once / 60 s + InviteUnit; refused in combat / instance, if grouped, if same layer or zone, reading > 5 min),
 `Classes.lua` (`WLRT_PROFILE`: my role / spec / availability; `W.MyRole()`; class leaders in `TABLE_FIELDS`),
 `Minotaure.lua` (`WLRT_MINO`: 28-day UTC seasons from 1791763200, fixed rules 5 / 30 / 200 a day, peers shown as declared).
 Each answers a `"?"` request, throttled. `DangerAlert.lua` keeps the enemy players seen (`db.seen`, 200 at most, personal).

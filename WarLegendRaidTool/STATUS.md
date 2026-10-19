@@ -5,7 +5,12 @@ Pas dans le zip des releases.
 
 ## Maintenant (19/10/2026)
 
-- **Version publiée** : 1.31.0-beta (tag `v1.31.0-beta`, depuis `main`, publiée pour que la guilde teste) : cadres des
+- **Version publiée** : 1.32.0-beta (tag `v1.32.0-beta`) : Layers, bouton « Inviter sur mon layer » (clic gauche = sélection,
+  clic droit = chuchoter ; chuchotement 1 fois / 60 s + invitation, seulement vers un membre d'un autre layer de ma zone, lecture
+  de moins de 5 min, pas en combat ni en instance, pas déjà groupé, chef ou assistant en groupe). Comparé à Overlord 9.9.40
+  (détection équivalente, lui invite déjà). **Rien testé en jeu.** Radar / distance des barres de nom : inchangé (plafond
+  du jeu 41 ; test `/run SetCVar("nameplateMaxDistance",60)` à faire).
+- Avant : 1.31.0-beta (tag `v1.31.0-beta`, depuis `main`, publiée pour que la guilde teste) : cadres des
   joueurs ennemis en monde ouvert dans l'Alerte danger (`DangerAlert.lua`, option `frames` éteinte par défaut, `framesClick` allumée, `framesPoint` dans
   `TABLE_FIELDS` de `Settings.lua`, README, `docs/modules.md`). Cadres légers à nous, PAS l'addon PvP (jamais chargé
   pour ça). Choix de l'utilisateur : 40 au plus (2 colonnes de 20), nom + couleur de classe + PV seulement, grisé puis
@@ -47,6 +52,7 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.32.0-beta** (19/10) : Layers, bouton « Inviter sur mon layer » (voir Maintenant).
 - **1.31.0-beta** (19/10) : cadres des joueurs ennemis en monde ouvert (Alerte danger, 40 au plus, clic pour cibler).
 - **1.30.0-beta** (19/10) : fusion WarLegend v3 (styles WL v3 + logos `Media/WLLogo*.tga`, `Layers.lua`,
   `Classes.lua`, `Minotaure.lua`, liste des ennemis vus de l'alerte danger, invitation sur mot-clé coupée si WarLegend v3
@@ -54,6 +60,4 @@ Pas dans le zip des releases.
   file s'ouvre) ; audit de sécurité (import de profil sans macros exécutables, noms de presets nettoyés, fenêtres de la
   carte de guilde recyclées, « !sr » limité) ; Guilde > Métiers triable + filtre en ligne ; `W.Table` ne crée que les
   lignes visibles.
-- **1.29.0 / 1.29.1-beta** (18-19/10) : addon ouvert à tous (`GUILD_RESTRICTED = false`), module Loot sparkles (actif par
-  défaut).
 - Versions plus anciennes : `git tag`, `git log`.
