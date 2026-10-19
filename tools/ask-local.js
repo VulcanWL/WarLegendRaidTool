@@ -1,7 +1,12 @@
 // WarLegend RaidTool - ask the local AI (Ollama on this PC) for simple text work, to save Claude tokens (not shipped).
 // Usage: node tools/ask-local.js [options] "instruction" [--file path ...]   (the instruction can also come on stdin)
 //   --file path   add a file to the prompt: the script reads it, so the caller never has to (repeatable)
-//   --model name  default gpt-oss:20b (12.8 GB); qwen3.6:35b-a3b-coding (21 GB) is slower but better at code
+//   --bug "text"  diagnose a bug from its symptom (in-game error or behaviour) in the --file(s): project rules, the
+//                 catalogue of bugs already met (tools/local-ai-catalogue.md) and a short "CAUSE 1: ligne N" answer
+//   --review      look for bugs in the --file(s) without a symptom (weak: few bugs found, use as a hint only)
+//   --each        one separate question per --file (a batch: the answers come one after the other)
+//   --model name  default gpt-oss:20b (12.8 GB, all on the graphics card, reads 64k tokens); the benchmark of
+//                 2026-10-18 found no better local model for this project on a 16 GB card
 //   --gpu N|all   layers on the graphics card. Default while WoW runs: as many as fit in the free video memory minus
 //                 --reserve (the rest on the CPU); else all
 //   --reserve MB  video memory left free for the game while it runs (default 4096)
@@ -11,9 +16,10 @@
 // Only 127.0.0.1 is ever contacted: nothing leaves the PC. Starts "ollama serve" (below-normal priority, one model,
 // one request at a time) when it is not running, and stops it again (with its model runners) when the script ends.
 // Programs are run by full path, never looked up in the current folder. Prints only the answer; one status line goes
-// to stderr.
-// Good for: French drafts of L() strings, summaries of long logs / diffs / files, prose drafts. Never for WoW API or
-// code decisions: the answer is a draft that the caller checks.
+// to stderr, and a warning there when the model did not read the whole prompt (Ollama cuts it silently).
+// Good for: French drafts of L() strings, summaries of long logs / diffs / files, prose drafts, a first diagnosis with
+// --bug (right about 6 times in 10 on bugs it has never seen: check it). Never for WoW API or design decisions.
+// A bug fixed live that the local AI missed: add its lesson to tools/local-ai-catalogue.md (one numbered line).
 "use strict";
 const fs = require("fs");
 const os = require("os");
@@ -23,6 +29,7 @@ const { spawn, execFileSync } = require("child_process");
 const HOST = "http://127.0.0.1:11434";
 const GAME_EXE = /^"Wow(Classic)?[BT]?\.exe"/im; // Wow.exe, WowB.exe (beta), WowClassic.exe... not WowUp / WowVoiceProxy
 const SYS32 = path.join(process.env.SystemRoot || "C:\\Windows", "System32");
+const CATALOGUE = path.join(__dirname, "local-ai-catalogue.md");
 
 // Full path of a program: the known places first, then the absolute folders of PATH. Never the current folder (Windows
 // would run an exe found there first), never a relative PATH entry. null when not found.
@@ -53,11 +60,15 @@ function fail(msg) {
     process.exit(1);
 }
 
-const args = { files: [], model: "gpt-oss:20b", gpu: null, reserve: 4096, threads: null, max: 1500, unload: false, text: [] };
+const args = { files: [], model: "gpt-oss:20b", gpu: null, reserve: 4096, threads: null, max: 1500, unload: false, text: [],
+    bug: null, review: false, each: false };
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--file") args.files.push(argv[++i]);
+    else if (a === "--bug") args.bug = argv[++i];
+    else if (a === "--review") args.review = true;
+    else if (a === "--each") args.each = true;
     else if (a === "--model") args.model = argv[++i];
     else if (a === "--gpu") args.gpu = argv[++i];
     else if (a === "--reserve") args.reserve = parseInt(argv[++i], 10);
@@ -65,6 +76,50 @@ for (let i = 0; i < argv.length; i++) {
     else if (a === "--max") args.max = parseInt(argv[++i], 10);
     else if (a === "--unload") args.unload = true;
     else args.text.push(a);
+}
+
+// ---- prompts for --bug / --review (the best ones of the 2026-10-18 benchmark: rules + catalogue + short format)
+const RULES = `Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.`;
+const CAUTION = `Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.`;
+const FORMAT_BUG = `Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+\`\`\`lua
+<le code corrigé des lignes concernées>
+\`\`\`
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>`;
+const FORMAT_REVIEW = `Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 300 mots maximum :
+BUG 1: ligne <N> — <le problème en une ou deux phrases> | CORRECTIF: <code>
+BUG 2: ...
+ou, s'il n'y a aucun vrai bug : AUCUN BUG
+Ne liste que des bugs certains (plantage, comportement faux, règle du projet violée), jamais du style ni des hypothèses.`;
+
+// a file's text for the prompt: numbered lines in --bug / --review (the answer cites them)
+function fileBlock(f) {
+    if (!fs.existsSync(f)) fail("file not found: " + f);
+    let src = fs.readFileSync(f, "utf8");
+    if (args.bug !== null || args.review) {
+        src = src.replace(/\r\n/g, "\n").split("\n").map((l, i) => String(i + 1).padStart(4) + ": " + l).join("\n");
+    }
+    return "\n\n----- " + path.basename(f) + " -----\n" + src;
+}
+
+function buildPrompt(text, files) {
+    const code = files.map(fileBlock).join("");
+    if (args.bug === null && !args.review) return text + code;
+    const catalogue = fs.existsSync(CATALOGUE) ? fs.readFileSync(CATALOGUE, "utf8").trim() : "";
+    const task = args.bug !== null
+        ? "Symptôme signalé en jeu : " + args.bug + (text ? "\n" + text : "") + "\n\nCode :" + code +
+            "\n\nTâche : trouve la cause de ce bug et propose le correctif."
+        : (text ? text + "\n\n" : "") + "Tâche : relis ce code et liste les vrais bugs.\n\nCode :" + code;
+    return [RULES, catalogue, task, CAUTION, args.bug !== null ? FORMAT_BUG : FORMAT_REVIEW].filter(Boolean).join("\n\n");
 }
 
 function gameRunning() {
@@ -143,26 +198,13 @@ async function readStdin() {
     return s;
 }
 
-async function main() {
-    await ensureServer();
-    if (args.unload) {
-        await fetch(HOST + "/api/generate", { method: "POST", body: JSON.stringify({ model: args.model, keep_alive: 0 }) });
-        process.stderr.write("ask-local: " + args.model + " unloaded\n");
-        return;
-    }
-    let prompt = args.text.join(" ").trim();
-    const stdin = (await readStdin()).trim();
-    if (stdin) prompt = prompt ? prompt + "\n\n" + stdin : stdin;
-    for (const f of args.files) {
-        if (!fs.existsSync(f)) fail("file not found: " + f);
-        prompt += "\n\n----- " + path.basename(f) + " -----\n" + fs.readFileSync(f, "utf8");
-    }
-    if (!prompt) fail('no instruction (usage: node tools/ask-local.js "instruction" [--file path])');
-
-    const gaming = gameRunning();
+// one question to the model; prints its answer (with a title in --each)
+async function ask(prompt, title, gaming) {
     const options = { temperature: 0.2, num_predict: args.max };
-    // context sized to the prompt (about 3.5 characters a token), so a short question does not reserve memory
-    options.num_ctx = Math.min(32768, Math.max(4096, Math.ceil(prompt.length / 3.5 * 1.2) + args.max));
+    // context sized to the prompt (about 3.5 characters a token), so a short question does not reserve memory;
+    // gpt-oss:20b keeps 64k tokens on the 16 GB card (measured), more is cut by Ollama without any error
+    const estimate = Math.ceil(prompt.length / 3.5);
+    options.num_ctx = Math.min(65536, Math.max(4096, Math.ceil(estimate * 1.2) + args.max));
     if (args.gpu === "all") { /* Ollama's choice */ }
     else if (args.gpu !== null) options.num_gpu = parseInt(args.gpu, 10);
     else if (gaming) options.num_gpu = await gpuLayers(args.model);
@@ -183,12 +225,39 @@ async function main() {
         j = await r.json().catch(() => ({}));
     }
     if (!r.ok) fail("ollama: " + (j.error || r.status));
+    if (title) process.stdout.write("===== " + title + "\n");
     process.stdout.write((j.response || "").trim() + "\n");
+    // Ollama drops the start of a prompt longer than the context and says nothing: tell the caller
+    if (j.prompt_eval_count && j.prompt_eval_count < estimate * 0.6) {
+        process.stderr.write("ask-local: WARNING only " + j.prompt_eval_count + " of about " + estimate +
+            " prompt tokens were read: the start was probably cut, ask about a smaller part\n");
+    }
     const secs = (Date.now() - t0) / 1000;
     const tps = j.eval_count && j.eval_duration ? (j.eval_count / (j.eval_duration / 1e9)).toFixed(1) : "?";
-    process.stderr.write("ask-local: " + args.model + ", " + (gaming ? "WoW running: " : "") + "gpu " +
-        (options.num_gpu === undefined ? "all" : options.num_gpu) + ", threads " + (options.num_thread || "auto") +
+    process.stderr.write("ask-local: " + args.model + (title ? " [" + title + "]" : "") + ", " + (gaming ? "WoW running: " : "") +
+        "gpu " + (options.num_gpu === undefined ? "all" : options.num_gpu) + ", threads " + (options.num_thread || "auto") +
         ", " + secs.toFixed(0) + " s, " + tps + " tok/s\n");
+}
+
+async function main() {
+    await ensureServer();
+    if (args.unload) {
+        await fetch(HOST + "/api/generate", { method: "POST", body: JSON.stringify({ model: args.model, keep_alive: 0 }) });
+        process.stderr.write("ask-local: " + args.model + " unloaded\n");
+        return;
+    }
+    let text = args.text.join(" ").trim();
+    const stdin = (await readStdin()).trim();
+    if (stdin) text = text ? text + "\n\n" + stdin : stdin;
+    if (!text && !args.files.length && args.bug === null) fail('no instruction (usage: node tools/ask-local.js "instruction" [--file path])');
+    if ((args.bug !== null || args.review || args.each) && !args.files.length) fail("--bug, --review and --each need --file");
+
+    const gaming = gameRunning();
+    if (args.each) {
+        for (const f of args.files) await ask(buildPrompt(text, [f]), path.basename(f), gaming);
+    } else {
+        await ask(buildPrompt(text, args.files), null, gaming);
+    }
 }
 
 main().catch((e) => fail(e.message));
