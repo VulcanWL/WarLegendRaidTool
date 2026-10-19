@@ -1,0 +1,50 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Cadres BG alliÃ©s : ma barre de mana affiche parfois la mana d'un autre joueur. Sur ce serveur, plusieurs joueurs peuvent avoir le mÃªme prÃ©nom ; les Ã©vÃ©nements de puissance sont rattachÃ©s aux cadres par le nom du joueur.
+
+Code (fichier WarLegendRaidTool_PvP/Modules/Power.lua, avant correction) :
+ 104: 
+ 105: 
+ 106:     function playerButton.Power:UpdatePower(unitID)
+ 107:         --self:Debug("UpdatePower", unitID, powerToken)
+ 108:         -- the test mode asks every button for a random value (no unit): my own is real, it reads "player"
+ 109:         if not unitID and WarLegendPvP.UserButton == playerButton
+ 110:             and not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then
+ 111:             unitID = "player"
+ 112:         end
+ 113:         if unitID then
+ 114:             -- the maximum can fail (secret value): protected, the bar still gets its value
+ 115:             pcall(self.UpdateMinMaxValues, self, UnitPowerMax(unitID))
+ 116:             local value = UnitPower(unitID)
+ 117:             if issecret(value) or value ~= nil then self:SetValue(value) end
+ 118:         else
+ 119:             --for testmode
+ 120:             self:UpdateMinMaxValues(1)
+ 121:             self:SetValue(math_random(0, 100)/100)
+ 122:         end
+ 123:     end
+ 124: 
+ 125: 
+ 126:     -- Allies: the bar also reads its unit 4 times a second, whatever the events do (a hidden bar runs nothing).
+ 127:     -- My own button reads "player" itself. Fake players (test mode) and enemies keep to the events.
+ 128:     local sinceRead = 0
+ 129:     playerButton.Power:SetScript("OnUpdate", function(self, elapsed)
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

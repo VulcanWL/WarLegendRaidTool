@@ -1,0 +1,116 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Fichier Focus.lua :
+   1: -- WarLegend RaidTool - Focus
+   2: -- Modifier + mouse click = /focus on the hovered unit (Blizzard frames, EllesmereUI, nameplates...).
+   3: local W = WLRT
+   4: local L = W.L
+   5: local db
+   6: local AVAILABLE = FocusUnit ~= nil
+   7: local prevKey
+   8: local bound = setmetatable({}, { __mode = "k" })
+   9: 
+  10: -- secure button made out of combat (Apply): after a /reload in combat its attributes would be refused
+  11: local btn
+  12: local function Btn()
+  13:     if not btn then
+  14:         btn = CreateFrame("Button", "WLRTFocusButton", UIParent, "SecureActionButtonTemplate")
+  15:         btn:RegisterForClicks("AnyUp", "AnyDown")
+  16:         btn:SetAttribute("type", "macro")
+  17:         btn:SetAttribute("macrotext", "/focus mouseover")
+  18:     end
+  19:     return btn
+  20: end
+  21: 
+  22: local function KeyName()
+  23:     return string.upper(db.modifier) .. "-BUTTON" .. db.button
+  24: end
+  25: 
+  26: local function KnownFrames()
+  27:     local list = { _G.TargetFrame, _G.PlayerFrame, _G.EllesmereUIUnitFrames_Player, _G.EllesmereUIUnitFrames_Target }
+  28:     for i = 1, 5 do list[#list + 1] = _G["Boss" .. i .. "TargetFrame"] end
+  29:     return list
+  30: end
+  31: 
+  32: local function Apply()
+  33:     if not db or InCombatLockdown() then return end
+  34:     -- secure unit frames: "focus" attribute on the chosen combination
+  35:     for f, info in pairs(bound) do
+  36:         if f:GetAttribute(info.attr) == "focus" then f:SetAttribute(info.attr, info.orig) end
+  37:         bound[f] = nil
+  38:     end
+  39:     ClearOverrideBindings(Btn())
+  40:     prevKey = nil
+  41:     if not db.enabled or not AVAILABLE then return end
+  42:     local attr = string.lower(db.modifier) .. "-type" .. db.button
+  43:     for _, f in pairs(KnownFrames()) do
+  44:         if f and f.GetAttribute then
+  45:             bound[f] = { attr = attr, orig = f:GetAttribute(attr) }
+  46:             f:SetAttribute(attr, "focus")
+  47:         end
+  48:     end
+  49:     prevKey = KeyName()
+  50:     SetOverrideBindingClick(btn, true, prevKey, "WLRTFocusButton")
+  51: end
+  52: 
+  53: W.OnReady(function()
+  54:     db = W.DB("focus", { enabled = false, modifier = "shift", button = "1" })
+  55: end)
+  56: W.On("PLAYER_ENTERING_WORLD", Apply)
+  57: W.On("PLAYER_REGEN_ENABLED", Apply)
+  58: 
+  59: local MODS = { { "Shift", "shift" }, { "Alt", "alt" }, { "Ctrl", "ctrl" } }
+  60: local BUTTONS = { { L("Left"), "1" }, { L("Right"), "2" }, { L("Middle"), "3" }, { L("Mouse 4"), "4" }, { L("Mouse 5"), "5" } }
+  61: 
+  62: local function Label(list, v)
+  63:     for _, e in ipairs(list) do if e[2] == v then return L(e[1]) end end
+  64:     return v
+  65: end
+  66: 
+  67: local function Next(list, v)
+  68:     for i, e in ipairs(list) do if e[2] == v then return list[(i % #list) + 1][2] end end
+  69:     return list[1][2]
+  70: end
+  71: 
+  72: W.RegisterModule("Focus", "Focus", function(p)
+  73:     W.Title(p, "Focus")
+  74:     if not AVAILABLE then
+  75:         W.Label(p, L("Focus is not available on this client."), "GameFontDisable"):SetPoint("TOPLEFT", 16, -44)
+  76:         return
+  77:     end
+  78:     W.Check(p, L("Enable click-to-focus"), function() return db.enabled end,
+  79:         function(v) db.enabled = v; Apply() end):SetPoint("TOPLEFT", 12, -40)
+  80:     W.Label(p, L("Modifier:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -76)
+  81:     local mod = W.Button(p, "", 100, 22)
+  82:     mod:SetPoint("TOPLEFT", 90, -72)
+  83:     W.Label(p, L("Click:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 210, -76)
+  84:     local mb = W.Button(p, "", 100, 22)
+  85:     mb:SetPoint("TOPLEFT", 260, -72)
+  86:     local function sync()
+  87:         mod:SetText(Label(MODS, db.modifier))
+  88:         mb:SetText(Label(BUTTONS, db.button))
+  89:     end
+  90:     mod:SetScript("OnClick", function() db.modifier = Next(MODS, db.modifier); sync(); Apply() end)
+  91:     mb:SetScript("OnClick", function() db.button = Next(BUTTONS, db.button); sync(); Apply() end)
+  92:     mod:SetScript("OnShow", sync)
+  93:     sync()
+  94:     local info = W.Label(p, L("Click the buttons to change them. E.g. Shift + left-click on a mob or a frame = focus.\n")
+  95:         .. L("Settings apply out of combat."), "GameFontHighlightSmall")
+  96:     info:SetPoint("TOPLEFT", 16, -108)
+  97:     info:SetTextColor(0.7, 0.7, 0.7)
+  98: end)
+  99: 
+
+Question : je veux une nouvelle commande "/wl focusreset" qui remet les réglages du module Focus par défaut et affiche un message traduit. Liste TOUS les endroits à modifier (fichiers et quoi), donne le code à ajouter dans Focus.lua, et ce qu'il faut lancer / vérifier ensuite.

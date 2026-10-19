@@ -1,0 +1,85 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Le module Texte de recharge est désactivé, pourtant l'option du jeu countdownForCooldowns est effacée (remise à vide) à chaque connexion.
+
+Code (fichier WarLegendRaidTool/CooldownText.lua, avant correction) :
+   1: -- WarLegend RaidTool - Cooldown text (the idea of OmniCC)
+   2: -- The time left written on the spell buttons and icons. Not an engine of our own: the client's own countdown
+   3: -- numbers (CVar countdownForCooldowns), drawn by the game, so they also work on the cooldowns it keeps secret
+   4: -- in PvP. The value the player had is put back when the option is switched off.
+   5: local W = WLRT
+   6: W.AddFR({
+   7:     ["Cooldown text"] = "Texte de recharge",
+   8:     ["Show the time left on spell buttons and icons"] = "Afficher le temps restant sur les boutons de sorts et les icônes",
+   9:     ["Uses the game's own countdown numbers (option \"countdownForCooldowns\"). If your action bar addon already writes them, leave this off."] =
+  10:         "Utilise les chiffres de recharge du jeu (option « countdownForCooldowns »). Si ton addon de barres d'action les affiche déjà, laisse ceci désactivé.",
+  11:     ["This client has no countdown option."] = "Ce client n'a pas l'option de compte à rebours.",
+  12: })
+  13: local L = W.L
+  14: local db
+  15: local CVAR = "countdownForCooldowns"
+  16: 
+  17: local function GetCV(name)
+  18:     if C_CVar and C_CVar.GetCVar then return C_CVar.GetCVar(name) end
+  19:     return GetCVar and GetCVar(name)
+  20: end
+  21: local function SetCV(name, value)
+  22:     if C_CVar and C_CVar.SetCVar then return pcall(C_CVar.SetCVar, name, value) end
+  23:     if SetCVar then return pcall(SetCVar, name, value) end
+  24: end
+  25: 
+  26: W.OnReady(function()
+  27:     db = W.DB("cooldownText", { enabled = false, previous = "" })
+  28: end)
+  29: 
+  30: local function Apply()
+  31:     if not db then return end
+  32:     local cur = GetCV(CVAR)
+  33:     if cur == nil then return end
+  34:     if db.enabled then
+  35:         if cur ~= "1" then
+  36:             if db.previous == "" then db.previous = cur end
+  37:             SetCV(CVAR, "1")
+  38:         end
+  39:     else
+  40:         SetCV(CVAR, db.previous)
+  41:         db.previous = ""
+  42:     end
+  43: end
+  44: W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload) if isLogin or isReload then Apply() end end)
+  45: 
+  46: W.RegisterModule("CooldownText", L("Cooldown text"), function(p)
+  47:     W.Title(p, L("Cooldown text"))
+  48:     if GetCV(CVAR) == nil then
+  49:         W.Label(p, L("This client has no countdown option."), "GameFontDisable"):SetPoint("TOPLEFT", 16, -44)
+  50:         return
+  51:     end
+  52:     W.Check(p, L("Show the time left on spell buttons and icons"), function() return db.enabled end,
+  53:         function(v) db.enabled = v; Apply() end):SetPoint("TOPLEFT", 12, -40)
+  54:     local info = W.Label(p, L("Uses the game's own countdown numbers (option \"countdownForCooldowns\"). If your action bar addon already writes them, leave this off."),
+  55:         "GameFontHighlightSmall")
+  56:     info:SetPoint("TOPLEFT", 16, -76)
+  57:     info:SetWidth(700)
+  58:     info:SetJustifyH("LEFT")
+  59:     info:SetTextColor(0.7, 0.7, 0.7)
+  60: end)
+  61: 
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

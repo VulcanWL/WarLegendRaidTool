@@ -1,0 +1,188 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Extrait de Core.lua (lignes 124-185) :
+ 124: ---------------------------------------------------------------------------
+ 125: -- Events (a single frame for the whole addon)
+ 126: ---------------------------------------------------------------------------
+ 127: local evFrame = CreateFrame("Frame")
+ 128: local handlers, registered = {}, {}
+ 129: -- while the raid addon loads: what its files register, to replay the login / roster events they missed
+ 130: local late
+ 131: 
+ 132: -- Modules switched off (W.db.ui.off[key], Settings > Modules): the handlers, roster functions, addon
+ 133: -- messages and tests of their file are skipped, and an event only they want is unregistered.
+ 134: local offFiles = {}
+ 135: local function FileOf(where) return where and where:match("^([%w_]+%.lua)") end
+ 136: 
+ 137: -- An event is registered only while at least one of its handlers is active: a frequent event
+ 138: -- (target change, item info, loot...) costs nothing while no option or window needs it.
+ 139: local function Sync(event)
+ 140:     local want = false
+ 141:     for _, h in ipairs(handlers[event]) do
+ 142:         if h.active and not offFiles[h.file] then want = true; break end
+ 143:     end
+ 144:     if want == (registered[event] or false) then return end
+ 145:     registered[event] = want
+ 146:     if want then
+ 147:         pcall(evFrame.RegisterEvent, evFrame, event) -- some events do not exist on every client
+ 148:     else
+ 149:         evFrame:UnregisterEvent(event)
+ 150:     end
+ 151: end
+ 152: 
+ 153: -- always = true: runs even when the player is not allowed to use the addon (core only).
+ 154: -- inactive = true: starts switched off (W.Activate turns it on). Returns the handler.
+ 155: function W.On(event, fn, always, inactive)
+ 156:     handlers[event] = handlers[event] or {}
+ 157:     local where = W.Where(2)
+ 158:     local h = { fn = fn, always = always, active = not inactive, event = event, label = event .. " " .. where, file = FileOf(where) }
+ 159:     local list = handlers[event]
+ 160:     list[#list + 1] = h
+ 161:     if late then late.handlers[#late.handlers + 1] = h end
+ 162:     Sync(event)
+ 163:     return h
+ 164: end
+ 165: 
+ 166: function W.Activate(h, on)
+ 167:     on = on and true or false
+ 168:     if not h or h.active == on then return end
+ 169:     h.active = on
+ 170:     Sync(h.event)
+ 171: end
+ 172: 
+ 173: local function Run(event, gatedOnly, ...)
+ 174:     local list = handlers[event]
+ 175:     if not list then return end
+ 176:     for i = 1, #list do
+ 177:         local h = list[i]
+ 178:         if h.active and not offFiles[h.file] and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
+ 179:             local ok, err = W.Measure(h.label, h.fn, ...)
+ 180:             if not ok then geterrorhandler()(err) end
+ 181:         end
+ 182:     end
+ 183: end
+ 184: 
+ 185: local function SyncAll()
+
+Fichier AutoLog.lua :
+   1: -- WarLegend RaidTool - AutoLog
+   2: -- Starts /combatlog automatically in raids and/or dungeons, and stops it when leaving
+   3: -- (only if the addon started it).
+   4: local W = WLRT
+   5: local L = W.L
+   6: local db
+   7: local debugMode = false
+   8: local worldBoss = false
+   9: 
+  10: W.OnReady(function()
+  11:     db = W.DB("autoLog", { raids = false, dungeons = false, owned = false })
+  12: end)
+  13: 
+  14: local function IsLogging()
+  15:     if C_ChatInfo and C_ChatInfo.IsLoggingCombat then return C_ChatInfo.IsLoggingCombat() and true or false end
+  16:     return LoggingCombat() and true or false
+  17: end
+  18: 
+  19: local function Debug(fmt, ...)
+  20:     if debugMode then W.Print("|cff999999debug|r " .. string.format(fmt, ...)) end
+  21: end
+  22: 
+  23: local function ShouldLog()
+  24:     local _, instanceType, difficultyID = GetInstanceInfo()
+  25:     Debug("instanceType=%s difficultyID=%s raids=%s dungeons=%s worldboss=%s",
+  26:         tostring(instanceType), tostring(difficultyID), tostring(db.raids), tostring(db.dungeons), tostring(worldBoss))
+  27:     if instanceType == "raid" then return db.raids end
+  28:     if instanceType == "party" then return db.dungeons end
+  29:     return worldBoss and db.raids -- open world boss
+  30: end
+  31: 
+  32: -- target changes are only watched where a world boss can show up: open world, raids option on
+  33: local targetEv
+  34: local function WatchTargets()
+  35:     local _, kind = IsInInstance()
+  36:     W.Activate(targetEv, db and db.raids and kind == "none" and not worldBoss)
+  37: end
+  38: 
+  39: local function CheckAutoLog()
+  40:     if not db then return end
+  41:     if W.Overlap("autoLog") then return end -- EllesmereUI already logs for you
+  42:     WatchTargets()
+  43:     if db.owned and not IsLogging() then db.owned = false end -- stopped manually
+  44:     if ShouldLog() then
+  45:         if not IsLogging() then
+  46:             -- nil = rate limited (5 calls per 10 s shared by every addon): nothing changed, try again
+  47:             if LoggingCombat(true) == nil then W.After(3, CheckAutoLog); return end
+  48:             if IsLogging() then db.owned = true; W.Print(L("Combat logging started.")) end
+  49:         end
+  50:     elseif db.owned then
+  51:         if LoggingCombat(false) == nil then W.After(3, CheckAutoLog); return end
+  52:         -- only says "stopped" when the game confirms it
+  53:         if not IsLogging() then
+  54:             db.owned = false
+  55:             W.Print(L("Combat logging stopped."))
+  56:         end
+  57:     end
+  58: end
+  59: 
+  60: local function Later() W.After(2, CheckAutoLog) end
+  61: W.On("PLAYER_ENTERING_WORLD", Later)
+  62: W.On("ZONE_CHANGED_NEW_AREA", function() worldBoss = false; Later() end)
+  63: W.On("PLAYER_DIFFICULTY_CHANGED", Later)
+  64: W.On("UPDATE_INSTANCE_INFO", Later)
+  65: -- World boss logging ends with the fight (30 s out of combat, a death or a short break does
+  66: -- not count), or after 5 minutes if the fight never started.
+  67: local wbAt, fought = 0, false
+  68: local function WorldBossOver()
+  69:     if worldBoss and not (UnitAffectingCombat and UnitAffectingCombat("player")) then
+  70:         worldBoss, fought = false, false
+  71:         CheckAutoLog()
+  72:     end
+  73: end
+  74: targetEv = W.On("PLAYER_TARGET_CHANGED", function()
+  75:     if UnitExists("target") and UnitClassification("target") == "worldboss" and not worldBoss then
+  76:         worldBoss, fought = true, false
+  77:         wbAt = GetTime()
+  78:         Later()
+  79:         local mark = wbAt
+  80:         W.After(300, function() if wbAt == mark and not fought then WorldBossOver() end end)
+  81:     end
+  82: end, nil, true) -- off until WatchTargets turns it on
+  83: W.On("PLAYER_REGEN_DISABLED", function() if worldBoss then fought = true end end)
+  84: W.On("PLAYER_REGEN_ENABLED", function()
+  85:     if worldBoss then W.After(30, WorldBossOver) end
+  86: end)
+  87: 
+  88: W.slash.logdebug = function()
+  89:     debugMode = not debugMode
+  90:     W.Print(L("AutoLog debug: ") .. (debugMode and "ON" or "OFF"))
+  91:     if debugMode then CheckAutoLog() end
+  92: end
+  93: 
+  94: W.RegisterModule("AutoLog", "AutoLog", function(p)
+  95:     W.Title(p, "AutoLog")
+  96:     W.Check(p, L("Raids (and world bosses)"), function() return db.raids end,
+  97:         function(v) db.raids = v; CheckAutoLog() end):SetPoint("TOPLEFT", 12, -40)
+  98:     W.Check(p, L("Dungeons"), function() return db.dungeons end,
+  99:         function(v) db.dungeons = v; CheckAutoLog() end):SetPoint("TOPLEFT", 12, -66)
+ 100:     local info = W.Label(p, L("The log is written to Logs\\WoWCombatLog.txt (for Warcraft Logs).\n")
+ 101:         .. L("The addon only stops logs it started itself. /wl logdebug to troubleshoot."), "GameFontHighlightSmall")
+ 102:     info:SetPoint("TOPLEFT", 16, -100)
+ 103:     info:SetTextColor(0.7, 0.7, 0.7)
+ 104:     W.OverlapNote(p, "autoLog", "TOPLEFT", 16, -150)
+ 105:     W.Check(p, L("Use it anyway"), W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -172)
+ 106: end)
+ 107: 
+
+Question : explique précisément comment le handler PLAYER_TARGET_CHANGED de AutoLog.lua est allumé et éteint, dans quelles conditions, ce que deviennent alors l'enregistrement de l'événement auprès du jeu, et pourquoi ce design.

@@ -1,0 +1,123 @@
+[
+  {
+    "id": "C1",
+    "kind": "comprehension",
+    "title": "Handler inactif de AutoLog (W.On / W.Activate / Sync)",
+    "key": [
+      "W.On(..., nil, true) : 4e argument inactive=true -> démarre éteint (always=nil)",
+      "WatchTargets() appelle W.Activate(targetEv, db.raids and kind=='none' and not worldBoss) depuis CheckAutoLog",
+      "Sync(): l'événement n'est enregistré (RegisterEvent) que s'il a au moins un handler actif ; sinon UnregisterEvent",
+      "But : événement fréquent (changement de cible) qui ne coûte rien hors monde ouvert / option raids off / world boss déjà détecté"
+    ],
+    "chars": 9721
+  },
+  {
+    "id": "C2",
+    "kind": "comprehension",
+    "title": "Ajouter une commande /wl (procédure projet)",
+    "key": [
+      "W.slash.focusreset = function(rest) ... end dans Focus.lua",
+      "Remise des valeurs (enabled=false, modifier='shift', button='1') puis Apply() ; Apply ne fait rien en combat",
+      "Message via W.Print(L(\"...\")) + traduction dans W.AddFR({...}) en haut de Focus.lua",
+      "Entrée dans la liste HELP de Core.lua avec texte français",
+      "Ligne dans le tableau Commandes de README.md",
+      "node tools/check.js puis bash tools/sync.sh ; pas de bump de version ; tester /reload en jeu"
+    ],
+    "chars": 6157
+  },
+  {
+    "id": "C3",
+    "kind": "comprehension",
+    "title": "W.DB appelé au chargement avec un défaut table",
+    "key": [
+      "Au chargement du fichier W.db est nil (créé à ADDON_LOADED) -> erreur 'attempt to index field db (a nil value)' dans W.DB",
+      "Les défauts doivent être scalaires : une table par défaut est partagée par référence / règle du projet",
+      "Correct : local db en haut + W.OnReady(function() db = W.DB('loot', {enabled=true}); db.history = db.history or {} end)"
+    ],
+    "chars": 5188
+  },
+  {
+    "id": "C4",
+    "kind": "comprehension",
+    "title": "Tracer CombatTimer (combat -> boss -> mort -> fin)",
+    "key": [
+      "1) PLAYER_REGEN_DISABLED -> Start(false) : startAt=now, isEncounter=false, ticker créé",
+      "2) ENCOUNTER_START -> Start(true) : déjà en cours, encounter et pas isEncounter -> startAt remis à now, isEncounter=true (redémarre à 0:00), ticker conservé",
+      "3) PLAYER_REGEN_ENABLED -> Stop(false) : isEncounter et IsEncounterInProgress() -> return, le chrono continue",
+      "4) ENCOUNTER_END -> Stop(true) : Update, startAt=nil, ticker annulé ; si hideOOC masqué après 5 s"
+    ],
+    "chars": 8073
+  },
+  {
+    "id": "R1",
+    "kind": "long-context",
+    "title": "Navigation dans Core.lua entier (~104 Ko)",
+    "key": [
+      "a) local HELP = { ligne 2267 ; W.slash.help ligne 2310",
+      "b) ligne 178 : h.active et fichier non désactivé, et ((W.access==true et (not gatedOnly or not h.always)) ou (h.always et not gatedOnly))",
+      "c) accès pas encore connu (vérification de guilde en attente)",
+      "d) lastModule='RaidGroups', style='auto', lang='auto', overlapForce=false, preloadRaid=true (+ off = {})"
+    ],
+    "chars": 120222
+  },
+  {
+    "id": "B1",
+    "kind": "bugs",
+    "title": "CombatTimer : 2 bugs injectés (// Lua 5.3, condition inversée)",
+    "key": [
+      "L26 : // n'existe pas en Lua 5.1 -> erreur de syntaxe, fichier non chargé ; math.floor(secs / 60)",
+      "L59 : condition inversée : ENCOUNTER_END ne stoppe plus un chrono de boss (et un chrono non-boss est arrêté par ENCOUNTER_END) -> 'if not isEncounter and encounterEnd'"
+    ],
+    "chars": 7948
+  },
+  {
+    "id": "B2",
+    "kind": "bugs",
+    "title": "AutoLog : 2 bugs injectés (arguments de W.On, test de timer inversé)",
+    "key": [
+      "L82 : W.On(..., true) met always=true au lieu de inactive=true : handler actif dès le départ, même hors guilde, l'événement reste enregistré -> W.On(..., nil, true)",
+      "L80 : wbAt ~= mark : le délai de 5 min ne libère jamais le world boss non combattu -> wbAt == mark"
+    ],
+    "chars": 6900
+  },
+  {
+    "id": "B3",
+    "kind": "bugs",
+    "title": "Focus : 2 bugs injectés (InCombatLockdown retiré, L[...])",
+    "key": [
+      "L33 : sans InCombatLockdown, SetAttribute sur frames sécurisées / ClearOverrideBindings / SetOverrideBindingClick en combat (PLAYER_ENTERING_WORLD ou clic d'option en combat) -> ADDON_ACTION_BLOCKED",
+      "L75 : L est une fonction : L[...] -> erreur 'attempt to index a function value' quand Focus est indisponible -> L(\"...\")",
+      "PIÈGE (pas un bug) : mettre bound[f]=nil pendant pairs(bound) est autorisé en Lua"
+    ],
+    "chars": 6171
+  },
+  {
+    "id": "B4",
+    "kind": "bugs",
+    "title": "AutoPromote : 2 bugs injectés (portée de local dans une closure, off-by-one)",
+    "key": [
+      "L80 : 'local box = W.Check(... function() return box.rankName ...)' : dans l'expression, box n'est pas encore la locale -> global box nil -> erreur 'attempt to index global box' à l'affichage / clic -> déclarer local box avant",
+      "L91 : for i = #ranks : masque la dernière case de rang valide (et si #ranks==0, UI.rankChecks[0] nil -> erreur) -> #ranks + 1"
+    ],
+    "chars": 8228
+  },
+  {
+    "id": "B5",
+    "kind": "bugs",
+    "title": "W.Pack / W.Unpack : 2 bugs injectés (# avec des nil, + au lieu de *)",
+    "key": [
+      "L147 : #t sur une table avec des nil (trous) est indéfini : les champs nil en fin (ou après un trou) sont perdus -> select('#', ...)",
+      "L153 : + saute les champs vides : W.Unpack('a^^c') -> {a, c} au lieu de {a, '', c}, décalage des champs -> *"
+    ],
+    "chars": 2353
+  },
+  {
+    "id": "B6",
+    "kind": "bugs",
+    "title": "Témoin : Overlap.lua original, sans bug injecté",
+    "key": [
+      "Aucun bug réel : la bonne réponse est 'Aucun bug trouvé' (au plus des remarques mineures clairement présentées comme non bloquantes)"
+    ],
+    "chars": 6117
+  }
+]

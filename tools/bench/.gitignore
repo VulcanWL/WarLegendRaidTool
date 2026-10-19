@@ -1,0 +1,6 @@
+# produced by the runs (regenerable)
+results/
+out/
+out2/
+static/
+static-results.json

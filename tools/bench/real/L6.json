@@ -1,0 +1,16 @@
+{
+  "id": "L6",
+  "split": "train",
+  "commit": "a321309",
+  "file": "WarLegendRaidTool_Raid/RaidGroups.lua",
+  "symptom": "Erreur en raid : « attempt to compare local 'v' (a secret number value) » quand le module lit les marques de raid.",
+  "code": " 318: })\n 319: \n 320: -- The unit's mark: 0 none, nil when the client hides it (the macro then sets / clears it anyway)\n 321: local function MarkOf(unit)\n 322:     local v = GetRaidTargetIndex(unit)\n 323:     if v == nil then return 0 end\n 324:     return W.Safe(v)\n 325: end\n 326: \n 327: -- /tm lines putting the preset's marks on the group. Clears first (a mark set elsewhere moves),\n 328: -- \"!\" so a mark already in place is not toggled off. One mark per player, one player per mark.\n 329: -- Returns the lines, the number of marks, the missing players.",
+  "expect": {
+    "lines": [
+      323
+    ],
+    "kw": "(type\\(|secr)",
+    "kwFlags": "i"
+  },
+  "fix": "diff --git a/WarLegendRaidTool_Raid/RaidGroups.lua b/WarLegendRaidTool_Raid/RaidGroups.lua\nindex e0a87b0..a6eb8ab 100644\n--- a/WarLegendRaidTool_Raid/RaidGroups.lua\n+++ b/WarLegendRaidTool_Raid/RaidGroups.lua\n@@ -321,5 +321,6 @@ W.AddFR({\n local function MarkOf(unit)\n     local v = GetRaidTargetIndex(unit)\n-    if v == nil then return 0 end\n+    -- GetRaidTargetIndex has SecretReturns (warcraft.wiki.gg): type() is the nil test that works on a secret\n+    if type(v) == \"nil\" then return 0 end\n     return W.Safe(v)\n end\n"
+}

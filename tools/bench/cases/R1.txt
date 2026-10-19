@@ -1,0 +1,2420 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Fichier Core.lua complet :
+   1: -- WarLegend RaidTool - Core
+   2: -- Shared base: events, database, group/guild helpers,
+   3: -- UI widgets (no custom images) and the tabbed main window.
+   4: local ADDON = ...
+   5: WLRT = WLRT or {}
+   6: local W = WLRT
+   7: local L = W.L
+   8: 
+   9: local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+  10: W.ADDON = ADDON
+  11: W.version = (meta and meta(ADDON, "Version")) or "?"
+  12: W.R, W.G, W.B = 0.808, 0.098, 0.094 -- warlegend.net red (#CE1918)
+  13: W.TAG = "|cffce1918[WarLegend]|r " -- text only: also used in whispers, which cannot carry textures
+  14: -- War Legend skull logo (Media/Logo.tga 256 px, Media/Logo64.tga for small icons)
+  15: W.LOGO_TEX = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo"
+  16: W.LOGO_SMALL = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo64"
+  17: W.WHITE = "Interface\\Buttons\\WHITE8X8"
+  18: W.LOGO = "|cffffffffWAR|r|cffce1918LEGEND|r"
+  19: W.FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+  20: W.ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
+  21: W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+  22: W.BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
+  23: 
+  24: -- A font string given a font file with SetFont shows squares for letters that file lacks (Cyrillic names
+  25: -- on a French client...). Blizzard's own fonts are font families: one file per alphabet. W.SetFont makes
+  26: -- the same (CreateFontFamily, one per file / size / flags) with Blizzard's Cyrillic, Korean and Chinese
+  27: -- files as the other members; plain SetFont when the client has no CreateFontFamily.
+  28: local FONT_ALPHABETS = {
+  29:     { "russian", "Fonts\\FRIZQT___CYR.TTF" },
+  30:     { "korean", "Fonts\\2002.TTF" },
+  31:     { "simplifiedchinese", "Fonts\\ARKai_T.ttf" },
+  32:     { "traditionalchinese", "Fonts\\blei00d.TTF" },
+  33: }
+  34: local fontFamilies, fontFamilyCount = {}, 0
+  35: function W.SetFont(fs, path, size, flags)
+  36:     flags = flags or ""
+  37:     if CreateFontFamily then
+  38:         local key = path .. "|" .. size .. "|" .. flags
+  39:         local family = fontFamilies[key]
+  40:         if family == nil then
+  41:             fontFamilyCount = fontFamilyCount + 1
+  42:             local members = { { alphabet = "roman", file = path, height = size, flags = flags } }
+  43:             for _, a in ipairs(FONT_ALPHABETS) do
+  44:                 members[#members + 1] = { alphabet = a[1], file = a[2], height = size, flags = flags }
+  45:             end
+  46:             local ok, f = pcall(CreateFontFamily, "WLRTFontFamily" .. fontFamilyCount, members)
+  47:             family = ok and f or false
+  48:             fontFamilies[key] = family
+  49:         end
+  50:         if family then
+  51:             fs:SetFontObject(family)
+  52:             return
+  53:         end
+  54:     end
+  55:     fs:SetFont(path, size, flags)
+  56: end
+  57: 
+  58: function W.Print(msg)
+  59:     DEFAULT_CHAT_FRAME:AddMessage("|T" .. W.LOGO_SMALL .. ":14:14|t " .. W.TAG .. tostring(msg))
+  60: end
+  61: 
+  62: ---------------------------------------------------------------------------
+  63: -- Cost of our own work (/wl perf): every event handler, timer, roster and ready function is timed
+  64: -- (debugprofilestop, microseconds) and the slowest are listed with the file and line that made them.
+  65: ---------------------------------------------------------------------------
+  66: local clock = debugprofilestop
+  67: local costs = {} -- [label] = { max, count, total }
+  68: function W.Where(level)
+  69:     local s = debugstack and debugstack((level or 2) + 1, 1, 0) or ""
+  70:     local file, line = s:match("([%w_]+%.lua)%D+(%d+)")
+  71:     return file and (file .. ":" .. line) or "?"
+  72: end
+  73: 
+  74: function W.Measure(label, fn, ...)
+  75:     if not clock then return pcall(fn, ...) end
+  76:     local t0 = clock()
+  77:     local ok, err = pcall(fn, ...)
+  78:     local dt = clock() - t0
+  79:     local c = costs[label]
+  80:     if not c then c = { max = 0, count = 0, total = 0 }; costs[label] = c end
+  81:     c.count, c.total = c.count + 1, c.total + dt
+  82:     if dt > c.max then c.max = dt end
+  83:     return ok, err
+  84: end
+  85: 
+  86: -- the n slowest (one run), { label, max ms, count, total ms }
+  87: function W.SlowestWork(n)
+  88:     local list = {}
+  89:     for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
+  90:     table.sort(list, function(a, b) return a[2] > b[2] end)
+  91:     while #list > (n or 5) do table.remove(list) end
+  92:     return list
+  93: end
+  94: 
+  95: -- the n busiest (most time in all since the login), same entries: what costs frames, even in small runs
+  96: function W.BusiestWork(n)
+  97:     local list = {}
+  98:     for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
+  99:     table.sort(list, function(a, b) return a[4] > b[4] end)
+ 100:     while #list > (n or 5) do table.remove(list) end
+ 101:     return list
+ 102: end
+ 103: 
+ 104: -- A function wrapped for /wl perf: hooks on Blizzard code (hooksecurefunc, HookScript, tooltip callbacks)
+ 105: -- and other scripts that can run often are timed like the event handlers. Return values are dropped
+ 106: -- (the game ignores a hook's anyway); an error goes to the error handler, as for an event.
+ 107: function W.Timed(label, fn)
+ 108:     label = label .. " " .. W.Where(2)
+ 109:     return function(...)
+ 110:         local ok, err = W.Measure(label, fn, ...)
+ 111:         if not ok then geterrorhandler()(err) end
+ 112:     end
+ 113: end
+ 114: 
+ 115: function W.After(delay, fn)
+ 116:     if not (C_Timer and C_Timer.After) then return end
+ 117:     local where = W.Where(2)
+ 118:     C_Timer.After(delay, function()
+ 119:         local ok, err = W.Measure("timer " .. where, fn)
+ 120:         if not ok then geterrorhandler()(err) end
+ 121:     end)
+ 122: end
+ 123: 
+ 124: ---------------------------------------------------------------------------
+ 125: -- Events (a single frame for the whole addon)
+ 126: ---------------------------------------------------------------------------
+ 127: local evFrame = CreateFrame("Frame")
+ 128: local handlers, registered = {}, {}
+ 129: -- while the raid addon loads: what its files register, to replay the login / roster events they missed
+ 130: local late
+ 131: 
+ 132: -- Modules switched off (W.db.ui.off[key], Settings > Modules): the handlers, roster functions, addon
+ 133: -- messages and tests of their file are skipped, and an event only they want is unregistered.
+ 134: local offFiles = {}
+ 135: local function FileOf(where) return where and where:match("^([%w_]+%.lua)") end
+ 136: 
+ 137: -- An event is registered only while at least one of its handlers is active: a frequent event
+ 138: -- (target change, item info, loot...) costs nothing while no option or window needs it.
+ 139: local function Sync(event)
+ 140:     local want = false
+ 141:     for _, h in ipairs(handlers[event]) do
+ 142:         if h.active and not offFiles[h.file] then want = true; break end
+ 143:     end
+ 144:     if want == (registered[event] or false) then return end
+ 145:     registered[event] = want
+ 146:     if want then
+ 147:         pcall(evFrame.RegisterEvent, evFrame, event) -- some events do not exist on every client
+ 148:     else
+ 149:         evFrame:UnregisterEvent(event)
+ 150:     end
+ 151: end
+ 152: 
+ 153: -- always = true: runs even when the player is not allowed to use the addon (core only).
+ 154: -- inactive = true: starts switched off (W.Activate turns it on). Returns the handler.
+ 155: function W.On(event, fn, always, inactive)
+ 156:     handlers[event] = handlers[event] or {}
+ 157:     local where = W.Where(2)
+ 158:     local h = { fn = fn, always = always, active = not inactive, event = event, label = event .. " " .. where, file = FileOf(where) }
+ 159:     local list = handlers[event]
+ 160:     list[#list + 1] = h
+ 161:     if late then late.handlers[#late.handlers + 1] = h end
+ 162:     Sync(event)
+ 163:     return h
+ 164: end
+ 165: 
+ 166: function W.Activate(h, on)
+ 167:     on = on and true or false
+ 168:     if not h or h.active == on then return end
+ 169:     h.active = on
+ 170:     Sync(h.event)
+ 171: end
+ 172: 
+ 173: local function Run(event, gatedOnly, ...)
+ 174:     local list = handlers[event]
+ 175:     if not list then return end
+ 176:     for i = 1, #list do
+ 177:         local h = list[i]
+ 178:         if h.active and not offFiles[h.file] and ((W.access == true and (not gatedOnly or not h.always)) or (h.always and not gatedOnly)) then
+ 179:             local ok, err = W.Measure(h.label, h.fn, ...)
+ 180:             if not ok then geterrorhandler()(err) end
+ 181:         end
+ 182:     end
+ 183: end
+ 184: 
+ 185: local function SyncAll()
+ 186:     for event in pairs(handlers) do Sync(event) end
+ 187: end
+ 188: 
+ 189: -- One "roster settled" signal shared by the modules: a raid forming fires dozens of
+ 190: -- GROUP_ROSTER_UPDATE in a row, the modules run once, half a second after the first one.
+ 191: local rosterFns, rosterLabels, rosterFiles, rosterPending = {}, {}, {}, false
+ 192: function W.OnRoster(fn)
+ 193:     rosterFns[#rosterFns + 1] = fn
+ 194:     local where = W.Where(2)
+ 195:     rosterLabels[fn] = "roster " .. where
+ 196:     rosterFiles[fn] = FileOf(where)
+ 197:     if late then late.roster[#late.roster + 1] = fn end
+ 198: end
+ 199: 
+ 200: local function RosterSettled()
+ 201:     rosterPending = false
+ 202:     if W.access ~= true then return end
+ 203:     for _, fn in ipairs(rosterFns) do
+ 204:         if not offFiles[rosterFiles[fn]] then
+ 205:             local ok, err = W.Measure(rosterLabels[fn] or "roster", fn)
+ 206:             if not ok then geterrorhandler()(err) end
+ 207:         end
+ 208:     end
+ 209: end
+ 210: 
+ 211: -- Login events seen while the guild is still unknown: replayed once access is granted
+ 212: local buffered = {}
+ 213: evFrame:SetScript("OnEvent", function(_, event, ...)
+ 214:     if W.access == nil and (event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD") then
+ 215:         buffered[#buffered + 1] = { event, ... }
+ 216:     end
+ 217:     Run(event, false, ...)
+ 218: end)
+ 219: 
+ 220: local function RosterChanged()
+ 221:     if rosterPending then return end
+ 222:     rosterPending = true
+ 223:     W.After(0.5, RosterSettled)
+ 224: end
+ 225: W.On("GROUP_ROSTER_UPDATE", RosterChanged)
+ 226: W.On("RAID_ROSTER_UPDATE", RosterChanged) -- older clients
+ 227: 
+ 228: ---------------------------------------------------------------------------
+ 229: -- Access: the addon only works for members of the War Legend guild
+ 230: ---------------------------------------------------------------------------
+ 231: W.GUILD_NAME = "War Legend"
+ 232: -- true: only members of GUILD_NAME can use the addon. Set to false to let everybody use it;
+ 233: -- nothing else changes.
+ 234: W.GUILD_RESTRICTED = true
+ 235: W.access = (not W.GUILD_RESTRICTED) and true or nil -- nil = not known yet, true / false
+ 236: local function Norm(s) return ((s or ""):lower():gsub("[%s%-_'%.]", "")) end
+ 237: local accessChecks = 0
+ 238: 
+ 239: function W.Allowed() return W.access == true end
+ 240: 
+ 241: function W.Denied()
+ 242:     if W.access == nil then
+ 243:         W.Print(L("Checking your guild..."))
+ 244:     else
+ 245:         W.Print(string.format(L("This addon is reserved for members of the %s guild."), W.GUILD_NAME))
+ 246:     end
+ 247: end
+ 248: 
+ 249: local function SetAccess(v)
+ 250:     if W.access == v then return end
+ 251:     local was = W.access
+ 252:     W.access = v
+ 253:     if v then
+ 254:         -- replay what the modules missed while we were waiting for the guild name
+ 255:         local list = buffered
+ 256:         buffered = {}
+ 257:         -- access refused first, granted later (slow guild data, joined the guild): for the modules it is
+ 258:         -- their login, so isLogin = true (cooldown text, alts, roster, version broadcast run once)
+ 259:         if #list == 0 and was == false then list = { { "PLAYER_LOGIN" }, { "PLAYER_ENTERING_WORLD", true, false } } end
+ 260:         for _, e in ipairs(list) do Run(e[1], true, unpack(e, 2)) end
+ 261:     else
+ 262:         buffered = {}
+ 263:         if W.Hide then W.Hide() end
+ 264:         W.Denied()
+ 265:     end
+ 266: end
+ 267: 
+ 268: function W.CheckAccess()
+ 269:     if not W.GUILD_RESTRICTED then SetAccess(true); return end
+ 270:     if not (IsInGuild and IsInGuild()) then
+ 271:         -- right after login the guild may not be known yet
+ 272:         if accessChecks < 10 and W.access == nil then return end
+ 273:         SetAccess(false); return
+ 274:     end
+ 275:     local name = GetGuildInfo and GetGuildInfo("player")
+ 276:     if not name then return end
+ 277:     SetAccess(Norm(name) == Norm(W.GUILD_NAME))
+ 278: end
+ 279: 
+ 280: local function Poll()
+ 281:     accessChecks = accessChecks + 1
+ 282:     W.CheckAccess()
+ 283:     if W.access == nil then
+ 284:         if accessChecks >= 15 then SetAccess(false) else W.After(2, Poll) end
+ 285:     end
+ 286: end
+ 287: W.On("PLAYER_LOGIN", function() W.After(1, Poll) end, true)
+ 288: W.On("PLAYER_GUILD_UPDATE", function() W.CheckAccess() end, true)
+ 289: W.On("GUILD_ROSTER_UPDATE", function() W.CheckAccess() end, true)
+ 290: 
+ 291: -- Addon messages: one handler per prefix
+ 292: local addonHandlers, addonFiles = {}, {}
+ 293: function W.RegisterPrefix(prefix)
+ 294:     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+ 295:         C_ChatInfo.RegisterAddonMessagePrefix(prefix)
+ 296:     elseif RegisterAddonMessagePrefix then
+ 297:         RegisterAddonMessagePrefix(prefix)
+ 298:     end
+ 299: end
+ 300: 
+ 301: -- level: the stack level of the module that asks (a helper of Lib.lua passes 3)
+ 302: function W.OnAddon(prefix, fn, level)
+ 303:     W.RegisterPrefix(prefix)
+ 304:     addonHandlers[prefix] = fn
+ 305:     addonFiles[prefix] = FileOf(W.Where(level or 2))
+ 306: end
+ 307: 
+ 308: function W.AddonHandler(prefix) return addonHandlers[prefix] end
+ 309: 
+ 310: -- Addon messages are taken from my group and my guild only. Anyone on the realm can whisper an
+ 311: -- addon message (and any addon can reuse our prefixes): a whisper must come from a group or guild
+ 312: -- member. Handlers get (msg, short name for display / state, channel, full "Name-Realm" name).
+ 313: -- The full name is the one to trust: two players can share a short name on different realms.
+ 314: local GROUP_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, GUILD = true, OFFICER = true }
+ 315: 
+ 316: ---------------------------------------------------------------------------
+ 317: -- Load-on-demand raid modules (the way BigWigs loads its zone modules)
+ 318: -- The raid tools (groups, loot council, buffs, ready check, checklist, inspect, aura tracking, raid
+ 319: -- cooldowns, readiness, who pulled) live in the addon WarLegendRaidTool_Raid, which the game loads only
+ 320: -- when it is needed: in a group, in a dungeon / raid, with Aura Tracking switched on, when /wl is
+ 321: -- opened, or when one of their addon messages arrives. Alone in the open world (or alone in a
+ 322: -- battleground), none of their code is in memory.
+ 323: ---------------------------------------------------------------------------
+ 324: local RAID_ADDON = "WarLegendRaidTool_Raid"
+ 325: local lodPrefix = {}
+ 326: for _, p in ipairs({ "WLRT_CON", "WLRT_LC", "WLRT_BUFF", "WLRT_CD2", "WLRT_RG", "WLRT_INSQ", "WLRT_INSD",
+ 327:     "WLRT_RDYQ", "WLRT_RDYA", "WLRT_DUR" }) do
+ 328:     lodPrefix[p] = true
+ 329:     W.RegisterPrefix(p) -- the messages must reach us before the module that reads them is loaded
+ 330: end
+ 331: W.raidLoaded = false
+ 332: local pendingMsgs, loadFailed, waitCombat = {}, false, false
+ 333: local Dispatch
+ 334: 
+ 335: W.AddFR({
+ 336:     ["The raid modules are missing or disabled: install the folder WarLegendRaidTool_Raid next to WarLegendRaidTool."] =
+ 337:         "Les modules de raid sont absents ou désactivés : installe le dossier WarLegendRaidTool_Raid à côté de WarLegendRaidTool.",
+ 338: })
+ 339: 
+ 340: -- Loads the raid addon now. Handlers its files registered after the login / roster events already
+ 341: -- happened are run once, and the messages that asked for the load are delivered.
+ 342: function W.LoadRaid()
+ 343:     if W.raidLoaded then return true end
+ 344:     if loadFailed or not (C_AddOns and C_AddOns.LoadAddOn) then return false end
+ 345:     late = { handlers = {}, roster = {}, ready = {} }
+ 346:     local called, ok = W.Measure("load the raid modules", C_AddOns.LoadAddOn, RAID_ADDON)
+ 347:     if not called then ok = false end
+ 348:     local got = late
+ 349:     late = nil
+ 350:     if not ok then
+ 351:         loadFailed = true
+ 352:         wipe(pendingMsgs)
+ 353:         W.Print(L("The raid modules are missing or disabled: install the folder WarLegendRaidTool_Raid next to WarLegendRaidTool."))
+ 354:         return false
+ 355:     end
+ 356:     W.raidLoaded = true
+ 357:     for _, fn in ipairs(got.ready) do
+ 358:         local good, err = pcall(fn)
+ 359:         if not good then geterrorhandler()(err) end
+ 360:     end
+ 361:     if W.access == true then
+ 362:         for _, h in ipairs(got.handlers) do
+ 363:             if h.active and not h.always and not offFiles[h.file] and (h.event == "PLAYER_ENTERING_WORLD" or h.event == "PLAYER_LOGIN") then
+ 364:                 local good, err = pcall(h.fn, false, false)
+ 365:                 if not good then geterrorhandler()(err) end
+ 366:             end
+ 367:         end
+ 368:         for _, fn in ipairs(got.roster) do
+ 369:             if not offFiles[rosterFiles[fn]] then
+ 370:                 local good, err = pcall(fn)
+ 371:                 if not good then geterrorhandler()(err) end
+ 372:             end
+ 373:         end
+ 374:     end
+ 375:     local msgs = pendingMsgs
+ 376:     pendingMsgs = {}
+ 377:     for _, m in ipairs(msgs) do Dispatch(m[1], m[2], m[3], m[4]) end
+ 378:     return true
+ 379: end
+ 380: 
+ 381: -- Should the raid modules be in memory now? (in a group, a dungeon / raid, or with Aura Tracking on)
+ 382: local function WantRaid()
+ 383:     if W.access ~= true or W.raidLoaded or loadFailed then return false end
+ 384:     local auras = W.db and W.db.auras
+ 385:     if auras and auras.enabled then return true end -- Aura Tracking works everywhere, PvP included
+ 386:     if W.InGroup() then return true end -- a battleground raid too (Raid Groups, marks)
+ 387:     -- loaded during the loading screen (PLAYER_ENTERING_WORLD comes before it goes away): no freeze at the
+ 388:     -- first /wl in the open world, the cost is the memory of the raid modules when playing alone
+ 389:     if W.db and W.db.ui and W.db.ui.preloadRaid then return true end
+ 390:     local inInstance, kind = IsInInstance()
+ 391:     return inInstance and (kind == "party" or kind == "raid" or kind == "scenario") and true or false
+ 392: end
+ 393: 
+ 394: function W.MaybeLoadRaid()
+ 395:     if not WantRaid() then return end
+ 396:     if InCombatLockdown() then waitCombat = true; return end -- frames are made after the fight
+ 397:     W.LoadRaid()
+ 398: end
+ 399: W.On("PLAYER_ENTERING_WORLD", function() W.MaybeLoadRaid() end)
+ 400: W.On("PLAYER_REGEN_ENABLED", function() if waitCombat then waitCombat = false; W.MaybeLoadRaid() end end)
+ 401: W.OnRoster(function() W.MaybeLoadRaid() end)
+ 402: 
+ 403: function Dispatch(prefix, msg, channel, sender)
+ 404:     local fn = addonHandlers[prefix]
+ 405:     if not fn then
+ 406:         -- a message for a raid module that is not loaded yet: load it, then deliver the message.
+ 407:         -- Only from my group / guild (a whisper of a stranger must not load anything), and after the fight.
+ 408:         if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true then
+ 409:             local who = W.Safe(sender)
+ 410:             if type(who) ~= "string" or who == "" then return end
+ 411:             if not GROUP_CHANNELS[channel] then
+ 412:                 if channel ~= "WHISPER" then return end
+ 413:                 local full = W.FullName(who)
+ 414:                 if not (W.UnitByName(full) or W.GuildMember(full)) then return end
+ 415:             end
+ 416:             if #pendingMsgs < 50 then pendingMsgs[#pendingMsgs + 1] = { prefix, msg, channel, sender } end
+ 417:             if InCombatLockdown() then waitCombat = true; return end -- loaded after the fight, messages kept
+ 418:             W.LoadRaid()
+ 419:         end
+ 420:         return
+ 421:     end
+ 422:     if offFiles[addonFiles[prefix]] then return end
+ 423:     msg, sender = W.Safe(msg), W.Safe(sender)
+ 424:     if not msg or not sender or sender == "" then return end
+ 425:     local full = W.FullName(sender)
+ 426:     if not GROUP_CHANNELS[channel] then
+ 427:         if channel ~= "WHISPER" then return end
+ 428:         if not (W.UnitByName(full) or W.GuildMember(full)) then return end
+ 429:     end
+ 430:     fn(msg, W.BaseName(sender), channel, full)
+ 431: end
+ 432: W.On("CHAT_MSG_ADDON", function(prefix, msg, channel, sender) Dispatch(prefix, msg, channel, sender) end)
+ 433: 
+ 434: -- Character names. WoW: Forever (interface 1.60+) has no realms: a character is "First Surname"
+ 435: -- (only the full name is unique, many share a first name) and UnitName returns the surname where
+ 436: -- retail returns the realm. The full identity is "First Surname" there, "Name-Realm" elsewhere;
+ 437: -- the short name (display, per-player state) is the first name, like UnitName's first value.
+ 438: local iface = tonumber((select(4, GetBuildInfo()))) or 0
+ 439: W.FOREVER = (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT) or (iface >= 16000 and iface < 20000)
+ 440: W.NAME_SEP = (Constants and Constants.CharacterNameSeparatorConsts
+ 441:     and Constants.CharacterNameSeparatorConsts.CHARACTERNAME_SURNAME_SEPARATOR) or " "
+ 442: if W.NAME_SEP == "" then W.NAME_SEP = " " end
+ 443: local SEP = W.NAME_SEP
+ 444: local SEP_CLASS = SEP == " " and "%s" or SEP:gsub("%W", "%%%0")
+ 445: 
+ 446: -- Realm without spaces, as in "Name-Realm"
+ 447: local myRealm
+ 448: function W.MyRealm()
+ 449:     if not myRealm or myRealm == "" then
+ 450:         myRealm = (GetNormalizedRealmName and GetNormalizedRealmName())
+ 451:             or ((GetRealmName and GetRealmName() or ""):gsub("%s", ""))
+ 452:     end
+ 453:     return myRealm or ""
+ 454: end
+ 455: 
+ 456: -- Any form of a name -> the full identity ("First Surname" on Forever, "Name-Realm" elsewhere)
+ 457: function W.FullName(name)
+ 458:     if not name or name == "" then return name end
+ 459:     if W.FOREVER then
+ 460:         if name:find(SEP, 1, true) then return (name:gsub("%-.*$", "")) end -- "First Surname[-Realm]"
+ 461:         return (name:gsub("%-", SEP, 1))                                    -- "First-Surname" / "First"
+ 462:     end
+ 463:     if name:find("-", 1, true) then return name end
+ 464:     return name .. "-" .. W.MyRealm()
+ 465: end
+ 466: 
+ 467: function W.UnitFullName(unit)
+ 468:     local n, second = UnitName(unit)
+ 469:     n, second = W.Safe(n), W.Safe(second)
+ 470:     if not n then return nil end
+ 471:     if W.FOREVER then
+ 472:         -- some units already carry the surname in the first value
+ 473:         if second and second ~= "" and not n:find(SEP .. second, 1, true) then return n .. SEP .. second end
+ 474:         return n
+ 475:     end
+ 476:     if not second or second == "" then second = W.MyRealm() end
+ 477:     return n .. "-" .. second
+ 478: end
+ 479: 
+ 480: -- Keys for per-player data: the full identity, lowercased. Two players sharing a first name
+ 481: -- (WoW: Forever) or a name on two realms never share a key.
+ 482: function W.Key(name)
+ 483:     local f = W.FullName(name)
+ 484:     return f and f:lower()
+ 485: end
+ 486: 
+ 487: function W.UnitKey(unit)
+ 488:     local f = W.UnitFullName(unit)
+ 489:     return f and f:lower()
+ 490: end
+ 491: 
+ 492: -- Name shown in our windows: "First Surname" on Forever (as Blizzard's frames), the name elsewhere
+ 493: function W.UnitDisplayName(unit)
+ 494:     if W.FOREVER then return W.UnitFullName(unit) end
+ 495:     return W.Safe(UnitName(unit))
+ 496: end
+ 497: 
+ 498: -- true when a full name carries the part that makes it unique (surname / realm)
+ 499: function W.HasFullPart(name)
+ 500:     if not name then return false end
+ 501:     if W.FOREVER then return name:find(SEP, 1, true) ~= nil end
+ 502:     return name:find("-", 1, true) ~= nil
+ 503: end
+ 504: 
+ 505: ---------------------------------------------------------------------------
+ 506: -- Database
+ 507: ---------------------------------------------------------------------------
+ 508: local readyFns = {}
+ 509: function W.OnReady(fn)
+ 510:     local where, inner = W.Where(2), fn
+ 511:     fn = function() -- timed for /wl perf, errors go on to the caller's pcall
+ 512:         local ok, err = W.Measure("ready " .. where, inner)
+ 513:         if not ok then error(err, 0) end
+ 514:     end
+ 515:     -- a file of the raid addon: its ready functions run once the whole file is loaded, like at login
+ 516:     if late then late.ready[#late.ready + 1] = fn; return end
+ 517:     if W.db then fn() else readyFns[#readyFns + 1] = fn end
+ 518: end
+ 519: 
+ 520: -- DB sub-table with default values (scalars only). A value of the wrong type (damaged file,
+ 521: -- old format) is put back to its default instead of breaking the module.
+ 522: function W.DB(key, defaults)
+ 523:     local t = W.db[key]
+ 524:     if type(t) ~= "table" then t = {}; W.db[key] = t end
+ 525:     if defaults then
+ 526:         for k, v in pairs(defaults) do
+ 527:             if type(t[k]) ~= type(v) then t[k] = v end
+ 528:         end
+ 529:     end
+ 530:     return t
+ 531: end
+ 532: 
+ 533: -- Saved data format versions. A module changing its saved format registers a migration
+ 534: -- (W.Migration(version, fn)); they run once each, in order, before the modules start.
+ 535: -- A failing migration resets only the data it was working on, never the whole file.
+ 536: local migrations = {}
+ 537: function W.Migration(version, key, fn)
+ 538:     migrations[#migrations + 1] = { v = version, key = key, fn = fn }
+ 539: end
+ 540: 
+ 541: local function Migrate(db)
+ 542:     local from = tonumber(db.schema) or 0
+ 543:     local top = from
+ 544:     table.sort(migrations, function(a, b) return a.v < b.v end)
+ 545:     for _, m in ipairs(migrations) do
+ 546:         if m.v > from then
+ 547:             local ok, err = pcall(m.fn, db)
+ 548:             if not ok then
+ 549:                 geterrorhandler()(err)
+ 550:                 if m.key then db[m.key] = nil end -- that module starts clean, the rest is kept
+ 551:             end
+ 552:         end
+ 553:         if m.v > top then top = m.v end
+ 554:     end
+ 555:     db.schema = top
+ 556: end
+ 557: 
+ 558: W.On("ADDON_LOADED", function(name)
+ 559:     if name ~= ADDON then return end
+ 560:     if type(WarLegendRaidToolDB) ~= "table" then WarLegendRaidToolDB = {} end
+ 561:     W.db = WarLegendRaidToolDB
+ 562:     Migrate(W.db)
+ 563:     W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto", overlapForce = false, preloadRaid = true })
+ 564:     -- the language is known from here: everything built from now on uses it
+ 565:     W.SetLanguage(W.db.ui.lang)
+ 566:     W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+ 567:     W.DB("minimap", { angle = 200 })
+ 568:     if type(W.db.ui.off) ~= "table" then W.db.ui.off = {} end
+ 569:     for _, m in ipairs(W.modules) do
+ 570:         if m.file and W.db.ui.off[m.key] and not W.CORE_MODULES[m.key] then offFiles[m.file] = true end
+ 571:     end
+ 572:     SyncAll()
+ 573:     W.ResolveTheme()
+ 574:     for _, fn in ipairs(readyFns) do
+ 575:         local ok, err = pcall(fn)
+ 576:         if not ok then geterrorhandler()(err) end
+ 577:     end
+ 578:     readyFns = {}
+ 579: end, true)
+ 580: 
+ 581: ---------------------------------------------------------------------------
+ 582: -- Player / group / guild helpers (fallbacks for older clients)
+ 583: ---------------------------------------------------------------------------
+ 584: function W.Safe(v)
+ 585:     if v ~= nil and ((issecretvalue and issecretvalue(v)) or (canaccessvalue and not canaccessvalue(v))) then
+ 586:         return nil
+ 587:     end
+ 588:     return v
+ 589: end
+ 590: 
+ 591: -- Short name: without realm (and, on Forever, without surname), as UnitName's first value
+ 592: function W.BaseName(name)
+ 593:     if not name then return nil end
+ 594:     if W.FOREVER then return name:match("^([^%-" .. SEP_CLASS .. "]+)") or name end
+ 595:     return name:match("^([^%-]+)") or name
+ 596: end
+ 597: 
+ 598: function W.SanitizeName(s)
+ 599:     s = (s or ""):gsub("[;,|:~\r\n]", "")
+ 600:     s = s:gsub("^%s+", ""):gsub("%s+$", "")
+ 601:     return s
+ 602: end
+ 603: 
+ 604: function W.InRaid()
+ 605:     if IsInRaid then return IsInRaid() and true or false end
+ 606:     return (GetNumRaidMembers and GetNumRaidMembers() or 0) > 0
+ 607: end
+ 608: 
+ 609: function W.NumRaid()
+ 610:     if not W.InRaid() then return 0 end
+ 611:     if GetNumGroupMembers then return GetNumGroupMembers() end
+ 612:     return GetNumRaidMembers()
+ 613: end
+ 614: 
+ 615: function W.NumParty()
+ 616:     if GetNumSubgroupMembers then return GetNumSubgroupMembers() end
+ 617:     if GetNumPartyMembers then return GetNumPartyMembers() end
+ 618:     return 0
+ 619: end
+ 620: 
+ 621: function W.InGroup()
+ 622:     return W.InRaid() or W.NumParty() > 0
+ 623: end
+ 624: 
+ 625: function W.IsLeader()
+ 626:     if UnitIsGroupLeader then return UnitIsGroupLeader("player") and true or false end
+ 627:     return IsRaidLeader and IsRaidLeader() and true or false
+ 628: end
+ 629: 
+ 630: function W.CanLead()
+ 631:     if not W.InRaid() then return true end
+ 632:     if W.IsLeader() then return true end
+ 633:     if UnitIsGroupAssistant then return UnitIsGroupAssistant("player") and true or false end
+ 634:     return IsRaidOfficer and IsRaidOfficer() and true or false
+ 635: end
+ 636: 
+ 637: -- Unit tokens built once (no string concatenation in loops)
+ 638: W.RAID_UNITS, W.PARTY_UNITS = {}, {}
+ 639: for i = 1, 40 do W.RAID_UNITS[i] = "raid" .. i end
+ 640: for i = 1, 4 do W.PARTY_UNITS[i] = "party" .. i end
+ 641: 
+ 642: function W.GroupUnits()
+ 643:     local units = {}
+ 644:     if W.InRaid() then
+ 645:         for i = 1, W.NumRaid() do units[#units + 1] = W.RAID_UNITS[i] end
+ 646:     elseif W.InGroup() then
+ 647:         units[1] = "player"
+ 648:         for i = 1, 4 do
+ 649:             if UnitExists(W.PARTY_UNITS[i]) then units[#units + 1] = W.PARTY_UNITS[i] end
+ 650:         end
+ 651:     end
+ 652:     return units
+ 653: end
+ 654: 
+ 655: function W.Channel()
+ 656:     if W.InRaid() then return "RAID" end
+ 657:     if W.InGroup() then return "PARTY" end
+ 658: end
+ 659: 
+ 660: -- Chat messages. WoW: Forever has a "chat messaging lockdown" (boss encounter, challenge mode,
+ 661: -- PvP match) where addon messages in chat are refused (ADDON_ACTION_BLOCKED): check it first.
+ 662: W.AddFR({
+ 663:     ["Group chat is locked during boss fights: message shown only to you."] =
+ 664:         "Le chat de groupe est verrouillé pendant les combats de boss : message affiché pour toi seulement.",
+ 665: })
+ 666: 
+ 667: function W.ChatLocked()
+ 668:     local f = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+ 669:     if not f then return false end
+ 670:     local locked = f()
+ 671:     if locked ~= nil and W.Safe(locked) == nil then return true end -- hidden answer: treat as locked
+ 672:     return locked and true or false
+ 673: end
+ 674: 
+ 675: -- Sends one line; false when it could not be sent (locked, empty, refused)
+ 676: function W.SendChat(text, channel, target)
+ 677:     if type(text) ~= "string" or text == "" or not channel or W.ChatLocked() then return false end
+ 678:     local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+ 679:     if not send then return false end
+ 680:     local ok, res = pcall(send, text, channel, nil, target)
+ 681:     if not ok then return false end
+ 682:     local success = Enum and Enum.SendChatMessageResult and Enum.SendChatMessageResult.Success
+ 683:     if type(res) == "number" and success and res ~= success then return false end
+ 684:     return true
+ 685: end
+ 686: 
+ 687: -- Announces in group chat, or shows the line to me alone when the chat is locked
+ 688: local lockNoticeAt = 0
+ 689: function W.Announce(text, channel)
+ 690:     if W.SendChat(text, channel) then return true end
+ 691:     if GetTime() - lockNoticeAt > 10 then
+ 692:         lockNoticeAt = GetTime()
+ 693:         W.Print(L("Group chat is locked during boss fights: message shown only to you."))
+ 694:     end
+ 695:     W.Print(text)
+ 696:     return false
+ 697: end
+ 698: 
+ 699: -- Battleground / arena: the raid tools have nothing to do there
+ 700: function W.InPvP()
+ 701:     local _, kind = IsInInstance()
+ 702:     return kind == "pvp" or kind == "arena"
+ 703: end
+ 704: 
+ 705: -- Addon message transport. The modern API returns a result code where only Success (0) means the
+ 706: -- message was accepted. Returns "sent", "throttle" (client limit: retry in a moment), "locked"
+ 707: -- (AddOnMessageLockdown, e.g. during an encounter: retry after it) or "failed" (not in a group,
+ 708: -- offline target...: will never succeed).
+ 709: local AR = Enum and Enum.SendAddonMessageResult or {}
+ 710: local AR_OK = AR.Success or 0
+ 711: local AR_THROTTLE = { [AR.AddonMessageThrottle or 3] = true, [AR.ChannelThrottle or 8] = true }
+ 712: local AR_LOCKED = AR.AddOnMessageLockdown or 11
+ 713: 
+ 714: function W.SendRaw(prefix, msg, channel, target)
+ 715:     if not channel then return "failed" end
+ 716:     -- WHISPER: an answer to one player (Readiness), only with a target
+ 717:     if channel == "WHISPER" then
+ 718:         if not target or target == "" then return "failed" end
+ 719:     elseif channel ~= "RAID" and channel ~= "PARTY" and channel ~= "GUILD" and channel ~= "INSTANCE_CHAT" then
+ 720:         return "failed"
+ 721:     end
+ 722:     if C_ChatInfo and C_ChatInfo.SendAddonMessage then
+ 723:         local ok, r = pcall(C_ChatInfo.SendAddonMessage, prefix, msg, channel, target)
+ 724:         if not ok then return "failed" end
+ 725:         if r == nil or r == true or r == AR_OK then return "sent" end
+ 726:         if r == AR_LOCKED then return "locked" end
+ 727:         if AR_THROTTLE[r] then return "throttle" end
+ 728:         return "failed"
+ 729:     elseif SendAddonMessage then
+ 730:         SendAddonMessage(prefix, msg, channel, target)
+ 731:         return "sent"
+ 732:     end
+ 733:     return "failed"
+ 734: end
+ 735: 
+ 736: -- One immediate message; true only when the client accepted it
+ 737: function W.Send(prefix, msg, channel, target)
+ 738:     channel = channel or W.Channel()
+ 739:     if not channel then return false end
+ 740:     return W.SendRaw(prefix, msg, channel, target) == "sent"
+ 741: end
+ 742: 
+ 743: function W.GetMarker(unit)
+ 744:     return W.Safe(GetRaidTargetIndex(unit)) or 0
+ 745: end
+ 746: 
+ 747: function W.IsInGuild()
+ 748:     return IsInGuild and IsInGuild() and true or false
+ 749: end
+ 750: 
+ 751: -- Requests a fresh roster (Blizzard throttles to once / 10 s); GUILD_ROSTER_UPDATE follows.
+ 752: function W.RequestGuildRoster()
+ 753:     if not W.IsInGuild() then return end
+ 754:     if C_GuildInfo and C_GuildInfo.GuildRoster then
+ 755:         C_GuildInfo.GuildRoster()
+ 756:     elseif GuildRoster then
+ 757:         GuildRoster()
+ 758:     end
+ 759: end
+ 760: 
+ 761: -- Every guild member: { name, class, rank, rankIndex, level, online }
+ 762: -- Built once per GUILD_ROSTER_UPDATE (and only when someone asks): the list is shared, do not modify it.
+ 763: -- Each entry: name = short name (display), full = full identity (invites, checks).
+ 764: local guildList, guildByFull, guildByShort, guildDirty = {}, {}, {}, true
+ 765: local function GuildDirty() guildDirty = true end
+ 766: W.On("GUILD_ROSTER_UPDATE", GuildDirty, true)
+ 767: W.On("PLAYER_GUILD_UPDATE", GuildDirty, true)
+ 768: 
+ 769: function W.GuildMembers()
+ 770:     if not W.IsInGuild() then return {} end
+ 771:     if not guildDirty then return guildList end
+ 772:     guildDirty = false
+ 773:     local list, byFull, byShort = {}, {}, {}
+ 774:     for i = 1, (GetNumGuildMembers() or 0) do
+ 775:         local name, rankName, rankIndex, level, _, _, _, _, online, _, class = GetGuildRosterInfo(i)
+ 776:         name = W.Safe(name)
+ 777:         if name then
+ 778:             local full = W.FullName(name)
+ 779:             local key = full:lower()
+ 780:             if not byFull[key] then
+ 781:                 local m = {
+ 782:                     name = W.BaseName(name), full = full, class = W.Safe(class), rank = rankName, rankIndex = rankIndex,
+ 783:                     level = level, online = online and true or false,
+ 784:                 }
+ 785:                 byFull[key] = m
+ 786:                 list[#list + 1] = m
+ 787:                 -- a short name points to its member only while nobody else has it
+ 788:                 local s = m.name:lower()
+ 789:                 if byShort[s] == nil then byShort[s] = m else byShort[s] = false end
+ 790:             end
+ 791:         end
+ 792:     end
+ 793:     -- new tables: a list a caller is still looping over stays valid
+ 794:     guildList, guildByFull, guildByShort = list, byFull, byShort
+ 795:     return list
+ 796: end
+ 797: 
+ 798: -- Guild member by full name, or by a short name nobody else in the guild has; else nil
+ 799: function W.GuildMember(name)
+ 800:     if not name or not W.IsInGuild() then return nil end
+ 801:     W.GuildMembers()
+ 802:     local m = guildByFull[W.FullName(name):lower()]
+ 803:     if m then return m end
+ 804:     if W.HasFullPart(name) then
+ 805:         -- a full name that does not match: only accept it when the other side has no full part
+ 806:         local s = guildByShort[W.BaseName(name):lower()]
+ 807:         return (s and not W.HasFullPart(s.full)) and s or nil
+ 808:     end
+ 809:     return guildByShort[W.BaseName(name):lower()] or nil
+ 810: end
+ 811: 
+ 812: ---------------------------------------------------------------------------
+ 813: -- Modern / vanilla API wrappers (WoW Forever runs on a modern client)
+ 814: ---------------------------------------------------------------------------
+ 815: W.GetItemInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+ 816: W.GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+ 817: W.GetDetailedItemLevelInfo = (C_Item and C_Item.GetDetailedItemLevelInfo) or GetDetailedItemLevelInfo
+ 818: 
+ 819: function W.SpellName(id)
+ 820:     if C_Spell and C_Spell.GetSpellName then return C_Spell.GetSpellName(id) end
+ 821:     if C_Spell and C_Spell.GetSpellInfo then
+ 822:         local info = C_Spell.GetSpellInfo(id)
+ 823:         return info and info.name
+ 824:     end
+ 825:     return GetSpellInfo and (GetSpellInfo(id))
+ 826: end
+ 827: 
+ 828: -- Item level of an item link (nil while the item data is not loaded yet)
+ 829: function W.ItemLevel(link)
+ 830:     if not link then return nil end
+ 831:     local lvl = W.GetDetailedItemLevelInfo and W.GetDetailedItemLevelInfo(link)
+ 832:     if not lvl and W.GetItemInfo then lvl = select(4, W.GetItemInfo(link)) end
+ 833:     lvl = W.Safe(lvl)
+ 834:     return (lvl and lvl > 0) and lvl or nil
+ 835: end
+ 836: 
+ 837: -- Talents: Forever stores the 3 vanilla trees as trait groups (C_Traits), like Naowh Forever reads them.
+ 838: -- Returns { spent = {21, 9, 0}, names = {...}, total, best } or nil
+ 839: function W.ReadTalentConfig(configID)
+ 840:     if not (configID and C_Traits and C_Traits.GetConfigInfo and C_Traits.GetGroupDisplayInfoByTreeID) then return nil end
+ 841:     local config = C_Traits.GetConfigInfo(configID)
+ 842:     local treeID = config and config.treeIDs and config.treeIDs[1]
+ 843:     if not treeID then return nil end
+ 844:     local groups = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
+ 845:     if not groups or #groups == 0 then return nil end
+ 846:     local ids = {}
+ 847:     for i, g in ipairs(groups) do ids[i] = g.groupID end
+ 848:     local infos = (C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, ids)) or {}
+ 849:     local t = { spent = {}, names = {}, total = 0 }
+ 850:     local most = 0 -- no point spent (talents reset): no main tree
+ 851:     for i, g in ipairs(groups) do
+ 852:         local spent = 0
+ 853:         for _, info in ipairs(infos) do
+ 854:             local cur = info.traitNodeGroupID == g.groupID and info.currencyInfos and info.currencyInfos[1]
+ 855:             if cur then spent = W.Safe(cur.spent) or 0 end
+ 856:         end
+ 857:         t.spent[i], t.names[i] = spent, g.displayName or ("#" .. i)
+ 858:         t.total = t.total + spent
+ 859:         if spent > most then t.best, most = t.names[i], spent end
+ 860:     end
+ 861:     return t
+ 862: end
+ 863: 
+ 864: -- Old vanilla talent API (other clients)
+ 865: function W.ClassicTalents(inspect)
+ 866:     if not (GetNumTalentTabs and GetTalentInfo and GetTalentTabInfo and GetNumTalents) then return nil end
+ 867:     local tabs = GetNumTalentTabs(inspect)
+ 868:     if not tabs or tabs == 0 then return nil end
+ 869:     local t = { spent = {}, names = {}, total = 0 }
+ 870:     local most = 0 -- no point spent (talents reset): no main tree
+ 871:     for tab = 1, tabs do
+ 872:         local a, b = GetTalentTabInfo(tab, inspect)
+ 873:         local name = type(a) == "string" and a or (type(b) == "string" and b) or ("#" .. tab)
+ 874:         local pts = 0
+ 875:         for i = 1, (GetNumTalents(tab, inspect) or 0) do
+ 876:             local _, _, _, _, rank = GetTalentInfo(tab, i, inspect)
+ 877:             pts = pts + (tonumber(rank) or 0)
+ 878:         end
+ 879:         t.spent[tab], t.names[tab] = pts, name
+ 880:         t.total = t.total + pts
+ 881:         if pts > most then t.best, most = name, pts end
+ 882:     end
+ 883:     return t
+ 884: end
+ 885: 
+ 886: function W.OwnTalents()
+ 887:     local id = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
+ 888:     return W.ReadTalentConfig(id) or W.ClassicTalents(false)
+ 889: end
+ 890: 
+ 891: -- Talents of the unit being inspected (after INSPECT_READY)
+ 892: function W.InspectTalents()
+ 893:     if C_Traits and C_Traits.HasValidInspectData then
+ 894:         if not C_Traits.HasValidInspectData() then return nil end
+ 895:         local consts = Constants and Constants.TraitConsts
+ 896:         return W.ReadTalentConfig(consts and consts.INSPECT_TRAIT_CONFIG_ID)
+ 897:     end
+ 898:     return W.ClassicTalents(true)
+ 899: end
+ 900: 
+ 901: function W.TalentText(t)
+ 902:     if not t or not t.spent or #t.spent == 0 then return nil end
+ 903:     local parts = {}
+ 904:     for i, v in ipairs(t.spent) do parts[i] = tostring(v) end
+ 905:     return table.concat(parts, "/")
+ 906: end
+ 907: 
+ 908: function W.ClassColor(class)
+ 909:     local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+ 910:     if c then return c.r, c.g, c.b end
+ 911:     return 0.75, 0.75, 0.75
+ 912: end
+ 913: 
+ 914: function W.UnitClassToken(unit)
+ 915:     local _, class = UnitClass(unit)
+ 916:     return W.Safe(class)
+ 917: end
+ 918: 
+ 919: ---------------------------------------------------------------------------
+ 920: -- Widgets (Blizzard templates only, no custom textures)
+ 921: ---------------------------------------------------------------------------
+ 922: W.BT = BackdropTemplateMixin and "BackdropTemplate" or nil
+ 923: local nameCounter = 0
+ 924: function W.N(prefix)
+ 925:     nameCounter = nameCounter + 1
+ 926:     return "WLRT" .. prefix .. nameCounter
+ 927: end
+ 928: 
+ 929: function W.Size(f, w, h) f:SetWidth(w); f:SetHeight(h) end
+ 930: 
+ 931: function W.SetColor(tex, r, g, b, a)
+ 932:     if tex.SetColorTexture then tex:SetColorTexture(r, g, b, a or 1) else tex:SetTexture(r, g, b, a or 1) end
+ 933: end
+ 934: 
+ 935: ---------------------------------------------------------------------------
+ 936: -- Themes: follows the player's UI
+ 937: --   "eui"      EllesmereUI installed -> its skinning API (its colors, font, accent, borders)
+ 938: --   "blizzard" default WoW Forever UI -> Blizzard dialog frames, red buttons, gold text
+ 939: --   "flat"     WarLegend flat black/red (warlegend.net)
+ 940: --   "sashoof"  SashoofUI look: dark navy panels, cyan accent (the "War Legend Classic Forever" UI)
+ 941: -- "auto" (default) picks eui when available, else blizzard. Changing it needs a /reload.
+ 942: ---------------------------------------------------------------------------
+ 943: local skin
+ 944: W.style = "blizzard"
+ 945: 
+ 946: local BRAND = { 0.808, 0.098, 0.094 } -- WarLegend red #CE1918
+ 947: -- colors of the flat themes (panel, light panel, border, button hover, header gradient, menu column)
+ 948: local PALETTES = {
+ 949:     flat = { panel = { 0.031, 0.031, 0.031 }, light = { 0.075, 0.075, 0.075 }, border = { 0.17, 0.17, 0.17 },
+ 950:         hover = { 0.16, 0.05, 0.05 }, headTop = { 0.02, 0.02, 0.02 }, headBottom = { 0.09, 0.03, 0.03 }, side = { 0.05, 0.05, 0.05 } },
+ 951:     sashoof = { panel = { 0.043, 0.078, 0.106 }, light = { 0.075, 0.125, 0.165 }, border = { 0.11, 0.2, 0.26 },
+ 952:         hover = { 0.05, 0.17, 0.23 }, headTop = { 0.03, 0.07, 0.1 }, headBottom = { 0.05, 0.12, 0.16 }, side = { 0.027, 0.055, 0.075 } },
+ 953: }
+ 954: local PAL = PALETTES.flat
+ 955: function W.IsFlat() return W.style == "flat" or W.style == "sashoof" end
+ 956: function W.ResolveTheme()
+ 957:     local pref = (W.db and W.db.ui and W.db.ui.style) or "auto"
+ 958:     if pref == "auto" then pref = skin and "eui" or "blizzard" end
+ 959:     if pref == "eui" and not skin then pref = "blizzard" end
+ 960:     W.style = pref
+ 961:     PAL = PALETTES[pref] or PALETTES.flat
+ 962:     if pref == "eui" then
+ 963:         local r, g, b = skin.GetAccentColor()
+ 964:         W.R, W.G, W.B = r or BRAND[1], g or BRAND[2], b or BRAND[3]
+ 965:         local font = skin.GetFont and skin.GetFont()
+ 966:         W.FONT = font or W.FONT
+ 967:     elseif pref == "blizzard" then
+ 968:         W.R, W.G, W.B = 1, 0.82, 0 -- Blizzard gold
+ 969:     elseif pref == "sashoof" then
+ 970:         W.R, W.G, W.B = 0, 0.78, 1 -- SashoofUI cyan
+ 971:     else
+ 972:         W.R, W.G, W.B = BRAND[1], BRAND[2], BRAND[3]
+ 973:     end
+ 974: end
+ 975: function W.Skin() return W.style == "eui" and skin or nil end
+ 976: 
+ 977: if EllesmereUI and EllesmereUI.RegisterSkin then
+ 978:     EllesmereUI.RegisterSkin("WarLegendRaidTool", function(S)
+ 979:         skin = S
+ 980:         W.ResolveTheme()
+ 981:         if S.OnLooksChanged then S.OnLooksChanged(function() W.ResolveTheme() end) end
+ 982:     end)
+ 983: end
+ 984: 
+ 985: function W.IsBlizzard() return W.style == "blizzard" end
+ 986: 
+ 987: local BLIZZ_DIALOG = {
+ 988:     bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+ 989:     edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+ 990:     tile = true, tileSize = 32, edgeSize = 32, insets = { left = 11, right = 12, top = 12, bottom = 11 },
+ 991: }
+ 992: local BLIZZ_PANEL = {
+ 993:     bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
+ 994:     edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+ 995:     tile = true, tileSize = 16, edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 },
+ 996: }
+ 997: 
+ 998: -- Panel / sub-frame background in the current theme
+ 999: function W.Backdrop(f, alpha, light)
+1000:     local S = W.Skin()
+1001:     if S then S.Panel(f, { inset = not light }); return end
+1002:     if not f.SetBackdrop then return end
+1003:     if W.IsBlizzard() then
+1004:         f:SetBackdrop(BLIZZ_PANEL)
+1005:         f:SetBackdropColor(0.06, 0.06, 0.06, alpha or 0.9)
+1006:         f:SetBackdropBorderColor(0.55, 0.55, 0.55, 1)
+1007:         return
+1008:     end
+1009:     f:SetBackdrop({ bgFile = W.WHITE, edgeFile = W.WHITE, edgeSize = 1 })
+1010:     if light then
+1011:         f:SetBackdropColor(PAL.light[1], PAL.light[2], PAL.light[3], alpha or 0.95)
+1012:     else
+1013:         f:SetBackdropColor(PAL.panel[1], PAL.panel[2], PAL.panel[3], alpha or 0.97)
+1014:     end
+1015:     f:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1)
+1016: end
+1017: 
+1018: -- Window frame (main window and popups)
+1019: function W.Shell(f, alpha)
+1020:     local S = W.Skin()
+1021:     if S then S.Shell(f); return end
+1022:     if not f.SetBackdrop then return end
+1023:     if W.IsBlizzard() then
+1024:         f:SetBackdrop(BLIZZ_DIALOG)
+1025:         f:SetBackdropColor(1, 1, 1, alpha or 1)
+1026:         return
+1027:     end
+1028:     W.Backdrop(f, alpha or 0.97)
+1029: end
+1030: 
+1031: -- Thin accent line
+1032: function W.Accent(f, point, h)
+1033:     local t = f:CreateTexture(nil, "ARTWORK")
+1034:     W.SetColor(t, W.R, W.G, W.B, 1)
+1035:     t:SetHeight(h or 2)
+1036:     local inset = W.IsBlizzard() and 5 or 1
+1037:     t:SetPoint(point or "TOPLEFT", inset, point == "BOTTOMLEFT" and inset or -inset)
+1038:     t:SetPoint(point == "BOTTOMLEFT" and "BOTTOMRIGHT" or "TOPRIGHT", -inset, point == "BOTTOMLEFT" and inset or -inset)
+1039:     return t
+1040: end
+1041: 
+1042: function W.Tooltip(frame, title, lines)
+1043:     frame:HookScript("OnEnter", function(self)
+1044:         GameTooltip:SetOwner(self, "ANCHOR_TOP")
+1045:         GameTooltip:AddLine(type(title) == "function" and title(self) or title, 1, 1, 1)
+1046:         if lines then
+1047:             for _, l in ipairs(lines) do GameTooltip:AddLine(l, 0.8, 0.8, 0.8, true) end
+1048:         end
+1049:         GameTooltip:Show()
+1050:     end)
+1051:     frame:HookScript("OnLeave", function() GameTooltip:Hide() end)
+1052: end
+1053: 
+1054: -- Selected state for buttons used as tabs: accent bar under the button (every theme)
+1055: function W.SetSelected(b, selected)
+1056:     if not b.selBar then
+1057:         b.selBar = b:CreateTexture(nil, "OVERLAY")
+1058:         b.selBar:SetHeight(2)
+1059:         b.selBar:SetPoint("BOTTOMLEFT", 3, W.IsBlizzard() and 3 or 1)
+1060:         b.selBar:SetPoint("BOTTOMRIGHT", -3, W.IsBlizzard() and 3 or 1)
+1061:     end
+1062:     W.SetColor(b.selBar, W.R, W.G, W.B, 1)
+1063:     b.selBar:SetShown(selected and true or false)
+1064:     b.selected = selected
+1065:     if not W.Skin() and not W.IsBlizzard() and b.SetBackdropBorderColor then
+1066:         if selected then b:SetBackdropBorderColor(W.R, W.G, W.B, 1) else b:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1) end
+1067:     end
+1068: end
+1069: 
+1070: -- Search index (/wl search box): the texts of the widgets a module panel is made of, while it is built.
+1071: -- Above every widget function: they all call it (a local must be declared before the code using it).
+1072: local indexOff = false
+1073: local function Index(text, widget)
+1074:     local m = W.building
+1075:     if not m or indexOff or type(text) ~= "string" or text == "" then return end
+1076:     m.index = m.index or {}
+1077:     m.index[#m.index + 1] = { text = text, widget = widget }
+1078: end
+1079: 
+1080: function W.Button(parent, text, w, h, onClick, tip)
+1081:     local b
+1082:     local S = W.Skin()
+1083:     if W.IsBlizzard() then
+1084:         b = CreateFrame("Button", W.N("Btn"), parent, "UIPanelButtonTemplate")
+1085:         W.Size(b, w, h or 22)
+1086:         b:SetText(text)
+1087:         local fs = b.GetFontString and b:GetFontString()
+1088:         if fs and fs.SetFontObject then fs:SetFontObject("GameFontNormalSmall") end
+1089:     else
+1090:         b = CreateFrame("Button", W.N("Btn"), parent, W.BT)
+1091:         W.Size(b, w, h or 22)
+1092:         local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+1093:         fs:SetPoint("CENTER", 0, 0)
+1094:         b:SetFontString(fs)
+1095:         b:SetNormalFontObject("GameFontHighlightSmall")
+1096:         b:SetDisabledFontObject("GameFontDisableSmall")
+1097:         if S then
+1098:             S.Button(b)
+1099:             if S.StateButtonLabel then S.StateButtonLabel(b) end
+1100:             if S.Font then S.Font(fs) end
+1101:         else
+1102:             W.Backdrop(b, 1, true)
+1103:             b:HookScript("OnEnter", function(self)
+1104:                 if self:IsEnabled() then self:SetBackdropBorderColor(W.R, W.G, W.B, 1); self:SetBackdropColor(PAL.hover[1], PAL.hover[2], PAL.hover[3], 1) end
+1105:             end)
+1106:             b:HookScript("OnLeave", function(self)
+1107:                 if self.selected then self:SetBackdropBorderColor(W.R, W.G, W.B, 1) else self:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1) end
+1108:                 self:SetBackdropColor(PAL.light[1], PAL.light[2], PAL.light[3], 1)
+1109:             end)
+1110:         end
+1111:         b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then fs:SetPoint("CENTER", 1, -1) end end)
+1112:         b:SetScript("OnMouseUp", function() fs:SetPoint("CENTER", 0, 0) end)
+1113:         b:SetText(text)
+1114:     end
+1115:     if onClick then b:SetScript("OnClick", onClick) end
+1116:     if tip then W.Tooltip(b, text, tip) end
+1117:     Index(text, b)
+1118:     return b
+1119: end
+1120: 
+1121: function W.Label(parent, text, font)
+1122:     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
+1123:     Index(text, fs)
+1124:     fs:SetText(text or "")
+1125:     fs:SetJustifyH("LEFT")
+1126:     local S = W.Skin()
+1127:     if S and S.Font then S.Font(fs) end
+1128:     return fs
+1129: end
+1130: 
+1131: -- Module title: UPPERCASE + accent bar underneath
+1132: function W.Title(parent, text)
+1133:     local fs = W.Label(parent, W.Upper(text), "GameFontNormalLarge")
+1134:     fs:SetFont(W.FONT, 15, W.IsBlizzard() and "" or "OUTLINE")
+1135:     fs:SetPoint("TOPLEFT", 12, -8)
+1136:     if W.IsBlizzard() then fs:SetTextColor(1, 0.82, 0) else fs:SetTextColor(1, 1, 1) end
+1137:     local bar = parent:CreateTexture(nil, "ARTWORK")
+1138:     W.SetColor(bar, W.R, W.G, W.B, 1)
+1139:     W.Size(bar, 40, 2)
+1140:     bar:SetPoint("TOPLEFT", fs, "BOTTOMLEFT", 0, -4)
+1141:     -- faint line across the rest of the panel
+1142:     local line = parent:CreateTexture(nil, "ARTWORK")
+1143:     W.SetColor(line, 1, 1, 1, 0.06)
+1144:     line:SetHeight(1)
+1145:     line:SetPoint("LEFT", bar, "RIGHT", 0, 0)
+1146:     line:SetPoint("RIGHT", parent, "RIGHT", -12, 0)
+1147:     return fs
+1148: end
+1149: 
+1150: function W.EditBox(parent, w, maxLetters)
+1151:     local e = CreateFrame("EditBox", W.N("Edit"), parent, "InputBoxTemplate")
+1152:     W.Size(e, w, 20)
+1153:     e:SetAutoFocus(false)
+1154:     e:SetMaxLetters(maxLetters or 40)
+1155:     e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+1156:     e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+1157:     local S = W.Skin()
+1158:     if S then S.EditBox(e) end
+1159:     return e
+1160: end
+1161: 
+1162: -- Checkbox bound to get/set; syncs itself when shown
+1163: function W.Check(parent, text, get, set, tip)
+1164:     local c = CreateFrame("CheckButton", W.N("Check"), parent, "UICheckButtonTemplate")
+1165:     W.Size(c, 24, 24)
+1166:     Index(text, c)
+1167:     indexOff = true -- its label is the same text
+1168:     local fs = W.Label(c, text, "GameFontHighlightSmall")
+1169:     indexOff = false
+1170:     fs:SetPoint("LEFT", c, "RIGHT", 2, 1)
+1171:     c.label = fs
+1172:     c:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
+1173:     c:SetScript("OnShow", function(self) self:SetChecked(get() and true or false) end)
+1174:     c.Sync = function(self) self:SetChecked(get() and true or false) end
+1175:     if tip then W.Tooltip(c, text, tip) end
+1176:     local S = W.Skin()
+1177:     if S then S.Checkbox(c) end
+1178:     return c
+1179: end
+1180: 
+1181: function W.Panel(parent, w, h)
+1182:     local p = CreateFrame("Frame", nil, parent, W.BT)
+1183:     W.Size(p, w, h)
+1184:     W.Backdrop(p, 0.95, true)
+1185:     if not W.Skin() then W.Accent(p, "TOPLEFT", 2) end
+1186:     return p
+1187: end
+1188: 
+1189: function W.SkinScroll(sf)
+1190:     local S = W.Skin()
+1191:     local bar = sf.ScrollBar or (sf.GetName and sf:GetName() and _G[sf:GetName() .. "ScrollBar"])
+1192:     if S and bar then S.ScrollBar(bar) end
+1193: end
+1194: 
+1195: -- Scrolling list with recycled rows (striped)
+1196: function W.ScrollList(parent, w, h, rowH, makeRow)
+1197:     local sf = CreateFrame("ScrollFrame", W.N("Scroll"), parent, "UIPanelScrollFrameTemplate")
+1198:     W.Size(sf, w, h)
+1199:     W.SkinScroll(sf)
+1200:     local content = CreateFrame("Frame", nil, sf)
+1201:     W.Size(content, w, h)
+1202:     sf:SetScrollChild(content)
+1203:     local list = { sf = sf, content = content, rows = {} }
+1204:     function list:Row(i)
+1205:         local r = self.rows[i]
+1206:         if not r then
+1207:             r = makeRow(content)
+1208:             W.Size(r, w, rowH)
+1209:             r:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(i - 1) * rowH)
+1210:             if i % 2 == 0 and not r.stripe then
+1211:                 r.stripe = r:CreateTexture(nil, "BACKGROUND")
+1212:                 r.stripe:SetAllPoints()
+1213:                 W.SetColor(r.stripe, 1, 1, 1, 0.035)
+1214:             end
+1215:             self.rows[i] = r
+1216:         end
+1217:         r:Show()
+1218:         return r
+1219:     end
+1220:     function list:Finish(n)
+1221:         for i = n + 1, #self.rows do self.rows[i]:Hide() end
+1222:         content:SetHeight(math.max(n * rowH, 1))
+1223:     end
+1224:     return list
+1225: end
+1226: 
+1227: function W.CloseButton(parent, size)
+1228:     local close = CreateFrame("Button", nil, parent, "UIPanelCloseButton")
+1229:     W.Size(close, size or 28, size or 28)
+1230:     local S = W.Skin()
+1231:     if S then S.CloseButton(close) end
+1232:     return close
+1233: end
+1234: 
+1235: -- Small movable window (module popups)
+1236: function W.Window(name, w, h, title)
+1237:     local f = CreateFrame("Frame", name, UIParent, W.BT)
+1238:     W.Size(f, w, h)
+1239:     f:SetPoint("CENTER")
+1240:     f:SetFrameStrata("DIALOG")
+1241:     f:SetMovable(true)
+1242:     f:EnableMouse(true)
+1243:     f:SetClampedToScreen(true)
+1244:     f:RegisterForDrag("LeftButton")
+1245:     f:SetScript("OnDragStart", f.StartMoving)
+1246:     f:SetScript("OnDragStop", f.StopMovingOrSizing)
+1247:     W.Shell(f)
+1248:     if W.IsFlat() then
+1249:         local head = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+1250:         W.SetColor(head, 0, 0, 0, 1)
+1251:         head:SetPoint("TOPLEFT", 1, -1)
+1252:         head:SetPoint("TOPRIGHT", -1, -1)
+1253:         head:SetHeight(26)
+1254:         local line = f:CreateTexture(nil, "ARTWORK")
+1255:         W.SetColor(line, W.R, W.G, W.B, 1)
+1256:         line:SetHeight(2)
+1257:         line:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
+1258:         line:SetPoint("TOPRIGHT", head, "BOTTOMRIGHT")
+1259:     end
+1260:     f.title = W.Label(f, W.Upper(title or ""), "GameFontNormal")
+1261:     f.title:SetPoint("TOP", 0, W.IsBlizzard() and -14 or -8)
+1262:     if not W.IsBlizzard() then f.title:SetTextColor(1, 1, 1) end
+1263:     local close = W.CloseButton(f)
+1264:     close:SetPoint("TOPRIGHT", W.IsBlizzard() and -4 or 2, W.IsBlizzard() and -4 or 2)
+1265:     f.close = close
+1266:     f:Hide()
+1267:     return f
+1268: end
+1269: 
+1270: -- Timer bar
+1271: function W.TimerBar(parent, h)
+1272:     local bar = CreateFrame("StatusBar", nil, parent)
+1273:     bar:SetHeight(h or 14)
+1274:     bar:SetStatusBarTexture(W.BAR_TEXTURE)
+1275:     bar:SetStatusBarColor(W.R, W.G, W.B)
+1276:     bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+1277:     bar.bg:SetAllPoints()
+1278:     W.SetColor(bar.bg, 0.08, 0.08, 0.10, 0.8)
+1279:     bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+1280:     bar.text:SetPoint("CENTER")
+1281:     local S = W.Skin()
+1282:     if S and S.ApplyBarFill then S.ApplyBarFill(bar) end
+1283:     return bar
+1284: end
+1285: 
+1286: -- Multiline text popup (export / import)
+1287: local textPopup
+1288: function W.TextPopup(title, text, opts)
+1289:     opts = opts or {}
+1290:     if not textPopup then
+1291:         local f = W.Window("WLRTTextPopup", 460, 300, "")
+1292:         local nameLbl = W.Label(f, L("Name:"), "GameFontHighlightSmall")
+1293:         nameLbl:SetPoint("TOPLEFT", 16, -36)
+1294:         f.nameLbl = nameLbl
+1295:         f.nameBox = W.EditBox(f, 200)
+1296:         f.nameBox:SetPoint("LEFT", nameLbl, "RIGHT", 10, 0)
+1297:         local sf = CreateFrame("ScrollFrame", W.N("TextScroll"), f, "UIPanelScrollFrameTemplate")
+1298:         sf:SetPoint("TOPLEFT", 16, -64)
+1299:         sf:SetPoint("BOTTOMRIGHT", -34, 44)
+1300:         W.SkinScroll(sf)
+1301:         local boxBg = CreateFrame("Frame", nil, f, W.BT)
+1302:         boxBg:SetPoint("TOPLEFT", sf, -6, 6)
+1303:         boxBg:SetPoint("BOTTOMRIGHT", sf, 26, -6)
+1304:         W.Backdrop(boxBg, 0.6)
+1305:         sf:SetFrameLevel((boxBg:GetFrameLevel() or 1) + 2)
+1306:         local box = CreateFrame("EditBox", nil, sf)
+1307:         box:SetMultiLine(true)
+1308:         box:SetAutoFocus(false)
+1309:         box:SetFontObject("ChatFontNormal")
+1310:         box:SetWidth(400)
+1311:         box:SetHeight(180)
+1312:         box:SetMaxLetters(0)
+1313:         box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+1314:         sf:SetScrollChild(box)
+1315:         sf:EnableMouse(true)
+1316:         sf:SetScript("OnMouseDown", function() box:SetFocus() end)
+1317:         f.box = box
+1318:         f.status = W.Label(f, "", "GameFontHighlightSmall")
+1319:         f.status:SetPoint("BOTTOMLEFT", 16, 18)
+1320:         f.ok = W.Button(f, "OK", 110, 22)
+1321:         f.ok:SetPoint("BOTTOMRIGHT", -16, 12)
+1322:         f.extra = W.Button(f, "", 150, 22)
+1323:         f.extra:SetPoint("RIGHT", f.ok, "LEFT", -8, 0)
+1324:         tinsert(UISpecialFrames, "WLRTTextPopup")
+1325:         textPopup = f
+1326:     end
+1327:     local f = textPopup
+1328:     f.title:SetText(W.Upper(title))
+1329:     f.status:SetText(opts.hint or "")
+1330:     f.box:SetText(text or "")
+1331:     if opts.showName then
+1332:         f.nameLbl:Show(); f.nameBox:Show(); f.nameBox:SetText(opts.name or "")
+1333:     else
+1334:         f.nameLbl:Hide(); f.nameBox:Hide()
+1335:     end
+1336:     if opts.onExtra then
+1337:         f.extra:SetText(opts.extraText or "")
+1338:         f.extra:SetScript("OnClick", function() opts.onExtra(f) end)
+1339:         f.extra:Show()
+1340:     else
+1341:         f.extra:Hide()
+1342:     end
+1343:     if opts.onConfirm then
+1344:         f.ok:SetText(opts.confirmText or L("Import"))
+1345:         f.ok:SetScript("OnClick", function()
+1346:             local err = opts.onConfirm(f.box:GetText(), f.nameBox:GetText())
+1347:             if err then f.status:SetText("|cffff5555" .. err .. "|r") else f:Hide() end
+1348:         end)
+1349:     else
+1350:         f.ok:SetText(L("Close"))
+1351:         f.ok:SetScript("OnClick", function() f:Hide() end)
+1352:     end
+1353:     f:Show()
+1354:     f.box:SetFocus()
+1355:     if text and text ~= "" then f.box:HighlightText() end
+1356: end
+1357: 
+1358: ---------------------------------------------------------------------------
+1359: -- Tabbed main window
+1360: ---------------------------------------------------------------------------
+1361: -- "Test all" (as EllesmereUI's test mode): every module registers how to show itself with fake data; the
+1362: -- button in the window header and /wl test run the tests of the modules switched on, all at once, so each
+1363: -- thing can be seen and dragged to its place. label: English (translated when printed).
+1364: W.tests = {}
+1365: -- stop: hides what run showed (called by "Stop test" for every module, switched on or not)
+1366: function W.RegisterTest(label, enabled, run, stop)
+1367:     W.tests[#W.tests + 1] = { label = label, enabled = enabled, run = run, stop = stop, file = FileOf(W.Where(2)) }
+1368: end
+1369: 
+1370: W.AddFR({
+1371:     ["Test all"] = "Tout tester",
+1372:     ["Stop test"] = "Arrêter le test",
+1373:     ["Test stopped."] = "Test arrêté.",
+1374:     ["Test: %s. Drag them to move them (when not locked)."] =
+1375:         "Test : %s. Fais-les glisser pour les déplacer (s'ils ne sont pas verrouillés).",
+1376:     ["Test: no module switched on."] = "Test : aucun module activé.",
+1377:     ["Shows every module switched on, with fake data, so you can see and move them."] =
+1378:         "Affiche tous les modules activés avec de fausses données, pour les voir et les déplacer.",
+1379: })
+1380: -- the header button reads "Stop test" while a test runs; the longest test ends by itself after about 60 s
+1381: local testing, testRun, testButton = false, 0, nil
+1382: local function SetTesting(on)
+1383:     testing = on
+1384:     if testButton then testButton:SetText(on and L("Stop test") or L("Test all")) end
+1385: end
+1386: function W.StopTests(quiet)
+1387:     for _, t in ipairs(W.tests) do
+1388:         if t.stop then
+1389:             local ok, err = pcall(t.stop)
+1390:             if not ok then geterrorhandler()(err) end
+1391:         end
+1392:     end
+1393:     SetTesting(false)
+1394:     if not quiet then W.Print(L("Test stopped.")) end
+1395: end
+1396: function W.ToggleTests()
+1397:     if testing then W.StopTests() else W.TestAll() end
+1398: end
+1399: function W.SetTestButton(b) testButton = b end
+1400: function W.TestAll()
+1401:     local shown = {}
+1402:     if not W.raidLoaded and not InCombatLockdown() then W.LoadRaid() end -- the raid modules have tests too
+1403:     for _, t in ipairs(W.tests) do
+1404:         local okOn, on = pcall(t.enabled)
+1405:         if okOn and on and not offFiles[t.file] then
+1406:             local ok, err = pcall(t.run)
+1407:             if ok then shown[#shown + 1] = L(t.label) else geterrorhandler()(err) end
+1408:         end
+1409:     end
+1410:     if #shown == 0 then W.Print(L("Test: no module switched on.")); return end
+1411:     W.Print(string.format(L("Test: %s. Drag them to move them (when not locked)."), table.concat(shown, ", ")))
+1412:     SetTesting(true)
+1413:     testRun = testRun + 1
+1414:     local run = testRun
+1415:     W.After(65, function() if testing and run == testRun then SetTesting(false) end end)
+1416: end
+1417: 
+1418: W.modules = {}
+1419: local byKey = {}
+1420: -- never switched off: the tab that switches the others back on, the error list and the version check
+1421: W.CORE_MODULES = { Settings = true, Bugs = true, VersionCheck = true }
+1422: function W.RegisterModule(key, label, build, refresh)
+1423:     local m = { key = key, label = label, build = build, refresh = refresh, file = FileOf(W.Where(2)) }
+1424:     W.modules[#W.modules + 1] = m
+1425:     byKey[key] = m
+1426:     -- a module of the raid addon, loaded later: switched off from the start if it was
+1427:     if m.file and W.db and W.db.ui and type(W.db.ui.off) == "table" and W.db.ui.off[key] and not W.CORE_MODULES[key] then
+1428:         offFiles[m.file] = true
+1429:         SyncAll()
+1430:     end
+1431: end
+1432: 
+1433: function W.IsOff(key)
+1434:     local m = byKey[key]
+1435:     return m and m.file and offFiles[m.file] and true or false
+1436: end
+1437: 
+1438: W.AddFR({
+1439:     ["This module is switched off: it gets no events and does nothing."] =
+1440:         "Ce module est désactivé : il ne reçoit aucun événement et ne fait rien.",
+1441:     ["Switch it on"] = "L'activer",
+1442:     ["Settings > Modules lists every module."] = "Réglages > Modules liste tous les modules.",
+1443: })
+1444: 
+1445: -- the page of a switched off module, instead of its options
+1446: local function BuildOff(m, p)
+1447:     W.Title(p, L(m.label))
+1448:     local info = W.Label(p, L("This module is switched off: it gets no events and does nothing."), "GameFontHighlight")
+1449:     info:SetPoint("TOPLEFT", 16, -44)
+1450:     W.Button(p, L("Switch it on"), 140, 22, function() W.SetModuleOn(m.key, true) end):SetPoint("TOPLEFT", 16, -74)
+1451:     local more = W.Label(p, L("Settings > Modules lists every module."), "GameFontDisableSmall")
+1452:     more:SetPoint("TOPLEFT", 16, -108)
+1453: end
+1454: 
+1455: local main, mini
+1456: local MENU_W = 140
+1457: 
+1458: local function SavePos()
+1459:     local p, _, rp, x, y = main:GetPoint(1)
+1460:     local ui = W.DB("ui")
+1461:     ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
+1462: end
+1463: 
+1464: -- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP.
+1465: -- Guild = the guild and my characters. Options = the addon itself and the interface tools (nothing to do
+1466: -- with a raid or the guild). Every tab has collapsible sections (accordion = true: one open at a time, the
+1467: -- "+" / "-" sign on its header), each tab remembers its own. English keys, translated when the window is built.
+1468: -- Modules not listed go to the last section of the last tab.
+1469: local CATEGORIES = {
+1470:     { key = "pve", title = "Raid", accordion = true, sections = {
+1471:         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
+1472:         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
+1473:         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "CombatTimer", "WhoPulled", "AutoLog", "CCAlert" } },
+1474:         { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
+1475:         { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "DuelTimer", "DangerAlert" } },
+1476:     } },
+1477:     { key = "me", title = "Guild", accordion = true, sections = {
+1478:         { key = "members", title = "Members", items = { "Guild", "Dashboard", "Roster", "GuildPositions" } },
+1479:         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
+1480:     } },
+1481:     { key = "options", title = "Options", accordion = true, sections = {
+1482:         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
+1483:         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife" } },
+1484:     } },
+1485: }
+1486: 
+1487: W.AddFR({
+1488:     ["Language of the addon: French / English (needs a reload)."] = "Langue de l'addon : français / anglais (demande un rechargement).",
+1489:     ["Organisation"] = "Organisation",
+1490:     ["Preparation"] = "Préparation",
+1491:     ["Combat"] = "Combat",
+1492:     ["Loot"] = "Butin",
+1493:     ["Raid"] = "Raid",
+1494:     ["PvP"] = "JcJ",
+1495:     ["Guild"] = "Guilde",
+1496:     ["Members"] = "Membres",
+1497:     ["My characters"] = "Mes personnages",
+1498:     ["Options"] = "Options",
+1499:     ["Addon"] = "Addon",
+1500:     ["Interface"] = "Interface",
+1501:     ["Raid Groups"] = "Groupes de raid",
+1502:     ["Invite Tool"] = "Invitations",
+1503:     ["Raid Inspect"] = "Inspection",
+1504:     ["Auto Promote"] = "Promotion auto",
+1505:     ["Marks Bar"] = "Barre de marques",
+1506: })
+1507: 
+1508: -- saved key of the open section of a tab (Raid keeps the key it always had)
+1509: local function OpenKey(catKey)
+1510:     return catKey == "pve" and "openSection" or ("openSection_" .. tostring(catKey))
+1511: end
+1512: 
+1513: local function Contains(list, m)
+1514:     for _, x in ipairs(list) do if x == m then return true end end
+1515:     return false
+1516: end
+1517: 
+1518: -- tab (category) and section holding a module: the given ones if they do, else the first
+1519: local function Locate(m, catKey, secKey)
+1520:     local cats = main and main.categories or {}
+1521:     for _, cat in ipairs(cats) do
+1522:         if cat.key == catKey then
+1523:             for _, sec in ipairs(cat.sections) do
+1524:                 if sec.key == secKey and Contains(sec.list, m) then return catKey, secKey end
+1525:             end
+1526:             for _, sec in ipairs(cat.sections) do
+1527:                 if Contains(sec.list, m) then return catKey, sec.key end
+1528:             end
+1529:         end
+1530:     end
+1531:     for _, cat in ipairs(cats) do
+1532:         for _, sec in ipairs(cat.sections) do
+1533:             if Contains(sec.list, m) then return cat.key, sec.key end
+1534:         end
+1535:     end
+1536: end
+1537: 
+1538: -- A module's panel, built once (hidden), its widget texts indexed for the search box
+1539: function W.EnsurePanel(m)
+1540:     if m.panel then return m.panel end
+1541:     m.panel = CreateFrame("Frame", nil, main.content)
+1542:     m.panel:SetAllPoints()
+1543:     -- built hidden: the Show of W.Select then runs every OnShow (check boxes, edit boxes and lists read
+1544:     -- their saved values there). Built while shown, a tab opened its first time after a /reload
+1545:     -- with every box unchecked and every text field empty.
+1546:     m.panel:Hide()
+1547:     W.building = m
+1548:     local build = m.build
+1549:     if W.IsOff(m.key) then build = function(p) BuildOff(m, p) end end
+1550:     local ok, err = W.Measure("build the tab " .. tostring(m.key), build, m.panel)
+1551:     W.building = nil
+1552:     if not ok then geterrorhandler()(err) end
+1553:     return m.panel
+1554: end
+1555: 
+1556: -- fromSection / fromCategory: where the clicked entry is (keeps it open)
+1557: function W.Select(key, fromSection, fromCategory)
+1558:     local m = byKey[key] or W.modules[1]
+1559:     if not m then return end
+1560:     for _, other in ipairs(W.modules) do
+1561:         if other.panel then other.panel:Hide() end
+1562:         for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); W.MenuTextColor(b, other) end
+1563:     end
+1564:     W.EnsurePanel(m)
+1565:     m.panel:Show()
+1566:     for _, b in ipairs(m.buttons or {}) do b.sel:Show(); b.text:SetTextColor(1, 1, 1) end
+1567:     local ui = W.DB("ui")
+1568:     ui.lastModule = m.key
+1569:     -- the menu shows the tab and the section of the selected tool (each tab keeps its open section
+1570:     -- for when you come back)
+1571:     local cat, sec = Locate(m, fromCategory or ui.category, fromSection or ui[OpenKey(fromCategory or ui.category)])
+1572:     if cat then
+1573:         ui.category = cat
+1574:         for _, c in ipairs(main.categories or {}) do
+1575:             if c.key == cat and c.accordion then ui[OpenKey(cat)] = sec end
+1576:         end
+1577:     end
+1578:     if main.LayoutMenu then main.LayoutMenu() end
+1579:     if m.refresh then m.refresh(m.panel) end
+1580: end
+1581: 
+1582: -- a switched off module is grey in the menu
+1583: function W.MenuTextColor(b, m)
+1584:     if W.IsOff(m.key) then b.text:SetTextColor(0.45, 0.45, 0.45) else b.text:SetTextColor(unpack(main.textColor)) end
+1585: end
+1586: 
+1587: -- on = false: the module stops getting events, messages and tests (what it already shows stays until /reload)
+1588: function W.SetModuleOn(key, on)
+1589:     local m = byKey[key]
+1590:     if not m or not m.file or W.CORE_MODULES[key] then return end
+1591:     W.DB("ui").off[key] = (not on) or nil
+1592:     offFiles[m.file] = (not on) or nil
+1593:     SyncAll()
+1594:     -- the tab is built again: the options when on, the "switched off" page when off
+1595:     if m.panel then
+1596:         local shown = m.panel:IsShown()
+1597:         m.panel:Hide()
+1598:         m.panel = nil
+1599:         if shown then W.Select(key) end
+1600:     end
+1601:     for _, b in ipairs(m.buttons or {}) do W.MenuTextColor(b, m) end
+1602: end
+1603: 
+1604: function W.BuildMain()
+1605:     if main then return main end
+1606:     local blizz, S = W.IsBlizzard(), W.Skin()
+1607:     local IN = blizz and 11 or 1           -- inner edge of the frame border
+1608:     main = CreateFrame("Frame", "WarLegendRaidToolFrame", UIParent, W.BT)
+1609:     W.Size(main, 980, 640)
+1610:     local ui = W.DB("ui")
+1611:     if ui.point then
+1612:         main:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, ui.x or 0, ui.y or 0)
+1613:     else
+1614:         main:SetPoint("CENTER")
+1615:     end
+1616:     main:SetFrameStrata("HIGH")
+1617:     main:SetMovable(true)
+1618:     main:EnableMouse(true)
+1619:     main:SetClampedToScreen(true)
+1620:     main:RegisterForDrag("LeftButton")
+1621:     main:SetScript("OnDragStart", main.StartMoving)
+1622:     main:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePos() end)
+1623:     W.Shell(main, 0.97)
+1624:     tinsert(UISpecialFrames, "WarLegendRaidToolFrame")
+1625:     main.textColor = blizz and { 1, 0.82, 0 } or { 0.72, 0.72, 0.72 }
+1626: 
+1627:     -- Header: WAR (white) LEGEND (red) logo, like warlegend.net
+1628:     if not S then
+1629:         local head = main:CreateTexture(nil, "BACKGROUND", nil, 1)
+1630:         W.SetColor(head, 0, 0, 0, blizz and 0.55 or 1)
+1631:         head:SetPoint("TOPLEFT", IN, -IN)
+1632:         head:SetPoint("TOPRIGHT", -IN, -IN)
+1633:         head:SetHeight(34 - IN)
+1634:         if head.SetGradient and CreateColor and not blizz then
+1635:             head:SetColorTexture(1, 1, 1, 1)
+1636:             head:SetGradient("VERTICAL", CreateColor(PAL.headTop[1], PAL.headTop[2], PAL.headTop[3], 1), CreateColor(PAL.headBottom[1], PAL.headBottom[2], PAL.headBottom[3], 1))
+1637:         end
+1638:     end
+1639:     local line = main:CreateTexture(nil, "ARTWORK")
+1640:     W.SetColor(line, W.R, W.G, W.B, 1)
+1641:     line:SetHeight(2)
+1642:     line:SetPoint("TOPLEFT", IN, -34)
+1643:     line:SetPoint("TOPRIGHT", -IN, -34)
+1644:     -- skull logo, then WAR LEGEND
+1645:     local skull = main:CreateTexture(nil, "OVERLAY")
+1646:     W.Size(skull, 26, 26)
+1647:     skull:SetTexture(W.LOGO_TEX)
+1648:     skull:SetPoint("TOPLEFT", 10 + (blizz and 4 or 0), -4 - (blizz and 3 or 0))
+1649:     local logo = main:CreateFontString(nil, "OVERLAY")
+1650:     logo:SetFont(W.FONT, 20, "OUTLINE")
+1651:     logo:SetPoint("LEFT", skull, "RIGHT", 6, 0)
+1652:     logo:SetText(W.LOGO)
+1653:     local sub = main:CreateFontString(nil, "OVERLAY")
+1654:     sub:SetFont(W.FONT, 11, "OUTLINE")
+1655:     sub:SetPoint("BOTTOMLEFT", logo, "BOTTOMRIGHT", 8, 2)
+1656:     sub:SetText("|cffccccccRAIDTOOL|r  |cff777777v" .. W.version .. "|r")
+1657:     local close = W.CloseButton(main, 30)
+1658:     close:SetPoint("TOPRIGHT", blizz and -6 or 0, blizz and -6 or 0)
+1659:     -- style selector, a drop-down (needs a reload)
+1660:     local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" } }
+1661:     local styleBtn = W.Cycle(main, 140, styles, function() return W.DB("ui").style or "auto" end, function(v)
+1662:         if v == (W.DB("ui").style or "auto") then return end
+1663:         W.DB("ui").style = v
+1664:         W.ConfirmReload(L("Reload the interface to apply the new style?"))
+1665:     end, { L("Follows your interface: EllesmereUI when installed, else the Blizzard look.") })
+1666:     styleBtn:SetPoint("TOPRIGHT", close, "TOPLEFT", -6, -4)
+1667:     W.Size(styleBtn, 140, 20)
+1668:     -- language: FR / EN, a drop-down like the style (needs a reload); shows the language that will be used
+1669:     local function NextLang()
+1670:         local cur = W.DB("ui").lang
+1671:         if cur ~= "fr" and cur ~= "en" then cur = W.LANG end
+1672:         return cur
+1673:     end
+1674:     local langBtn = W.Cycle(main, 52, { { "fr", "FR" }, { "en", "EN" } }, NextLang, function(v)
+1675:         if v == NextLang() then return end
+1676:         W.DB("ui").lang = v
+1677:         W.ConfirmReload(v == "fr" and "Recharger l'interface pour passer l'addon en français ?"
+1678:             or "Reload the interface to switch the addon to English?")
+1679:     end, { L("Language of the addon: French / English (needs a reload).") })
+1680:     W.Size(langBtn, 52, 20)
+1681:     langBtn:SetPoint("RIGHT", styleBtn, "LEFT", -6, 0)
+1682: 
+1683:     -- search box: a tool or an option (any check box, button or text of the tabs), results under it
+1684:     local search = W.EditBox(main, 170, 40)
+1685:     search:SetPoint("RIGHT", langBtn, "LEFT", -10, 0)
+1686:     -- "Test all": every module switched on shows itself at once (EllesmereUI-like test mode)
+1687:     local testBtn = W.Button(main, L("Test all"), 110, 20, function() W.ToggleTests() end,
+1688:         { L("Shows every module switched on, with fake data, so you can see and move them.") })
+1689:     testBtn:SetPoint("RIGHT", search, "LEFT", -10, 0)
+1690:     W.SetTestButton(testBtn)
+1691:     if testing then testBtn:SetText(L("Stop test")) end
+1692:     local hint = search:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+1693:     hint:SetPoint("LEFT", 4, 0)
+1694:     hint:SetText(L("Search an option..."))
+1695:     local results = CreateFrame("Frame", nil, main, W.BT)
+1696:     results:SetPoint("TOPRIGHT", search, "BOTTOMRIGHT", 0, -2)
+1697:     W.Size(results, 380, 10)
+1698:     results:SetFrameStrata("DIALOG")
+1699:     W.Backdrop(results, 0.97)
+1700:     results:Hide()
+1701:     local rows = {}
+1702:     local function Row(i)
+1703:         if rows[i] then return rows[i] end
+1704:         local r = CreateFrame("Button", nil, results)
+1705:         W.Size(r, 372, 18)
+1706:         r:SetPoint("TOPLEFT", 4, -4 - (i - 1) * 18)
+1707:         local hl = r:CreateTexture(nil, "HIGHLIGHT")
+1708:         hl:SetAllPoints()
+1709:         W.SetColor(hl, 1, 1, 1, 0.08)
+1710:         r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+1711:         r.text:SetPoint("LEFT", 4, 0)
+1712:         r.text:SetPoint("RIGHT", -4, 0)
+1713:         r.text:SetJustifyH("LEFT")
+1714:         r.text:SetWordWrap(false)
+1715:         r:SetScript("OnClick", function(self)
+1716:             results:Hide()
+1717:             search:ClearFocus()
+1718:             W.Reveal(self.module, self.widget)
+1719:         end)
+1720:         rows[i] = r
+1721:         return r
+1722:     end
+1723:     search:SetScript("OnTextChanged", function(self)
+1724:         local q = self:GetText() or ""
+1725:         hint:SetShown(q == "")
+1726:         local found = W.SearchOptions(q, 16)
+1727:         if #found == 0 then results:Hide(); return end
+1728:         for i, f in ipairs(found) do
+1729:             local r = Row(i)
+1730:             r.module, r.widget = f.module, f.widget
+1731:             r.text:SetText(f.label)
+1732:             r:Show()
+1733:         end
+1734:         for i = #found + 1, #rows do rows[i]:Hide() end
+1735:         results:SetHeight(8 + #found * 18)
+1736:         results:Show()
+1737:     end)
+1738:     search:HookScript("OnEscapePressed", function() results:Hide() end)
+1739:     main:HookScript("OnHide", function() results:Hide() end)
+1740: 
+1741:     -- Menu column
+1742:     local side = main:CreateTexture(nil, "BACKGROUND", nil, 1)
+1743:     W.SetColor(side, 0, 0, 0, S and 0.25 or (blizz and 0.35 or 1))
+1744:     if not S and not blizz then W.SetColor(side, PAL.side[1], PAL.side[2], PAL.side[3], 1) end
+1745:     side:SetPoint("TOPLEFT", IN, -36)
+1746:     side:SetPoint("BOTTOMLEFT", IN, IN)
+1747:     side:SetWidth(MENU_W + 3 - IN)
+1748:     local sep = main:CreateTexture(nil, "BORDER")
+1749:     W.SetColor(sep, 1, 1, 1, 0.08)
+1750:     sep:SetPoint("TOPLEFT", MENU_W + 4, -36)
+1751:     sep:SetPoint("BOTTOMLEFT", MENU_W + 4, IN)
+1752:     sep:SetWidth(1)
+1753:     local foot = main:CreateFontString(nil, "OVERLAY")
+1754:     foot:SetFont(W.FONT, 10, "OUTLINE")
+1755:     foot:SetPoint("BOTTOMLEFT", 12 + (blizz and 4 or 0), 10 + (blizz and 4 or 0))
+1756:     foot:SetText("|cff666666WARLEGEND|r|cff8a1210.NET|r")
+1757: 
+1758:     -- tabs -> sections -> modules (a module may be listed twice)
+1759:     local cats, placed = {}, {}
+1760:     for _, c in ipairs(CATEGORIES) do
+1761:         local cat = { key = c.key, title = c.title, short = c.short, pvp = c.pvp, accordion = c.accordion, sections = {} }
+1762:         for _, s in ipairs(c.sections) do
+1763:             local list = {}
+1764:             for _, key in ipairs(s.items) do
+1765:                 if byKey[key] then list[#list + 1] = byKey[key]; placed[key] = true end
+1766:             end
+1767:             cat.sections[#cat.sections + 1] = { key = s.key, title = s.title, list = list, buttons = {} }
+1768:         end
+1769:         cats[#cats + 1] = cat
+1770:     end
+1771:     local lastCat = cats[#cats]
+1772:     for _, m in ipairs(W.modules) do
+1773:         if not placed[m.key] then table.insert(lastCat.sections[#lastCat.sections].list, m) end
+1774:     end
+1775:     main.categories = cats
+1776: 
+1777:     local BTN_W = MENU_W - 4 - IN
+1778:     local function EntryButton(m, sec, cat)
+1779:         local b = CreateFrame("Button", nil, main)
+1780:         W.Size(b, BTN_W, 21)
+1781:         local hl = b:CreateTexture(nil, "HIGHLIGHT")
+1782:         hl:SetAllPoints()
+1783:         W.SetColor(hl, 1, 1, 1, 0.07)
+1784:         -- active tab: tinted background + accent bar on the left
+1785:         b.sel = CreateFrame("Frame", nil, b)
+1786:         b.sel:SetAllPoints()
+1787:         local selBg = b.sel:CreateTexture(nil, "BACKGROUND")
+1788:         selBg:SetAllPoints()
+1789:         W.SetColor(selBg, W.R, W.G, W.B, 0.2)
+1790:         if selBg.SetGradient and CreateColor then
+1791:             selBg:SetColorTexture(1, 1, 1, 1)
+1792:             selBg:SetGradient("HORIZONTAL", CreateColor(W.R, W.G, W.B, 0.35), CreateColor(W.R, W.G, W.B, 0))
+1793:         end
+1794:         local selBar = b.sel:CreateTexture(nil, "ARTWORK")
+1795:         W.SetColor(selBar, W.R, W.G, W.B, 1)
+1796:         selBar:SetPoint("TOPLEFT"); selBar:SetPoint("BOTTOMLEFT"); selBar:SetWidth(3)
+1797:         b.sel:Hide()
+1798:         b.text = b:CreateFontString(nil, "OVERLAY")
+1799:         b.text:SetFont(W.FONT, 11, "")
+1800:         b.text:SetPoint("LEFT", 18, 0) -- indented under its section
+1801:         b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
+1802:         -- a long label (French, a new module) shrinks to fit, then is cut: it never runs into the content
+1803:         local avail, size = BTN_W - 22, 11
+1804:         while b.text:GetStringWidth() > avail and size > 8 do
+1805:             size = size - 1
+1806:             b.text:SetFont(W.FONT, size, "")
+1807:         end
+1808:         if b.text:GetStringWidth() > avail then b.text:SetWidth(avail); b.text:SetWordWrap(false) end
+1809:         W.MenuTextColor(b, m)
+1810:         b:SetScript("OnClick", function() W.Select(m.key, sec.key, cat.key) end)
+1811:         m.buttons = m.buttons or {}
+1812:         m.buttons[#m.buttons + 1] = b
+1813:         b:Hide()
+1814:         return b
+1815:     end
+1816: 
+1817:     local LayoutMenu
+1818:     -- the tabs on top (Raid / Guild / Options), 2 px apart, each as wide as its label is long: the menu column
+1819:     -- is narrow and "OPTIONS" needs more room than "RAID"
+1820:     local weights, total = {}, 0
+1821:     for i, cat in ipairs(cats) do
+1822:         weights[i] = math.max(3, #W.Upper(L(cat.short or cat.title)))
+1823:         total = total + weights[i]
+1824:     end
+1825:     local free = BTN_W - 2 * (#cats - 1)
+1826:     local tabW, used = {}, 0
+1827:     for i = 1, #cats do
+1828:         tabW[i] = math.floor(free * weights[i] / total)
+1829:         used = used + tabW[i]
+1830:     end
+1831:     tabW[#cats] = tabW[#cats] + free - used
+1832:     local tx = IN + 3
+1833:     for i, cat in ipairs(cats) do
+1834:         local t = CreateFrame("Button", nil, main)
+1835:         W.Size(t, tabW[i] or 40, 22)
+1836:         t:SetPoint("TOPLEFT", tx, -42)
+1837:         tx = tx + (tabW[i] or 40) + 2
+1838:         local bg = t:CreateTexture(nil, "BACKGROUND")
+1839:         bg:SetAllPoints()
+1840:         W.SetColor(bg, 1, 1, 1, 0.05)
+1841:         local hl = t:CreateTexture(nil, "HIGHLIGHT")
+1842:         hl:SetAllPoints()
+1843:         W.SetColor(hl, 1, 1, 1, 0.08)
+1844:         local r, g, b = W.R, W.G, W.B
+1845:         if cat.pvp then r, g, b = 0.35, 0.65, 1 end
+1846:         t.on = t:CreateTexture(nil, "BORDER")
+1847:         t.on:SetAllPoints()
+1848:         W.SetColor(t.on, r, g, b, 0.3)
+1849:         t.line = t:CreateTexture(nil, "ARTWORK")
+1850:         W.SetColor(t.line, r, g, b, 1)
+1851:         t.line:SetPoint("BOTTOMLEFT"); t.line:SetPoint("BOTTOMRIGHT"); t.line:SetHeight(2)
+1852:         t.text = t:CreateFontString(nil, "OVERLAY")
+1853:         t.text:SetFont(W.FONT, 10, "OUTLINE")
+1854:         t.text:SetPoint("CENTER")
+1855:         t.text:SetText(W.Upper(L(cat.short or cat.title)))
+1856:         if cat.short then W.Tooltip(t, L(cat.title)) end
+1857:         t:SetScript("OnClick", function()
+1858:             W.DB("ui").category = cat.key
+1859:             LayoutMenu()
+1860:         end)
+1861:         cat.tab = t
+1862:     end
+1863: 
+1864:     for _, cat in ipairs(cats) do
+1865:         for _, sec in ipairs(cat.sections) do
+1866:             if #sec.list > 0 and sec.title then
+1867:                 -- section header: click to open / close (accordion)
+1868:                 local h = CreateFrame("Button", nil, main)
+1869:                 W.Size(h, BTN_W, 20)
+1870:                 local hbg = h:CreateTexture(nil, "BACKGROUND")
+1871:                 hbg:SetAllPoints()
+1872:                 W.SetColor(hbg, 1, 1, 1, 0.04)
+1873:                 local hhl = h:CreateTexture(nil, "HIGHLIGHT")
+1874:                 hhl:SetAllPoints()
+1875:                 W.SetColor(hhl, 1, 1, 1, 0.08)
+1876:                 h.text = h:CreateFontString(nil, "OVERLAY")
+1877:                 h.text:SetFont(W.FONT, 10, "OUTLINE")
+1878:                 h.text:SetPoint("LEFT", 8, 0)
+1879:                 h.text:SetText(W.Upper(L(sec.title)))
+1880:                 h.text:SetTextColor(W.R, W.G, W.B)
+1881:                 h.sign = h:CreateTexture(nil, "OVERLAY")
+1882:                 W.Size(h.sign, 12, 12)
+1883:                 h.sign:SetPoint("RIGHT", -6, 0)
+1884:                 -- a short tab shows every section: its headers are plain titles
+1885:                 if cat.accordion then
+1886:                     h:SetScript("OnClick", function()
+1887:                         local ui = W.DB("ui")
+1888:                         local k = OpenKey(cat.key)
+1889:                         ui[k] = ui[k] ~= sec.key and sec.key or nil
+1890:                         LayoutMenu()
+1891:                     end)
+1892:                 else
+1893:                     h:EnableMouse(false)
+1894:                     hhl:Hide()
+1895:                     h.sign:Hide()
+1896:                 end
+1897:                 sec.header = h
+1898:             end
+1899:             for _, m in ipairs(sec.list) do sec.buttons[#sec.buttons + 1] = EntryButton(m, sec, cat) end
+1900:         end
+1901:     end
+1902: 
+1903:     -- shows the chosen tab: its section headers and the entries of the open section
+1904:     function LayoutMenu()
+1905:         local ui = W.DB("ui")
+1906:         local current = ui.category or cats[1].key
+1907:         local y = -70
+1908:         for _, cat in ipairs(cats) do
+1909:             local active = cat.key == current
+1910:             cat.tab.on:SetShown(active)
+1911:             cat.tab.line:SetShown(active)
+1912:             cat.tab.text:SetTextColor(active and 1 or 0.7, active and 1 or 0.7, active and 1 or 0.7)
+1913:             for _, sec in ipairs(cat.sections) do
+1914:                 local isOpen = true
+1915:                 if sec.header then
+1916:                     isOpen = (not cat.accordion) or sec.key == ui[OpenKey(cat.key)]
+1917:                     sec.header:SetShown(active)
+1918:                     if active then
+1919:                         sec.header:ClearAllPoints()
+1920:                         sec.header:SetPoint("TOPLEFT", IN + 3, y)
+1921:                         if cat.accordion then
+1922:                             sec.header.sign:SetTexture(isOpen and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+1923:                         end
+1924:                         y = y - 22
+1925:                     end
+1926:                 end
+1927:                 for _, b in ipairs(sec.buttons) do
+1928:                     if active and isOpen then
+1929:                         b:ClearAllPoints()
+1930:                         b:SetPoint("TOPLEFT", IN + 3, y)
+1931:                         b:Show()
+1932:                         y = y - 22
+1933:                     else
+1934:                         b:Hide()
+1935:                     end
+1936:                 end
+1937:                 if active and sec.header then y = y - 4 end
+1938:             end
+1939:         end
+1940:     end
+1941:     main.LayoutMenu = LayoutMenu
+1942: 
+1943:     main.content = CreateFrame("Frame", nil, main)
+1944:     main.content:SetPoint("TOPLEFT", MENU_W + 10, -42)
+1945:     main.content:SetPoint("BOTTOMRIGHT", -8 - (blizz and 8 or 0), 8 + (blizz and 6 or 0))
+1946: 
+1947:     main:SetScript("OnShow", function()
+1948:         local cur = byKey[W.DB("ui").lastModule]
+1949:         W.Select(cur and cur.key or W.modules[1].key)
+1950:     end)
+1951:     main:Hide()
+1952:     return main
+1953: end
+1954: 
+1955: ---------------------------------------------------------------------------
+1956: -- Search: tool names, then the texts of every panel (built hidden once, the first time something is
+1957: -- searched). Accents and case do not matter. A result opens the tool, its sub-tab, and flashes the option.
+1958: ---------------------------------------------------------------------------
+1959: W.AddFR({
+1960:     ["Search an option..."] = "Rechercher une option...",
+1961: })
+1962: local ACCENTS = { ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e", ["à"] = "a", ["â"] = "a", ["ä"] = "a",
+1963:     ["î"] = "i", ["ï"] = "i", ["ô"] = "o", ["ö"] = "o", ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["ç"] = "c",
+1964:     ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["À"] = "a", ["Â"] = "a", ["Î"] = "i", ["Ô"] = "o", ["Û"] = "u", ["Ç"] = "c" }
+1965: local function Plain(s)
+1966:     s = (s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
+1967:     return s
+1968: end
+1969: local function Norm(s)
+1970:     s = Plain(s)
+1971:     for from, to in pairs(ACCENTS) do s = s:gsub(from, to) end
+1972:     return s:lower()
+1973: end
+1974: local NOT_BUILT = { PvPFrames = true } -- its panel loads the PvP addon: found by its name only
+1975: local allIndexed = false
+1976: 
+1977: -- The tabs not opened yet are built one at a time in the background (one every 0.1 s, never in combat), so
+1978: -- the search box knows their options without one long freeze at the first search.
+1979: local slowIndexing = false
+1980: function W.IndexTabsSlowly()
+1981:     if slowIndexing or allIndexed or not main then return end
+1982:     slowIndexing = true
+1983:     local i = 0
+1984:     local function step()
+1985:         if allIndexed then slowIndexing = false; return end
+1986:         if InCombatLockdown() then W.After(1, step); return end
+1987:         -- not in a battleground: the frames load there already, the tabs are built once outside (a first
+1988:         -- search still builds what is missing, see W.SearchOptions)
+1989:         local inInstance, kind = IsInInstance()
+1990:         if inInstance and kind == "pvp" then W.After(10, step); return end
+1991:         i = i + 1
+1992:         local m = W.modules[i]
+1993:         if not m then allIndexed = true; slowIndexing = false; return end
+1994:         if not m.panel and not NOT_BUILT[m.key] then W.EnsurePanel(m) end
+1995:         W.After(0.1, step)
+1996:     end
+1997:     W.After(1, step)
+1998: end
+1999: 
+2000: function W.SearchOptions(query, max)
+2001:     local q = Norm(query):gsub("^%s+", ""):gsub("%s+$", "")
+2002:     if #q < 2 or not main then return {} end
+2003:     if not allIndexed then
+2004:         allIndexed = true
+2005:         for _, m in ipairs(W.modules) do
+2006:             if not NOT_BUILT[m.key] then W.EnsurePanel(m) end
+2007:         end
+2008:     end
+2009:     local out, seen = {}, {}
+2010:     local function add(m, widget, text)
+2011:         local key = m.key .. "|" .. text
+2012:         if seen[key] or #out >= max then return end
+2013:         seen[key] = true
+2014:         out[#out + 1] = { module = m, widget = widget,
+2015:             label = "|cffffd100" .. L(m.label) .. "|r" .. (widget and ("  |cff777777>|r  " .. text) or "") }
+2016:     end
+2017:     for _, m in ipairs(W.modules) do -- the tools first
+2018:         if Norm(L(m.label)):find(q, 1, true) then add(m, nil, "") end
+2019:     end
+2020:     for _, m in ipairs(W.modules) do
+2021:         for _, e in ipairs(m.index or {}) do
+2022:             local text = Plain(e.text)
+2023:             if Norm(text):find(q, 1, true) then add(m, e.widget, text) end
+2024:         end
+2025:     end
+2026:     return out
+2027: end
+2028: 
+2029: function W.Reveal(m, widget)
+2030:     W.Select(m.key)
+2031:     if not widget then return end
+2032:     -- the sub-tab holding it
+2033:     local f = widget
+2034:     for _ = 1, 10 do
+2035:         f = f.GetParent and f:GetParent()
+2036:         if not f then break end
+2037:         if f.subTabs and f.subTabIndex then f.subTabs:Select(f.subTabIndex); break end
+2038:     end
+2039:     -- a short flash around it (a check box with its text)
+2040:     local glow = main.searchGlow
+2041:     if not glow then
+2042:         glow = CreateFrame("Frame", nil, main, W.BT)
+2043:         glow:SetBackdrop({ edgeFile = W.WHITE, edgeSize = 2 })
+2044:         glow:SetFrameStrata("DIALOG")
+2045:         main.searchGlow = glow
+2046:     end
+2047:     glow:ClearAllPoints()
+2048:     glow:SetPoint("TOPLEFT", widget, "TOPLEFT", -4, 4)
+2049:     glow:SetPoint("BOTTOMRIGHT", widget.label or widget, "BOTTOMRIGHT", 4, -4)
+2050:     glow:SetBackdropBorderColor(W.R, W.G, W.B, 1)
+2051:     glow:Show()
+2052:     W.After(2.5, function() glow:Hide() end)
+2053: end
+2054: 
+2055: function W.Toggle(key)
+2056:     if not W.Allowed() then W.Denied(); return end
+2057:     W.LoadRaid() -- the menu is built once, with the raid tools in it
+2058:     if not main then
+2059:         local ok, err = W.Measure("build the /wl window", W.BuildMain)
+2060:         if not ok then geterrorhandler()(err) end
+2061:         if not main then return end
+2062:     end
+2063:     W.IndexTabsSlowly()
+2064:     if key then
+2065:         W.DB("ui").lastModule = key
+2066:         if main:IsShown() then W.Select(key) else main:Show() end
+2067:         return
+2068:     end
+2069:     if main:IsShown() then main:Hide() else main:Show() end
+2070: end
+2071: 
+2072: function W.Hide()
+2073:     if main then main:Hide() end
+2074:     if mini then mini:Hide() end
+2075: end
+2076: 
+2077: function W.IsShown(key)
+2078:     return main and main:IsShown() and W.DB("ui").lastModule == key
+2079: end
+2080: 
+2081: ---------------------------------------------------------------------------
+2082: -- Minimap button (Blizzard texture)
+2083: ---------------------------------------------------------------------------
+2084: local function MiniPos()
+2085:     local a = math.rad(W.DB("minimap").angle or 200)
+2086:     local r = (Minimap:GetWidth() / 2) + 8
+2087:     mini:ClearAllPoints()
+2088:     mini:SetPoint("CENTER", Minimap, "CENTER", math.cos(a) * r, math.sin(a) * r)
+2089: end
+2090: 
+2091: function W.UpdateMinimap()
+2092:     if not mini then return end
+2093:     if W.DB("minimap").hide then mini:Hide() else MiniPos(); mini:Show() end
+2094: end
+2095: 
+2096: local function CreateMinimapButton()
+2097:     if mini then return end
+2098:     mini = CreateFrame("Button", "WarLegendRaidToolMinimap", Minimap)
+2099:     W.Size(mini, 31, 31)
+2100:     mini:SetFrameStrata("MEDIUM")
+2101:     mini:SetFrameLevel(8)
+2102:     mini:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+2103:     -- War Legend skull on the usual dark round minimap background
+2104:     local back = mini:CreateTexture(nil, "BACKGROUND")
+2105:     W.Size(back, 20, 20)
+2106:     back:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+2107:     back:SetPoint("TOPLEFT", 6, -5)
+2108:     local icon = mini:CreateTexture(nil, "ARTWORK")
+2109:     W.Size(icon, 18, 18)
+2110:     icon:SetTexture(W.LOGO_SMALL)
+2111:     icon:SetPoint("TOPLEFT", 7, -6)
+2112:     local border = mini:CreateTexture(nil, "OVERLAY")
+2113:     W.Size(border, 53, 53)
+2114:     border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+2115:     border:SetPoint("TOPLEFT")
+2116:     mini:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+2117:     mini:RegisterForDrag("LeftButton")
+2118:     mini:SetScript("OnClick", function(_, btn)
+2119:         if btn == "RightButton" then W.LoadRaid() end
+2120:         if btn == "RightButton" and W.ApplySelectedPreset then
+2121:             W.ApplySelectedPreset()
+2122:         else
+2123:             W.Toggle()
+2124:         end
+2125:     end)
+2126:     mini:SetScript("OnDragStart", function(self)
+2127:         self:SetScript("OnUpdate", function()
+2128:             local mx, my = Minimap:GetCenter()
+2129:             local cx, cy = GetCursorPosition()
+2130:             local sc = Minimap:GetEffectiveScale()
+2131:             W.DB("minimap").angle = math.deg(math.atan2(cy / sc - my, cx / sc - mx))
+2132:             MiniPos()
+2133:         end)
+2134:     end)
+2135:     mini:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
+2136:     W.Tooltip(mini, W.LOGO .. " RaidTool", {
+2137:         L("Left-click: open"), L("Right-click: apply selected preset"), L("Drag: move") })
+2138:     W.UpdateMinimap()
+2139: end
+2140: 
+2141: ---------------------------------------------------------------------------
+2142: -- Slash commands
+2143: ---------------------------------------------------------------------------
+2144: W.slash = {}
+2145: 
+2146: -- /wl perf: what the addon really costs (memory, and CPU when the client has the addon profiler)
+2147: W.AddFR({
+2148:     ["Memory: %.0f KB"] = "Mémoire : %.0f Ko",
+2149:     ["CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"] =
+2150:         "CPU : %.3f ms par image (récent), %.3f ms (dernier boss), pic %.2f ms",
+2151:     ["CPU: this client has no addon profiler."] = "CPU : ce client n'a pas de profileur d'addons.",
+2152:     ["load the raid modules at the loading screen (fewer freezes) on / off"] =
+2153:         "charger les modules de raid pendant l'écran de chargement (moins de gels) oui / non",
+2154:     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
+2155:     ["Busiest work (total ms since login):"] = "Travaux les plus coûteux (total en ms depuis la connexion) :",
+2156:     ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
+2157: })
+2158: -- /wl test: the test of every module switched on, at once (again: stops it); /wl test stop
+2159: W.slash.test = function(rest)
+2160:     if rest and rest:lower():match("^%s*stop") then W.StopTests() else W.ToggleTests() end
+2161: end
+2162: 
+2163: W.slash.perf = function()
+2164:     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
+2165:         UpdateAddOnMemoryUsage()
+2166:         W.Print(string.format(L("Memory: %.0f KB"), GetAddOnMemoryUsage(ADDON) or 0))
+2167:     end
+2168:     local P, M = C_AddOnProfiler, Enum and Enum.AddOnProfilerMetric
+2169:     if P and P.GetAddOnMetric and M then
+2170:         local function get(metric) return (metric and P.GetAddOnMetric(ADDON, metric)) or 0 end
+2171:         W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
+2172:             get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
+2173:     else
+2174:         W.Print(L("CPU: this client has no addon profiler."))
+2175:     end
+2176:     -- our own timing since the login / last reload, with the code that made it: the slowest single runs
+2177:     -- (freezes) and the busiest in all (the frequent small ones: hooks, timers), count and total / max
+2178:     local slow = W.SlowestWork(5)
+2179:     if #slow > 0 then
+2180:         W.Print(L("Slowest work (one run, ms):"))
+2181:         for _, s in ipairs(slow) do W.Print(string.format("  %.1f  %s  (x%d, total %.0f)", s[2], s[1], s[3], s[4])) end
+2182:     end
+2183:     local busy = W.BusiestWork(5)
+2184:     if #busy > 0 then
+2185:         W.Print(L("Busiest work (total ms since login):"))
+2186:         for _, s in ipairs(busy) do W.Print(string.format("  %.0f  %s  (x%d, max %.1f)", s[4], s[1], s[3], s[2])) end
+2187:     end
+2188:     W.Print(L("Raid modules loaded at the loading screen: ") .. (W.DB("ui").preloadRaid and L("YES") or L("no"))
+2189:         .. "  |cff999999(/wl preload)|r")
+2190: end
+2191: 
+2192: -- /wl preload: load the raid modules during the loading screen (no freeze at the first /wl), or on demand
+2193: W.slash.preload = function()
+2194:     local ui = W.DB("ui")
+2195:     ui.preloadRaid = not ui.preloadRaid
+2196:     W.Print(L("Raid modules loaded at the loading screen: ") .. (ui.preloadRaid and L("YES") or L("no")))
+2197: end
+2198: 
+2199: -- /wl reset [data]: puts one module's saved data back to zero (a damaged module), keeps the rest
+2200: W.AddFR({
+2201:     ["Saved data: %s. |cffffffff/wl reset <name>|r resets one of them."] =
+2202:         "Données sauvegardées : %s. |cffffffff/wl reset <nom>|r en remet une à zéro.",
+2203:     ["Reset the saved data \"%s\"? The interface reloads after."] =
+2204:         "Remettre à zéro les données « %s » ? L'interface se recharge ensuite.",
+2205:     ["Data reset. Reload the interface to finish."] = "Données remises à zéro. Recharge l'interface pour terminer.",
+2206: })
+2207: W.slash.reset = function(rest)
+2208:     local key = (rest or ""):match("^(%S+)")
+2209:     if not key or type(W.db[key]) ~= "table" then
+2210:         local keys = {}
+2211:         for k, v in pairs(W.db) do if type(v) == "table" then keys[#keys + 1] = k end end
+2212:         table.sort(keys)
+2213:         W.Print(string.format(L("Saved data: %s. |cffffffff/wl reset <name>|r resets one of them."), table.concat(keys, ", ")))
+2214:         return
+2215:     end
+2216:     W.Confirm(string.format(L("Reset the saved data \"%s\"? The interface reloads after."), key), function()
+2217:         W.db[key] = nil
+2218:         W.ConfirmReload(L("Data reset. Reload the interface to finish."))
+2219:     end)
+2220: end
+2221: 
+2222: -- /wl help: every command in the chat (also shown for an unknown command)
+2223: W.AddFR({
+2224:     ["Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"] =
+2225:         "Commandes (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = preset sélectionné si vide) :",
+2226:     ["open / close the window"] = "ouvrir / fermer la fenêtre",
+2227:     ["this list"] = "cette liste",
+2228:     ["show / hide the minimap button"] = "afficher / cacher le bouton de la minicarte",
+2229:     ["recent Lua errors"] = "erreurs Lua récentes",
+2230:     ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
+2231:     ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
+2232:     ["combat log auto-start debug"] = "débogage du journal de combat automatique",
+2233:     ["apply the preset: marks + groups"] = "appliquer le preset : marques + groupes",
+2234:     ["only the preset's marks"] = "seulement les marques du preset",
+2235:     ["only the preset's groups"] = "seulement les groupes du preset",
+2236:     ["clear all marks"] = "effacer toutes les marques",
+2237:     ["list the presets"] = "lister les presets",
+2238:     ["create my assist macro"] = "créer ma macro d'assist",
+2239:     ["ready check (leader / assist), else the check window"] = "appel (chef / assistant), sinon la fenêtre de vérification",
+2240:     ["check window (ready, durability)"] = "fenêtre de vérification (prêt, durabilité)",
+2241:     ["Loot Council (vote | add [item] | test)"] = "Loot Council (vote | add [objet] | test)",
+2242:     ["soft-res tab (players whisper \"!sr [item]\")"] = "onglet soft-res (les joueurs chuchotent \"!sr [objet]\")",
+2243:     ["simulator export (simc, oxm, json)"] = "export pour simulateur (simc, oxm, json)",
+2244:     ["summon list"] = "liste de summon",
+2245:     ["graveyard timer test (fake waves)"] = "test du chrono de cimetière (fausses vagues)",
+2246:     ["PvP frames settings"] = "réglages des cadres PvP",
+2247:     ["are the addon restrictions active in this battleground?"] = "les restrictions d'addons sont-elles actives dans ce champ de bataille ?",
+2248:     ["guild trials (by rank)"] = "recrues de la guilde (par rang)",
+2249:     ["guild dashboard (item level, enchants, attendance, loots)"] = "tableau de bord de la guilde (niveau d'objets, enchants, présences, loots)",
+2250:     ["last battleground messages (to copy)"] = "derniers messages du champ de bataille (à copier)",
+2251:     ["warning when an enemy player or a dangerous mob is near"] = "alerte quand un joueur ennemi ou un monstre dangereux approche",
+2252:     ["big icon when I am crowd controlled"] = "grosse icône quand je suis sous contrôle (CC)",
+2253:     ["big countdown for duels (start, out of the duel area)"] = "gros compte à rebours pour les duels (début, hors de la zone)",
+2254:     ["test every module switched on at once (to see and move them)"] = "tester tous les modules activés en même temps (pour les voir et les déplacer)",
+2255:     ["stop the test"] = "arrêter le test",
+2256:     ["battleground timers: captures, gates, queue, flag (Capping style)"] = "chronos de BG : captures, portes, file, drapeau (style Capping)",
+2257:     ["stock of my bank characters"] = "stock de mes persos banque",
+2258:     ["who can craft it in the guild (name or item link)"] = "qui peut le fabriquer dans la guilde (nom ou lien d'objet)",
+2259:     ["switch modules fully off (Settings > Modules)"] = "éteindre complètement des modules (Réglages > Modules)",
+2260:     ["move Blizzard windows, screen elements, tooltip, FPS"] = "déplacer les fenêtres Blizzard, des éléments d'écran, l'infobulle, FPS",
+2261:     ["hidden game options (camera, nameplates, combat text) and every CVar"] = "options cachées du jeu (caméra, barres d'info, texte de combat) et toutes les CVars",
+2262:     ["item levels on the character sheet, inspect, bags, loot and tooltips"] = "niveaux d'objet sur la fiche, l'inspection, les sacs, le butin et les infobulles",
+2263:     ["guild members on the world map and the minimap"] = "les membres de la guilde sur la carte du monde et la minicarte",
+2264:     ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
+2265:     ["my premade history and records"] = "historique et records de mes premades",
+2266: })
+2267: local HELP = {
+2268:     { "/wl", "open / close the window" },
+2269:     { "/wl help", "this list" },
+2270:     { "/wl minimap", "show / hide the minimap button" },
+2271:     { "/wl bugs", "recent Lua errors" },
+2272:     { "/wl perf", "memory and CPU used by the addon" },
+2273:     { "/wl modules", "switch modules fully off (Settings > Modules)" },
+2274:     { "/wl move", "move Blizzard windows, screen elements, tooltip, FPS" },
+2275:     { "/wl cvar", "hidden game options (camera, nameplates, combat text) and every CVar" },
+2276:     { "/wl ilvl", "item levels on the character sheet, inspect, bags, loot and tooltips" },
+2277:     { "/wl map", "guild members on the world map and the minimap" },
+2278:     { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
+2279:     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },
+2280:     { "/wl logdebug", "combat log auto-start debug" },
+2281:     { "/wl apply [preset]", "apply the preset: marks + groups" },
+2282:     { "/wl marks [preset]", "only the preset's marks" },
+2283:     { "/wl groups [preset]", "only the preset's groups" },
+2284:     { "/wl clear", "clear all marks" },
+2285:     { "/wl list", "list the presets" },
+2286:     { "/wl assist [preset]", "create my assist macro" },
+2287:     { "/rc", "ready check (leader / assist), else the check window" },
+2288:     { "/wl rc", "check window (ready, durability)" },
+2289:     { "/wl loot", "Loot Council (vote | add [item] | test)" },
+2290:     { "/wl sr", "soft-res tab (players whisper \"!sr [item]\")" },
+2291:     { "/wl sim", "simulator export (simc, oxm, json)" },
+2292:     { "/wl summon", "summon list" },
+2293:     { "/wl trials", "guild trials (by rank)" },
+2294:     { "/wl dashboard", "guild dashboard (item level, enchants, attendance, loots)" },
+2295:     { "/wl bank", "stock of my bank characters" },
+2296:     { "/wl craft [item]", "who can craft it in the guild (name or item link)" },
+2297:     { "/wl bg", "my premade history and records" },
+2298:     { "/wl gy", "graveyard timer test (fake waves)" },
+2299:     { "/wl pvp", "PvP frames settings" },
+2300:     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
+2301:     { "/wl bgmsg", "last battleground messages (to copy)" },
+2302:     { "/wl preload", "load the raid modules at the loading screen (fewer freezes) on / off" },
+2303:     { "/wl caps", "battleground timers: captures, gates, queue, flag (Capping style)" },
+2304:     { "/wl danger", "warning when an enemy player or a dangerous mob is near" },
+2305:     { "/wl cc", "big icon when I am crowd controlled" },
+2306:     { "/wl duel", "big countdown for duels (start, out of the duel area)" },
+2307:     { "/wl test", "test every module switched on at once (to see and move them)" },
+2308:     { "/wl test stop", "stop the test" },
+2309: }
+2310: W.slash.help = function()
+2311:     W.Print(L("Commands (|cffffffff/wl|r = |cffffffff/wlrt|r = |cffffffff/warlegend|r, [preset] = selected preset if empty):"))
+2312:     for _, h in ipairs(HELP) do W.Print("|cffffff00" .. h[1] .. "|r - " .. L(h[2])) end
+2313: end
+2314: 
+2315: local function Slash(msg)
+2316:     if not W.Allowed() then W.Denied(); return end
+2317:     msg = msg or ""
+2318:     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
+2319:     cmd = (cmd or ""):lower()
+2320:     if cmd ~= "" and cmd ~= "minimap" and not W.slash[cmd] then W.LoadRaid() end -- a raid command
+2321:     if cmd == "" then
+2322:         W.Toggle()
+2323:     elseif cmd == "minimap" then
+2324:         local m = W.DB("minimap")
+2325:         m.hide = not m.hide
+2326:         W.UpdateMinimap()
+2327:     elseif W.slash[cmd] then
+2328:         W.slash[cmd](rest)
+2329:     else
+2330:         W.slash.help()
+2331:     end
+2332: end
+2333: SLASH_WARLEGENDRT1 = "/wl"
+2334: SLASH_WARLEGENDRT2 = "/wlrt"
+2335: SLASH_WARLEGENDRT3 = "/warlegend"
+2336: SlashCmdList["WARLEGENDRT"] = Slash
+2337: 
+2338: -- Another addon that also answers "/wl" (WoWHead Looter: /wl loc, /wl id, /wl reset): the game gives "/wl" to one
+2339: -- of the two handlers, not the one we choose. So once every addon is loaded, both entries of SlashCmdList get the
+2340: -- same dispatcher: our commands go to Slash, everything else (and everything, for a player outside the guild) to
+2341: -- the other addon's own handler, left untouched. /wl reset <name> is ours only when <name> is one of our saved
+2342: -- data keys; a bare /wl reset is the other addon's.
+2343: W.AddFR({
+2344:     ["/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."] =
+2345:         "/wl est partagé avec un autre addon (%s) : les deux fonctionnent, |cffffffff/wlrt|r ouvre toujours WarLegend.",
+2346: })
+2347: local function ClaimSlash()
+2348:     local others = {}
+2349:     for key, fn in pairs(SlashCmdList) do
+2350:         if key ~= "WARLEGENDRT" and type(fn) == "function" then
+2351:             for i = 1, 20 do
+2352:                 local c = _G["SLASH_" .. key .. i]
+2353:                 if type(c) ~= "string" then break end
+2354:                 if c:lower() == "/wl" then others[#others + 1] = key; break end
+2355:             end
+2356:         end
+2357:     end
+2358:     if #others == 0 then return end
+2359:     table.sort(others)
+2360:     local otherName = others[1]
+2361:     local other = SlashCmdList[otherName]
+2362:     local known, noticed = {}, false
+2363:     for _, h in ipairs(HELP) do
+2364:         local c = h[1]:match("^/wl%s+(%S+)")
+2365:         if c then known[c:lower()] = true end
+2366:     end
+2367:     local function Dispatcher(msg)
+2368:         msg = msg or ""
+2369:         local cmd, rest = msg:match("^(%S*)%s*(.-)$")
+2370:         cmd = (cmd or ""):lower()
+2371:         local mine = cmd == "" or cmd == "minimap" or known[cmd] or W.slash[cmd] or false
+2372:         if mine and cmd == "reset" then
+2373:             local key = (rest or ""):match("^(%S+)")
+2374:             mine = key ~= nil and type(W.db[key]) == "table"
+2375:         end
+2376:         if not mine or not W.Allowed() then return other(msg) end
+2377:         if not noticed then
+2378:             noticed = true
+2379:             W.Print(string.format(L("/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."), otherName))
+2380:         end
+2381:         Slash(msg)
+2382:     end
+2383:     SlashCmdList["WARLEGENDRT"] = Dispatcher
+2384:     for _, key in ipairs(others) do SlashCmdList[key] = Dispatcher end
+2385: end
+2386: W.On("PLAYER_LOGIN", ClaimSlash, true)
+2387: 
+2388: -- /rc exists before the raid addon is loaded; its real handler (ReadyCheck.lua) replaces this one
+2389: SLASH_WLRTREADYCHECK1 = "/rc"
+2390: local ReadyCheckStub
+2391: function ReadyCheckStub()
+2392:     if not W.Allowed() then W.Denied(); return end
+2393:     W.LoadRaid()
+2394:     local real = SlashCmdList["WLRTREADYCHECK"]
+2395:     if real and real ~= ReadyCheckStub then real() end
+2396: end
+2397: SlashCmdList["WLRTREADYCHECK"] = ReadyCheckStub
+2398: 
+2399: W.On("PLAYER_LOGIN", function()
+2400:     CreateMinimapButton()
+2401:     W.Print(W.LOGO .. " RaidTool v" .. W.version .. L(" loaded. |cffffffff/wl|r to open."))
+2402: end)
+2403: 
+
+Questions : a) À quelle ligne est définie la liste affichée par "/wl help" et à quelle ligne la fonction qui l'affiche ? b) Dans la fonction Run (événements), à quelle condition exacte un handler s'exécute-t-il, notamment quand le joueur n'est pas (encore) reconnu comme membre de la guilde ? c) Que signifie W.access == nil ? d) Quelles valeurs par défaut sont créées pour W.db.ui à ADDON_LOADED ?

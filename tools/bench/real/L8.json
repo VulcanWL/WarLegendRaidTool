@@ -1,0 +1,16 @@
+{
+  "id": "L8",
+  "split": "train",
+  "commit": "2cc3405",
+  "file": "WarLegendRaidTool/Roster.lua",
+  "symptom": "Recrues : la date de début d'essai de certaines recrues repart régulièrement à aujourd'hui, alors qu'elles n'ont pas quitté la guilde.",
+  "code": "  35: ---------------------------------------------------------------------------\n  36: local lastScan = 0\n  37: local function ScanTrials()\n  38:     if not db or db.trialRank == \"\" or not W.IsInGuild() or GetTime() - lastScan < 30 then return end\n  39:     lastScan = GetTime()\n  40:     local members = W.GuildMembers()\n  41:     if #members == 0 then return end\n  42:     local now, at = time(), {}\n  43:     for _, m in ipairs(members) do\n  44:         if m.rank == db.trialRank then\n  45:             local k = m.full:lower()\n  46:             at[k] = true\n  47:             if not db.trials[k] then db.trials[k] = now end\n  48:         end\n  49:     end\n  50:     for k in pairs(db.trials) do\n  51:         if not at[k] then db.trials[k] = nil end -- promoted or gone\n  52:     end\n  53: end\n  54: \n  55: local UI = {}\n  56: local RefreshTrials\n  57: \n  58: W.On(\"GUILD_ROSTER_UPDATE\", function() ScanTrials(); if W.IsShown(\"Roster\") then RefreshTrials() end end)",
+  "expect": {
+    "lines": [
+      51
+    ],
+    "kw": "(ligne|connect|online|offline|absent|liste)",
+    "kwFlags": "i"
+  },
+  "fix": "diff --git a/WarLegendRaidTool/Roster.lua b/WarLegendRaidTool/Roster.lua\nindex 19ed6e2..26e4838 100644\n--- a/WarLegendRaidTool/Roster.lua\n+++ b/WarLegendRaidTool/Roster.lua\n@@ -40,14 +40,14 @@ local function ScanTrials()\n     local members = W.GuildMembers()\n     if #members == 0 then return end\n-    local now, at = time(), {}\n+    local now, rankOf = time(), {}\n     for _, m in ipairs(members) do\n-        if m.rank == db.trialRank then\n-            local k = m.full:lower()\n-            at[k] = true\n-            if not db.trials[k] then db.trials[k] = now end\n-        end\n+        local k = m.full:lower()\n+        rankOf[k] = m.rank\n+        if m.rank == db.trialRank and not db.trials[k] then db.trials[k] = now end\n     end\n-    for k in pairs(db.trials) do\n-        if not at[k] then db.trials[k] = nil end -- promoted or gone\n+    -- promoted: forgotten. Not in the roster: kept (the roster can list online members only on Classic),\n+    -- forgotten after 6 months\n+    for k, since in pairs(db.trials) do\n+        if (rankOf[k] and rankOf[k] ~= db.trialRank) or now - since > 180 * 86400 then db.trials[k] = nil end\n     end\n end\n"
+}

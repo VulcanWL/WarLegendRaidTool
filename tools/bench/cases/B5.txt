@@ -1,0 +1,32 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Tâche : relis ce fichier et liste les VRAIS bugs (plantage, comportement faux, violation des règles du projet).
+Pour chaque bug : numéro de ligne, explication courte, correction proposée (code).
+N'invente pas de bug : si le code est correct, réponds "Aucun bug trouvé". Ne liste pas de simples remarques de style.
+Ces deux fonctions sérialisent des champs pour les messages d'addon (W.Unpack(W.Pack(a, b, c)) doit redonner les champs, nil -> "").
+
+Extrait de Lib.lua :
+ 144: -- Fields separated by "^" (never used in names, links are sent as item strings)
+ 145: function W.Pack(...)
+ 146:     local t = { ... }
+ 147:     for i = 1, #t do t[i] = tostring(t[i] == nil and "" or t[i]):gsub("%^", "") end
+ 148:     return table.concat(t, "^")
+ 149: end
+ 150: 
+ 151: function W.Unpack(msg)
+ 152:     local t = {}
+ 153:     for v in (msg .. "^"):gmatch("([^%^]+)%^") do t[#t + 1] = v end
+ 154:     return t
+ 155: end

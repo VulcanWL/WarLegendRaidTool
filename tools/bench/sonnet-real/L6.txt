@@ -1,0 +1,36 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Erreur en raid : Â« attempt to compare local 'v' (a secret number value) Â» quand le module lit les marques de raid.
+
+Code (fichier WarLegendRaidTool_Raid/RaidGroups.lua, avant correction) :
+ 318: })
+ 319: 
+ 320: -- The unit's mark: 0 none, nil when the client hides it (the macro then sets / clears it anyway)
+ 321: local function MarkOf(unit)
+ 322:     local v = GetRaidTargetIndex(unit)
+ 323:     if v == nil then return 0 end
+ 324:     return W.Safe(v)
+ 325: end
+ 326: 
+ 327: -- /tm lines putting the preset's marks on the group. Clears first (a mark set elsewhere moves),
+ 328: -- "!" so a mark already in place is not toggled off. One mark per player, one player per mark.
+ 329: -- Returns the lines, the number of marks, the missing players.
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

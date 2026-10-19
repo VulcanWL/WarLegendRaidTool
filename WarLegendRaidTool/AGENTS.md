@@ -135,6 +135,6 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
   a few lines (slower than doing it yourself), never for WoW API, code or design decisions; check what it returns.
   While WoW runs it puts on the graphics card only what fits with 4 GB of video memory left free for the game, the
   rest on 3 CPU threads at low priority. An answer takes about 20 s to 1 minute: run long ones in the background.
-  `--bug "symptom" --file x.lua` gives a first diagnosis (line + fix; right about 6 times in 10 on new bugs, the fix
+  `--bug "symptom" --file x.lua` gives a first diagnosis (line + fix; right about one time in two on new bugs, the fix
   itself often wrong: check both), `--each` asks the same question about many files in one call. A bug fixed live that
   it missed: add its lesson to `tools/local-ai-catalogue.md` (one numbered line, no code from the fix).

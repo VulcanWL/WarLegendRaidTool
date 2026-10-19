@@ -1,0 +1,76 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : En champ de bataille, la barre de mana des cadres reste figÃ©e et ne bouge plus. Aucune erreur affichÃ©e (les appels de module passent par un SafeCall qui avale les erreurs). Sur ce client, les API d'unitÃ© peuvent renvoyer des Â« valeurs secrÃ¨tes Â».
+
+Code (fichier WarLegendRaidTool_PvP/Modules/Power.lua, avant correction) :
+  68: 
+  69: 
+  70:     function playerButton.Power:UpdateMinMaxValues(max)
+  71:         if max and issecret(max) then
+  72:             self:SetMinMaxValues(0, max)
+  73:             self.maxValue = nil
+  74:             return
+  75:         end
+  76:         if max and max ~= self.maxValue then
+  77:             self:SetMinMaxValues(0, max)
+  78:             self.maxValue = max
+  79:         end
+  80:     end
+  81: 
+  82:     function playerButton.Power:CheckForNewPowerColor(powerToken)
+  83:         --self:Debug("CheckForNewPowerColor", powerToken)
+  84: 
+  85:         if self.powerToken ~= powerToken then
+  86:             local color = PowerBarColor[powerToken]
+  87:             if color then
+  88:                 self:SetStatusBarColor(color.r, color.g, color.b)
+  89:                 self.powerToken = powerToken
+  90:             end
+  91:         end
+  92:     end
+  93: 
+  94:     function playerButton.Power:UnitIdUpdate(unitID)
+  95:         if unitID then
+  96:             local powerType, powerToken, altR, altG, altB = UnitPowerType(unitID)
+  97: 
+  98:             self:CheckForNewPowerColor(powerToken)
+  99:             self:UpdatePower(unitID)
+ 100:         end
+ 101:     end
+ 102: 
+ 103: 
+ 104:     function playerButton.Power:UpdatePower(unitID)
+ 105:         --self:Debug("UpdatePower", unitID, powerToken)
+ 106:         if unitID then
+ 107:             self:UpdateMinMaxValues(UnitPowerMax(unitID))
+ 108:             self:SetValue(UnitPower(unitID))
+ 109:         else
+ 110:             --for testmode
+ 111:             self:SetValue(math_random(0, 100)/100)
+ 112:         end
+ 113:     end
+ 114: 
+ 115: 
+ 116:     function playerButton.Power:ApplyAllSettings()
+ 117:         if not self.config then return end
+ 118:         -- power
+ 119:         self:SetHeight(self.config.Height or 0.01)
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

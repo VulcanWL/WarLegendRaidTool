@@ -1,0 +1,94 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Cadres BG : aprÃ¨s la mort puis la rÃ©surrection d'un joueur, l'icÃ´ne de contrÃ´le (CC) ne rÃ©apparaÃ®t plus jamais sur son cadre.
+
+Code (fichier WarLegendRaidTool_PvP/Modules/CrowdControl.lua, avant correction) :
+  18: }
+  19: 
+  20: local crowdControl = WarLegendPvP:NewButtonModule({
+  21:     moduleName = "CrowdControl",
+  22:     localizedModuleName = W.L("Crowd control on the class icon"),
+  23:     defaultSettings = defaultSettings,
+  24:     events = { "UnitIdUpdate", "PlayerButtonSizeChanged", "UnitDied", "OnTestmodeEnabled", "OnTestmodeDisabled", "OnTestmodeTick" },
+  25:     enabledInThisExpansion = true,
+  26:     attachSettingsToButton = true
+  27: })
+  28: 
+  29: local TEST_ICON = 136071 -- Polymorph
+  30: 
+  31: function crowdControl:AttachToPlayerButton(playerButton)
+  32:     local f = CreateFrame("Frame", nil, playerButton)
+  33:     f:SetFrameLevel(playerButton:GetFrameLevel() + 20)
+  34:     playerButton.CrowdControl = f
+  35:     local NA = WarLegendPvP.NativeAuras
+  36: 
+  37:     -- over the class / spec icon, or the left end of the frame
+  38:     local function Place()
+  39:         f:ClearAllPoints()
+  40:         local icon = playerButton.SpecClassPriorityOne
+  41:         if icon and icon:IsShown() and icon:GetWidth() > 1 then
+  42:             f:SetAllPoints(icon)
+  43:         else
+  44:             local h = playerButton:GetHeight() or 20
+  45:             f:SetPoint("LEFT", playerButton, "LEFT")
+  46:             f:SetSize(h, h)
+  47:         end
+  48:     end
+  49: 
+  50:     if NA and NA.Available() then
+  51:         f.native = NA.Create(f, {
+  52:             { key = "cc", filter = "HARMFUL|CROWD_CONTROL", max = 1, timer = true,
+  53:                 sizeFn = function() return math.max(12, math.min(f:GetWidth(), f:GetHeight())) end },
+  54:         })
+  55:     end
+  56: 
+  57:     -- test mode: a fake polymorph on some players
+  58:     local test = CreateFrame("Frame", nil, f)
+  59:     test:SetAllPoints(f)
+  60:     test.icon = test:CreateTexture(nil, "ARTWORK")
+  61:     test.icon:SetAllPoints(test)
+  62:     test.icon:SetTexture(TEST_ICON)
+  63:     test.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  64:     test.cd = CreateFrame("Cooldown", nil, test, "CooldownFrameTemplate")
+  65:     test.cd:SetAllPoints(test)
+  66:     test.cd:SetReverse(true)
+  67:     test:Hide()
+  68: 
+  69:     function f:Update()
+  70:         if not self.Enabled or self.testmode then return end
+  71:         Place()
+  72:         if self.native then NA.SetUnit(self.native, playerButton:GetUnitID()) end
+  73:     end
+  74: 
+  75:     function f:UnitIdUpdate() self:Update() end
+  76:     function f:PlayerButtonSizeChanged() self:Update() end
+  77:     function f:UnitDied() if self.native then NA.SetUnit(self.native, nil) end end
+  78: 
+  79:     function f:OnTestmodeEnabled()
+  80:         self.testmode = true
+  81:         if self.native then NA.SetUnit(self.native, nil) end
+  82:     end
+  83:     function f:OnTestmodeDisabled()
+  84:         self.testmode = false
+  85:         test:Hide()
+  86:         self:Update()
+  87:     end
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

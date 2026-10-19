@@ -1,0 +1,108 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Tâche : relis ce fichier et liste les VRAIS bugs (plantage, comportement faux, violation des règles du projet).
+Pour chaque bug : numéro de ligne, explication courte, correction proposée (code).
+N'invente pas de bug : si le code est correct, réponds "Aucun bug trouvé". Ne liste pas de simples remarques de style.
+
+Fichier Overlap.lua :
+   1: -- WarLegend RaidTool - Overlap
+   2: -- Finds the features another addon you run already does (Naowh Forever, EllesmereUI) so WarLegend does
+   3: -- not do them twice: a feature of ours that another ENABLED addon provides stays off, and its panel says
+   4: -- which addon covers it. A switch ("Use it anyway") keeps ours on. Nothing here runs by
+   5: -- itself: W.Overlap(feature) is asked when a feature is about to act (combat start, vendor window...).
+   6: -- The Graveyard timer is never switched off (no other addon of yours has it).
+   7: local W = WLRT
+   8: W.AddFR({
+   9:     ["Covered by %s: off here (no duplicate)."] = "Déjà fourni par %s : désactivé ici (pas de doublon).",
+  10:     ["Use it anyway"] = "L'utiliser quand même",
+  11: })
+  12: local L = W.L
+  13: 
+  14: -- Naowh Forever: its QoL module keeps one settings object (ns.QoLSettings.Get(key)); "enabled" is its master switch
+  15: local function Naowh(key)
+  16:     return function()
+  17:         local ns = _G.NaowhForever
+  18:         local S = ns and ns.QoLSettings
+  19:         if not (S and S.Get) then return false end
+  20:         local ok, on = pcall(function() return S.Get("enabled") and S.Get(key) end)
+  21:         return ok and on == true
+  22:     end
+  23: end
+  24: 
+  25: -- EllesmereUI: plain keys of its saved table (a missing key means "on" for sell junk / repair)
+  26: local function EUI(test)
+  27:     return function()
+  28:         local db = _G.EllesmereUIDB
+  29:         if type(db) ~= "table" then return false end
+  30:         local ok, on = pcall(test, db)
+  31:         return ok and on == true
+  32:     end
+  33: end
+  34: 
+  35: -- WarLegend feature -> { addon name, test }, first match wins
+  36: local PROVIDERS = {
+  37:     combatTimer = { { "Naowh Forever", Naowh("combatTimer") } },
+  38:     fastLoot = { { "Naowh Forever", Naowh("fastLoot") } },
+  39:     sellJunk = { { "Naowh Forever", Naowh("sellJunk") },
+  40:         { "EllesmereUI", EUI(function(d) return d.autoSellJunk ~= false end) } },
+  41:     autoRepair = { { "Naowh Forever", Naowh("autoRepair") },
+  42:         { "EllesmereUI", EUI(function(d) return d.autoRepair ~= false end) } },
+  43:     skipCinematics = { { "Naowh Forever", Naowh("skipCinematics") },
+  44:         { "EllesmereUI", EUI(function(d) return d.skipCinematics == true end) } },
+  45:     questAccept = { { "Naowh Forever", Naowh("questAccept") } },
+  46:     questTurnIn = { { "Naowh Forever", Naowh("questTurnIn") } },
+  47:     deleteConfirm = { { "Naowh Forever", Naowh("deleteConfirm") } },
+  48:     autoLog = { { "EllesmereUI", EUI(function(d) return type(d.autoLogging) == "table" and d.autoLogging.enabled == true end) } },
+  49: }
+  50: 
+  51: -- one switch for every feature (Overlap panel notes): "use ours anyway"
+  52: local function Forced()
+  53:     local ui = W.db and W.db.ui
+  54:     return ui and ui.overlapForce == true
+  55: end
+  56: 
+  57: -- Name of the other addon that already does this feature, or nil (forced, none, or not enabled there)
+  58: function W.Overlap(feature)
+  59:     local list = PROVIDERS[feature]
+  60:     if not list or Forced() then return nil end
+  61:     for _, p in ipairs(list) do
+  62:         if p[2]() then return p[1] end
+  63:     end
+  64: end
+  65: 
+  66: -- true when WarLegend's own option is on and nothing else covers it
+  67: function W.FeatureOn(db, key, feature)
+  68:     return db and db[key] and not W.Overlap(feature or key)
+  69: end
+  70: 
+  71: -- Small note under / next to an option in a panel: which addon covers it, and a switch to force ours
+  72: function W.OverlapNote(parent, feature, point, x, y)
+  73:     local fs = W.Label(parent, "", "GameFontDisableSmall")
+  74:     fs:SetPoint(point or "TOPLEFT", x or 0, y or 0)
+  75:     fs:SetTextColor(1, 0.6, 0.2)
+  76:     local function refresh()
+  77:         local name = W.Overlap(feature)
+  78:         if name then fs:SetText(string.format(L("Covered by %s: off here (no duplicate)."), name)) else fs:SetText("") end
+  79:     end
+  80:     parent:HookScript("OnShow", refresh)
+  81:     refresh()
+  82:     return fs, refresh
+  83: end
+  84: 
+  85: function W.OverlapForced() return Forced() and true or false end
+  86: function W.SetOverlapForce(on)
+  87:     W.DB("ui").overlapForce = on and true or false
+  88: end
+  89: 

@@ -1,0 +1,88 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Depuis la derniÃ¨re modification, /wl n'ouvre plus aucune fenÃªtre. Erreur : Â« attempt to call global 'Index' (a nil value) Â» dans W.Button.
+
+Code (fichier WarLegendRaidTool/Core.lua, avant correction) :
+1010: end
+1011: 
+1012: function W.Button(parent, text, w, h, onClick, tip)
+1013:     local b
+1014:     local S = W.Skin()
+1015:     if W.IsBlizzard() then
+1016:         b = CreateFrame("Button", W.N("Btn"), parent, "UIPanelButtonTemplate")
+1017:         W.Size(b, w, h or 22)
+1018:         b:SetText(text)
+1019:         local fs = b.GetFontString and b:GetFontString()
+1020:         if fs and fs.SetFontObject then fs:SetFontObject("GameFontNormalSmall") end
+1021:     else
+1022:         b = CreateFrame("Button", W.N("Btn"), parent, W.BT)
+1023:         W.Size(b, w, h or 22)
+1024:         local fs = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+1025:         fs:SetPoint("CENTER", 0, 0)
+1026:         b:SetFontString(fs)
+1027:         b:SetNormalFontObject("GameFontHighlightSmall")
+1028:         b:SetDisabledFontObject("GameFontDisableSmall")
+1029:         if S then
+1030:             S.Button(b)
+1031:             if S.StateButtonLabel then S.StateButtonLabel(b) end
+1032:             if S.Font then S.Font(fs) end
+1033:         else
+1034:             W.Backdrop(b, 1, true)
+1035:             b:HookScript("OnEnter", function(self)
+1036:                 if self:IsEnabled() then self:SetBackdropBorderColor(W.R, W.G, W.B, 1); self:SetBackdropColor(PAL.hover[1], PAL.hover[2], PAL.hover[3], 1) end
+1037:             end)
+1038:             b:HookScript("OnLeave", function(self)
+1039:                 if self.selected then self:SetBackdropBorderColor(W.R, W.G, W.B, 1) else self:SetBackdropBorderColor(PAL.border[1], PAL.border[2], PAL.border[3], 1) end
+1040:                 self:SetBackdropColor(PAL.light[1], PAL.light[2], PAL.light[3], 1)
+1041:             end)
+1042:         end
+1043:         b:SetScript("OnMouseDown", function(self) if self:IsEnabled() then fs:SetPoint("CENTER", 1, -1) end end)
+1044:         b:SetScript("OnMouseUp", function() fs:SetPoint("CENTER", 0, 0) end)
+1045:         b:SetText(text)
+1046:     end
+1047:     if onClick then b:SetScript("OnClick", onClick) end
+1048:     if tip then W.Tooltip(b, text, tip) end
+1049:     Index(text, b)
+1050:     return b
+1051: end
+1052: 
+1053: -- Search index (/wl search box): the texts of the widgets a module panel is made of, while it is built
+1054: local indexOff = false
+1055: local function Index(text, widget)
+1056:     local m = W.building
+1057:     if not m or indexOff or type(text) ~= "string" or text == "" then return end
+1058:     m.index = m.index or {}
+1059:     m.index[#m.index + 1] = { text = text, widget = widget }
+1060: end
+1061: 
+1062: function W.Label(parent, text, font)
+1063:     local fs = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
+1064:     Index(text, fs)
+1065:     fs:SetText(text or "")
+1066:     fs:SetJustifyH("LEFT")
+1067:     local S = W.Skin()
+1068:     if S and S.Font then S.Font(fs) end
+1069:     return fs
+1070: end
+1071: 
+1072: -- Module title: UPPERCASE + accent bar underneath
+1073: function W.Title(parent, text)
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

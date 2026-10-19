@@ -1,0 +1,94 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Extrait de Core.lua (lignes 505-579) :
+ 505: ---------------------------------------------------------------------------
+ 506: -- Database
+ 507: ---------------------------------------------------------------------------
+ 508: local readyFns = {}
+ 509: function W.OnReady(fn)
+ 510:     local where, inner = W.Where(2), fn
+ 511:     fn = function() -- timed for /wl perf, errors go on to the caller's pcall
+ 512:         local ok, err = W.Measure("ready " .. where, inner)
+ 513:         if not ok then error(err, 0) end
+ 514:     end
+ 515:     -- a file of the raid addon: its ready functions run once the whole file is loaded, like at login
+ 516:     if late then late.ready[#late.ready + 1] = fn; return end
+ 517:     if W.db then fn() else readyFns[#readyFns + 1] = fn end
+ 518: end
+ 519: 
+ 520: -- DB sub-table with default values (scalars only). A value of the wrong type (damaged file,
+ 521: -- old format) is put back to its default instead of breaking the module.
+ 522: function W.DB(key, defaults)
+ 523:     local t = W.db[key]
+ 524:     if type(t) ~= "table" then t = {}; W.db[key] = t end
+ 525:     if defaults then
+ 526:         for k, v in pairs(defaults) do
+ 527:             if type(t[k]) ~= type(v) then t[k] = v end
+ 528:         end
+ 529:     end
+ 530:     return t
+ 531: end
+ 532: 
+ 533: -- Saved data format versions. A module changing its saved format registers a migration
+ 534: -- (W.Migration(version, fn)); they run once each, in order, before the modules start.
+ 535: -- A failing migration resets only the data it was working on, never the whole file.
+ 536: local migrations = {}
+ 537: function W.Migration(version, key, fn)
+ 538:     migrations[#migrations + 1] = { v = version, key = key, fn = fn }
+ 539: end
+ 540: 
+ 541: local function Migrate(db)
+ 542:     local from = tonumber(db.schema) or 0
+ 543:     local top = from
+ 544:     table.sort(migrations, function(a, b) return a.v < b.v end)
+ 545:     for _, m in ipairs(migrations) do
+ 546:         if m.v > from then
+ 547:             local ok, err = pcall(m.fn, db)
+ 548:             if not ok then
+ 549:                 geterrorhandler()(err)
+ 550:                 if m.key then db[m.key] = nil end -- that module starts clean, the rest is kept
+ 551:             end
+ 552:         end
+ 553:         if m.v > top then top = m.v end
+ 554:     end
+ 555:     db.schema = top
+ 556: end
+ 557: 
+ 558: W.On("ADDON_LOADED", function(name)
+ 559:     if name ~= ADDON then return end
+ 560:     if type(WarLegendRaidToolDB) ~= "table" then WarLegendRaidToolDB = {} end
+ 561:     W.db = WarLegendRaidToolDB
+ 562:     Migrate(W.db)
+ 563:     W.DB("ui", { lastModule = "RaidGroups", style = "auto", lang = "auto", overlapForce = false, preloadRaid = true })
+ 564:     -- the language is known from here: everything built from now on uses it
+ 565:     W.SetLanguage(W.db.ui.lang)
+ 566:     W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+ 567:     W.DB("minimap", { angle = 200 })
+ 568:     if type(W.db.ui.off) ~= "table" then W.db.ui.off = {} end
+ 569:     for _, m in ipairs(W.modules) do
+ 570:         if m.file and W.db.ui.off[m.key] and not W.CORE_MODULES[m.key] then offFiles[m.file] = true end
+ 571:     end
+ 572:     SyncAll()
+ 573:     W.ResolveTheme()
+ 574:     for _, fn in ipairs(readyFns) do
+ 575:         local ok, err = pcall(fn)
+ 576:         if not ok then geterrorhandler()(err) end
+ 577:     end
+ 578:     readyFns = {}
+ 579: end, true)
+
+Question : un nouveau module contient, au niveau du fichier (hors fonction) :
+    local db = W.DB("loot", { enabled = true, history = {} })
+Que se passe-t-il au chargement et ensuite ? Quels problèmes, et comment l'écrire correctement dans ce projet ?

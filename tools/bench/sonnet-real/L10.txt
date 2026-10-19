@@ -1,0 +1,54 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Chronos BG : quand je dÃ©coche Â« Captures Â» (db.enabled), les barres de file d'attente, de portes et de drapeau disparaissent aussi, alors qu'elles ont leurs propres cases (db.queue, db.flag).
+
+Code (fichier WarLegendRaidTool/CapTimers.lua, avant correction) :
+ 309: 
+ 310: ---------------------------------------------------------------------------
+ 311: -- Gates, flag respawn, queue (left to Capping when it is loaded)
+ 312: ---------------------------------------------------------------------------
+ 313: local function Extras() return db and db.enabled and not CappingLoaded() end
+ 314: 
+ 315: -- Enum.StartTimerType.PvPBeginTimer = 0
+ 316: W.On("START_TIMER", function(timerType, timeSeconds)
+ 317:     if not Extras() or not db.queue or W.Safe(timerType) ~= 0 then return end
+ 318:     timeSeconds = W.Safe(timeSeconds)
+ 319:     if type(timeSeconds) ~= "number" then return end
+ 320:     -- Blizzard's own start timer bar would show the same countdown twice: hidden, as Capping does
+ 321:     -- (once now, once right after in case Blizzard's handler runs after ours)
+ 322:     local function HideBlizzardTimer()
+ 323:         if TimerTracker and type(TimerTracker.timerList) == "table" then
+ 324:             for _, timer in ipairs(TimerTracker.timerList) do
+ 325:                 if timer.bar then timer.bar:Hide() end
+ 326:             end
+ 327:         end
+ 328:     end
+ 329:     HideBlizzardTimer()
+ 330:     W.After(0, HideBlizzardTimer)
+ 331:     local a = active.gates
+ 332:     local left = a and (a.ends - GetTime())
+ 333:     if not a or timeSeconds >= 45 or math.abs(timeSeconds - left) > 1 then -- not restarted for a 1 s drift
+ 334:         StartBar("gates", L("Battle begins"), timeSeconds, "other", 136106) -- Spell_Nature_TimeStop
+ 335:     end
+ 336: end)
+ 337: 
+ 338: local function FlagMessage(text)
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

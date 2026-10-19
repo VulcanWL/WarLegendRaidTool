@@ -1,0 +1,16 @@
+{
+  "id": "L9",
+  "split": "test",
+  "commit": "2cc3405",
+  "file": "WarLegendRaidTool_PvP/FlagCarrier.lua",
+  "symptom": "Quand le nom du porteur de drapeau a une forme inattendue, l'icône de drapeau s'affiche sur beaucoup de cadres de raid à la fois.",
+  "code": " 152: end\n 153: \n 154: function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)\n 155:     if hasFlag then\n 156:         -- one carrier per team: the other flags go\n 157:         for frame, tex in pairs(raidFlags) do tex:Hide() end\n 158:     end\n 159:     if not name then return end\n 160:     local flagFaction = (self.UserFaction == \"Horde\") and \"Alliance\" or \"Horde\" -- an ally carries the enemy flag\n 161:     for _, frame in ipairs(raidFrameButtons()) do\n 162:         local unit = frameUnit(frame)\n 163:         local unitName = unit and self:GetReadableUnitName(unit)\n 164:         if unitName and self:GetPlayerbuttonByName(unitName) == self:GetPlayerbuttonByName(name) then\n 165:             local tex = raidFlags[frame]\n 166:             if not tex then\n 167:                 tex = frame:CreateTexture(nil, \"OVERLAY\", nil, 7)\n 168:                 tex:SetSize(22, 22)\n 169:                 tex:SetPoint(\"TOPRIGHT\", frame, \"TOPRIGHT\", 4, 4)\n 170:                 raidFlags[frame] = tex\n 171:             end\n 172:             tex:SetTexture(FLAG_ICONS[flagFaction])\n 173:             tex:SetShown(hasFlag and true or false)\n 174:         end\n 175:     end\n 176: end\n 177: \n 178: local function clearRaidFlags()\n 179:     for _, tex in pairs(raidFlags) do tex:Hide() end\n 180: end\n 181: \n 182: function WarLegendPvP:ResetFlagCarriers()\n 183:     clearRaidFlags()\n 184:     clearCarriers(self.Allies)\n 185:     clearCarriers(self.Enemies)",
+  "expect": {
+    "lines": [
+      164
+    ],
+    "kw": "(nil\\s*==\\s*nil|les deux (renvoient|valent|sont|retournent) nil|tous les deux nil|both (return )?nil|deux nil|nil des deux)",
+    "kwFlags": "i"
+  },
+  "fix": "diff --git a/WarLegendRaidTool_PvP/FlagCarrier.lua b/WarLegendRaidTool_PvP/FlagCarrier.lua\nindex 7d4ebfa..cee70d3 100644\n--- a/WarLegendRaidTool_PvP/FlagCarrier.lua\n+++ b/WarLegendRaidTool_PvP/FlagCarrier.lua\n@@ -158,9 +158,11 @@ function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)\n \tend\n \tif not name then return end\n+\tlocal carrier = self:GetPlayerbuttonByName(name)\n+\tif not carrier then return end -- unknown name form: no frame is marked rather than the wrong ones\n \tlocal flagFaction = (self.UserFaction == \"Horde\") and \"Alliance\" or \"Horde\" -- an ally carries the enemy flag\n \tfor _, frame in ipairs(raidFrameButtons()) do\n \t\tlocal unit = frameUnit(frame)\n \t\tlocal unitName = unit and self:GetReadableUnitName(unit)\n-\t\tif unitName and self:GetPlayerbuttonByName(unitName) == self:GetPlayerbuttonByName(name) then\n+\t\tif unitName and self:GetPlayerbuttonByName(unitName) == carrier then\n \t\t\tlocal tex = raidFlags[frame]\n \t\t\tif not tex then\n"
+}

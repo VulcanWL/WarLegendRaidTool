@@ -1,0 +1,145 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Fichier CombatTimer.lua :
+   1: -- WarLegend RaidTool - Combat Timer
+   2: -- Small movable mm:ss timer for the current fight (any combat, or boss fights only).
+   3: -- One text update per second while a fight is running, nothing at all otherwise. Never in PvP.
+   4: local W = WLRT
+   5: W.AddFR({
+   6:     ["Combat Timer"] = "Chrono de combat",
+   7:     ["Show the combat timer"] = "Afficher le chrono de combat",
+   8:     ["Boss fights only"] = "Combats de boss uniquement",
+   9:     ["Hide out of combat"] = "Masquer hors combat",
+  10:     ["Lock position"] = "Verrouiller la position",
+  11:     ["Reset position"] = "Réinitialiser la position",
+  12:     ["Starts on entering combat (or on the boss pull) and stops at the end of the fight."] =
+  13:         "Démarre à l'entrée en combat (ou au pull du boss) et s'arrête à la fin du combat.",
+  14: })
+  15: local L = W.L
+  16: 
+  17: local db
+  18: local frame, ticker
+  19: local startAt, isEncounter = nil, false
+  20: 
+  21: local function Format(secs)
+  22:     secs = math.floor(secs)
+  23:     if secs >= 3600 then
+  24:         return string.format("%d:%02d:%02d", math.floor(secs / 3600), math.floor(secs / 60) % 60, secs % 60)
+  25:     end
+  26:     return string.format("%d:%02d", math.floor(secs / 60), secs % 60)
+  27: end
+  28: 
+  29: local function Update()
+  30:     if startAt then frame.text:SetText(Format(GetTime() - startAt)) end
+  31: end
+  32: 
+  33: local function ApplyVisibility()
+  34:     if not frame then return end
+  35:     local show = db.enabled and not W.Overlap("combatTimer") and (not db.hideOOC or startAt ~= nil or not db.locked)
+  36:     frame:SetShown(show and not W.InPvP())
+  37:     frame:EnableMouse(not db.locked)
+  38:     frame.bg:SetShown(not db.locked)
+  39: end
+  40: 
+  41: local function Start(encounter)
+  42:     if not db.enabled or W.InPvP() or W.Overlap("combatTimer") then return end
+  43:     if db.bossOnly and not encounter then return end
+  44:     if startAt then
+  45:         -- already timing the fight: a boss pull restarts it as a boss timer
+  46:         if encounter and not isEncounter then startAt, isEncounter = GetTime(), true; Update() end
+  47:         return
+  48:     end
+  49:     startAt, isEncounter = GetTime(), encounter
+  50:     Update()
+  51:     if C_Timer and C_Timer.NewTicker then ticker = C_Timer.NewTicker(1, Update) end
+  52:     ApplyVisibility()
+  53: end
+  54: 
+  55: local function Stop(encounterEnd)
+  56:     if not startAt then return end
+  57:     -- a boss timer ignores the short out-of-combat moments (death...) while the encounter goes on
+  58:     if isEncounter and not encounterEnd and IsEncounterInProgress and IsEncounterInProgress() then return end
+  59:     if not isEncounter and encounterEnd then return end
+  60:     Update()
+  61:     startAt = nil
+  62:     if ticker then ticker:Cancel(); ticker = nil end
+  63:     if db.hideOOC then W.After(5, function() if not startAt then ApplyVisibility() end end) end
+  64: end
+  65: 
+  66: local function SavePos()
+  67:     local p, _, rp, x, y = frame:GetPoint(1)
+  68:     db.point, db.relPoint, db.x, db.y = p, rp, x, y
+  69: end
+  70: 
+  71: local function Build()
+  72:     frame = CreateFrame("Frame", "WLRTCombatTimer", UIParent)
+  73:     frame:SetSize(90, 28)
+  74:     frame:SetPoint(db.point or "TOP", UIParent, db.relPoint or "TOP", db.x or 0, db.y or -120)
+  75:     frame:SetMovable(true)
+  76:     frame:SetClampedToScreen(true)
+  77:     frame:RegisterForDrag("LeftButton")
+  78:     frame:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
+  79:     frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePos() end)
+  80:     frame.bg = frame:CreateTexture(nil, "BACKGROUND")
+  81:     frame.bg:SetAllPoints()
+  82:     W.SetColor(frame.bg, 0, 0, 0, 0.5)
+  83:     frame.text = frame:CreateFontString(nil, "OVERLAY")
+  84:     frame.text:SetFont(W.FONT, 18, "OUTLINE")
+  85:     frame.text:SetPoint("CENTER")
+  86:     frame.text:SetText("0:00")
+  87:     frame:SetScale(db.scale or 1)
+  88:     frame:Hide()
+  89: end
+  90: 
+  91: W.OnReady(function()
+  92:     db = W.DB("combatTimer", { enabled = false, bossOnly = false, hideOOC = false, locked = true, scale = 1 })
+  93:     Build()
+  94: end)
+  95: 
+  96: W.On("PLAYER_ENTERING_WORLD", ApplyVisibility)
+  97: W.On("PLAYER_REGEN_DISABLED", function() Start(false) end)
+  98: W.On("ENCOUNTER_START", function() Start(true) end)
+  99: W.On("PLAYER_REGEN_ENABLED", function() Stop(false) end)
+ 100: W.On("ENCOUNTER_END", function() Stop(true) end)
+ 101: 
+ 102: W.RegisterModule("CombatTimer", L("Combat Timer"), function(p)
+ 103:     W.Title(p, L("Combat Timer"))
+ 104:     local function opt(key, text, y)
+ 105:         W.Check(p, text, function() return db[key] end, function(v) db[key] = v; ApplyVisibility() end):SetPoint("TOPLEFT", 12, y)
+ 106:     end
+ 107:     opt("enabled", L("Show the combat timer"), -40)
+ 108:     opt("bossOnly", L("Boss fights only"), -64)
+ 109:     opt("hideOOC", L("Hide out of combat"), -88)
+ 110:     opt("locked", L("Lock position"), -112)
+ 111:     W.Button(p, L("Size -"), 80, 22, function()
+ 112:         db.scale = math.max(0.6, (db.scale or 1) - 0.1); frame:SetScale(db.scale)
+ 113:     end):SetPoint("TOPLEFT", 16, -146)
+ 114:     W.Button(p, L("Size +"), 80, 22, function()
+ 115:         db.scale = math.min(2.5, (db.scale or 1) + 0.1); frame:SetScale(db.scale)
+ 116:     end):SetPoint("TOPLEFT", 102, -146)
+ 117:     W.Button(p, L("Reset position"), 162, 22, function()
+ 118:         db.point, db.relPoint, db.x, db.y = nil, nil, nil, nil
+ 119:         frame:ClearAllPoints()
+ 120:         frame:SetPoint("TOP", UIParent, "TOP", 0, -120)
+ 121:     end):SetPoint("TOPLEFT", 188, -146)
+ 122:     local info = W.Label(p, L("Starts on entering combat (or on the boss pull) and stops at the end of the fight."), "GameFontHighlightSmall")
+ 123:     info:SetPoint("TOPLEFT", 16, -182)
+ 124:     info:SetTextColor(0.7, 0.7, 0.7)
+ 125:     W.OverlapNote(p, "combatTimer", "TOPLEFT", 16, -210)
+ 126:     W.Check(p, L("Use it anyway"), W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -232)
+ 127: end)
+ 128: 
+
+Question : le module est activé (bossOnly = false). Trace pas à pas l'état (startAt, isEncounter, ticker) pour cette séquence : 1) le joueur entre en combat contre un trash, 2) le boss est engagé (ENCOUNTER_START) pendant ce combat, 3) le joueur meurt (il sort de combat) pendant que la rencontre continue, 4) la rencontre se termine (ENCOUNTER_END). Le chrono redémarre-t-il, s'arrête-t-il à la mort, quand s'arrête-t-il ?

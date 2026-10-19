@@ -1,0 +1,144 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Tâche : relis ce code et liste les vrais bugs.
+
+   1: -- WarLegend RaidTool - Talent Reminder (vanilla take on CC RaidTools' Spec Reminder)
+   2: -- Shows your talent spread when entering a raid / dungeon and on every ready check,
+   3: -- + a break window when BigWigs starts a /break.
+   4: local W = WLRT
+   5: local L = W.L
+   6: local db
+   7: local reminder, breakFrame
+   8: local wasInInstance = false
+   9: local DURATION = 15
+  10: 
+  11: W.OnReady(function()
+  12:     db = W.DB("talentReminder", { enabled = true, onZone = true, onReadyCheck = true, onBreak = true })
+  13: end)
+  14: 
+  15: -- "Arcane 31 / Fire 0 / Frost 20": modern C_Traits on Forever, old talent API elsewhere
+  16: local function TalentSummary()
+  17:     local t = W.OwnTalents()
+  18:     if not t then return L("unknown") end
+  19:     local parts = {}
+  20:     for i, name in ipairs(t.names) do parts[i] = name .. " " .. t.spent[i] end
+  21:     return table.concat(parts, " / "), t.best
+  22: end
+  23: 
+  24: local function Countdown(f, seconds, fmt, onDone)
+  25:     local endAt = GetTime() + seconds
+  26:     local shown -- last second displayed: the text is rebuilt once per second, not every frame
+  27:     f.bar:SetMinMaxValues(0, seconds)
+  28:     f:SetScript("OnUpdate", function(self)
+  29:         local left = endAt - GetTime()
+  30:         if left <= 0 then
+  31:             self:SetScript("OnUpdate", nil)
+  32:             self:Hide()
+  33:             if onDone then onDone() end
+  34:             return
+  35:         end
+  36:         self.bar:SetValue(left)
+  37:         local secs = math.ceil(left)
+  38:         if secs ~= shown then shown = secs; self.bar.text:SetText(fmt(left)) end
+  39:     end)
+  40: end
+  41: 
+  42: local function ShowReminder()
+  43:     if not reminder then
+  44:         reminder = W.Window("WLRTTalentReminder", 340, 120, L("Check your talents"))
+  45:         reminder:SetPoint("CENTER", 0, 120)
+  46:         reminder.body = W.Label(reminder, "", "GameFontHighlight")
+  47:         reminder.body:SetPoint("TOPLEFT", 16, -36)
+  48:         reminder.body:SetWidth(308)
+  49:         reminder.bar = W.TimerBar(reminder, 12)
+  50:         reminder.bar:SetPoint("BOTTOMLEFT", 14, 10)
+  51:         reminder.bar:SetPoint("BOTTOMRIGHT", -14, 10)
+  52:     end
+  53:     local summary, main = TalentSummary()
+  54:     reminder.body:SetText(L("Main tree: |cffffcc00") .. (main or "?") .. "|r\n|cffaaaaaa" .. summary .. "|r")
+  55:     reminder:Show()
+  56:     Countdown(reminder, DURATION, function(left) return string.format(L("Closing in %d s"), math.ceil(left)) end)
+  57: end
+  58: 
+  59: local function ShowBreak(seconds)
+  60:     seconds = tonumber(seconds) or 0
+  61:     if seconds <= 0 then HideBreak(); return end
+  62:     if not breakFrame then
+  63:         breakFrame = W.Window("WLRTBreak", 240, 90, L("Break!"))
+  64:         breakFrame:SetPoint("CENTER", 0, -120)
+  65:         breakFrame.big = W.Label(breakFrame, "", "GameFontNormalHuge")
+  66:         breakFrame.big:SetPoint("TOP", 0, -30)
+  67:         breakFrame.bar = W.TimerBar(breakFrame, 12)
+  68:         breakFrame.bar:SetPoint("BOTTOMLEFT", 14, 10)
+  69:         breakFrame.bar:SetPoint("BOTTOMRIGHT", -14, 10)
+  70:     end
+  71:     breakFrame:Show()
+  72:     Countdown(breakFrame, seconds, function(left)
+  73:         local s = math.ceil(left)
+  74:         local clock = string.format("%d:%02d", math.floor(s / 60), s % 60)
+  75:         breakFrame.big:SetText(clock)
+  76:         return L("Resuming in ") .. clock
+  77:     end)
+  78: end
+  79: 
+  80: local function HideBreak()
+  81:     if breakFrame then breakFrame:SetScript("OnUpdate", nil); breakFrame:Hide() end
+  82: end
+  83: 
+  84: local function HookBigWigs()
+  85:     if not BigWigsLoader or not BigWigsLoader.RegisterMessage then return end
+  86:     local listener = {}
+  87:     BigWigsLoader.RegisterMessage(listener, "BigWigs_StartBreak", function(_, _, seconds)
+  88:         if db.onBreak then ShowBreak(seconds) end
+  89:     end)
+  90:     BigWigsLoader.RegisterMessage(listener, "BigWigs_StopBreak", HideBreak)
+  91: end
+  92: 
+  93: W.On("PLAYER_LOGIN", HookBigWigs)
+  94: W.On("PLAYER_ENTERING_WORLD", function()
+  95:     W.After(0.5, function()
+  96:         local inInstance, instanceType = IsInInstance()
+  97:         if db.enabled and db.onZone and inInstance and not wasInInstance
+  98:             and (instanceType == "raid" or instanceType == "party") then
+  99:             ShowReminder()
+ 100:             wasInInstance = inInstance
+ 101:         end
+ 102:     end)
+ 103: end)
+ 104: W.On("READY_CHECK", function()
+ 105:     if db.enabled and db.onReadyCheck then ShowReminder() end
+ 106: end)
+ 107: 
+ 108: W.RegisterModule("TalentReminder", L("Talent Reminder"), function(p)
+ 109:     W.Title(p, L("Talent Reminder"))
+ 110:     W.Check(p, L("Enable talent reminder"), function() return db.enabled end,
+ 111:         function(v) db.enabled = v end):SetPoint("TOPLEFT", 12, -40)
+ 112:     W.Check(p, L("When entering a raid or dungeon"), function() return db.onZone end,
+ 113:         function(v) db.onZone = v end):SetPoint("TOPLEFT", 32, -66)
+ 114:     W.Check(p, L("On every ready check"), function() return db.onReadyCheck end,
+ 115:         function(v) db.onReadyCheck = v end):SetPoint("TOPLEFT", 32, -92)
+ 116:     W.Check(p, L("Break window during BigWigs /break"), function() return db.onBreak end,
+ 117:         function(v) db.onBreak = v; if not v then HideBreak() end end):SetPoint("TOPLEFT", 12, -118)
+ 118:     W.Button(p, L("Test reminder"), 140, 22, ShowReminder):SetPoint("TOPLEFT", 16, -152)
+ 119:     W.Button(p, L("Test break"), 140, 22, function() ShowBreak(60) end):SetPoint("TOPLEFT", 162, -152)
+ 120:     local info = W.Label(p, L("Talents cannot be changed in combat: the reminder shows before the pull."),
+ 121:         "GameFontHighlightSmall")
+ 122:     info:SetPoint("TOPLEFT", 16, -186)
+ 123:     info:SetTextColor(0.7, 0.7, 0.7)
+ 124: end)
+ 125: 
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 300 mots maximum :
+BUG 1: ligne <N> — <le problème en une ou deux phrases> | CORRECTIF: <code>
+BUG 2: ...
+ou, s'il n'y a aucun vrai bug : AUCUN BUG
+Ne liste que des bugs certains (plantage, comportement faux, règle du projet violée), jamais du style ni des hypothèses.

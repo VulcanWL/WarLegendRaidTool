@@ -1,0 +1,19 @@
+{
+  "id": "L4",
+  "split": "test",
+  "commit": "28480d4",
+  "file": "WarLegendRaidTool_PvP/Modules/Power.lua",
+  "symptom": "Cadres BG alliés : ma barre de mana affiche parfois la mana d'un autre joueur. Sur ce serveur, plusieurs joueurs peuvent avoir le même prénom ; les événements de puissance sont rattachés aux cadres par le nom du joueur.",
+  "code": " 104: \n 105: \n 106:     function playerButton.Power:UpdatePower(unitID)\n 107:         --self:Debug(\"UpdatePower\", unitID, powerToken)\n 108:         -- the test mode asks every button for a random value (no unit): my own is real, it reads \"player\"\n 109:         if not unitID and WarLegendPvP.UserButton == playerButton\n 110:             and not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then\n 111:             unitID = \"player\"\n 112:         end\n 113:         if unitID then\n 114:             -- the maximum can fail (secret value): protected, the bar still gets its value\n 115:             pcall(self.UpdateMinMaxValues, self, UnitPowerMax(unitID))\n 116:             local value = UnitPower(unitID)\n 117:             if issecret(value) or value ~= nil then self:SetValue(value) end\n 118:         else\n 119:             --for testmode\n 120:             self:UpdateMinMaxValues(1)\n 121:             self:SetValue(math_random(0, 100)/100)\n 122:         end\n 123:     end\n 124: \n 125: \n 126:     -- Allies: the bar also reads its unit 4 times a second, whatever the events do (a hidden bar runs nothing).\n 127:     -- My own button reads \"player\" itself. Fake players (test mode) and enemies keep to the events.\n 128:     local sinceRead = 0\n 129:     playerButton.Power:SetScript(\"OnUpdate\", function(self, elapsed)",
+  "expect": {
+    "lines": [
+      106,
+      113,
+      115,
+      116
+    ],
+    "kw": "(propre unité|sa propre|son unité|own unit|playerButton\\.unitID|self\\.unitID|unitID du (cadre|bouton))",
+    "kwFlags": "i"
+  },
+  "fix": "diff --git a/WarLegendRaidTool_PvP/Modules/Power.lua b/WarLegendRaidTool_PvP/Modules/Power.lua\nindex 8a4de69..b1a1f83 100644\n--- a/WarLegendRaidTool_PvP/Modules/Power.lua\n+++ b/WarLegendRaidTool_PvP/Modules/Power.lua\n@@ -111,4 +111,11 @@ function power:AttachToPlayerButton(playerButton)\n \t\t\tunitID = \"player\"\n \t\tend\n+\t\t-- an ally reads ITS OWN unit, whatever the event says: the event is matched to a button by the player's\n+\t\t-- name, and several players can share a first name (WoW: Forever), so the unit it names may be another one\n+\t\tif unitID and not playerButton.PlayerIsEnemy\n+\t\t\tand not (playerButton.PlayerDetails and playerButton.PlayerDetails.isFakePlayer) then\n+\t\t\tlocal own = (WarLegendPvP.UserButton == playerButton) and \"player\" or playerButton.unitID\n+\t\t\tif own then unitID = own end\n+\t\tend\n \t\tif unitID then\n \t\t\t-- the maximum can fail (secret value): protected, the bar still gets its value\n"
+}

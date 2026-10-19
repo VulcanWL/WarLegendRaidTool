@@ -1,0 +1,34 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : L'addon PvP est chargÃ© Ã  la demande (LoadAddOn) bien aprÃ¨s la connexion. Ses options cochÃ©es (ex. masquer les cadres de raid) reviennent aux valeurs par dÃ©faut Ã  chaque chargement.
+
+Code (fichier WarLegendRaidTool_PvP/Startup.lua, avant correction) :
+   1: ---@class WarLegendPvP
+   2: local WarLegendPvP = WarLegendPvP
+   3: 
+   4: -- Loaded on demand by WarLegendRaidTool (PvP.lua), usually after the login: PLAYER_LOGIN and the
+   5: -- PLAYER_ENTERING_WORLD of the battleground already happened, so run them once now.
+   6: if IsLoggedIn() then
+   7:     WarLegendPvP:PLAYER_LOGIN()
+   8:     WarLegendPvP:PLAYER_ENTERING_WORLD()
+   9: end
+  10: 
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

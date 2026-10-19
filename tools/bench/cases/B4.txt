@@ -1,0 +1,171 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet (extrait de AGENTS.md) :
+- Lua 5.1 : pas de goto, pas de //, pas d'opérateurs bit à bit, pas de table.unpack (utiliser unpack).
+- Ne jamais inventer d'API WoW ; une API incertaine est gardée : if C_X and C_X.Y then ... end.
+- Les frames sécurisées / actions protégées ne peuvent pas changer en combat : tester InCombatLockdown() d'abord.
+- Chaque fichier : local W = WLRT ; local L = W.L ; local db. Données : W.OnReady(function() db = W.DB("cle", { defauts scalaires }) end).
+- Événements : W.On("EVENT", fn, always, inactive) renvoie un handler ; inactive = true le démarre éteint, W.Activate(handler, on) l'allume.
+  always = true : s'exécute même si le joueur n'est pas dans la guilde (réservé au cœur de l'addon). Sinon les handlers ne tournent que si W.Allowed().
+- Textes visibles : L("English text") est un APPEL de fonction, jamais L["..."]. Le français va dans W.AddFR({...}) du même fichier.
+  La langue n'est connue qu'à ADDON_LOADED : appeler L() dans les fonctions de construction / handlers / W.OnReady, pas au chargement du fichier.
+- Nouvelle commande /wl : W.slash.nom dans le module, + liste HELP de Core.lua (avec texte français), + tableau "Commandes" de README.md.
+- Outils : node tools/check.js (vérifications), bash tools/sync.sh (copie vers le dossier du jeu). Pas de bump de version sans demande.
+Réponds en français.
+
+Tâche : relis ce fichier et liste les VRAIS bugs (plantage, comportement faux, violation des règles du projet).
+Pour chaque bug : numéro de ligne, explication courte, correction proposée (code).
+N'invente pas de bug : si le code est correct, réponds "Aucun bug trouvé". Ne liste pas de simples remarques de style.
+
+Fichier AutoPromote.lua :
+   1: -- WarLegend RaidTool - Auto Promote
+   2: -- Promotes listed players and/or checked guild ranks to assistant (when you are raid leader).
+   3: local W = WLRT
+   4: local L = W.L
+   5: local db
+   6: local rankByName, ranks = {}, {}
+   7: local ranksDirty = true -- rebuilt on demand, not on every GUILD_ROSTER_UPDATE
+   8: local promotedAt = {}   -- name -> time: GROUP_ and RAID_ROSTER_UPDATE both fire, ask the server once
+   9: local UI = {}
+  10: 
+  11: W.OnReady(function()
+  12:     db = W.DB("autoPromote")
+  13:     db.names = db.names or {}
+  14:     db.ranks = db.ranks or {} -- keyed by rank name
+  15: end)
+  16: 
+  17: local function RefreshRanks()
+  18:     if not ranksDirty then return end
+  19:     ranksDirty = false
+  20:     wipe(rankByName); wipe(ranks)
+  21:     local seen = {}
+  22:     for _, m in ipairs(W.GuildMembers()) do
+  23:         if m.rank then
+  24:             -- a duplicate name (same name, other realm) is ambiguous: no rank-based promotion
+  25:             rankByName[m.name] = (rankByName[m.name] == nil) and m.rank or false
+  26:             if not seen[m.rank] then
+  27:                 seen[m.rank] = true
+  28:                 ranks[#ranks + 1] = { name = m.rank, index = m.rankIndex or 99 }
+  29:             end
+  30:         end
+  31:     end
+  32:     table.sort(ranks, function(a, b) return a.index < b.index end)
+  33: end
+  34: 
+  35: local function ShouldPromote(name)
+  36:     local short = W.BaseName(name)
+  37:     if db.names[name] or db.names[short] then return true end
+  38:     local rank = rankByName[short]
+  39:     return rank and db.ranks[rank] or false
+  40: end
+  41: 
+  42: local function Promote(name)
+  43:     if C_PartyInfo and C_PartyInfo.PromoteToAssistant then
+  44:         C_PartyInfo.PromoteToAssistant(name)
+  45:     elseif PromoteToAssistant then
+  46:         PromoteToAssistant(name)
+  47:     end
+  48: end
+  49: 
+  50: local function Check()
+  51:     if not db or not W.InRaid() or not W.IsLeader() or InCombatLockdown() then return end
+  52:     RefreshRanks()
+  53:     local now = GetTime()
+  54:     for i = 1, W.NumRaid() do
+  55:         local name, rank = GetRaidRosterInfo(i)
+  56:         name, rank = W.Safe(name), W.Safe(rank)
+  57:         if name and rank == 0 and now - (promotedAt[name] or 0) > 5 and ShouldPromote(name) then
+  58:             promotedAt[name] = now
+  59:             Promote(name)
+  60:             W.Print(name .. L(" promoted to assistant."))
+  61:         end
+  62:     end
+  63: end
+  64: 
+  65: local function RefreshUI()
+  66:     if not UI.names then return end
+  67:     local sorted = {}
+  68:     for n in pairs(db.names) do sorted[#sorted + 1] = n end
+  69:     table.sort(sorted)
+  70:     for i, n in ipairs(sorted) do
+  71:         local r = UI.names:Row(i)
+  72:         r.name = n
+  73:         r.text:SetText(n)
+  74:     end
+  75:     UI.names:Finish(#sorted)
+  76: 
+  77:     for i, info in ipairs(ranks) do
+  78:         local c = UI.rankChecks[i]
+  79:         if not c then
+  80:             local box = W.Check(UI.rankPanel, "", function() return box.rankName and db.ranks[box.rankName] end,
+  81:                 function(v) if box.rankName then db.ranks[box.rankName] = v; Check() end end)
+  82:             box:SetPoint("TOPLEFT", 0, -(i - 1) * 24)
+  83:             UI.rankChecks[i] = box
+  84:             c = box
+  85:         end
+  86:         c.rankName = info.name
+  87:         c.label:SetText(info.name)
+  88:         c:Show()
+  89:         c:Sync()
+  90:     end
+  91:     for i = #ranks, #UI.rankChecks do UI.rankChecks[i]:Hide() end
+  92:     UI.noGuild:SetShown(#ranks == 0)
+  93: end
+  94: 
+  95: local function Build(p)
+  96:     W.Title(p, L("Auto Promote"))
+  97:     W.Label(p, L("Add players (separated by comma or space):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
+  98:     local box = W.EditBox(p, 260, 400)
+  99:     box:SetPoint("TOPLEFT", 20, -58)
+ 100:     local function add()
+ 101:         for _, n in ipairs(W.NameList(box:GetText())) do
+ 102:             n = W.SanitizeName(n)
+ 103:             if n ~= "" then db.names[n] = true end
+ 104:         end
+ 105:         box:SetText("")
+ 106:         RefreshUI()
+ 107:         Check()
+ 108:     end
+ 109:     box:SetScript("OnEnterPressed", function(self) add(); self:ClearFocus() end)
+ 110:     W.Button(p, L("Add"), 80, 22, add):SetPoint("LEFT", box, "RIGHT", 8, 0)
+ 111: 
+ 112:     W.Label(p, L("Auto-promoted players:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 16, -90)
+ 113:     local panel = W.Panel(p, 280, 300)
+ 114:     panel:SetPoint("TOPLEFT", 14, -106)
+ 115:     UI.names = W.ScrollList(panel, 240, 284, 20, function(content)
+ 116:         local r = CreateFrame("Frame", nil, content)
+ 117:         r.text = W.Label(r, "", "GameFontHighlightSmall")
+ 118:         r.text:SetPoint("LEFT", 4, 0)
+ 119:         local x = W.Button(r, "x", 22, 18, function(self) db.names[self:GetParent().name] = nil; RefreshUI() end)
+ 120:         x:SetPoint("RIGHT", -2, 0)
+ 121:         return r
+ 122:     end)
+ 123:     UI.names.sf:SetPoint("TOPLEFT", 6, -8)
+ 124: 
+ 125:     W.Label(p, L("Guild ranks to promote:"), "GameFontNormalSmall"):SetPoint("TOPLEFT", 320, -90)
+ 126:     UI.rankPanel = CreateFrame("Frame", nil, p)
+ 127:     UI.rankPanel:SetPoint("TOPLEFT", 320, -108)
+ 128:     W.Size(UI.rankPanel, 260, 300)
+ 129:     UI.rankChecks = {}
+ 130:     UI.noGuild = W.Label(p, L("No guild, or ranks still loading..."), "GameFontDisableSmall")
+ 131:     UI.noGuild:SetPoint("TOPLEFT", 324, -112)
+ 132: 
+ 133:     local info = W.Label(p, L("Works when you are raid leader, out of combat."), "GameFontHighlightSmall")
+ 134:     info:SetPoint("TOPLEFT", 16, -420)
+ 135:     info:SetTextColor(0.7, 0.7, 0.7)
+ 136: end
+ 137: 
+ 138: W.RegisterModule("AutoPromote", "Auto Promote", Build, function()
+ 139:     W.RequestGuildRoster()
+ 140:     RefreshRanks()
+ 141:     RefreshUI()
+ 142: end)
+ 143: 
+ 144: W.On("GUILD_ROSTER_UPDATE", function()
+ 145:     ranksDirty = true
+ 146:     if W.IsShown("AutoPromote") then RefreshRanks(); RefreshUI() end
+ 147: end)
+ 148: W.OnRoster(function() if not W.InRaid() then wipe(promotedAt) end; Check() end)
+ 149: W.On("PLAYER_REGEN_ENABLED", Check)
+ 150: -- the guild ranks only matter to a raid leader: no server request on every loading screen
+ 151: W.On("PLAYER_ENTERING_WORLD", function() if W.InRaid() and W.IsLeader() then W.RequestGuildRoster() end end)
+ 152: 

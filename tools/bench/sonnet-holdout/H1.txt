@@ -1,0 +1,211 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : En champ de bataille, quand je suis mort : erreur « attempt to perform boolean test on local 'left' (a secret number value) » dans SyncFromSpiritHealer.
+
+Code (fichier WarLegendRaidTool/GYTimer.lua, avant correction) :
+   1: -- WarLegend RaidTool - Graveyard timer
+   2: -- Battleground spirit healer wave timer (display only): the game gives the time left before the next
+   3: -- 30 second resurrection wave while you are dead; the bar keeps counting the waves after you are back.
+   4: -- It never releases, accepts or clicks anything for you. Cost: nothing outside a battleground (the bar
+   5: -- is created when you first enter one, its one-tenth-of-a-second update runs only while it is shown).
+   6: local W = WLRT
+   7: W.AddFR({
+   8:     ["Graveyard timer"] = "Chrono cimetière",
+   9:     ["Show the graveyard timer in battlegrounds"] = "Afficher le chrono de cimetière en champ de bataille",
+  10:     ["Lock the bar"] = "Verrouiller la barre",
+  11:     ["Test (fake waves)"] = "Test (fausses vagues)",
+  12:     ["Reset position"] = "Réinitialiser la position",
+  13:     ["Die once to sync"] = "Meurs une fois pour synchro",
+  14:     ["GY rez"] = "Rez cimetière",
+  15:     ["Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting. Drag the bar to move it (when unlocked)."] =
+  16:         "Les vagues du guérisseur d'âmes arrivent toutes les 30 secondes. Meurs une fois dans le champ de bataille pour synchroniser la barre avec le jeu, elle continue ensuite de compter. Déplace la barre en la faisant glisser (si elle n'est pas verrouillée).",
+  17:     ["The separate GYTimer addon is loaded: disable it, this module replaces it."] =
+  18:         "L'addon GYTimer séparé est chargé : désactive-le, ce module le remplace.",
+  19: })
+  20: local L = W.L
+  21: local db
+  22: local WAVE, SOON, STEP = 30, 5, 0.1
+  23: local frame, bar, text, timeText
+  24: -- Same look as the Capping bars (LibCandyBar with Capping's defaults)
+  25: local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
+  26: local CAP_ICON = "Interface\\Icons\\Spell_Holy_Resurrection"
+  27: local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
+  28: local nextWave -- GetTime() of the next wave, nil until synced with the spirit healer
+  29: local testMode, acc = false, 0
+  30: local testRun = 0
+  31: local healerEv
+  32: local standalone = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GYTimer")
+  33: 
+  34: W.OnReady(function()
+  35:     db = W.DB("gyTimer", { enabled = true, locked = false })
+  36:     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -120 } end
+  37: end)
+  38: 
+  39: local function InBattleground()
+  40:     local _, kind = IsInInstance()
+  41:     return kind == "pvp"
+  42: end
+  43: 
+  44: local function SyncFromSpiritHealer()
+  45:     if not UnitIsDeadOrGhost("player") or not GetAreaSpiritHealerTime then return end
+  46:     local left = GetAreaSpiritHealerTime()
+  47:     if left and left > 0 then nextWave = GetTime() + left end
+  48: end
+  49: 
+  50: local function Update()
+  51:     if not testMode then SyncFromSpiritHealer() end
+  52:     if not nextWave then
+  53:         bar:SetValue(0)
+  54:         text:SetText(L("Die once to sync"))
+  55:         timeText:SetText("")
+  56:         return
+  57:     end
+  58:     local now = GetTime()
+  59:     while nextWave <= now do nextWave = nextWave + WAVE end -- the waves go on after you are back alive
+  60:     local left = nextWave - now
+  61:     bar:SetValue(left)
+  62:     if left <= SOON then bar:SetStatusBarColor(1, 0, 0) else bar:SetStatusBarColor(1, 1, 0) end
+  63:     text:SetText(L("GY rez"))
+  64:     if left < 10 then timeText:SetFormattedText("%.1f", left) else timeText:SetFormattedText("%d", left) end
+  65: end
+  66: 
+  67: local function Place()
+  68:     local p = db.point
+  69:     frame:ClearAllPoints()
+  70:     frame:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+  71: end
+  72: 
+  73: local function Create()
+  74:     if frame then return end
+  75:     frame = CreateFrame("Frame", "WLRTGYTimerFrame", UIParent)
+  76:     frame:SetSize(CAP_W, CAP_H)
+  77:     frame:SetFrameStrata("MEDIUM")
+  78:     frame:SetClampedToScreen(true)
+  79:     frame:SetMovable(true)
+  80:     frame:EnableMouse(true)
+  81:     frame:RegisterForDrag("LeftButton")
+  82:     frame:Hide()
+  83:     local icon = frame:CreateTexture(nil, "ARTWORK")
+  84:     icon:SetSize(CAP_H, CAP_H)
+  85:     icon:SetPoint("LEFT")
+  86:     icon:SetTexture(CAP_ICON)
+  87:     icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  88:     bar = CreateFrame("StatusBar", nil, frame)
+  89:     bar:SetPoint("TOPLEFT", icon, "TOPRIGHT")
+  90:     bar:SetPoint("BOTTOMRIGHT")
+  91:     bar:SetStatusBarTexture(CAP_TEXTURE)
+  92:     bar:SetMinMaxValues(0, WAVE)
+  93:     local bg = bar:CreateTexture(nil, "BACKGROUND")
+  94:     bg:SetAllPoints()
+  95:     bg:SetTexture(CAP_TEXTURE)
+  96:     bg:SetVertexColor(0, 0, 0, 0.75)
+  97:     timeText = bar:CreateFontString(nil, "OVERLAY")
+  98:     timeText:SetFont(W.FONT, CAP_FONT_SIZE, "")
+  99:     timeText:SetShadowOffset(1, -1)
+ 100:     timeText:SetTextColor(1, 1, 1)
+ 101:     timeText:SetPoint("RIGHT", -2, 0)
+ 102:     timeText:SetJustifyH("RIGHT")
+ 103:     text = bar:CreateFontString(nil, "OVERLAY")
+ 104:     text:SetFont(W.FONT, CAP_FONT_SIZE, "")
+ 105:     text:SetShadowOffset(1, -1)
+ 106:     text:SetTextColor(1, 1, 1)
+ 107:     text:SetPoint("LEFT", 2, 0)
+ 108:     text:SetPoint("RIGHT", timeText, "LEFT", -2, 0)
+ 109:     text:SetJustifyH("LEFT")
+ 110:     text:SetWordWrap(false)
+ 111:     frame:SetScript("OnDragStart", function(self) if not db.locked then self:StartMoving() end end)
+ 112:     frame:SetScript("OnDragStop", function(self)
+ 113:         self:StopMovingOrSizing()
+ 114:         local point, _, rel, x, y = self:GetPoint()
+ 115:         db.point = { point, rel, x, y }
+ 116:     end)
+ 117:     frame:SetScript("OnUpdate", function(_, e)
+ 118:         acc = acc + e
+ 119:         if acc < STEP then return end
+ 120:         acc = 0
+ 121:         Update()
+ 122:     end)
+ 123:     Place()
+ 124: end
+ 125: 
+ 126: local function Refresh()
+ 127:     if standalone or not db then return end
+ 128:     local show = db.enabled and (testMode or InBattleground())
+ 129:     W.Activate(healerEv, show and true or false)
+ 130:     if show then
+ 131:         Create()
+ 132:         frame:Show()
+ 133:         Update()
+ 134:     elseif frame then
+ 135:         frame:Hide()
+ 136:     end
+ 137: end
+ 138: 
+ 139: healerEv = W.On("AREA_SPIRIT_HEALER_IN_RANGE", SyncFromSpiritHealer, nil, true)
+ 140: W.On("PLAYER_ENTERING_WORLD", function() nextWave = nil; Refresh() end)
+ 141: W.On("ZONE_CHANGED_NEW_AREA", Refresh)
+ 142: 
+ 143: W.slash.gy = function()
+ 144:     if standalone then W.Print(L("The separate GYTimer addon is loaded: disable it, this module replaces it.")); return end
+ 145:     testMode = not testMode
+ 146:     nextWave = testMode and (GetTime() + WAVE) or nil
+ 147:     Refresh()
+ 148:     -- the test stops by itself after two fake waves (a newer test keeps its own stop)
+ 149:     testRun = testRun + 1
+ 150:     local run = testRun
+ 151:     if testMode then
+ 152:         W.After(2 * WAVE + 1, function()
+ 153:             if testMode and run == testRun then testMode = false; nextWave = nil; Refresh() end
+ 154:         end)
+ 155:     end
+ 156: end
+ 157: W.RegisterTest("Graveyard timer", function() return db and db.enabled and not standalone end,
+ 158:     function() if not testMode then W.slash.gy() end end,
+ 159:     function()
+ 160:         if not testMode then return end
+ 161:         testMode, nextWave, testRun = false, nil, testRun + 1
+ 162:         Refresh()
+ 163:     end)
+ 164: 
+ 165: W.RegisterModule("GYTimer", "Graveyard timer", function(p)
+ 166:     W.Title(p, L("Graveyard timer"))
+ 167:     if standalone then
+ 168:         W.Label(p, L("The separate GYTimer addon is loaded: disable it, this module replaces it."), "GameFontHighlight")
+ 169:             :SetPoint("TOPLEFT", 16, -44)
+ 170:     end
+ 171:     W.Check(p, L("Show the graveyard timer in battlegrounds"), function() return db.enabled end,
+ 172:         function(v) db.enabled = v; Refresh() end):SetPoint("TOPLEFT", 12, -70)
+ 173:     W.Check(p, L("Lock the bar"), function() return db.locked end, function(v) db.locked = v end)
+ 174:         :SetPoint("TOPLEFT", 12, -96)
+ 175:     W.Button(p, L("Test (fake waves)"), 170, 22, function() W.slash.gy() end):SetPoint("TOPLEFT", 16, -130)
+ 176:     W.Button(p, L("Reset position"), 162, 22, function()
+ 177:         db.point = { "TOP", "TOP", 0, -120 }
+ 178:         if frame then Place() end
+ 179:     end):SetPoint("TOPLEFT", 196, -130)
+ 180:     local info = W.Label(p, L("Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting. Drag the bar to move it (when unlocked)."),
+ 181:         "GameFontHighlightSmall")
+ 182:     info:SetPoint("TOPLEFT", 16, -170)
+ 183:     info:SetWidth(700)
+ 184:     info:SetJustifyH("LEFT")
+ 185:     info:SetTextColor(0.7, 0.7, 0.7)
+ 186: end)
+ 187: 
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

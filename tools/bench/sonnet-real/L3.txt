@@ -1,0 +1,64 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Erreur x464 en champ de bataille : Â« attempt to perform boolean test on local 'visible' (a secret boolean value) Â» dans LayoutTypeIcons.
+
+Code (fichier WarLegendRaidTool_PvP/Modules/NativeAuras.lua, avant correction) :
+  71: -- right edge of the health bar when there is no name. Redone when the name, the frame or a symbol changes.
+  72: local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must stay readable beside them
+  73: local function LayoutTypeIcons(pb)
+  74:     local list, bar = pb.WLTypeIcons, pb.healthBar
+  75:     if not (list and bar) then return end
+  76:     -- the symbols live inside the client's aura container: it may refuse some calls on them ("secret aspects"),
+  77:     -- so each one goes through pcall and a refusal just leaves that symbol where it is
+  78:     local shown, size = {}, 0
+  79:     for _, it in ipairs(list) do
+  80:         local ok, visible = pcall(it.IsVisible, it)
+  81:         if ok and visible then
+  82:             shown[#shown + 1] = it
+  83:             local okw, w = pcall(it.GetWidth, it)
+  84:             if okw and type(w) == "number" and w > 0 then size = w end
+  85:         end
+  86:     end
+  87:     local n = #shown
+  88:     local total = n * (size + TYPE_GAP)
+  89:     local name = pb.Name
+  90:     local cfg = name and name.config
+  91:     local hasName = name and name.Enabled ~= false and cfg and cfg.Points and name:IsShown() and true or false
+  92:     local old = pb.WLNameShift or { 0, 0 }
+  93:     local sl, sr, mode = 0, 0, "bar"
+  94:     if hasName and n > 0 then
+  95:         local w = name:GetWidth()
+  96:         local textW = name:GetStringWidth() or 0
+  97:         mode, sl, sr = "before", total, 0
+  98:         -- the box width without my own shift; unknown before the first layout: then the symbols stay first
+  99:         if w and w > 0 and (w + old[1] + old[2]) - total < math.min(textW, NAME_MIN) then mode, sl, sr = "after", 0, total end
+ 100:     end
+ 101:     -- nothing changed since the last pass: nothing to anchor again
+ 102:     local sig = mode .. ":" .. n .. ":" .. size .. ":" .. sl .. ":" .. sr
+ 103:     if pb.WLTypeSig == sig then return end
+ 104:     pb.WLTypeSig = sig
+ 105:     -- the name box: its left anchor is pushed right, its right anchor left
+ 106:     if hasName and (old[1] ~= sl or old[2] ~= sr) then
+ 107:         pb.WLNameShift = { sl, sr }
+ 108:         local es = name:GetEffectiveScale()
+ 109:         for j = 1, cfg.ActivePoints do
+ 110:             local pc = cfg.Points[j]
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

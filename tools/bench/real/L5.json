@@ -1,0 +1,17 @@
+{
+  "id": "L5",
+  "split": "test",
+  "commit": "ce8d6b9",
+  "file": "WarLegendRaidTool_PvP/Startup.lua",
+  "symptom": "L'addon PvP est chargé à la demande (LoadAddOn) bien après la connexion. Ses options cochées (ex. masquer les cadres de raid) reviennent aux valeurs par défaut à chaque chargement.",
+  "code": "   1: ---@class WarLegendPvP\n   2: local WarLegendPvP = WarLegendPvP\n   3: \n   4: -- Loaded on demand by WarLegendRaidTool (PvP.lua), usually after the login: PLAYER_LOGIN and the\n   5: -- PLAYER_ENTERING_WORLD of the battleground already happened, so run them once now.\n   6: if IsLoggedIn() then\n   7:     WarLegendPvP:PLAYER_LOGIN()\n   8:     WarLegendPvP:PLAYER_ENTERING_WORLD()\n   9: end\n  10: ",
+  "expect": {
+    "lines": [
+      6,
+      7
+    ],
+    "kw": "(ADDON_LOADED|SavedVariables)",
+    "kwFlags": "i"
+  },
+  "fix": "diff --git a/WarLegendRaidTool_PvP/Startup.lua b/WarLegendRaidTool_PvP/Startup.lua\nindex 0b3a6ab..32c40de 100644\n--- a/WarLegendRaidTool_PvP/Startup.lua\n+++ b/WarLegendRaidTool_PvP/Startup.lua\n@@ -1,9 +1,19 @@\n ---@class WarLegendPvP\n local WarLegendPvP = WarLegendPvP\n+---@type string\n+local AddonName = ...\n \n -- Loaded on demand by WarLegendRaidTool (PvP.lua), usually after the login: PLAYER_LOGIN and the\n--- PLAYER_ENTERING_WORLD of the battleground already happened, so run them once now.\n+-- PLAYER_ENTERING_WORLD of the battleground already happened, so run them once now. Not while the files\n+-- run: the saved settings (WarLegendRaidTool_PvPDB) are only there at this addon's ADDON_LOADED, which\n+-- LoadAddOn fires before it returns.\n if IsLoggedIn() then\n-\tWarLegendPvP:PLAYER_LOGIN()\n-\tWarLegendPvP:PLAYER_ENTERING_WORLD()\n+\tlocal starter = CreateFrame(\"Frame\")\n+\tstarter:RegisterEvent(\"ADDON_LOADED\")\n+\tstarter:SetScript(\"OnEvent\", function(self, _, name)\n+\t\tif name ~= AddonName then return end\n+\t\tself:UnregisterEvent(\"ADDON_LOADED\")\n+\t\tWarLegendPvP:PLAYER_LOGIN()\n+\t\tWarLegendPvP:PLAYER_ENTERING_WORLD()\n+\tend)\n end\n"
+}

@@ -1,0 +1,58 @@
+Contexte : addon World of Warcraft Classic "WarLegendRaidTool" (Lua 5.1 de WoW).
+Règles du projet : Lua 5.1 (pas de goto, //, opérateurs bit à bit, table.unpack). Ne jamais inventer d'API WoW.
+Frames sécurisées : rien en combat sans tester InCombatLockdown(). Fichier : local W = WLRT ; local L = W.L ; local db.
+Données : W.OnReady(function() db = W.DB("cle", { défauts scalaires }) end). Événements : W.On("EVENT", fn, always, inactive)
+(inactive = true : démarre éteint, W.Activate(h, on) l'allume ; always = true : tourne même hors guilde, réservé au cœur).
+Textes : L("English") est une fonction (jamais L["..."]) ; le français peut être dans Locale.lua ou W.AddFR.
+Réponds en français.
+
+Symptôme signalé en jeu : Chronos BG : les barres et l'estimation du temps avant la victoire repartent de zÃ©ro quand on change de sous-zone Ã  l'intÃ©rieur du mÃªme champ de bataille.
+
+Code (fichier WarLegendRaidTool/CapTimers.lua, avant correction) :
+ 476: local function Zone()
+ 477:     local inBG = db and InstanceID()
+ 478:     local winOn = inBG and db.win and not (ESTIMATOR_ZONES[inBG] and CappingLoaded()) and true or false
+ 479:     W.Activate(winEv, winOn)
+ 480:     scoreWidgets, samples, winText = nil, { {}, {} }, nil
+ 481:     StopMatching("win")
+ 482:     local id = db and db.enabled and InstanceID()
+ 483:     local on = id and not (CAPPING_ZONES[id] and CappingLoaded())
+ 484:     W.Activate(poiEv, on and true or false)
+ 485:     capOn = on and true or false
+ 486:     StopMatching("cap:")
+ 487:     StopMatching("flag")
+ 488:     if not InstanceID() then StopMatching("gates") end
+ 489:     if not on then mapID = nil; return end
+ 490:     capTime = ZONE_CAPTIME[id] or db.capTime or 60
+ 491:     mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
+ 492:     Snapshot()
+ 493: end
+ 494: W.On("PLAYER_ENTERING_WORLD", function() if anchor then StopMatching("cap:") end; Zone() end)
+ 495: W.On("ZONE_CHANGED_NEW_AREA", Zone)
+ 496: 
+ 497: ---------------------------------------------------------------------------
+ 498: -- Panel
+ 499: ---------------------------------------------------------------------------
+ 500: local function MapDump()
+ 501:     if not InstanceID() then W.Print(L("Not in a battleground.")); return end
+ 502:     if not mapID then mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player")) end
+ 503:     local name, _, _, _, _, _, _, id = GetInstanceInfo()
+ 504:     local lines = { "instance " .. tostring(W.Safe(id)) .. " " .. tostring(W.Safe(name)) .. ", uiMap " .. tostring(mapID) }
+ 505:     for _, p in ipairs(POIs()) do
+ 506:         lines[#lines + 1] = tostring(p.name) .. "  icon=" .. tostring(p.icon) .. "  atlas=" .. tostring(p.atlas) .. "  poi=" .. tostring(p.id)
+ 507:     end
+ 508:     -- the score counters the time to win reads
+ 509:     local a, h, max = ReadScores()
+
+Tâche : trouve la cause de ce bug et propose le correctif.
+
+Avant de répondre, vérifie chaque point : ne signale pas ce que le code gère déjà (gardes "if X and X()", pcall,
+tests de nil). Les fonctions wipe, unpack, issecretvalue, issecret, pcall, C_Timer existent dans ce client.
+
+Réponds UNIQUEMENT dans ce format, sans montrer ta réflexion, 200 mots maximum :
+CAUSE 1: ligne <N> — <la cause en une ou deux phrases>
+CORRECTIF:
+```lua
+<le code corrigé des lignes concernées>
+```
+CAUSE 2: ligne <N> — <seulement si une deuxième cause est vraiment plausible>

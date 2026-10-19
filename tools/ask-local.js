@@ -18,7 +18,8 @@
 // Programs are run by full path, never looked up in the current folder. Prints only the answer; one status line goes
 // to stderr, and a warning there when the model did not read the whole prompt (Ollama cuts it silently).
 // Good for: French drafts of L() strings, summaries of long logs / diffs / files, prose drafts, a first diagnosis with
-// --bug (right about 6 times in 10 on bugs it has never seen: check it). Never for WoW API or design decisions.
+// --bug (right about one time in two on bugs it has never seen, the fix often wrong: check both). Never for WoW API or
+// design decisions.
 // A bug fixed live that the local AI missed: add its lesson to tools/local-ai-catalogue.md (one numbered line).
 "use strict";
 const fs = require("fs");
@@ -202,9 +203,10 @@ async function readStdin() {
 async function ask(prompt, title, gaming) {
     const options = { temperature: 0.2, num_predict: args.max };
     // context sized to the prompt (about 3.5 characters a token), so a short question does not reserve memory;
-    // gpt-oss:20b keeps 64k tokens on the 16 GB card (measured), more is cut by Ollama without any error
+    // gpt-oss:20b keeps 64k tokens on the 16 GB card (measured), more is cut by Ollama without any error. While WoW
+    // runs, 32k at most: a bigger context would take video memory from the game
     const estimate = Math.ceil(prompt.length / 3.5);
-    options.num_ctx = Math.min(65536, Math.max(4096, Math.ceil(estimate * 1.2) + args.max));
+    options.num_ctx = Math.min(gaming ? 32768 : 65536, Math.max(4096, Math.ceil(estimate * 1.2) + args.max));
     if (args.gpu === "all") { /* Ollama's choice */ }
     else if (args.gpu !== null) options.num_gpu = parseInt(args.gpu, 10);
     else if (gaming) options.num_gpu = await gpuLayers(args.model);
