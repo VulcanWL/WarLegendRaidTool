@@ -2,7 +2,7 @@
 -- Keeps the loot sparkle on quest items (the game only shows it while the outline mode is off, and graphics presets
 -- switch the outline back on) and shows the game's own icon above the nodes you can gather (soft targeting).
 -- Only console variables are set, out of combat, through pcall; the original values are saved and put back.
--- Idea: ForeverLootSparkles (GPL-3.0). Nothing is copied from it: the list of console variables is its documented behaviour.
+-- On by default (both options). Idea: ForeverLootSparkles (GPL-3.0). Nothing is copied from it: the list of console variables is its documented behaviour.
 local W = WLRT
 W.AddFR({
     ["Loot sparkles"] = "Scintillements du butin",
@@ -35,7 +35,7 @@ local SOFT = {
 }
 
 W.OnReady(function()
-    db = W.DB("lootSparkles", { quest = false, nodes = false })
+    db = W.DB("lootSparkles", { quest = true, nodes = true })
 end)
 
 local function Get(name)
