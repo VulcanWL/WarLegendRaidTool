@@ -13,6 +13,9 @@ W.AddFR({
         "Charger les modules de raid pendant l'écran de chargement (pas de gel au premier /wl, un peu plus de mémoire en solo)",
     ["Use our features even when another addon already provides them (Naowh Forever, EllesmereUI)"] =
         "Utiliser nos fonctions même quand un autre addon les fournit déjà (Naowh Forever, EllesmereUI)",
+    ["Window and text size (also: drag the corner at the bottom right of the window):"] =
+        "Taille de la fenêtre et du texte (aussi : glisse le coin en bas à droite de la fenêtre) :",
+    ["Normal"] = "Normal",
     ["Countdown voice (battleground timers, duels):"] = "Voix du décompte (chronos de BG, duels) :",
     ["Settings"] = "Réglages",
     ["Modules"] = "Modules",
@@ -370,6 +373,13 @@ local function BuildGeneral(p)
         function() return W.DB("ui").preloadRaid end, function(v) W.DB("ui").preloadRaid = v end):SetPoint("TOPLEFT", 12, -60)
     W.Check(p, L("Use our features even when another addon already provides them (Naowh Forever, EllesmereUI)"),
         W.OverlapForced, W.SetOverlapForce):SetPoint("TOPLEFT", 12, -84)
+    W.Label(p, L("Window and text size (also: drag the corner at the bottom right of the window):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -158)
+    local sizes = { { 0.9, "90 %" }, { 1, "100 % (" .. L("Normal") .. ")" }, { 1.1, "110 %" }, { 1.2, "120 %" }, { 1.35, "135 %" }, { 1.5, "150 %" } }
+    W.Cycle(p, 130, sizes, function()
+        local cur, best = W.WindowScale(), 1 -- the nearest preset (the corner gives any value)
+        for _, v in ipairs(sizes) do if math.abs(v[1] - cur) < math.abs(best - cur) then best = v[1] end end
+        return best
+    end, function(v) W.SetWindowScale(v, true) end):SetPoint("TOPLEFT", 560, -153)
     W.Label(p, L("Countdown voice (battleground timers, duels):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -122)
     W.Cycle(p, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
         function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 330, -117)

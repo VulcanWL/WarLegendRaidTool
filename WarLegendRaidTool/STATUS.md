@@ -5,13 +5,13 @@ Pas dans le zip des releases.
 
 ## Maintenant (19/10/2026)
 
-- **Version publiée** : 1.32.0-beta (tag `v1.32.0-beta`) : Layers, bouton « Inviter sur mon layer » (clic gauche = sélection,
-  clic droit = chuchoter ; chuchotement 1 fois / 60 s + invitation, seulement vers un membre d'un autre layer de ma zone, lecture
-  de moins de 5 min, pas en combat ni en instance, pas déjà groupé, chef ou assistant en groupe). Comparé à Overlord 9.9.40
-  (détection équivalente, lui invite déjà). **Rien testé en jeu.** Radar / distance des barres de nom : inchangé (plafond
-  du jeu 41 ; test `/run SetCVar("nameplateMaxDistance",60)` à faire).
-- **Non publié** : Loot Council, `LC.CanUse` lit aussi la ligne « Classes : … » de l'infobulle (jetons de tier, `LootCouncil.lua`,
-  `ClassLine`) pour la passe auto. Rien testé en jeu. Piste : contrôles avant attribution (comme `CanGiveLoot` de RCLootCouncil).
+- **Version publiée** : 1.33.0-beta (tag `v1.33.0-beta`) : fenêtre redimensionnable (coin en bas à droite, échelle 0,8 à 1,6,
+  `ui.scale`, `W.SetWindowScale` dans `Core.lua`) + option « taille de la fenêtre et du texte » (Réglages > Général, 90 à 150 %) ;
+  plafond de 200 fragments sur la file de partage des presets (`RaidGroups.lua`) ; Loot Council : `LC.CanUse` lit la ligne
+  « Classes : … » de l'infobulle (jetons de tier). Le zoom agrandit toute la fenêtre d'un bloc (les modules ont des positions fixes,
+  la police seule n'est pas changée). **Rien testé en jeu.** Audit externe (ZIP) analysé : rien d'autre à corriger.
+- 1.32.0-beta : Layers, bouton « Inviter sur mon layer » (clic gauche = sélection, clic droit = chuchoter), **rien testé en jeu**.
+  Radar / distance des barres de nom : inchangé (plafond du jeu 41 ; test `/run SetCVar("nameplateMaxDistance",60)` à faire).
 - Avant : 1.31.0-beta (tag `v1.31.0-beta`, depuis `main`, publiée pour que la guilde teste) : cadres des
   joueurs ennemis en monde ouvert dans l'Alerte danger (`DangerAlert.lua`, option `frames` éteinte par défaut, `framesClick` allumée, `framesPoint` dans
   `TABLE_FIELDS` de `Settings.lua`, README, `docs/modules.md`). Cadres légers à nous, PAS l'addon PvP (jamais chargé
@@ -54,6 +54,7 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.33.0-beta** (19/10) : fenêtre redimensionnable + taille, plafond de la file des presets, Loot Council (Classes).
 - **1.32.0-beta** (19/10) : Layers, bouton « Inviter sur mon layer » (voir Maintenant).
 - **1.31.0-beta** (19/10) : cadres des joueurs ennemis en monde ouvert (Alerte danger, 40 au plus, clic pour cibler).
 - **1.30.0-beta** (19/10) : fusion WarLegend v3 (styles WL v3 + logos `Media/WLLogo*.tga`, `Layers.lua`,

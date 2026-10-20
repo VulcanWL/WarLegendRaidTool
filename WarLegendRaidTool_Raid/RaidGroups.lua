@@ -731,6 +731,10 @@ function RG.Deserialize(str)
 end
 
 local sendQueue = {}
+local MAX_SEND_QUEUE = 200 -- fragments waiting to be sent (a preset is at most 50)
+W.AddFR({
+    ["Preset sharing is still in progress: wait a few seconds."] = "Le partage des presets est encore en cours : attends quelques secondes.",
+})
 local sender = CreateFrame("Frame")
 sender:Hide()
 local sendTimer = 0
@@ -751,6 +755,7 @@ function RG.Share(name)
     local data = RG.Serialize(name, preset)
     local size = 200
     local total = math.ceil(#data / size)
+    if #sendQueue + total > MAX_SEND_QUEUE then W.Print(L("Preset sharing is still in progress: wait a few seconds.")); return end
     local id = tostring(math.random(10000, 99999))
     for i = 1, total do
         sendQueue[#sendQueue + 1] = { msg = "P:" .. id .. ":" .. i .. ":" .. total .. ":" .. data:sub((i - 1) * size + 1, i * size), channel = channel }

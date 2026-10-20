@@ -1617,6 +1617,28 @@ function W.SetModuleOn(key, on)
     for _, b in ipairs(m.buttons or {}) do W.MenuTextColor(b, m) end
 end
 
+-- Window size: the whole window is scaled (text, buttons and layouts together), so every module stays
+-- readable and nothing overlaps. Saved as ui.scale; the grip at the bottom right and Settings > General set it.
+local MIN_SCALE, MAX_SCALE = 0.8, 1.6
+function W.SetWindowScale(s, keepCorner)
+    if not main then return end
+    local ui = W.DB("ui")
+    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 980)
+    s = math.max(MIN_SCALE, math.min(tonumber(s) or 1, fit))
+    s = math.floor(s * 100 + 0.5) / 100
+    local old = main:GetScale()
+    local left, top = main:GetLeft(), main:GetTop()
+    main:SetScale(s)
+    ui.scale = s ~= 1 and s or nil
+    if keepCorner and left and top then -- keep the top left corner where it was
+        main:ClearAllPoints()
+        main:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * old / s, top * old / s)
+        SavePos()
+    end
+end
+
+function W.WindowScale() return (W.db and W.db.ui and W.db.ui.scale) or 1 end
+
 function W.BuildMain()
     if main then return main end
     local blizz, S = W.IsBlizzard(), W.Skin()
@@ -1630,6 +1652,7 @@ function W.BuildMain()
         main:SetPoint("CENTER")
     end
     main:SetFrameStrata("HIGH")
+    main:SetScale(math.max(MIN_SCALE, math.min(ui.scale or 1, MAX_SCALE)))
     main:SetMovable(true)
     main:EnableMouse(true)
     main:SetClampedToScreen(true)
@@ -1963,6 +1986,32 @@ function W.BuildMain()
     main.content:SetPoint("TOPLEFT", MENU_W + 10, -42)
     main.content:SetPoint("BOTTOMRIGHT", -8 - (blizz and 8 or 0), 8 + (blizz and 6 or 0))
 
+    -- resize grip (bottom right): drag to make the whole window bigger or smaller
+    local grip = CreateFrame("Button", nil, main)
+    W.Size(grip, 16, 16)
+    grip:SetPoint("BOTTOMRIGHT", -3, 3)
+    grip:SetFrameLevel(main:GetFrameLevel() + 50)
+    grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
+    grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+    grip:RegisterForClicks("LeftButtonUp")
+    grip:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" or InCombatLockdown() then return end
+        self.leftU = (main:GetLeft() or 0) * main:GetScale()
+        self:SetScript("OnUpdate", function(g)
+            local x = GetCursorPosition() / UIParent:GetEffectiveScale()
+            W.SetWindowScale((x - g.leftU) / main:GetWidth(), true) -- width on screen / base width
+        end)
+    end)
+    grip:SetScript("OnMouseUp", function(self) self:SetScript("OnUpdate", nil) end)
+    grip:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+    grip:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText(L("Drag to resize the window"))
+        GameTooltip:Show()
+    end)
+    grip:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
     main:SetScript("OnShow", function()
         local cur = byKey[W.DB("ui").lastModule]
         W.Select(cur and cur.key or W.modules[1].key)
@@ -1976,6 +2025,7 @@ end
 -- searched). Accents and case do not matter. A result opens the tool, its sub-tab, and flashes the option.
 ---------------------------------------------------------------------------
 W.AddFR({
+    ["Drag to resize the window"] = "Glisse pour redimensionner la fenêtre",
     ["Search an option..."] = "Rechercher une option...",
 })
 local ACCENTS = { ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e", ["à"] = "a", ["â"] = "a", ["ä"] = "a",

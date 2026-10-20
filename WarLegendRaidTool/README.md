@@ -11,7 +11,7 @@ La fenêtre a trois onglets : **Raid** (sections Organisation, Préparation, Com
 dans l'ordre), **Guilde** (Membres : guilde, classes, recrues, carte, layers ; Mes personnages : rerolls, banque, export sim) et
 **Options** (Addon : réglages, version, bugs ; Interface : cadres, options cachées, niveaux d'objet, texte de recharge,
 focus, qualité de vie), chacun avec des sections repliables « + / - » (une ouverte à la fois, retenue) ; les choix
-de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, voix du
+de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
 WarLegend, SashoofUI et les cinq styles **WL v3** de l'addon de Sashoof (panneaux ardoise, accent Cyan, Rouge, Or, Violet ou
