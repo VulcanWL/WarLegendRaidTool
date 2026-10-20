@@ -1,10 +1,10 @@
 ## Interface: 16001
-## Title: |cffffffffWar|r|cffce1918Legend|r RaidTool
-## Notes: WarLegend raid & guild tools: raid groups, loot council (RCLootCouncil style), loot log, soft-res, buff assignments, consumables checklist, attendance, who pulled, ready check, inspect, aura tracking, raid cooldowns, readiness, alts, guild professions/inactive/recruitment. /wl
+## Title: |cffffffffWaR|r |cffce1918LegenD|r RaidTool
+## Notes: WaR LegenD raid & guild tools: raid groups, loot council (RCLootCouncil style), loot log, soft-res, buff assignments, consumables checklist, attendance, who pulled, ready check, inspect, aura tracking, raid cooldowns, readiness, alts, guild professions/inactive/recruitment. /wl
 ## Author: WarLegend
-## Version: 1.33.0-beta
+## Version: 1.34.0-beta
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
-## Notes-frFR: Outils de raid et de guilde WarLegend : groupes, loot council (style RCLootCouncil), loot log, soft-res, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
+## Notes-frFR: Outils de raid et de guilde WaR LegenD : groupes, loot council (style RCLootCouncil), loot log, soft-res, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
 ## SavedVariables: WarLegendRaidToolDB
 ## OptionalDeps: RaidPresets, EllesmereUI, Blizzard_MapCanvas, Blizzard_WorldMap
 
@@ -52,4 +52,5 @@ Classes.lua
 Minotaure.lua
 LootSparkles.lua
 Settings.lua
+Skyborne.lua
 VersionCheck.lua

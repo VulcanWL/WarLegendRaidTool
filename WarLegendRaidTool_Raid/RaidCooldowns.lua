@@ -14,8 +14,8 @@ W.AddFR({
     ["Spells shown:"] = "Sorts affichés :",
     ["Ask the group"] = "Demander au groupe",
     ["Reset position"] = "Réinitialiser la position",
-    ["Players without WarLegend show \"?\": only their class is known, not their cooldown."] =
-        "Les joueurs sans WarLegend affichent « ? » : seule leur classe est connue, pas leur CD.",
+    ["Players without WaR LegenD show \"?\": only their class is known, not their cooldown."] =
+        "Les joueurs sans WaR LegenD affichent « ? » : seule leur classe est connue, pas leur CD.",
     ["Cooldowns are read on the caster's client (talents included) and sent to the group."] =
         "Les CD sont lus chez le lanceur (talents compris) et envoyés au groupe.",
 })
@@ -62,7 +62,11 @@ local UI = {}
 local function Me() return W.UnitKey("player") or "?" end -- my key (full identity)
 -- local end time <-> server time (shared by every client, unlike GetTime)
 local function ToServer(localEnd) return math.floor(GetServerTime() + (localEnd - GetTime()) + 0.5) end
-local function FromServer(serverEnd) return GetTime() + (serverEnd - GetServerTime()) end
+-- a received end time is kept within one day of now: nothing absurd reaches the window
+local function FromServer(serverEnd)
+    local left = (W.Finite(serverEnd) or 0) - GetServerTime()
+    return GetTime() + math.max(-86400, math.min(86400, left))
+end
 
 ---------------------------------------------------------------------------
 -- My own spells
@@ -330,14 +334,14 @@ W.OnAddon(PREFIX, function(msg, from, _, full)
         st = { addon = true }
         for key, serverEnd in (t[2] or ""):gmatch("(%w+):(%d+)") do
             if byKey[key] then
-                serverEnd = tonumber(serverEnd)
+                serverEnd = W.Finite(serverEnd, 0) or 0
                 st[key] = serverEnd > 0 and FromServer(serverEnd) or 0
             end
         end
         state[who] = st
     elseif t[1] == "C" and byKey[t[2]] then
         st = st or { addon = true }
-        local serverEnd = tonumber(t[3])
+        local serverEnd = W.Finite(t[3], 0)
         st[t[2]] = serverEnd and FromServer(serverEnd) or (GetTime() + byKey[t[2]].cd)
         state[who] = st
     else
@@ -430,7 +434,7 @@ W.RegisterModule("RaidCooldowns", L("Raid Cooldowns"), function(p)
         win:SetPoint("LEFT", UIParent, "LEFT", 20, 120)
     end):SetPoint("TOPLEFT", 344, -296)
 
-    local info = W.Label(p, L("Players without WarLegend show \"?\": only their class is known, not their cooldown.") .. "\n"
+    local info = W.Label(p, L("Players without WaR LegenD show \"?\": only their class is known, not their cooldown.") .. "\n"
         .. L("Cooldowns are read on the caster's client (talents included) and sent to the group."), "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -332)
     info:SetWidth(640)

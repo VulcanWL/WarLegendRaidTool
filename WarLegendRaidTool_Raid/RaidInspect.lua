@@ -233,12 +233,19 @@ W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
     local rec = guid and records[guid]
     -- only trust the player about themselves: the data must be about the sender's own character
     if not rec or W.Safe(UnitGUID(unit)) ~= guid then return end
-    rec.ilvl, rec.apiIlvl = tonumber(ilvl), true
-    rec.enchanted, rec.enchantable, rec.missing = tonumber(ench), tonumber(total), {}
-    for id in miss:gmatch("%d+") do rec.missing[#rec.missing + 1] = tonumber(id) end
+    rec.ilvl, rec.apiIlvl = W.Int(ilvl, 0, 1000), true
+    rec.enchantable = W.Int(total, 0, 20)
+    rec.enchanted, rec.missing = W.Int(ench, 0, rec.enchantable), {}
+    for id in miss:gmatch("%d+") do
+        if #rec.missing >= 20 then break end
+        rec.missing[#rec.missing + 1] = W.Int(id, 0, 19) -- equipment slots
+    end
     if tal ~= "" then
         local spent = {}
-        for n in tal:gmatch("%d+") do spent[#spent + 1] = tonumber(n) end
+        for n in tal:gmatch("%d+") do
+            if #spent >= 5 then break end
+            spent[#spent + 1] = W.Int(n, 0, 100)
+        end
         rec.talents = { spent = spent, best = tree ~= "" and W.Plain(tree, 40) or nil }
     end
     rec.read, rec.far, rec.state, rec.hasAddon, rec.loading = Now(), false, "ready", true, false
@@ -447,7 +454,7 @@ local function Build(p)
             if not rec then return end
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:AddLine(rec.name, W.ClassColor(rec.class))
-            if rec.hasAddon then GameTooltip:AddLine(L("Data sent by their WarLegend RaidTool"), 0.8, 0.8, 0.8) end
+            if rec.hasAddon then GameTooltip:AddLine(L("Data sent by their WaR LegenD RaidTool"), 0.8, 0.8, 0.8) end
             if rec.missing and #rec.missing > 0 then
                 GameTooltip:AddLine(L("Missing enchant on:"), 1, 0.4, 0.4)
                 for _, s in ipairs(rec.missing) do GameTooltip:AddLine("- " .. L(SLOT_NAMES[s] or ("#" .. s)), 1, 1, 1) end
@@ -463,7 +470,7 @@ local function Build(p)
     UI.list.sf:SetPoint("TOPLEFT", 6, -8)
     local info = W.Label(p, L("* = items not loaded by the game yet (they are read again automatically).") .. "\n\n"
         .. L("Players must be within inspect range (~10 yd). Out of range players are tried again every few seconds.") .. "\n\n"
-        .. L("|cffce1918WL|r = has WarLegend RaidTool: sends its own data, no inspect needed."), "GameFontHighlightSmall")
+        .. L("|cffce1918WL|r = has WaR LegenD RaidTool: sends its own data, no inspect needed."), "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 604, -96)
     info:SetWidth(200)
     info:SetTextColor(0.7, 0.7, 0.7)

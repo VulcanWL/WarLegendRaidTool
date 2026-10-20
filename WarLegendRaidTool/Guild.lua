@@ -60,8 +60,8 @@ W.AddFR({
     ["%d result(s), data from %d member(s)"] = "%d résultat(s), données de %d membre(s)",
     ["No member matches these filters."] = "Aucun membre ne correspond à ces filtres.",
     ["No profession data yet."] = "Aucune donnée de métier pour l'instant.",
-    ["Ask the guild members to open each of their professions once, with WarLegend RaidTool installed (open yours too)."] =
-        "Demande aux membres de la guilde d'ouvrir chacun de leurs métiers une fois, avec WarLegend RaidTool installé (ouvre aussi les tiens).",
+    ["Ask the guild members to open each of their professions once, with WaR LegenD RaidTool installed (open yours too)."] =
+        "Demande aux membres de la guilde d'ouvrir chacun de leurs métiers une fois, avec WaR LegenD RaidTool installé (ouvre aussi les tiens).",
     ["WoW only lets an addon read a player's professions from that player's own game, and the recipe list only while the profession window is open. Their addon then sends them to the guild."] =
         "WoW ne laisse un addon lire les métiers d'un joueur que depuis le jeu de ce joueur, et la liste des recettes seulement quand la fenêtre du métier est ouverte. Son addon les envoie ensuite à la guilde.",
     ["What is received is saved: it stays after closing this window or restarting the game."] =
@@ -85,8 +85,8 @@ W.AddFR({
     ["Source"] = "Source",
     ["Roster"] = "Liste",
     ["Link"] = "Lien",
-    ["Shared by their WarLegend RaidTool (read on their own game)."] =
-        "Partagé par son WarLegend RaidTool (lu sur son propre jeu).",
+    ["Shared by their WaR LegenD RaidTool (read on their own game)."] =
+        "Partagé par son WaR LegenD RaidTool (lu sur son propre jeu).",
     ["From the guild roster (game server): main professions only, no maximum skill."] =
         "Depuis la liste de guilde (serveur du jeu) : métiers principaux seulement, sans niveau maximum.",
     ["From a profession link: it names the profession, not the skill level."] =
@@ -96,10 +96,10 @@ W.AddFR({
     ["Profession link saved: %s - %s (a link gives no skill level)."] =
         "Lien de métier enregistré : %s - %s (un lien ne donne pas le niveau).",
     ["This profession link belongs to nobody in the guild."] = "Ce lien de métier n'appartient à personne de la guilde.",
-    ["Share my professions with the guild's WarLegend RaidTool users (hidden addon messages, no chat)"] =
-        "Partager mes métiers avec les utilisateurs WarLegend RaidTool de la guilde (messages d'addon invisibles, pas de chat)",
-    ["Sources: guild roster (server), the member's WarLegend RaidTool, profession links (Shift-click one while this tab is open)."] =
-        "Sources : liste de guilde (serveur), WarLegend RaidTool du membre, liens de métier (Maj-clic sur un lien pendant que cet onglet est ouvert).",
+    ["Share my professions with the guild's WaR LegenD RaidTool users (hidden addon messages, no chat)"] =
+        "Partager mes métiers avec les utilisateurs WaR LegenD RaidTool de la guilde (messages d'addon invisibles, pas de chat)",
+    ["Sources: guild roster (server), the member's WaR LegenD RaidTool, profession links (Shift-click one while this tab is open)."] =
+        "Sources : liste de guilde (serveur), WaR LegenD RaidTool du membre, liens de métier (Maj-clic sur un lien pendant que cet onglet est ouvert).",
     ["The game server gives no profession in the guild roster yet, and no member has shared theirs."] =
         "Le serveur du jeu ne donne encore aucun métier dans la liste de guilde, et aucun membre n'a partagé les siens.",
 })
@@ -1059,7 +1059,7 @@ function G.RefreshProfs()
         -- nothing received yet: what to do, and why WoW needs it
         UI.empty:SetText("|cffffcc00" .. L("No profession data yet.") .. "|r\n\n"
             .. L("The game server gives no profession in the guild roster yet, and no member has shared theirs.") .. "\n\n"
-            .. L("Ask the guild members to open each of their professions once, with WarLegend RaidTool installed (open yours too).") .. "\n\n"
+            .. L("Ask the guild members to open each of their professions once, with WaR LegenD RaidTool installed (open yours too).") .. "\n\n"
             .. L("WoW only lets an addon read a player's professions from that player's own game, and the recipe list only while the profession window is open. Their addon then sends them to the guild.") .. "\n\n"
             .. L("What is received is saved: it stays after closing this window or restarting the game."))
     elseif #rows == 0 then
@@ -1242,7 +1242,7 @@ local function BuildProfs(p)
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
         GameTooltip:AddLine(d.name or d.member, 1, 1, 1)
         if d.src == "wl" then
-            GameTooltip:AddLine(L("Shared by their WarLegend RaidTool (read on their own game)."), 0.8, 0.8, 0.8, true)
+            GameTooltip:AddLine(L("Shared by their WaR LegenD RaidTool (read on their own game)."), 0.8, 0.8, 0.8, true)
         elseif d.src == "roster" then
             GameTooltip:AddLine(L("From the guild roster (game server): main professions only, no maximum skill."), 0.8, 0.8, 0.8, true)
         elseif d.src == "link" then
@@ -1282,9 +1282,9 @@ local function BuildProfs(p)
     UI.empty:SetJustifyH("CENTER")
     UI.empty:Hide()
 
-    W.Check(p, L("Share my professions with the guild's WarLegend RaidTool users (hidden addon messages, no chat)"),
+    W.Check(p, L("Share my professions with the guild's WaR LegenD RaidTool users (hidden addon messages, no chat)"),
         function() return db.profShare end, function(v) db.profShare = v end):SetPoint("BOTTOMLEFT", 10, 36)
-    local h1 = W.Label(p, L("Sources: guild roster (server), the member's WarLegend RaidTool, profession links (Shift-click one while this tab is open)."), "GameFontDisableSmall")
+    local h1 = W.Label(p, L("Sources: guild roster (server), the member's WaR LegenD RaidTool, profession links (Shift-click one while this tab is open)."), "GameFontDisableSmall")
     h1:SetPoint("BOTTOMLEFT", 14, 22)
     local h2 = W.Label(p, L("Open each of your professions once so the addon can read your recipes."), "GameFontDisableSmall")
     h2:SetPoint("BOTTOMLEFT", 14, 6)

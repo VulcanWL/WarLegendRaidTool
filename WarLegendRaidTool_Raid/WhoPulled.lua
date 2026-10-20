@@ -129,7 +129,7 @@ local function Report(p, boss)
     if db.print then W.Print(text) end
     if db.announce and W.Channel() then
         -- already printed above: send quietly; otherwise show it here if the chat is locked
-        if db.print then W.SendChat("[WarLegend] " .. text, W.Channel()) else W.Announce("[WarLegend] " .. text, W.Channel()) end
+        if db.print then W.SendChat("[WaR LegenD] " .. text, W.Channel()) else W.Announce("[WaR LegenD] " .. text, W.Channel()) end
     end
     WP.Refresh()
 end

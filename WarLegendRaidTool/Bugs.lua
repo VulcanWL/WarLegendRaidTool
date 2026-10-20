@@ -13,15 +13,15 @@ local refresh -- set when the tab is built
 
 W.AddFR({
     ["Bugs"] = "Bugs",
-    ["Errors of the WarLegend addons this session. Select all, copy (Ctrl+C) and paste in the guild's bug channel."] =
-        "Erreurs des addons WarLegend de cette session. Tout sélectionner, copier (Ctrl+C) et coller dans le salon bugs de la guilde.",
+    ["Errors of the WaR LegenD addons this session. Select all, copy (Ctrl+C) and paste in the guild's bug channel."] =
+        "Erreurs des addons WaR LegenD de cette session. Tout sélectionner, copier (Ctrl+C) et coller dans le salon bugs de la guilde.",
     ["BugGrabber is not installed: install BugGrabber and BugSack to record the errors."] =
         "BugGrabber n'est pas installé : installe BugGrabber et BugSack pour enregistrer les erreurs.",
-    ["No error of the WarLegend addons this session."] = "Aucune erreur des addons WarLegend dans cette session.",
+    ["No error of the WaR LegenD addons this session."] = "Aucune erreur des addons WaR LegenD dans cette session.",
     ["Select all"] = "Tout sélectionner",
     ["Refresh"] = "Actualiser",
     ["Clear"] = "Effacer",
-    ["A WarLegend error was recorded: /wl bugs to copy it."] = "Une erreur WarLegend a été enregistrée : /wl bugs pour la copier.",
+    ["A WaR LegenD error was recorded: /wl bugs to copy it."] = "Une erreur WaR LegenD a été enregistrée : /wl bugs pour la copier.",
 })
 
 local function IsOurs(err)
@@ -43,7 +43,7 @@ local function Format(err)
     local gameVersion, build = GetBuildInfo()
     local zone = W.Safe(GetRealZoneText and GetRealZoneText()) or "?"
     local lines = {
-        ("[WarLegend %s | Raid %s | PvP %s | WoW %s (%s) | %s | %s] x%d"):format(W.version,
+        ("[WaR LegenD %s | Raid %s | PvP %s | WoW %s (%s) | %s | %s] x%d"):format(W.version,
             AddonVersion("WarLegendRaidTool_Raid"), AddonVersion("WarLegendRaidTool_PvP"), tostring(gameVersion),
             tostring(build), zone, date("%Y-%m-%d %H:%M", err.time or time()), err.counter or 1),
         Plain(err.message),
@@ -69,7 +69,7 @@ local function Remember(err)
     errors[#errors + 1] = { key = err.message, counter = err.counter, text = Format(err) }
     if not notified then
         notified = true
-        W.Print(L("A WarLegend error was recorded: /wl bugs to copy it."))
+        W.Print(L("A WaR LegenD error was recorded: /wl bugs to copy it."))
     end
 end
 
@@ -101,7 +101,7 @@ W.RegisterModule("Bugs", "Bugs", function(p)
         label:SetWidth(600)
         return
     end
-    local help = W.Label(p, L("Errors of the WarLegend addons this session. Select all, copy (Ctrl+C) and paste in the guild's bug channel."), "GameFontHighlightSmall")
+    local help = W.Label(p, L("Errors of the WaR LegenD addons this session. Select all, copy (Ctrl+C) and paste in the guild's bug channel."), "GameFontHighlightSmall")
     help:SetPoint("TOPLEFT", 16, -40)
     help:SetWidth(640)
 
@@ -110,7 +110,7 @@ W.RegisterModule("Bugs", "Bugs", function(p)
 
     refresh = function()
         if #errors == 0 then
-            box:SetText(L("No error of the WarLegend addons this session."))
+            box:SetText(L("No error of the WaR LegenD addons this session."))
             return
         end
         local parts = {}

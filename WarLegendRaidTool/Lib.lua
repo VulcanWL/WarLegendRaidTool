@@ -68,6 +68,20 @@ function W.Queue(prefix, msg, channel, target)
     return true
 end
 
+-- Numbers read from a received message: nil when not a finite number, else clamped to min..max.
+-- W.Int also drops the decimals. Every addon-message handler runs its numbers through these.
+function W.Finite(v, min, max)
+    local n = tonumber(v)
+    if not n or n ~= n or n == math.huge or n == -math.huge then return nil end
+    if min and n < min then n = min end
+    if max and n > max then n = max end
+    return n
+end
+function W.Int(v, min, max)
+    local n = W.Finite(v, min, max)
+    return n and math.floor(n) or nil
+end
+
 -- Long text: split into chunks "id:i:n:chunk", rebuilt by W.OnAddonLong
 local CHUNK = 220
 local longId = 0
@@ -438,7 +452,7 @@ end
 local confirm
 function W.Confirm(text, onYes, yesText)
     if not confirm then
-        confirm = W.Window("WLRTConfirm", 360, 130, "WarLegend")
+        confirm = W.Window("WLRTConfirm", 360, 130, "WaR LegenD")
         confirm:SetFrameStrata("FULLSCREEN_DIALOG")
         confirm.text = W.Label(confirm, "", "GameFontHighlight")
         confirm.text:SetPoint("TOP", 0, -40)
@@ -469,7 +483,7 @@ local reloadWin
 function W.ConfirmReload(text)
     if InCombatLockdown() then W.Print(L("Type /reload after combat to apply the change.")); return end
     if not reloadWin then
-        local f = W.Window("WLRTReload", 380, 130, "WarLegend")
+        local f = W.Window("WLRTReload", 380, 130, "WaR LegenD")
         f:SetFrameStrata("FULLSCREEN_DIALOG")
         f.text = W.Label(f, "", "GameFontHighlight")
         f.text:SetPoint("TOP", 0, -40)
@@ -514,7 +528,7 @@ local function MakeReloadKey()
 end
 MakeReloadKey()
 W.On("PLAYER_REGEN_ENABLED", MakeReloadKey, true)
-BINDING_HEADER_WARLEGENDRAIDTOOL = "WarLegend RaidTool"
+BINDING_HEADER_WARLEGENDRAIDTOOL = "WaR LegenD RaidTool"
 W.AddFR({ ["Reload the interface"] = "Recharger l'interface" })
 W.OnReady(function()
     _G["BINDING_NAME_CLICK WLRTReloadKey:LeftButton"] = L("Reload the interface")

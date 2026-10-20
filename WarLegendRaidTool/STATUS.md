@@ -3,8 +3,22 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (19/10/2026)
+## Maintenant (20/10/2026)
 
+- **Version publiée (20/10)** : 1.34.0-beta (tag `v1.34.0-beta`) = addon Skyborne (4e dossier), audit externe n°2, textes « WaR LegenD ». Les deux puces « Non publié » ci-dessous sont donc dans cette version. **Rien testé en jeu.**
+
+- **Inclus dans 1.34.0-beta (Skyborne)** : 4e addon à la demande `WarLegendRaidTool_Skyborne` (port de Skyborne Leyline & Convergence
+  Marker 0.4.1, tr0tsky, MIT) : épingles lignes de force / convergences sur la carte, détection minicarte, partage par le canal caché
+  d'origine (`SLLCM`, allumé par défaut), `/wl sk` ; chargeur `Skyborne.lua`. Ajouté à `.gitignore`, `sync.sh`, `check.js`, workflow.
+  `check.js` 0 problème ; **rien testé en jeu**. À tester : perso Skyborne, `/reload`, carte du monde, `/wl sk`, `/wl sk share`.
+- **Inclus dans 1.34.0-beta (audit externe n°2)** : corrigé : import de profil (nombres finis et ≤ 1e12 car les dates valent ~1,8e9, chaînes ≤ 20 000, 20 000 entrées
+  au plus, noms de champs ≤ 40, réglages PvP fusionnés clé par clé au lieu de remplacer le fichier, `Settings.lua`) ; `W.Finite` / `W.Int`
+  (`Lib.lua`) appliqués à ReadyCheck, GuildPositions, RaidCooldowns, RaidInspect, Checklist (100 objets au plus) ; fragments de preset
+  renvoyés si throttle / chat verrouillé (le verrouillage d'un boss ne compte pas), file vidée + message si échec (`RaidGroups.lua`) ; repli talents d'inspection (`Core.lua`) ;
+  Raid Buffs ignore les joueurs non visibles / hors portée, sous `pcall` (valeurs secrètes), (`RaidBuffs.lua`) ; repli talents gardé seulement s'il trouve des points. Limite connue : un preset partagé juste avant un pull peut arriver incomplet (le receveur jette un transfert après 60 s). Relecture complète du diff faite le 20/10. Déjà fait : zip sans AGENTS / STATUS / tests LibStub
+  (workflow). `CanLead()` gardé tel quel (choix de l'utilisateur). Pas touché : partages par défaut, GPL du module PvP (BattleGroundEnemies
+  est en GPLv3 : à décider, licence ou accord écrit de l'auteur), découpage des gros fichiers, tickers PvP, chargement à la demande.
+  À confirmer en jeu : en-tête des raccourcis PvP (`header="WarLegendPvP"` sans global), emplacement 18. `check.js` 0 problème, jeu à jour, **rien testé en jeu**.
 - **Version publiée** : 1.33.0-beta (tag `v1.33.0-beta`) : fenêtre redimensionnable (coin en bas à droite, échelle 0,8 à 1,6,
   `ui.scale`, `W.SetWindowScale` dans `Core.lua`) + option « taille de la fenêtre et du texte » (Réglages > Général, 90 à 150 %) ;
   plafond de 200 fragments sur la file de partage des presets (`RaidGroups.lua`) ; Loot Council : `LC.CanUse` lit la ligne
@@ -42,6 +56,10 @@ Pas dans le zip des releases.
 
 ## Pistes ouvertes (audit du 17/10, non corrigées)
 
+- **À faire plus tard (demande du 20/10)** : intégrer des images dans l'addon. Rien n'est fait. À préciser dans une nouvelle
+  session : quelles images (logo, fond de fenêtre, icônes, bouton minicarte), où sont les fichiers (dossier, format, taille),
+  remplacer l'existant (`Media/Logo*.tga`, `WLLogo*.tga`, `W.LOGO_TEX` dans `Core.lua`) ou s'ajouter. Contraintes : `.tga` / `.blp`,
+  dimensions en puissance de 2, `git add` du fichier pour `sync.sh`, relance complète du jeu pour voir un nouveau fichier.
 - Emplacement 18 (à distance) : `SimExport.lua` dit qu'il n'existe pas sur Forever, `RaidInspect.lua`,
   `ItemLevels.lua` et `LootCouncil.lua` l'utilisent. À vérifier en jeu.
 - `W.InspectTalents` (Core) : pas de repli sur l'ancienne API quand `C_Traits` ne rend rien.
@@ -53,6 +71,8 @@ Pas dans le zip des releases.
 - Transports (1.28.3) : icône, `UnitOnTaxi`, `GetServerTime`, déclencheurs à vérifier en jeu.
 
 ## Historique
+
+- **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD » (voir Maintenant).
 
 - **1.33.0-beta** (19/10) : fenêtre redimensionnable + taille, plafond de la file des presets, Loot Council (Classes).
 - **1.32.0-beta** (19/10) : Layers, bouton « Inviter sur mon layer » (voir Maintenant).

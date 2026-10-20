@@ -14,7 +14,7 @@ FORCE=0
 cd "$REPO" || exit 1
 [ -d "$GAME" ] || { echo "Game AddOns folder not found: $GAME"; exit 1; }
 
-ADDONS=(WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP)
+ADDONS=(WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne)
 copied=0; skipped=0; untracked=0
 # What this script last copied (path -> blob): a game file still equal to it is OUR previous copy (an edit not committed
 # yet), so it is safe to replace; only a game file that is neither in git nor our last copy is someone's own change.

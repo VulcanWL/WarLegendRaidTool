@@ -159,7 +159,7 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
     if not full or full == myName then return end
     local name, _, level, class, _, x, y, mapID = strsplit(",", msg)
     if class == "STEALTH" then Forget(full); return end
-    x, y, mapID, level = tonumber(x), tonumber(y), tonumber(mapID), tonumber(level)
+    x, y, mapID, level = W.Finite(x), W.Finite(y), W.Int(mapID, 0, 100000), W.Int(level, 0, 100)
     if not (x and y and mapID) or x <= 0 or x > 1 or y <= 0 or y > 1 or mapID <= 0 then Forget(full); return end
     -- the game shows the players of my group itself
     if W.UnitByName and W.UnitByName(full) then Forget(full); return end

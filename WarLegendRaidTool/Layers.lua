@@ -32,8 +32,8 @@ W.AddFR({
     ["Invite: only the leader or an assistant can invite."] = "Invitation impossible : seul le chef ou un assistant peut inviter.",
     ["Invite: %s is not on another layer of my zone."] = "Invitation impossible : %s n'est pas sur un autre layer de ma zone.",
     ["Invite: the reading of %s is older than 5 minutes."] = "Invitation impossible : la lecture de %s date de plus de 5 minutes.",
-    ["[WarLegend] We are on different layers: I am inviting you to my group, accept to join my layer."] =
-        "[WarLegend] Nous sommes sur des layers différents : je t'invite dans mon groupe, accepte pour rejoindre mon layer.",
+    ["[WaR LegenD] We are on different layers: I am inviting you to my group, accept to join my layer."] =
+        "[WaR LegenD] Nous sommes sur des layers différents : je t'invite dans mon groupe, accepte pour rejoindre mon layer.",
     ["Invitation sent to %s."] = "Invitation envoyée à %s.",
     ["Click: select. Right click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
         "Clic : sélectionner. Clic droit : chuchoter. Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
@@ -244,7 +244,7 @@ local function InviteSelected()
     local now = GetTime()
     if now - (lastWhisper[key] or -1000) >= WHISPER_GAP then
         lastWhisper[key] = now
-        SendChatMessage(L("[WarLegend] We are on different layers: I am inviting you to my group, accept to join my layer."), "WHISPER", nil, e.full)
+        SendChatMessage(L("[WaR LegenD] We are on different layers: I am inviting you to my group, accept to join my layer."), "WHISPER", nil, e.full)
     end
     Invite(e.full)
     W.Print(string.format(L("Invitation sent to %s."), name))

@@ -10,12 +10,12 @@ local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
 W.ADDON = ADDON
 W.version = (meta and meta(ADDON, "Version")) or "?"
 W.R, W.G, W.B = 0.808, 0.098, 0.094 -- warlegend.net red (#CE1918)
-W.TAG = "|cffce1918[WarLegend]|r " -- text only: also used in whispers, which cannot carry textures
+W.TAG = "|cffce1918[WaR LegenD]|r " -- text only: also used in whispers, which cannot carry textures
 -- War Legend skull logo (Media/Logo.tga 256 px, Media/Logo64.tga for small icons)
 W.LOGO_TEX = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo"
 W.LOGO_SMALL = "Interface\\AddOns\\" .. ADDON .. "\\Media\\Logo64"
 W.WHITE = "Interface\\Buttons\\WHITE8X8"
-W.LOGO = "|cffffffffWAR|r|cffce1918LEGEND|r"
+W.LOGO = "|cffffffffWaR|r |cffce1918LegenD|r"
 W.FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 W.ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
@@ -893,7 +893,12 @@ function W.InspectTalents()
     if C_Traits and C_Traits.HasValidInspectData then
         if not C_Traits.HasValidInspectData() then return nil end
         local consts = Constants and Constants.TraitConsts
-        return W.ReadTalentConfig(consts and consts.INSPECT_TRAIT_CONFIG_ID)
+        local t = W.ReadTalentConfig(consts and consts.INSPECT_TRAIT_CONFIG_ID)
+        if t then return t end
+        -- valid inspect data but no usable trait config (transient, empty groups): the old reading is the
+        -- fallback, kept only when it found points (all zeros would hide "unknown")
+        t = W.ClassicTalents(true)
+        return t and t.total > 0 and t or nil
     end
     return W.ClassicTalents(true)
 end
@@ -945,7 +950,7 @@ end
 local skin
 W.style = "blizzard"
 
-local BRAND = { 0.808, 0.098, 0.094 } -- WarLegend red #CE1918
+local BRAND = { 0.808, 0.098, 0.094 } -- WaR LegenD red #CE1918
 -- colors of the flat themes (panel, light panel, border, button hover, header gradient, menu column)
 local PALETTES = {
     flat = { panel = { 0.031, 0.031, 0.031 }, light = { 0.075, 0.075, 0.075 }, border = { 0.17, 0.17, 0.17 },
@@ -973,7 +978,7 @@ function W.ResolveTheme()
         local a = WL3[pref]
         W.R, W.G, W.B = a[1], a[2], a[3]
         W.LOGO_TEX = "Interface\\AddOns\\" .. ADDON .. "\\Media\\" .. a[4]
-        W.LOGO = string.format("|cffffffffWAR|r|cff%02x%02x%02xLEGEND|r",
+        W.LOGO = string.format("|cffffffffWaR|r |cff%02x%02x%02xLegenD|r",
             math.floor(a[1] * 255 + 0.5), math.floor(a[2] * 255 + 0.5), math.floor(a[3] * 255 + 0.5))
     elseif pref == "eui" then
         local r, g, b = skin.GetAccentColor()
@@ -1696,7 +1701,7 @@ function W.BuildMain()
     local close = W.CloseButton(main, 30)
     close:SetPoint("TOPRIGHT", blizz and -6 or 0, blizz and -6 or 0)
     -- style selector, a drop-down (needs a reload)
-    local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WarLegend" }, { "sashoof", "Style: SashoofUI" },
+    local styles = { { "auto", L("Style: Auto") }, { "eui", "Style: EllesmereUI" }, { "blizzard", "Style: Blizzard" }, { "flat", "Style: WaR LegenD" }, { "sashoof", "Style: SashoofUI" },
         { "wl3", L("Style: WL v3 Cyan") }, { "wl3red", L("Style: WL v3 Red") }, { "wl3gold", L("Style: WL v3 Gold") },
         { "wl3violet", L("Style: WL v3 Violet") }, { "wl3mono", L("Style: WL v3 Monochrome") } }
     local styleBtn = W.Cycle(main, 160, styles, function() return W.DB("ui").style or "auto" end, function(v)
@@ -2335,6 +2340,7 @@ W.AddFR({
     ["my layer and the guild members' layers"] = "mon layer et ceux des membres de la guilde",
     ["the guild by class: class leaders, declared roles, my profile"] = "la guilde par classe : responsables, rôles déclarés, mon profil",
     ["Minotaure: guild PvP season ranking and weekly challenges"] = "Minotaure : classement JcJ de saison de la guilde et défis de la semaine",
+    ["Skyborne: leylines / convergences on the map (settings, export, share)"] = "Skyborne : lignes de force / convergences sur la carte (réglages, export, partage)",
 })
 local HELP = {
     { "/wl", "open / close the window" },
@@ -2370,6 +2376,7 @@ local HELP = {
     { "/wl craft [item]", "who can craft it in the guild (name or item link)" },
     { "/wl bg", "my premade history and records" },
     { "/wl mino", "Minotaure: guild PvP season ranking and weekly challenges" },
+    { "/wl sk", "Skyborne: leylines / convergences on the map (settings, export, share)" },
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },
@@ -2416,8 +2423,8 @@ SlashCmdList["WARLEGENDRT"] = Slash
 -- the other addon's own handler, left untouched. /wl reset <name> is ours only when <name> is one of our saved
 -- data keys; a bare /wl reset is the other addon's.
 W.AddFR({
-    ["/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."] =
-        "/wl est partagé avec un autre addon (%s) : les deux fonctionnent, |cffffffff/wlrt|r ouvre toujours WarLegend.",
+    ["/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WaR LegenD."] =
+        "/wl est partagé avec un autre addon (%s) : les deux fonctionnent, |cffffffff/wlrt|r ouvre toujours WaR LegenD.",
 })
 local function ClaimSlash()
     local others = {}
@@ -2451,7 +2458,7 @@ local function ClaimSlash()
         if not mine or not W.Allowed() then return other(msg) end
         if not noticed then
             noticed = true
-            W.Print(string.format(L("/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WarLegend."), otherName))
+            W.Print(string.format(L("/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WaR LegenD."), otherName))
         end
         Slash(msg)
     end

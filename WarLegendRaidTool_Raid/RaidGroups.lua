@@ -547,7 +547,7 @@ function RG.AssistExportText(preset, name)
     local list = RG.AssistList(preset)
     local maNames = {}
     for _, p in ipairs(list) do maNames[#maNames + 1] = "MA" .. p.ma .. " = " .. p.name end
-    local out = { "-- WarLegend assist macros : " .. name, "-- " .. table.concat(maNames, "  |  "), "" }
+    local out = { "-- WaR LegenD assist macros : " .. name, "-- " .. table.concat(maNames, "  |  "), "" }
     out[#out + 1] = "== " .. L("Raid leader") .. " =="
     for _, p in ipairs(list) do out[#out + 1] = "/ma " .. p.name end
     out[#out + 1] = ""
@@ -669,7 +669,7 @@ end
 function RG.Announce(preset, name)
     local channel = W.Channel()
     if not channel then W.Print(L("You are not in a group.")); return end
-    W.Announce("[WarLegend] " .. (preset.live and L(name) or name), channel)
+    W.Announce("[WaR LegenD] " .. (preset.live and L(name) or name), channel)
     -- main assists first: "Assist: MA1 Thrall > MA2 Jaina"
     local mas = RG.AssistList(preset)
     if #mas > 0 then
@@ -734,6 +734,7 @@ local sendQueue = {}
 local MAX_SEND_QUEUE = 200 -- fragments waiting to be sent (a preset is at most 50)
 W.AddFR({
     ["Preset sharing is still in progress: wait a few seconds."] = "Le partage des presets est encore en cours : attends quelques secondes.",
+    ["The preset could not be sent to the group."] = "Le preset n'a pas pu être envoyé au groupe.",
 })
 local sender = CreateFrame("Frame")
 sender:Hide()
@@ -741,10 +742,26 @@ local sendTimer = 0
 sender:SetScript("OnUpdate", function(self, elapsed)
     sendTimer = sendTimer - elapsed
     if sendTimer > 0 then return end
-    local item = table.remove(sendQueue, 1)
+    local item = sendQueue[1]
     if not item then self:Hide(); return end
-    W.Send(SHARE_PREFIX, item.msg, item.channel)
-    sendTimer = 0.15
+    -- the fragment leaves the queue only once the client took it: a throttle or a chat lockdown retries it later
+    local res = W.SendRaw(SHARE_PREFIX, item.msg, item.channel)
+    -- a lockdown lasts the whole boss encounter: it does not count, only a throttle that never ends does
+    if res == "locked" then sendTimer = 3; return end
+    if res == "throttle" then
+        item.tries = (item.tries or 0) + 1
+        if item.tries < 60 then sendTimer = 1; return end
+        res = "gave up"
+    end
+    if res == "sent" then
+        table.remove(sendQueue, 1)
+        sendTimer = 0.15
+    else
+        -- the rest of this preset is useless without that fragment (left the group...): drop the queue and say so
+        wipe(sendQueue)
+        W.Print(L("The preset could not be sent to the group."))
+        self:Hide()
+    end
 end)
 
 function RG.Share(name)
@@ -814,7 +831,7 @@ end
 
 function RG.Import()
     W.TextPopup(L("Import a preset"), "", {
-        showName = true, hint = L("Paste a WarLegend (or RaidPresets) string."),
+        showName = true, hint = L("Paste a WaR LegenD (or RaidPresets) string."),
         onConfirm = function(text, wanted)
             text = (text or ""):gsub("%s+", "")
             if text:sub(1, #EXPORT_TAG) == EXPORT_TAG then text = text:sub(#EXPORT_TAG + 1) end

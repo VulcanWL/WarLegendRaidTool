@@ -68,9 +68,14 @@ local function Encode(items)
     for _, e in ipairs(items) do t[#t + 1] = e[1] .. ":" .. e[2] end
     return table.concat(t, ",")
 end
+local MAX_ITEMS = 100 -- a shared list: at most this many items, ids and quantities within sane bounds
 local function Decode(s)
     local out = {}
-    for id, n in (s or ""):gmatch("(%d+):(%d+)") do out[#out + 1] = { tonumber(id), tonumber(n) } end
+    for id, n in (s or ""):gmatch("(%d+):(%d+)") do
+        if #out >= MAX_ITEMS then break end
+        id, n = W.Int(id, 1, 999999), W.Int(n, 0, 9999)
+        if id and n then out[#out + 1] = { id, n } end
+    end
     return out
 end
 
@@ -94,7 +99,11 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
     elseif t[1] == "A" and unit then
         -- answers keyed by full identity: two "Arthur" in the raid stay two rows
         local r = { name = W.UnitDisplayName(unit) or from, class = class, counts = {} }
-        for id, n in (t[2] or ""):gmatch("(%d+):(%d+)") do r.counts[tonumber(id)] = tonumber(n) end
+        local nCounts = 0
+        for id, n in (t[2] or ""):gmatch("(%d+):(%d+)") do
+            id, n = W.Int(id, 1, 999999), W.Int(n, 0, 99999999)
+            if id and n and nCounts < MAX_ITEMS then r.counts[id] = n; nCounts = nCounts + 1 end
+        end
         db.raid[W.UnitKey(unit) or from] = r
         CL.RefreshRaid()
     end

@@ -2,6 +2,7 @@
 !/WarLegendRaidTool/
 !/WarLegendRaidTool_Raid/
 !/WarLegendRaidTool_PvP/
+!/WarLegendRaidTool_Skyborne/
 !/.gitignore
 !/.gitattributes
 # only our release workflow: the rest of .github on disk belongs to EllesmereUI

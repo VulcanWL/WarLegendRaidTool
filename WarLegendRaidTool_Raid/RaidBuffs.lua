@@ -237,6 +237,17 @@ W.OnAddon(PREFIX, function(msg, from, channel, full)
     W.After(30, function() popup:Hide() end)
 end)
 
+-- A player too far (not visible, out of range) gives no aura data: unknown, never reported as missing.
+-- Called through pcall: a secret value (in combat) cannot be tested, the player then counts as readable.
+local function TooFar(unit)
+    if UnitIsVisible and not UnitIsVisible(unit) then return true end
+    if UnitInRange and unit ~= "player" then
+        local inRange, checked = UnitInRange(unit)
+        if checked and not inRange then return true end
+    end
+    return false
+end
+
 -- Who misses which buff (spell IDs, every rank)
 function RB.Missing()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then return nil end
@@ -245,7 +256,8 @@ function RB.Missing()
     local activeBless = {}
     for p, key in pairs(db.bless) do activeBless[key] = p end
     for _, m in ipairs(members) do
-        if UnitExists(m.unit) and (not UnitIsConnected or UnitIsConnected(m.unit)) and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(m.unit)) then
+        local ok, far = pcall(TooFar, m.unit)
+        if UnitExists(m.unit) and not (ok and far) and (not UnitIsConnected or UnitIsConnected(m.unit)) and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(m.unit)) then
             local has = {}
             for i = 1, 40 do
                 local a = W.AuraByIndex(m.unit, i, "HELPFUL") -- false: secret, refused to addons

@@ -1181,19 +1181,19 @@ end
 
 function WarLegendPvP:Debug(...)
 	if not (self.db and self.db.profile and self.db.profile.Debug) then return end
-	print("|cff0099ffWarLegendPvP debug:|r", ...)
+	print("|cff0099ffWaR LegenD PvP debug:|r", ...)
 end
 
 local sentMessages = {}
 function WarLegendPvP:OnetimeInformation(...)
 	local message = table.concat({ ... }, ", ")
 	if sentMessages[message] then return end
-	print("|cff0099ffWarLegendPvP:|r", message)
+	print("|cff0099ffWaR LegenD PvP:|r", message)
 	sentMessages[message] = true
 end
 
 function WarLegendPvP:Information(...)
-	print("|cff0099ffWarLegendPvP:|r", ...)
+	print("|cff0099ffWaR LegenD PvP:|r", ...)
 end
 
 

@@ -12,7 +12,7 @@ const path = require("path");
 const luaparse = require("luaparse");
 
 const root = path.resolve(process.argv[2] || path.join(__dirname, ".."));
-const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP"];
+const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne"];
 
 // Globals the addon may create (anything else written at global scope is an accident).
 // ClickCastFrames: Clique's shared table (PvP frames register there).

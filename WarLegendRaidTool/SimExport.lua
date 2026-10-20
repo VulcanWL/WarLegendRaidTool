@@ -217,7 +217,7 @@ function W.SimcProfile()
     local function add(s) out[#out + 1] = s end
 
     add("# " .. name .. " - " .. date("%Y-%m-%d %H:%M") .. " - " .. region .. "/" .. realm)
-    add("# WarLegend RaidTool " .. (W.version or "") .. " (SimC addon layout)")
+    add("# WaR LegenD RaidTool " .. (W.version or "") .. " (SimC addon layout)")
     add("# WoW " .. tostring(version) .. "." .. tostring(build) .. ", TOC " .. tostring(toc))
     add("# Requires SimulationCraft 1000-01 or newer")
     add("")

@@ -29,7 +29,7 @@ W.AddFR({
     ["Export: every setting of the addon (and of the battleground frames) in the box below. Copy it with Ctrl+C and share it (Discord...). Import: paste a profile in the box (Ctrl+V), then Import. Data (history, members, presets, characters) is never in a profile."] =
         "Exporter : tous les réglages de l'addon (et des cadres de BG) dans la case ci-dessous. Copie-les avec Ctrl+C et partage-les (Discord...). Importer : colle un profil dans la case (Ctrl+V), puis Importer. Les données (historiques, membres, presets, personnages) ne sont jamais dans un profil.",
     ["Profile ready: Ctrl+C to copy it (%d characters)."] = "Profil prêt : Ctrl+C pour le copier (%d caractères).",
-    ["This is not a WarLegend RaidTool profile."] = "Ce n'est pas un profil WarLegend RaidTool.",
+    ["This is not a WaR LegenD RaidTool profile."] = "Ce n'est pas un profil WaR LegenD RaidTool.",
     ["The profile text is damaged: copy it again, all of it."] = "Le texte du profil est abîmé : copie-le à nouveau, en entier.",
     ["Replace your settings with this profile?"] = "Remplacer tes réglages par ce profil ?",
     ["Profile imported: reload to apply it."] = "Profil importé : recharge pour l'appliquer.",
@@ -78,7 +78,14 @@ local function Write(v, out)
     end
 end
 
+-- limits of a profile: a text from outside never builds an unbounded table or a number the interface cannot take
+-- (saved dates are about 1.8e9: the number limit stays far above them, a long name list stays under the string one)
+local MAX_ENTRIES, MAX_STRING, MAX_NUMBER = 20000, 20000, 1e12
+local entries = 0
+
 local function Read(s, i, depth)
+    entries = entries + 1
+    if entries > MAX_ENTRIES then error("size") end
     local c = s:sub(i, i)
     if c == "T" then return true, i + 1 end
     if c == "F" then return false, i + 1 end
@@ -88,9 +95,10 @@ local function Read(s, i, depth)
         local raw = s:sub(i + 1, j - 1)
         if c == "n" then
             local n = tonumber(raw)
-            if not n then error("number") end
+            if not n or n ~= n or n > MAX_NUMBER or n < -MAX_NUMBER then error("number") end
             return n, j + 1
         end
+        if #raw > MAX_STRING then error("string") end
         return (raw:gsub("%^(.)", UNESC)), j + 1
     end
     if c == "{" then
@@ -189,8 +197,9 @@ end
 local function Parse(text)
     -- no line break in a profile: the ones a chat or Discord adds when copying are dropped, the ends trimmed
     text = ((text or ""):gsub("[\r\n]", "")):match("^%s*(.-)%s*$")
-    if text:sub(1, #HEADER) ~= HEADER then return nil, L("This is not a WarLegend RaidTool profile.") end
+    if text:sub(1, #HEADER) ~= HEADER then return nil, L("This is not a WaR LegenD RaidTool profile.") end
     if #text > 300000 then return nil, L("The profile text is damaged: copy it again, all of it.") end
+    entries = 0
     local ok, data, last = pcall(Read, text, #HEADER + 1, 0)
     if not ok or type(data) ~= "table" or type(data.main) ~= "table" or last ~= #text + 1 then
         return nil, L("The profile text is damaged: copy it again, all of it.")
@@ -206,7 +215,7 @@ local function Apply(data)
             if type(dest) ~= "table" then dest = {}; W.db[key] = dest end
             local skip = SKIP_FIELDS[key] or {}
             for f, v in pairs(fields) do
-                if type(f) == "string" and not skip[f] then
+                if type(f) == "string" and #f <= 40 and not skip[f] then
                     if type(v) == "table" then
                         if IsTableOption(key, f) then dest[f] = v end
                     elseif dest[f] == nil or type(dest[f]) == type(v) then
@@ -217,8 +226,11 @@ local function Apply(data)
         end
     end
     if type(data.pvp) == "table" and W.LoadPvP and W.LoadPvP() and type(WarLegendRaidTool_PvPDB) == "table" then
-        wipe(WarLegendRaidTool_PvPDB)
-        for k, v in pairs(data.pvp) do WarLegendRaidTool_PvPDB[k] = v end
+        -- merged key by key (a key of another type than ours is ignored), the saved file is never replaced whole
+        local dest = WarLegendRaidTool_PvPDB
+        for k, v in pairs(data.pvp) do
+            if (type(k) == "string" or type(k) == "number") and (dest[k] == nil or type(dest[k]) == type(v)) then dest[k] = v end
+        end
     end
 end
 

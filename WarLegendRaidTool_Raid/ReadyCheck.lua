@@ -105,7 +105,7 @@ end
 W.OnAddon(DUR_PREFIX, function(msg, from, _, full)
     local unit = W.UnitByName(full or from)
     if not unit then return end -- group members only
-    local p = tonumber(msg)
+    local p = W.Finite(msg, 0, 100)
     if p then
         durability[W.UnitKey(unit)] = p -- full identity: two players can share a first name
         if frame and frame:IsShown() then W.ReadyCheckRefresh() end
@@ -132,7 +132,7 @@ W.TranslateField(COLS, 1)
 
 local function BuildFrame()
     if frame then return end
-    frame = W.Window("WLRTReadyCheck", 470, 120, "WarLegend - Ready Check")
+    frame = W.Window("WLRTReadyCheck", 470, 120, "WaR LegenD - Ready Check")
     frame:SetPoint("CENTER", 320, 0)
     frame:SetFrameStrata("HIGH")
     local x = 14

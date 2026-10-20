@@ -1,6 +1,6 @@
-# WarLegend RaidTool
+# WaR LegenD RaidTool
 
-Addon WoW **Forever** (interface 16001) de la guilde **War Legend** : groupes de raid, loot council (avec le
+Addon WoW **Forever** (interface 16001) de la guilde **WaR LegenD** : groupes de raid, loot council (avec le
 nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, présences,
 rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
 export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
@@ -14,7 +14,7 @@ focus, qualité de vie), chacun avec des sections repliables « + / - » (une ou
 de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
-WarLegend, SashoofUI et les cinq styles **WL v3** de l'addon de Sashoof (panneaux ardoise, accent Cyan, Rouge, Or, Violet ou
+WaR LegenD, SashoofUI et les cinq styles **WL v3** de l'addon de Sashoof (panneaux ardoise, accent Cyan, Rouge, Or, Violet ou
 Monochrome, logo de la même couleur).
 
 > L'addon est ouvert à tous les joueurs (le réglage `W.GUILD_RESTRICTED` de `Core.lua` permet de le réserver à la guilde **War Legend**).
@@ -39,7 +39,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 1. Vérifier que les trois addons sont cochés dans la liste des addons.
 2. `/wl` ouvre la fenêtre. Le chargement des modules de raid se fait tout seul (groupe, donjon, `/wl`),
    celui des cadres PvP en entrant dans un champ de bataille (réglages : `/wl pvp`).
-3. Raccourci de rechargement : Échap → Options → Raccourcis → AddOns → WarLegend RaidTool.
+3. Raccourci de rechargement : Échap → Options → Raccourcis → AddOns → WaR LegenD RaidTool.
 
 ## Commandes
 
@@ -99,9 +99,10 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl trials` | Recrues en essai (selon le rang choisi) : depuis quand, nombre de raids, rappel à la fin de l'essai. |
 | `/wl dashboard` | Tableau de bord de la guilde : tuiles (membres, en ligne, enchants manquants, soirées de raid, loots) et quatre classements : niveau d'objets moyen, enchants manquants, présences, loots reçus. Données déjà présentes sur ton PC (liste de guilde, inspection de raid, présences, Loot Council) ; période réglable pour les loots ; rien n'est envoyé. Les joueurs apparaissent dans les classements d'objets une fois inspectés en raid. |
 | `/wl bank` | Stock et or de mes persos banque (ceux de mon compte au rang « Banque »), avec recherche. |
-| `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers (premier onglet, puis Recrutement et Inactifs), une ligne par membre et par métier avec son relevé le plus récent (niveau, nombre de recettes), avec des filtres qui se combinent : nom du joueur, menu déroulant (Recette ou objet, Tous les métiers, puis chaque métier), niveau (de - à), recette ou objet. Trois sources, indiquées dans la colonne Source : la liste de guilde du serveur (comme l'onglet Guilde de Retail : 2 métiers principaux, niveau sans maximum, quand le serveur les donne), le WarLegend RaidTool du membre (tous ses métiers, niveau/max, recettes une fois le métier ouvert, fenêtre Blizzard ou Naowh ; messages d'addon invisibles, désactivables, jamais de chat) et les liens de métier (Maj-clic sur un lien pendant que l'onglet est ouvert : le métier seulement, un lien ne contient pas le niveau). Données gardées après un redémarrage. Ctrl-clic : chuchoter l'artisan. Tri par clic sur les en-têtes **Nom**, **Métier** ou **Niveau** (encore un clic : dans l'autre sens ; flèche sur la colonne triée, choix retenu ; un niveau inconnu « ? » reste en fin de liste) ; case **Membres en ligne seulement**. Les grandes listes restent fluides : seules les lignes visibles sont dessinées. |
+| `/wl craft [objet]` | Qui peut fabriquer cet objet dans la guilde (nom ou lien d'objet avec Maj-clic), artisans en ligne en premier. Sans nom : Guilde > Métiers (premier onglet, puis Recrutement et Inactifs), une ligne par membre et par métier avec son relevé le plus récent (niveau, nombre de recettes), avec des filtres qui se combinent : nom du joueur, menu déroulant (Recette ou objet, Tous les métiers, puis chaque métier), niveau (de - à), recette ou objet. Trois sources, indiquées dans la colonne Source : la liste de guilde du serveur (comme l'onglet Guilde de Retail : 2 métiers principaux, niveau sans maximum, quand le serveur les donne), le WaR LegenD RaidTool du membre (tous ses métiers, niveau/max, recettes une fois le métier ouvert, fenêtre Blizzard ou Naowh ; messages d'addon invisibles, désactivables, jamais de chat) et les liens de métier (Maj-clic sur un lien pendant que l'onglet est ouvert : le métier seulement, un lien ne contient pas le niveau). Données gardées après un redémarrage. Ctrl-clic : chuchoter l'artisan. Tri par clic sur les en-têtes **Nom**, **Métier** ou **Niveau** (encore un clic : dans l'autre sens ; flèche sur la colonne triée, choix retenu ; un niveau inconnu « ? » reste en fin de liste) ; case **Membres en ligne seulement**. Les grandes listes restent fluides : seules les lignes visibles sont dessinées. |
 | `/wl bg` | Historique de mes premades de BG, stats par joueur, records par BG (victoires les plus rapides). |
 | `/wl mino` | Minotaure (règles de WarLegend v3, Sashoof) : classement JcJ de la guilde par saisons de 28 jours (UTC, à partir du lundi 12 octobre 2026). 5 points par victoire honorable (monde ou BG), 30 par victoire en BG, 200 points par jour au plus ; score sur 100 = 50 × monde / (monde + 200) + 50 × BG / (BG + 200). Défis de la semaine (victoires honorables, victoires et BG joués, victoires selon le rôle déclaré dans Classes), historique de mes saisons. Les totaux des autres membres viennent de leur addon (affichés « déclaré »). |
+| `/wl sk` | Skyborne (personnages de race Skyborne seulement) : épingles des lignes de force (Alliance) ou convergences élémentaires (Horde) sur la carte du monde, positions connues + celles que tu trouves (sort racial ou détection sur la minicarte). Réglages dans les options de l'interface du jeu (`/wl sk`) ; `/wl sk export` copie tes positions ; `/wl sk share` état du partage ; partage des repérages (phase, position, heure) avec les autres joueurs de l'addon par un canal caché, **activé par défaut sur les Skyborne** (désactivable dans les réglages). Addon à la demande `WarLegendRaidTool_Skyborne`, basé sur *Skyborne Leyline & Convergence Marker* de tr0tsky (licence MIT). |
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP, par côté (sous-onglets Ennemis / Alliés). Case « Synchro » à leur gauche : un réglage changé s'applique aux deux côtés (les réglages déjà différents restent tels quels). Largeur, hauteur, échelle et hauteur de la barre d'énergie (sous la barre de vie) sont réglables. |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |

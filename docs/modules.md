@@ -61,3 +61,12 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   total). A hook on Blizzard code that can run often (`hooksecurefunc`, `HookScript`, tooltip callbacks) is wrapped with
   `W.Timed("label", fn)` so it shows there too (see `ItemLevels.lua`). Anything that must run every frame (`OnUpdate`) is
   only set while its frame is shown, and throttled (0.1 s or more) when a timer text is enough.
+
+## Skyborne (4th addon, load on demand)
+`WarLegendRaidTool/Skyborne.lua` = loader (`W.LoadSkyborne`, on `PLAYER_ENTERING_WORLD` only if `UnitRace` token is "Skyborne", and `/wl sk`).
+`WarLegendRaidTool_Skyborne/` = port of "Skyborne Leyline & Convergence Marker" 0.4.1 by tr0tsky (MIT): `Data.lua` (`WLRTSkyData`),
+`Main.lua` (map pins, Blizzard settings page, export, `WLRTSkyborne.Command/Start`), `Comm.lua` (hidden channel `SLLCMShare`A/H, prefix `SLLCM`:
+kept as the original so its users are heard; on by default; NOT guild messages, so no `lodPrefix`), `Scan.lua` (minimap blips), `Pins.xml`.
+Saved in `WarLegendRaidTool_SkyborneDB`. The addon is loaded after login: `ns.Start` / `ns.CommStart` replace ADDON_LOADED / PLAYER_LOGIN.
+Removed from the original: About / Discord page, first-run popup, "show on non-Skyborne", dev/test commands, `Watch` hooks.
+The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` and the release workflow.
