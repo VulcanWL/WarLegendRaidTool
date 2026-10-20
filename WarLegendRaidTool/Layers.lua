@@ -121,7 +121,7 @@ local function Share(force)
     W.Send(PREFIX, W.Pack(1, current.id, current.map, current.at, W.Plain(current.zone, 60)), "GUILD")
 end
 
-local lastAsk = -1000
+local lastAsk, lastAnswer = -1000, -1000
 local function Ask()
     if not db.share or not W.IsInGuild() or GetTime() - lastAsk < 60 then return end
     lastAsk = GetTime()
@@ -132,12 +132,16 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     if channel ~= "GUILD" or not db or not db.on or #msg > 200 then return end
     if full == W.UnitFullName("player") then return end
     if msg == "?" then
-        if current and GetServerTime() - current.at < FRESH then Share(true) end
+        -- one answer a minute whoever asks: a flood of "?" must not make the whole guild send
+        if current and GetServerTime() - current.at < FRESH and GetTime() - lastAnswer >= 60 then
+            lastAnswer = GetTime()
+            Share(true)
+        end
         return
     end
     local f = W.Unpack(msg)
     if f[1] ~= "1" then return end
-    local id, map, at = f[2], tonumber(f[3]), tonumber(f[4])
+    local id, map, at = f[2], tonumber(f[3]), W.Finite(f[4])
     if not id or #id > 24 or not id:match("^%d+%-%d+$") or not map or map < 1 or map > 100000 or map % 1 ~= 0 or not at then return end
     local now = GetServerTime()
     if at > now + 60 or now - at > KEEP then return end

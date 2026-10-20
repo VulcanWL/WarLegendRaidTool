@@ -343,6 +343,8 @@ function ns.LearnShared(mapID, x, y)
     if FindNear(WLRTSkyData[key][mapID], mapID, x, y) or FindNear(db.found[key][mapID], mapID, x, y)
         or FindNear(shared[mapID], mapID, x, y) then return end
     shared[mapID] = shared[mapID] or {}
+    -- heard on a public channel and saved for good: capped, a stranger cannot fill the map (or the saved file)
+    if #shared[mapID] >= 100 then return end
     table.insert(shared[mapID], { x, y })
 end
 

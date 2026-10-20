@@ -596,7 +596,8 @@ function W.BaseName(name)
 end
 
 function W.SanitizeName(s)
-    s = (s or ""):gsub("[;,|:~\r\n]", "")
+    -- no control character (a line break would start a new macro line), no separator of our strings
+    s = (s or ""):gsub("[%c;,|:~]", "")
     s = s:gsub("^%s+", ""):gsub("%s+$", "")
     return s
 end

@@ -424,9 +424,9 @@ end
 
 Receive.S = function(t, from, full)
     if not db.enabled or not MayStart(full) then return end
-    local n = tonumber(t[3]) or 0
+    local n = W.Int(t[3]) or 0
     if n < 1 or n > MAX_ITEMS or not t[2] or #t[2] > 12 then return end
-    local timeout = math.max(10, math.min(300, tonumber(t[4]) or 60))
+    local timeout = W.Finite(t[4], 10, 300) or 60
     S = { sid = t[2], ml = from, mlFull = full, n = n, timeout = timeout, started = GetTime(),
         items = {}, council = {}, acks = {}, answered = {} }
     S.cands = NewCandidates()
@@ -1222,14 +1222,15 @@ function LC.ImportSR(text)
         end
         if f then
             local id, name
+            -- a pasted text: an item id is a whole number (a "nan" would break the table), a name at most 40 letters
             if idCol and nameCol then
-                id, name = tonumber(f[idCol]), f[nameCol]
+                id, name = W.Int(f[idCol], 1, 9999999), f[nameCol]
             else
                 for _, v in ipairs(f) do
-                    if tonumber(v) then id = id or tonumber(v) elseif v ~= "" then name = name or v end
+                    if tonumber(v) then id = id or W.Int(v, 1, 9999999) elseif v ~= "" then name = name or v end
                 end
             end
-            name = name and W.BaseName(W.SanitizeName(name))
+            name = name and W.BaseName(W.SanitizeName(name)):sub(1, 40)
             if id and name and name ~= "" and LC.AddSR(name, id) then count = count + 1 end
         end
     end

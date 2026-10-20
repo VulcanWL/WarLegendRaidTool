@@ -35,7 +35,7 @@ W.AddFR({
     ["Profile imported: reload to apply it."] = "Profil importé : recharge pour l'appliquer.",
     ["Not in combat."] = "Pas en combat.",
     ["This profile also:"] = "Ce profil, en plus :",
-    ["%d macro line(s) that run code (/run, /script...) removed"] = "%d ligne(s) de macro qui exécutent du code (/run, /script...) retirée(s)",
+    ["%d macro line(s) removed (only targeting and casting commands are kept)"] = "%d ligne(s) de macro retirée(s) (seules les commandes de ciblage et de sort sont gardées)",
     ["invites whoever whispers the keyword"] = "invite quiconque chuchote le mot-clé",
     ["accepts the invites suggested by the group"] = "accepte les invitations suggérées par le groupe",
     ["accepts group invites from friends and guild"] = "accepte les invitations de groupe des amis et de la guilde",
@@ -234,19 +234,32 @@ local function Apply(data)
     end
 end
 
--- Before an import: a shared profile must not act behind the player's back. The macro lines that run code
--- (/run, /script, /dump, /console, /click) are removed from it (the "Custom" clicks of the battleground frames run
--- their text as a macro), and the confirmation lists the game options (CVars) and the automatic actions it turns on.
-local RUN_CMDS = { run = true, script = true, dump = true, console = true, click = true }
+-- Before an import: a shared profile must not act behind the player's back. Its macro lines are filtered (the
+-- "Custom" clicks of the battleground frames run their text as a macro), and the confirmation lists the game options (CVars) and the automatic actions it turns on.
+-- An allow list, not a block list: /gquit, /gdisband, /gleader, /gremove, /logout... must not slip through, so
+-- every command that is not a targeting / casting one is removed. In a click macro ("LeftButtonValue"...) a line
+-- without "/" is removed too: the game would say it in /say.
+local MACRO_CMDS = {}
+for c in ("target targetexact tar tarexact cleartarget targetlasttarget targetenemy targetfriend targetparty targetraid"
+    .. " assist focus clearfocus targetfocus cast use castsequence castrandom userandom stopcasting stopattack"
+    .. " startattack stopmacro stopspelltarget petattack petfollow petpassive petdefensive petstay cancelaura"
+    .. " cancelform dismount equip equipslot tm targetmarker"):gmatch("%S+") do MACRO_CMDS[c] = true end
 local function StripMacros(t, depth)
     if depth > 8 then return 0 end
     local removed = 0
     for k, v in pairs(t) do
-        if type(v) == "string" and v:find("/", 1, true) then
+        local click = type(k) == "string" and k:match("^%a+ButtonValue$")
+        if type(v) == "string" and (click or v:find("/", 1, true)) then
             local kept, cut = {}, 0
             for line in (v .. "\n"):gmatch("(.-)\n") do
                 local cmd = line:match("^%s*/(%S+)")
-                if cmd and RUN_CMDS[cmd:lower()] then cut = cut + 1 else kept[#kept + 1] = line end
+                local keep
+                if cmd then
+                    keep = MACRO_CMDS[cmd:lower()]
+                else
+                    keep = not click or line:match("^%s*$") or line:match("^%s*#")
+                end
+                if keep then kept[#kept + 1] = line else cut = cut + 1 end
             end
             if cut > 0 then t[k] = table.concat(kept, "\n"); removed = removed + cut end
         elseif type(v) == "table" then
@@ -271,7 +284,7 @@ local function Review(data)
     local lines = {}
     if type(data.pvp) == "table" then
         local cut = StripMacros(data.pvp, 1)
-        if cut > 0 then lines[#lines + 1] = string.format(L("%d macro line(s) that run code (/run, /script...) removed"), cut) end
+        if cut > 0 then lines[#lines + 1] = string.format(L("%d macro line(s) removed (only targeting and casting commands are kept)"), cut) end
     end
     local main = data.main
     for _, r in ipairs(RISKY) do

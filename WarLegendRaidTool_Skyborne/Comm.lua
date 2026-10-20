@@ -30,6 +30,10 @@ local SCAN_SECONDS = 60      -- re-read nameplates this often (the shard can cha
 local RESTORE_SECONDS = 300  -- a saved phase is reused only this soon after logout / reload
 local REORDER_SECONDS = 60   -- after joining, game channels arriving above ours get moved below it this long
 local MAX_SWAPS = 10         -- channel swaps allowed per join (the game has about 10 channels)
+-- the channel is public (anyone on the megarealm can write to it): what a stranger can make us keep or send is capped
+local MAX_REPORTS = 200      -- sightings (and "not there"s) kept per map
+local MAX_QUEUE = 60         -- messages waiting to be sent
+local ANSWER_GAP = 60        -- one answer per phase a minute, however many Q arrive
 
 local reports = {}           -- this faction's: reports[mapID] = { { phase, x, y, t, first }, ... }
 local allReports = {}        -- db.crowdReports = { A = reports, H = reports }: an alt of the other faction
@@ -46,6 +50,7 @@ local asked = {}             -- asked[phase] = true once we've sent a Q for it t
 local joinedAt               -- GetTime() we joined the channel: after TTL we've heard every sighting there is
 local pending = {}           -- pending[phase] = { mapID, x, y, ... } while we wait to answer a Q for it: what other
                                                           -- answers for the phase have covered meanwhile
+local answeredAt = {}        -- answeredAt[phase] = GetTime() of our last answer to a Q for it
 local queue, sending = {}, false
 local started                -- ns.CommStart has run
 local me = {}                -- our names as senders show them
@@ -121,7 +126,7 @@ local function Drain()
 end
 
 local function Send(msg)
-    if not Enabled() then return end
+    if not Enabled() or #queue >= MAX_QUEUE then return end
     queue[#queue + 1] = msg
     if not sending then
         sending = true
@@ -175,6 +180,7 @@ end
 -- A heard position on a zone map, fresh enough to keep; nil if not
 local function Valid(mapID, x, y, t)
     local now = GetServerTime()
+    if not (mapID >= 1 and mapID <= 100000 and mapID % 1 == 0) then return end
     if not (x >= 0 and x <= 1 and y >= 0 and y <= 1) then return end
     mapID, x, y = OnZoneMap(mapID, x, y)
     if not (mapID and x >= 0 and x <= 1 and y >= 0 and y <= 1) then return end
@@ -216,7 +222,7 @@ local function Add(p, mapID, x, y, t, mine)
         r.first = math.min(r.first or r.t, t)
         if t > r.t then r.x, r.y, r.t = x, y, t end
         r.mine = r.mine or mine
-    else
+    elseif #list < MAX_REPORTS then
         list[#list + 1] = { phase = p, x = x, y = y, t = t, first = t, mine = mine }
     end
     Refresh(p, mapID)
@@ -237,7 +243,7 @@ local function AddGone(p, mapID, x, y, t)
     local _, g = Find(list, p, mapID, x, y)
     if g then
         if t > g.t then g.t = t end
-    else
+    elseif #list < MAX_REPORTS then
         list[#list + 1] = { phase = p, x = x, y = y, t = t }
     end
     Refresh(p, mapID)
@@ -335,6 +341,7 @@ local function SendReply(p)
     local covered = pending[p]
     if not covered then return end
     pending[p] = nil
+    answeredAt[p] = GetTime()
     local entries = {}
     for mapID, list in pairs(reports) do
         Prune(list)
@@ -352,6 +359,12 @@ local function SendReply(p)
     end
 end
 
+-- a number heard on the channel: nil unless finite ("nan" would never expire, "inf" breaks the maths)
+local function Num(v)
+    v = tonumber(v)
+    if v and v == v and v ~= math.huge and v ~= -math.huge then return v end
+end
+
 local function OnMessage(text, sender)
     local kind, v, fac, p, rest = strsplit(":", text, 5)
     Debug("<< %s: %s%s", sender, text, p and p == phase and " |cff00ff00<< your phase|r" or "")
@@ -359,13 +372,13 @@ local function OnMessage(text, sender)
 
     if (kind == "R" or kind == "XM") and rest then
         local mapID, x, y, t = strsplit(":", rest)
-        mapID, x, y, t = tonumber(mapID), tonumber(x), tonumber(y), tonumber(t)
+        mapID, x, y, t = Num(mapID), Num(x), Num(y), Num(t)
         if mapID and x and y and t then (kind == "R" and Add or AddGone)(p, mapID, x / 10000, y / 10000, t) end
 
     elseif kind == "Q" then
         -- Whoever made a sighting for the phase answers first (1-3 s); the rest wait 4-12 s and then send only
         -- the nodes no answer heard meanwhile had, so a first answer holding only some of them doesn't hide the rest.
-        if pending[p] then return end
+        if pending[p] or GetTime() - (answeredAt[p] or -1000) < ANSWER_GAP then return end
         local have, mine = false, false
         for _, list in pairs(reports) do
             for _, r in ipairs(list) do
@@ -381,7 +394,7 @@ local function OnMessage(text, sender)
         local covered = kind == "S" and pending[p]
         for entry in rest:gmatch("[^;]+") do
             local mapID, x, y, t = strsplit(",", entry)
-            mapID, x, y, t = tonumber(mapID), tonumber(x), tonumber(y), tonumber(t)
+            mapID, x, y, t = Num(mapID), Num(x), Num(y), Num(t)
             if mapID and x and y and t then
                 (kind == "S" and Add or AddGone)(p, mapID, x / 10000, y / 10000, t)
                 if covered then

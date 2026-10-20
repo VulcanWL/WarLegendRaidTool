@@ -70,19 +70,23 @@ local function ParseLine(line)
     local words = {}
     for w in body:gmatch("%S+") do words[#words + 1] = w:lower() end
     local r = { kind = words[1], label = (label and label ~= "") and label or nil }
+    -- the list can come from another player: ids and amounts are finite and bounded before any game call
+    local ID, N = 9999999, 99999999
     if r.kind == "level" or r.kind == "gold" then
-        r.n = tonumber(words[2]) or 0
+        r.n = W.Finite(words[2], 0, N) or 0
     elseif r.kind == "quest" then
         r.ids = {}
-        for id in (words[2] or ""):gmatch("%d+") do r.ids[#r.ids + 1] = tonumber(id) end
+        for id in (words[2] or ""):gmatch("%d+") do
+            if #r.ids < 10 then r.ids[#r.ids + 1] = W.Int(id, 1, ID) end
+        end
     elseif r.kind == "item" then
-        r.id, r.n = tonumber(words[2]), tonumber(words[3]) or 1
+        r.id, r.n = W.Int(words[2], 1, ID), W.Int(words[3], 0, N) or 1
     elseif r.kind == "rep" then
-        r.id, r.n = tonumber(words[2]), tonumber(words[3]) or 5
+        r.id, r.n = W.Int(words[2], 1, ID), W.Int(words[3], 0, 8) or 5
     elseif r.kind == "resist" then
-        r.school, r.n = SCHOOLS[words[2] or ""], tonumber(words[3]) or 0
+        r.school, r.n = SCHOOLS[words[2] or ""], W.Finite(words[3], 0, N) or 0
     elseif r.kind == "free" then
-        r.id = tonumber(words[2])
+        r.id = W.Int(words[2], 1, ID)
     elseif r.kind ~= "enchants" then
         r.kind = "unknown"
     end
@@ -299,9 +303,13 @@ local function MayAsk(from, full, channel)
     return who == "group" or W.GuildMember(full or from) ~= nil
 end
 
--- A leader asks: check my character against their list, answer them, tell me what I miss
+-- A leader asks: check my character against their list, answer them, tell me what I miss.
+-- One answer every 5 s at most: a flood of checks ("gold 100", "gold 200"...) must not read my gold step by step.
+local lastAnswered = -1000
 W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
     if from == Me() or not MayAsk(from, full, channel) then return end
+    if GetTime() - lastAnswered < 5 then return end
+    lastAnswered = GetTime()
     local id, list = text:match("^(%d+)\n(.*)$")
     if not id then return end
     local reqs = Parse(list)

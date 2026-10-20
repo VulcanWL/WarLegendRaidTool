@@ -5,7 +5,16 @@ Pas dans le zip des releases.
 
 ## Maintenant (20/10/2026)
 
-- **Version publiée (20/10)** : 1.34.0-beta (tag `v1.34.0-beta`) = addon Skyborne (4e dossier), audit externe n°2, textes « WaR LegenD ». Les deux puces « Non publié » ci-dessous sont donc dans cette version. **Rien testé en jeu.**
+- **Version publiée (20/10)** : 1.34.1-beta (tag `v1.34.1-beta`) = correctifs de sécurité « confiance zéro » (puce suivante), sur 1.34.0-beta (Skyborne, audit externe n°2, textes « WaR LegenD »). **Rien testé en jeu.**
+- **Inclus dans 1.34.1-beta (audit sécurité « confiance zéro »)** : failles présentes dans 1.34.0, corrigées ici. Import de
+  profil : macros des clics PvP filtrées par **liste blanche** `MACRO_CMDS` (ciblage / sorts ; avant, /gquit, /gdisband, /gleader,
+  /gremove, /logout passaient) et lignes sans « / » retirées des clics (dites en /say) (`Settings.lua`) ; noms des macros d'assist sans
+  `[ ] ; ,` + groupe `nan` refusé (`RaidGroups.lua`) ; Layers répond à « ? » 1 fois / min (amplification) ; Readiness : 1 réponse / 5 s
+  (or lu par dichotomie) et ids bornés ; Loot Council : nombre d'objets entier, CSV soft-res sans `nan` (erreur Lua), noms ≤ 40 ;
+  Guild : niveaux de métier bornés ; **Skyborne** (canal public) : nombres finis, 200 signalements / carte, 100 épingles apprises /
+  carte (avant : sans limite, gardées pour toujours), file d'envoi 60, réponse à « Q » 1 fois / min / phase. Vérifié sain : répartiteur
+  des messages (groupe / guilde seulement), Loot Council, !sr, presets reçus, métiers, Summon, invitations, annonces (toujours sur
+  clic ou confirmation). Règles dans `docs/modules.md`. `check.js` 0 problème, jeu à jour, **rien testé en jeu**.
 
 - **Inclus dans 1.34.0-beta (Skyborne)** : 4e addon à la demande `WarLegendRaidTool_Skyborne` (port de Skyborne Leyline & Convergence
   Marker 0.4.1, tr0tsky, MIT) : épingles lignes de force / convergences sur la carte, détection minicarte, partage par le canal caché
@@ -72,15 +81,7 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.34.1-beta** (20/10) : correctifs de sécurité (macros d'import en liste blanche, canal Skyborne plafonné, Readiness, Layers, Loot Council).
 - **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD » (voir Maintenant).
-
 - **1.33.0-beta** (19/10) : fenêtre redimensionnable + taille, plafond de la file des presets, Loot Council (Classes).
-- **1.32.0-beta** (19/10) : Layers, bouton « Inviter sur mon layer » (voir Maintenant).
-- **1.31.0-beta** (19/10) : cadres des joueurs ennemis en monde ouvert (Alerte danger, 40 au plus, clic pour cibler).
-- **1.30.0-beta** (19/10) : fusion WarLegend v3 (styles WL v3 + logos `Media/WLLogo*.tga`, `Layers.lua`,
-  `Classes.lua`, `Minotaure.lua`, liste des ennemis vus de l'alerte danger, invitation sur mot-clé coupée si WarLegend v3
-  invite déjà) ; performances (Layers et alerte danger coupés en instance, Layers allégé, cadres de BG chargés quand la
-  file s'ouvre) ; audit de sécurité (import de profil sans macros exécutables, noms de presets nettoyés, fenêtres de la
-  carte de guilde recyclées, « !sr » limité) ; Guilde > Métiers triable + filtre en ligne ; `W.Table` ne crée que les
-  lignes visibles.
 - Versions plus anciennes : `git tag`, `git log`.

@@ -517,7 +517,7 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
             local n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$")
             if n and #n <= 40 and #e.profs < 20 then
                 n = W.Plain(n, 40)
-                e.profs[#e.profs + 1] = { n = n, r = tonumber(r), m = tonumber(m), id = tonumber(ProfKey(n, tonumber(id))) }
+                e.profs[#e.profs + 1] = { n = n, r = W.Int(r, 0, 1000), m = W.Int(m, 0, 1000), id = tonumber(ProfKey(n, tonumber(id))) }
             end
         end
         for prof, list in (t[3] or ""):gmatch("([^=;]+)=([%d,]+)") do

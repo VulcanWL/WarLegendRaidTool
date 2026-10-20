@@ -527,6 +527,9 @@ function RG.ToggleAssist(preset, player)
     end
 end
 
+-- a name inside a macro condition: no bracket, separator or control character (presets come from shared strings)
+local function MacroName(name) return (tostring(name or ""):gsub("[%c%[%];,]", "")) end
+
 -- Macro body for a group: that group's own main assist first, then the others in order
 function RG.AssistMacro(preset, group)
     local list = RG.AssistList(preset)
@@ -539,7 +542,7 @@ function RG.AssistMacro(preset, group)
         if not (group and p.group == group) then ordered[#ordered + 1] = p end
     end
     local conds = {}
-    for _, p in ipairs(ordered) do conds[#conds + 1] = "[@" .. p.name .. ",nodead]" end
+    for _, p in ipairs(ordered) do conds[#conds + 1] = "[@" .. MacroName(p.name) .. ",nodead]" end
     return "#showtooltip\n/assist " .. table.concat(conds)
 end
 
@@ -578,7 +581,7 @@ end
 function RG.MAMacroBody(preset)
     local p = RG.MAPlayer(preset)
     if not p then return nil end
-    return "#showtooltip\n/assist [@" .. p.name .. ",nodead]"
+    return "#showtooltip\n/assist [@" .. MacroName(p.name) .. ",nodead]"
 end
 
 local function MacroRange()
@@ -714,7 +717,7 @@ function RG.Deserialize(str)
             n = n and W.SanitizeName(n)
             if n and n ~= "" and n ~= "#boss" then
                 g = tonumber(g) or 1
-                if g < 1 or g > 8 then g = 1 end
+                if g ~= g or g < 1 or g > 8 or g % 1 ~= 0 then g = 1 end -- g ~= g: NaN
                 i = tonumber(i) or 0
                 if i < 0 or i > 8 or i % 1 ~= 0 then i = 0 end
                 c = (c and #c <= 12 and c:match("^%u+$")) and c or nil

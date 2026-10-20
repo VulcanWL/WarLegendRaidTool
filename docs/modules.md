@@ -40,6 +40,11 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   (not `W.On`) checks `W.IsOff("Key")` in its OnEvent.
 - Settings > Profile: export / import of the options as one text. A profile holds the scalars of every `W.db` key plus the
   option tables listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): a new option saved as a table goes in `TABLE_FIELDS`.
+  An imported profile is untrusted: finite numbers up to 1e12, strings up to 20 000, 20 000 entries; its macro lines keep
+  only the commands of `MACRO_CMDS` (an allow list: never add a guild, logout, chat or script command to it).
+- Received data (addon messages, whispers, pasted strings, the Skyborne public channel) is untrusted: numbers through
+  `W.Finite` / `W.Int` (a `tonumber("nan")` passes `<` / `>` tests), lists and tables capped, texts through `W.Plain`, names
+  that reach a macro without `[ ] ; ,` or control characters, and a "?" / "Q" request answered once a minute at most.
 
 ## Interface modules
 - `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
