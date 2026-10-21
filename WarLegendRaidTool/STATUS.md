@@ -5,6 +5,7 @@ Pas dans le zip des releases.
 
 ## Maintenant (20/10/2026)
 
+- **Non publié (21/10, après 1.35.0-beta)** : `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
 - **Version publiée (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
   rouvrir la carte sur ma zone ; idées d'OpenMap, MIT ; `/wl maptools` ; testé en jeu : coordonnées et Ctrl + clic OK, points de guilde /
   Overlord / Skyborne OK) + journal d'audit (ci-dessous), **éteint par défaut pour les joueurs** (`/wl audit on` ; allumé chez l'auteur).

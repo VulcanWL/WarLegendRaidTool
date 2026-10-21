@@ -8,9 +8,14 @@ local W = WLRT
 W.AddFR({
     ["Move frames"] = "Déplacer les cadres",
     ["Move Blizzard windows with the mouse (out of combat)"] = "Déplacer les fenêtres Blizzard à la souris (hors combat)",
-    ["Remember their place and size"] = "Retenir leur place et leur taille",
-    ["Drag a window by an empty spot (edge, title). Ctrl + mouse wheel on it: its size. Protected windows are never touched."] =
-        "Fais glisser une fenêtre par un endroit vide (bord, titre). Ctrl + molette dessus : sa taille. Les fenêtres protégées ne sont jamais touchées.",
+    ["Remember their place and size:"] = "Retenir leur place et leur taille :",
+    ["Never"] = "Jamais",
+    ["Until /reload"] = "Jusqu'au /reload",
+    ["Always"] = "Toujours",
+    ["Window reset: close and open it again to put it back in its place."] =
+        "Fenêtre remise à zéro : ferme-la et rouvre-la pour la remettre à sa place.",
+    ["Drag a window by an empty spot (edge, title). Ctrl + mouse wheel on it: its size. Ctrl + right-click: reset it. Protected windows are never touched."] =
+        "Fais glisser une fenêtre par un endroit vide (bord, titre). Ctrl + molette dessus : sa taille. Ctrl + clic droit : la remettre à zéro. Les fenêtres protégées ne sont jamais touchées.",
     ["Reset the windows"] = "Réinitialiser les fenêtres",
     ["Move screen elements (error text, zone text, battleground score...)"] = "Déplacer des éléments d'écran (texte d'erreur, texte de zone, score du BG...)",
     ["Tooltip:"] = "Infobulle :",
@@ -42,7 +47,8 @@ local L = W.L
 local db
 
 W.OnReady(function()
-    db = W.DB("moveFrames", { windows = false, savePos = false, elements = false, tooltip = "default", tooltipCombat = false, fps = false })
+    -- winMemory ("never" / "session" / "always") replaces the savePos tick; empty = read savePos (older saved data)
+    db = W.DB("moveFrames", { windows = false, savePos = false, winMemory = "", elements = false, tooltip = "default", tooltipCombat = false, fps = false })
     if type(db.winPos) ~= "table" then db.winPos = {} end
     if type(db.winScale) ~= "table" then db.winScale = {} end
     if type(db.elemPos) ~= "table" then db.elemPos = {} end
@@ -63,15 +69,31 @@ local WINDOWS = { "CharacterFrame", "SpellBookFrame", "PlayerTalentFrame", "Ques
     "MacroFrame", "KeyBindingFrame", "PVPFrame", "PVPParentFrame", "BattlefieldFrame", "WorldStateScoreFrame", "LFGParentFrame",
     "PVEFrame", "TimeManagerFrame", "AddonList", "ItemTextFrame", "PetStableFrame", "TabardFrame", "HelpFrame", "GuildBankFrame",
     "ItemSocketingFrame", "CalendarFrame", "ChannelFrame", "CommunitiesFrame", "CollectionsJournal", "EncounterJournal",
-    "AchievementFrame", "GuildControlUI", "GuildRegistrarFrame", "PetitionFrame" }
+    "AchievementFrame", "GuildControlUI", "GuildRegistrarFrame", "PetitionFrame",
+    -- seen in BlizzMove's list for this kind of client; a frame this client does not have, or a protected one, is skipped.
+    -- Not here: the loot windows, the game puts them back at the cursor / in a stack each time.
+    "GameMenuFrame", "ReadyCheckFrame", "ContainerFrame1", "ContainerFrameCombinedBags", "SettingsPanel",
+    "QuestLogPopupDetailFrame", "ChatConfigFrame", "TalkingHeadFrame", "QuickKeybindFrame", "GuildInviteFrame" }
 
 local hooked, moving, panelHook = {}, nil, false
 
+-- Where a window's place and size are kept: "never", "session" (until the next /reload) or "always" (saved)
+local sessPos, sessScale = {}, {}
+local function Memory()
+    local m = db and db.winMemory
+    if m == "never" or m == "session" or m == "always" then return m end
+    return (db and db.savePos) and "always" or "never"
+end
+local function PosOf(name)
+    local m = Memory()
+    if m == "always" then return db.winPos[name], db.winScale[name] end
+    if m == "session" then return sessPos[name], sessScale[name] end
+end
+
 local function Restore(f, name)
-    if not Use("windows") or not db.savePos or InCombatLockdown() then return end
-    local s = db.winScale[name]
+    if not Use("windows") or Memory() == "never" or InCombatLockdown() then return end
+    local p, s = PosOf(name)
     if s then f:SetScale(s) end
-    local p = db.winPos[name]
     if p then
         f:ClearAllPoints()
         f:SetPoint(p[1], UIParent, p[2], p[3], p[4])
@@ -86,7 +108,17 @@ local function HookWindow(name)
     f:SetMovable(true)
     f:SetClampedToScreen(true)
     f:HookScript("OnMouseDown", function(self, button)
-        if button ~= "LeftButton" or not Use("windows") or InCombatLockdown() then return end
+        if not Use("windows") or InCombatLockdown() then return end
+        if button == "RightButton" then
+            -- Ctrl + right-click: size back to 1 and the kept place forgotten (the game puts it back when it opens again)
+            if IsControlKeyDown() then
+                self:SetScale(1)
+                db.winScale[name], db.winPos[name], sessScale[name], sessPos[name] = nil, nil, nil, nil
+                W.Print(L("Window reset: close and open it again to put it back in its place."))
+            end
+            return
+        end
+        if button ~= "LeftButton" then return end
         moving = self
         self:StartMoving()
     end)
@@ -96,7 +128,9 @@ local function HookWindow(name)
         self:StopMovingOrSizing()
         if self.SetUserPlaced then self:SetUserPlaced(false) end -- not kept by the game itself (layout-local.txt)
         local point, _, rel, x, y = self:GetPoint()
-        if point then db.winPos[name] = { point, rel, x, y } end
+        local mode = Memory()
+        if point and mode == "always" then db.winPos[name] = { point, rel, x, y }
+        elseif point and mode == "session" then sessPos[name] = { point, rel, x, y } end
     end)
     f:HookScript("OnHide", function(self)
         if moving == self then moving = nil; self:StopMovingOrSizing() end
@@ -111,7 +145,9 @@ local function HookWindow(name)
             local s = math.max(0.5, math.min(1.5, (self:GetScale() or 1) + delta * 0.05))
             s = math.floor(s * 100 + 0.5) / 100
             self:SetScale(s)
-            db.winScale[name] = (s ~= 1) and s or nil
+            local mode = Memory()
+            if mode == "always" then db.winScale[name] = (s ~= 1) and s or nil
+            elseif mode == "session" then sessScale[name] = (s ~= 1) and s or nil end
         end)
     end
 end
@@ -125,10 +161,10 @@ local function HookAll()
     if not panelHook and hooksecurefunc and type(UpdateUIPanelPositions) == "function" then
         panelHook = true
         hooksecurefunc("UpdateUIPanelPositions", function()
-            if not Use("windows") or not db.savePos or InCombatLockdown() then return end
+            if not Use("windows") or Memory() == "never" or InCombatLockdown() then return end
             for name in pairs(hooked) do
                 local f = _G[name]
-                if f and f:IsShown() and db.winPos[name] then Restore(f, name) end
+                if f and f:IsShown() and PosOf(name) then Restore(f, name) end
             end
         end)
     end
@@ -367,9 +403,11 @@ W.RegisterModule("MoveFrames", "Move frames", function(p)
     W.Title(p, L("Move frames"))
     W.Check(p, L("Move Blizzard windows with the mouse (out of combat)"), function() return db.windows end,
         function(v) db.windows = v; if v then HookAll() end end):SetPoint("TOPLEFT", 12, -40)
-    W.Check(p, L("Remember their place and size"), function() return db.savePos end, function(v) db.savePos = v end)
-        :SetPoint("TOPLEFT", 32, -64)
-    local hint = W.Label(p, L("Drag a window by an empty spot (edge, title). Ctrl + mouse wheel on it: its size. Protected windows are never touched."),
+    W.Label(p, L("Remember their place and size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -68)
+    W.Cycle(p, 150, { { "never", L("Never") }, { "session", L("Until /reload") }, { "always", L("Always") } },
+        function() return Memory() end,
+        function(v) db.winMemory = v; db.savePos = (v == "always") end):SetPoint("TOPLEFT", 250, -63)
+    local hint = W.Label(p, L("Drag a window by an empty spot (edge, title). Ctrl + mouse wheel on it: its size. Ctrl + right-click: reset it. Protected windows are never touched."),
         "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", 36, -90)
     hint:SetWidth(640)
@@ -377,6 +415,8 @@ W.RegisterModule("MoveFrames", "Move frames", function(p)
     W.Button(p, L("Reset the windows"), 170, 22, function()
         wipe(db.winPos)
         wipe(db.winScale)
+        wipe(sessPos)
+        wipe(sessScale)
         if not InCombatLockdown() then
             for name in pairs(hooked) do local f = _G[name]; if f then f:SetScale(1) end end
         end

@@ -150,13 +150,13 @@ W.RegisterModule("MapTools", "Map tools", function(p)
     W.Title(p, L("Map tools"))
     W.Check(p, L("Coordinates under the map (me and the cursor)"), function() return db.coords end,
         function(v) db.coords = v; Apply() end,
-        L("Shows your position and the one under the mouse at the foot of the world map.")):SetPoint("TOPLEFT", 12, -40)
+        { L("Shows your position and the one under the mouse at the foot of the world map.") }):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Ctrl + click on the map drops a map pin"), function() return db.waypoint end,
         function(v) db.waypoint = v; Apply() end,
-        L("Sets the game's map pin (and its arrow) where you click, if the game has not done it already.")):SetPoint("TOPLEFT", 12, -66)
+        { L("Sets the game's map pin (and its arrow) where you click, if the game has not done it already.") }):SetPoint("TOPLEFT", 12, -66)
     W.Check(p, L("Reopen the map on my zone"), function() return db.reopen end,
         function(v) db.reopen = v; Apply() end,
-        L("Opens the map on the zone you are in, unless you had gone to another map on purpose.")):SetPoint("TOPLEFT", 12, -92)
+        { L("Opens the map on the zone you are in, unless you had gone to another map on purpose.") }):SetPoint("TOPLEFT", 12, -92)
     local info = W.Label(p, L("Ideas from OpenMap (MIT). If another map addon shows coordinates, turn that option off here."),
         "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -126)
