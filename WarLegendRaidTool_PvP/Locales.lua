@@ -17,7 +17,8 @@ Data.L = setmetatable({}, { --key set by all non english clients, Table gets acc
         if defaultLocale[k] then
             if gameLocale ~= "enUS" and not missingReported then
                 C_Timer.After(3, function()
-                    WarLegendPvP:OnetimeInformation("Missing localizations for your ingame language. You can help translating this addon on https://www.curseforge.com/wow/addons/battlegroundenemies/localization")
+                    -- WarLegend: no link to BattleGroundEnemies' translation site (another project's page, not this port's)
+                    WarLegendPvP:OnetimeInformation("Some texts of the battleground frames are not translated for your game language: they are shown in English.")
                 end)
                 missingReported = true
             end

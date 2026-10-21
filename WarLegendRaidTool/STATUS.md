@@ -3,8 +3,23 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (20/10/2026)
+## Maintenant (21/10/2026)
 
+- **Audit complet (21/10)**, branche `claude/audit-warlegend-raid-tool-176431` (worktree), **rien de commité ni poussé**, dossier du jeu à jour.
+  Corrigé, **rien testé en jeu** : `CapTimers.lua` (prévision de fin de BG jamais calculée avec les compteurs « texte » :
+  `a and s:match()` ne garde qu'une capture), `Layers.lua` (« Inviter sur mon layer » appelait `SendChatMessage`, qui n'existe ici que
+  par un shim Blizzard_Deprecated → `W.SendChat`), PvP `Main.lua` (`not type(x) == "table"` toujours faux), PvP `Locales.lua` (plus de
+  lien vers le site de traduction de BattleGroundEnemies). Outils ajoutés (non livrés) : `tools/smoke.js` + `tools/smoke/` (banc fengari),
+  `tools/wow-api.js` + `api-baseline.txt` (API vs documentation Blizzard de Forever), `tools/deps-watch.js` + `watch.json`,
+  `tools/.luacheckrc`, fengari dans `tools/package.json` ; workflows `wlrt-ci.yml`, `wlrt-deps-watch.yml`, `dependabot.yml`,
+  `wlrt-build-watch.yml` étendu (résultats API + banc dans l'issue d'un commit UI, checkout épinglé, curl sans arrêt) ; doc `docs/modules.md`
+  « Checks and watch ». Vérifié hors jeu : check.js 0, Luacheck 0, wow-api 0 nouveau (147 noms vus), banc 0 erreur sur 2 passes (mutation
+  détectée), répétitions à blanc des deux veilles avec un faux `gh`. Les workflows planifiés ne tournent que depuis `main` : à pousser.
+- **Veille locale** (note d'une autre session retrouvée dans le dossier du jeu) : tâche planifiée « Veille news WoW Forever » (toutes les 6 h,
+  app ouverte requise ; builds `wow_classic_beta` / `wowf`, branche `forever` de Gethe/wow-ui-source, news ; branche `veille/<build>` + `.toc`
+  + rapport, sans push). `wlrt-build-watch.yml` a tourné une fois à la main (21/10 08:41) : issues n° 1-3 (builds 70450 / 70245, UI 172a387e) ;
+  aucune exécution planifiée vue. Tests gardés pour plus tard : annonces en emote hors instance (clic requis), MoveFrames (`GetFrameStrata`
+  secret), Raid Buffs / DangerAlert (valeurs secrètes).
 - **Version publiée (21/10)** : 1.35.1-beta (tag `v1.35.1-beta`) = `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
 - **Avant (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
   rouvrir la carte sur ma zone ; idées d'OpenMap, MIT ; `/wl maptools` ; testé en jeu : coordonnées et Ctrl + clic OK, points de guilde /
@@ -79,6 +94,12 @@ Pas dans le zip des releases.
   avec le jeu en retard. Erreurs Lua : `/wl bugs` ou `!BugGrabber.lua` dans les SavedVariables.
 
 ## Pistes ouvertes (audit du 17/10, non corrigées)
+
+- **Audit du 21/10, à décider** : (1) PvP : `WarLegendPvP:GROUP_ROSTER_UPDATE` recalcule tous les alliés à chaque événement, même hors BG
+  une fois l'addon PvP chargé (le plus coûteux du banc) → ignorer hors BG ; (2) LibRangeCheck-3.0 : MINOR 28, amont 38 ; HereBeDragons
+  « -gm » 33, amont 35 ; (3) métiers lus en 3 copies (Alts, Guild, SimExport) : seule Guild a le repli Classic `GetSkillLineInfo` →
+  une fonction partagée ; (4) en jeu : `/run print(GetBattlefieldTeamInfo, GetGuildRosterInfo, IsItemInRange)` (fonctions non
+  documentées) ; (5) release : faire dépendre le zip de check.js + Luacheck ; (6) Skyborne : hébergement amont inconnu (veille manuelle).
 
 - **À faire plus tard (demande du 20/10)** : intégrer des images dans l'addon. Rien n'est fait. À préciser dans une nouvelle
   session : quelles images (logo, fond de fenêtre, icônes, bouton minicarte), où sont les fichiers (dossier, format, taille),

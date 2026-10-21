@@ -1,0 +1,73 @@
+{
+    "_comment": "What tools/deps-watch.js compares every week (not shipped). 'reviewed' = the upstream value already looked at: when upstream changes, an issue is opened; after the review, write the new value here. 'local' = our copy, shown in the issue.",
+    "sources": [
+        {
+            "name": "HereBeDragons-2.0",
+            "why": "map library of GuildPositions / MapTools. Ours is GuildMap's \"-gm\" copy (adds WoW Forever): a new upstream version is a reason to look for a new GuildMap copy, not to replace ours blindly.",
+            "kind": "text",
+            "url": "https://raw.githubusercontent.com/Nevcairiel/HereBeDragons/master/HereBeDragons-2.0.lua",
+            "pattern": "local MAJOR, MINOR = \"HereBeDragons-2.0\", (\\d+)",
+            "reviewed": "35",
+            "local": { "file": "WarLegendRaidTool/Libs/HereBeDragons-2.0.lua", "pattern": "local MAJOR, MINOR = \"[^\"]+\", (\\d+)" }
+        },
+        {
+            "name": "HereBeDragons-Pins-2.0",
+            "why": "map pins (same remark as HereBeDragons-2.0).",
+            "kind": "text",
+            "url": "https://raw.githubusercontent.com/Nevcairiel/HereBeDragons/master/HereBeDragons-Pins-2.0.lua",
+            "pattern": "local MAJOR, MINOR = \"HereBeDragons-Pins-2.0\", (\\d+)",
+            "reviewed": "17",
+            "local": { "file": "WarLegendRaidTool/Libs/HereBeDragons-Pins-2.0.lua", "pattern": "local MAJOR, MINOR = \"[^\"]+\", (\\d+)" }
+        },
+        {
+            "name": "CallbackHandler-1.0",
+            "why": "Ace3 callbacks (main addon and PvP addon).",
+            "kind": "text",
+            "url": "https://raw.githubusercontent.com/WoWUIDev/Ace3/master/CallbackHandler-1.0/CallbackHandler-1.0.lua",
+            "pattern": "local MAJOR, MINOR = \"CallbackHandler-1.0\", (\\d+)",
+            "reviewed": "8",
+            "local": { "file": "WarLegendRaidTool/Libs/CallbackHandler-1.0.lua", "pattern": "local MAJOR, MINOR = \"[^\"]+\", (\\d+)" }
+        },
+        {
+            "name": "LibStub",
+            "why": "library loader (main addon and PvP addon).",
+            "kind": "text",
+            "url": "https://raw.githubusercontent.com/WoWUIDev/Ace3/master/LibStub/LibStub.lua",
+            "pattern": "LIBSTUB_MAJOR, LIBSTUB_MINOR = \"LibStub\", (\\d+)",
+            "reviewed": "2",
+            "local": { "file": "WarLegendRaidTool/Libs/LibStub.lua", "pattern": "LIBSTUB_MAJOR, LIBSTUB_MINOR = \"LibStub\", (\\d+)" }
+        },
+        {
+            "name": "LibRangeCheck-3.0",
+            "why": "range of the battleground frames (PvP addon, fallback after the game's own checks).",
+            "kind": "text",
+            "url": "https://raw.githubusercontent.com/WeakAuras/LibRangeCheck-3.0/master/LibRangeCheck-3.0/LibRangeCheck-3.0.lua",
+            "pattern": "local MINOR_VERSION = (\\d+)",
+            "reviewed": "38",
+            "local": { "file": "WarLegendRaidTool_PvP/Libs/LibRangeCheck-3.0/LibRangeCheck-3.0/LibRangeCheck-3.0.lua", "pattern": "local MINOR_VERSION = (\\d+)" }
+        },
+        {
+            "name": "BattleGroundEnemies",
+            "why": "the PvP addon is BattleGroundEnemies (Bullsei) cleaned up: an upstream release can hold fixes to port.",
+            "kind": "github-release",
+            "repo": "BullseiWoWAddons/BattleGroundEnemies",
+            "reviewed": "11.2.0.6",
+            "local": { "file": "WarLegendRaidTool_PvP/WarLegendRaidTool_PvP.toc", "pattern": "## X-BattleGroundEnemies-Version: (\\S+)" }
+        },
+        {
+            "name": "Blizzard UI Add-On Development Policy",
+            "why": "Blizzard's rules for addons (free, readable code, no harm to realms / players, no ads, no in-game donation request, Terms of Use).",
+            "kind": "discourse-post",
+            "url": "https://us.forums.blizzard.com/en/wow/t/24534.json",
+            "page": "https://us.forums.blizzard.com/en/wow/t/ui-add-on-development-policy/24534",
+            "reviewed": "1"
+        },
+        {
+            "name": "Luacheck",
+            "why": "the CI runs Luacheck 1.2.0 (signed binary, SHA-256 pinned in wlrt-ci.yml).",
+            "kind": "github-release",
+            "repo": "lunarmodules/luacheck",
+            "reviewed": "v1.2.0"
+        }
+    ]
+}

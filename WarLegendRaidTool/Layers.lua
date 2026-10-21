@@ -248,7 +248,8 @@ local function InviteSelected()
     local now = GetTime()
     if now - (lastWhisper[key] or -1000) >= WHISPER_GAP then
         lastWhisper[key] = now
-        SendChatMessage(L("[WaR LegenD] We are on different layers: I am inviting you to my group, accept to join my layer."), "WHISPER", nil, e.full)
+        -- W.SendChat: C_ChatInfo first (the global SendChatMessage is only one of Blizzard's deprecation shims here)
+        W.SendChat(L("[WaR LegenD] We are on different layers: I am inviting you to my group, accept to join my layer."), "WHISPER", e.full)
     end
     Invite(e.full)
     W.Print(string.format(L("Invitation sent to %s."), name))

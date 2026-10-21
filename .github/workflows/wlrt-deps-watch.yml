@@ -1,0 +1,30 @@
+name: WarLegend RaidTool dependency watch
+
+# Every Monday (or by hand): what the addon uses from outside the repo, listed in tools/watch.json: the embedded
+# libraries (upstream version), the addons we ported (latest release), Blizzard's UI Add-On Development Policy (an edit
+# of its first post), the Luacheck release of the CI. A new upstream value opens ONE issue (label deps-watch, assigned
+# to the owner, so the GitHub app and the e-mail notify). A source that cannot be read makes the run fail (red).
+# It never changes the code, never pushes and never tags.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Compare with upstream, open the issues
+        run: node tools/deps-watch.js --issues

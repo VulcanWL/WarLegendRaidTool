@@ -1,0 +1,154 @@
+# WarLegend RaidTool - API names already looked at (tools/wow-api.js check prints only the others). Not shipped.
+# Audit of 21/10/2026, UI source 1.60.1 (70450). "legacy": an old C function of the game, not in Blizzard's
+# documentation but used by Blizzard's own code or tested in game; "guarded": the code checks it exists first.
+# "deprecated shim": defined only by Blizzard_Deprecated* (CVar loadDeprecationFallbacks): always guarded here
+# (CombatLogGetCurrentEventInfo: WhoPulled.lua listens only when CLEU_OK, never on Forever; GetNumRaidMembers: else branch
+# of GetNumGroupMembers). A name removed from this list comes back in the check output.
+
+deprecated shim (guarded) ChatEdit_InsertLink
+deprecated shim (guarded) ChatFrame_SendTell
+deprecated shim (guarded) GetTalentInfo
+deprecated shim (guarded) GetTalentTabInfo
+deprecated shim (guarded) IsEncounterInProgress
+deprecated shim (guarded) IsPlayerSpell
+deprecated shim (guarded) IsSpellKnown
+deprecated shim (guarded) PromoteToAssistant
+deprecated shim (guarded) UninviteUnit
+deprecated shim (guarded) UnitAura
+deprecated shim (guarded) UnitBuff
+deprecated shim (local alias) GetBattlefieldScore
+deprecated shim (no guard) CombatLogGetCurrentEventInfo
+legacy (guarded) AcceptQuest
+legacy (guarded) AcknowledgeAutoAcceptQuest
+legacy (guarded) BNGetNumFriends
+legacy (guarded) CanEditOfficerNote
+legacy (guarded) CanGuildBankRepair
+legacy (guarded) CanMerchantRepair
+legacy (guarded) ClearInspectPlayer
+legacy (guarded) ClickTradeButton
+legacy (guarded) ConvertToRaid
+legacy (guarded) GameMovieFinished
+legacy (guarded) GetAddOnInfo
+legacy (guarded) GetAvailableQuestInfo
+legacy (guarded) GetAverageItemLevel
+legacy (guarded) GetBattlefieldEstimatedWaitTime
+legacy (guarded) GetBattlefieldInstanceRunTime
+legacy (guarded) GetBattlefieldPortExpiration
+legacy (guarded) GetBattlefieldStatus
+legacy (guarded) GetBattlefieldTimeWaited
+legacy (guarded) GetBattlefieldWinner
+legacy (guarded) GetChannelDisplayInfo
+legacy (guarded) GetChannelName
+legacy (guarded) GetChatWindowChannels
+legacy (guarded) GetCoinTextureString
+legacy (guarded) GetContainerItemInfo
+legacy (guarded) GetFactionInfoByID
+legacy (guarded) GetGuildInfo
+legacy (guarded) GetGuildRosterLastOnline
+legacy (guarded) GetGuildRosterShowOffline
+legacy (guarded) GetInboxItem
+legacy (guarded) GetInboxNumItems
+legacy (guarded) GetInventoryItemLink
+legacy (guarded) GetInviteConfirmationInfo
+legacy (guarded) GetItemCount
+legacy (guarded) GetItemIcon
+legacy (guarded) GetLootMethod
+legacy (guarded) GetLootSlotLink
+legacy (guarded) GetLootSourceInfo
+legacy (guarded) GetMacroIndexByName
+legacy (guarded) GetMasterLootCandidate
+legacy (guarded) GetMaxBattlefieldID
+legacy (guarded) GetMinimapShape
+legacy (guarded) GetNextPendingInviteConfirmation
+legacy (guarded) GetNumDisplayChannels
+legacy (guarded) GetNumGroupMembers
+legacy (guarded) GetNumGuildMembers
+legacy (guarded) GetNumLootItems
+legacy (guarded) GetNumPartyMembers
+legacy (guarded) GetNumRaidMembers
+legacy (guarded) GetNumSavedInstances
+legacy (guarded) GetNumSkillLines
+legacy (guarded) GetNumSpecGroups
+legacy (guarded) GetNumSubgroupMembers
+legacy (guarded) GetNumTalentTabs
+legacy (guarded) GetNumTalents
+legacy (guarded) GetPOITextureCoords
+legacy (guarded) GetProfessionInfo
+legacy (guarded) GetProfessions
+legacy (guarded) GetReadyCheckStatus
+legacy (guarded) GetSavedInstanceInfo
+legacy (guarded) GetSkillLineInfo
+legacy (guarded) GetSpellCooldown
+legacy (guarded) GetSpellInfo
+legacy (guarded) GetSpellTexture
+legacy (guarded) GiveMasterLoot
+legacy (guarded) GuildControlGetNumRanks
+legacy (guarded) GuildControlGetRankName
+legacy (guarded) GuildRoster
+legacy (guarded) InCombatLockdown
+legacy (guarded) InviteUnit
+legacy (guarded) IsFishingLoot
+legacy (guarded) IsGuildMember
+legacy (guarded) IsInGroup
+legacy (guarded) IsInRaid
+legacy (guarded) IsModifiedClick
+legacy (guarded) IsQuestCompletable
+legacy (guarded) IsRaidLeader
+legacy (guarded) IsRaidOfficer
+legacy (guarded) LibStub
+legacy (guarded) LoggingCombat
+legacy (guarded) QuestGetAutoAccept
+legacy (guarded) RegisterAddonMessagePrefix
+legacy (guarded) RepairAllItems
+legacy (guarded) RequestRaidInfo
+legacy (guarded) RespondToInviteConfirmation
+legacy (guarded) SendAddonMessage
+legacy (local alias) GetBattlefieldArenaFaction
+legacy (local alias) GetBattlefieldTeamInfo
+legacy (local alias) GetClassInfo
+legacy (local alias) GetNumBattlefieldScores
+legacy (local alias) GetNumGroupMembers
+legacy (local alias) GetRaidRosterInfo
+legacy (local alias) InCombatLockdown
+legacy (local alias) IsInRaid
+legacy (local alias) IsItemInRange
+legacy (local alias) RequestBattlefieldScoreData
+legacy (local alias) SetBattlefieldScoreFaction
+legacy (no guard) ClearOverrideBindings
+legacy (no guard) CompleteQuest
+legacy (no guard) CreateMacro
+legacy (no guard) EditMacro
+legacy (no guard) GetActiveTitle
+legacy (no guard) GetChannelList
+legacy (no guard) GetChannelName
+legacy (no guard) GetClassInfo
+legacy (no guard) GetGuildRosterInfo
+legacy (no guard) GetInboxHeaderInfo
+legacy (no guard) GetInventoryItemDurability
+legacy (no guard) GetInventoryItemLink
+legacy (no guard) GetLootSlotLink
+legacy (no guard) GetMacroInfo
+legacy (no guard) GetNumActiveQuests
+legacy (no guard) GetNumAvailableQuests
+legacy (no guard) GetNumClasses
+legacy (no guard) GetNumLootItems
+legacy (no guard) GetNumMacros
+legacy (no guard) GetNumQuestChoices
+legacy (no guard) GetNumRaidMembers
+legacy (no guard) GetQuestReward
+legacy (no guard) GetRaidRosterInfo
+legacy (no guard) GetRepairAllCost
+legacy (no guard) GuildControlGetRankName
+legacy (no guard) InCombatLockdown
+legacy (no guard) LeaveChannelByName
+legacy (no guard) LibStub
+legacy (no guard) LootSlot
+legacy (no guard) RepairAllItems
+legacy (no guard) SelectActiveQuest
+legacy (no guard) SelectAvailableQuest
+legacy (no guard) SetOverrideBindingClick
+legacy (no guard) SetRaidSubgroup
+legacy (no guard) SwapRaidSubgroup
+undocumented C_Console.GetAllCommands
+undocumented Constants.CharacterNameSeparatorConsts
+undocumented Enum.SendChatMessageResult
