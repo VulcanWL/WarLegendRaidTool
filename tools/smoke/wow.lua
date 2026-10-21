@@ -171,8 +171,12 @@ local WidgetMT = {
     __index = function(obj, k)
         local m = Widget[k]
         if m then
-            if PROTECTED_CHANGE[k] and rawget(obj, "__protected") and M.combat then
-                return function(...) M.blocked[#M.blocked + 1] = k .. " on " .. tostring(obj:GetName() or obj.__type) .. " (" .. (M.phase or "?") .. ")"; return m(...) end
+            if PROTECTED_CHANGE[k] and (rawget(obj, "__protected") or rawget(obj, "__implicit")) and M.combat then
+                return function(...)
+                    local how = rawget(obj, "__protected") and "" or ", implicitly protected (" .. tostring(rawget(obj, "__where") or "?") .. ")"
+                    M.blocked[#M.blocked + 1] = k .. " on " .. tostring(obj:GetName() or obj.__type) .. how .. " (" .. (M.phase or "?") .. ")"
+                    return m(...)
+                end
             end
             return m
         end
@@ -182,11 +186,20 @@ local WidgetMT = {
     end,
 }
 
+-- a protected frame makes its parents and the frames it is anchored to protected too (moving them would move it):
+-- the game blocks their changes in combat as well
+local function Restrict(o)
+    while type(o) == "table" and o.__children and not rawget(o, "__implicit") and o ~= UIParent do
+        rawset(o, "__implicit", true)
+        o = o.__parent
+    end
+end
+
 local function New(kind, name, parent, template)
     local o = setmetatable({ __type = kind, __name = name, __parent = parent, __shown = true, __points = {}, __children = {},
         __regions = {}, __scripts = {}, __attr = {}, __w = 0, __h = 0, __text = nil, __value = 0, __min = 0, __max = 1,
         __checked = false, __alpha = 1, __scale = 1, __level = 1, __strata = "MEDIUM", __template = template }, WidgetMT)
-    if template and tostring(template):find("Secure") then o.__protected = true end
+    if template and tostring(template):find("Secure") then o.__protected = true; Restrict(parent) end
     if parent and type(parent) == "table" and parent.__children then
         if kind == "FontString" or kind == "Texture" or kind == "Line" or kind == "MaskTexture" then
             parent.__regions[#parent.__regions + 1] = o
@@ -221,6 +234,7 @@ function Widget:SetParent(p)
     if type(p) == "string" then p = _G[p] end
     self.__parent = p
     if p and p.__children then p.__children[#p.__children + 1] = self end
+    if rawget(self, "__protected") or rawget(self, "__implicit") then Restrict(p) end
 end
 function Widget:GetChildren() return table.unpack(self.__children) end
 function Widget:GetNumChildren() return #self.__children end
@@ -249,7 +263,9 @@ function Widget:IsVisible()
 end
 function Widget:SetPoint(point, rel, relPoint, x, y)
     if type(rel) == "number" then rel, relPoint, x, y = nil, nil, rel, relPoint end
+    if type(rel) == "string" then rel = _G[rel] end
     self.__points[#self.__points + 1] = { point, rel, relPoint or point, x or 0, y or 0 }
+    if rel and (rawget(self, "__protected") or rawget(self, "__implicit")) then Restrict(rel) end
 end
 function Widget:ClearAllPoints() self.__points = {} end
 function Widget:SetAllPoints(rel) self.__points = { { "TOPLEFT", rel }, { "BOTTOMRIGHT", rel } } end
@@ -422,17 +438,47 @@ function CreateFrame(kind, name, parent, template, id)
     frames[#frames + 1] = o
     return o
 end
--- FrameXML pools (HereBeDragons-Pins)
-function CreateFramePool(kind, parent, template, reset)
-    local pool, active = {}, {}
-    function pool:Acquire() local f = CreateFrame(kind or "Frame", nil, parent, template); active[f] = true; return f, true end
-    function pool:Release(f) active[f] = nil; if reset then reset(pool, f) end end
-    function pool:ReleaseAll() for f in pairs(active) do pool:Release(f) end end
-    function pool:EnumerateActive() return pairs(active) end
-    function pool:GetNumActive() local n = 0; for _ in pairs(active) do n = n + 1 end return n end
-    return pool
+-- FrameXML pools, as Blizzard_SharedXMLBase/Pools.lua: a released object is reused, createFunc / resetFunc are read when
+-- needed (HereBeDragons-Pins sets them after making its pool), the reset runs on a new object too
+local Pool = {}
+Pool.__index = Pool
+function Pool:Acquire()
+    local o = table.remove(self.inactiveObjects)
+    local new = o == nil
+    if new then
+        o = self.createFunc(self)
+        self.resetFunc(self, o, true)
+    end
+    self.activeObjects[o] = true
+    self.activeObjectCount = self.activeObjectCount + 1
+    return o, new
 end
-CreateObjectPool = function(create, reset) return CreateFramePool("Frame", nil, nil, reset) end
+function Pool:Release(o)
+    if not self.activeObjects[o] then return false end
+    self.resetFunc(self, o)
+    self.inactiveObjects[#self.inactiveObjects + 1] = o
+    self.activeObjects[o] = nil
+    self.activeObjectCount = self.activeObjectCount - 1
+    return true
+end
+function Pool:ReleaseAll() for o in pairs(self.activeObjects) do self:Release(o) end end
+function Pool:EnumerateActive() return pairs(self.activeObjects) end
+function Pool:GetNextActive(o) return next(self.activeObjects, o) end
+function Pool:IsActive(o) return self.activeObjects[o] ~= nil end
+function Pool:GetNumActive() return self.activeObjectCount end
+local function NewPool(create, reset)
+    return setmetatable({ createFunc = create, resetFunc = reset or function() end, activeObjects = {}, inactiveObjects = {}, activeObjectCount = 0 }, Pool)
+end
+local function HideAndClear(_, r) r:Hide(); r:ClearAllPoints() end
+function CreateFramePool(kind, parent, template, reset)
+    return NewPool(function() return CreateFrame(kind or "Frame", nil, parent, template) end, reset or HideAndClear)
+end
+function CreateObjectPool(create, reset) return NewPool(create, reset) end
+function CreateUnsecuredRegionPoolInstance(template, create, reset)
+    local p = NewPool(create, reset or HideAndClear)
+    p.GetTemplate = function() return template end
+    return p
+end
 local SLOTS = { HeadSlot = 1, NeckSlot = 2, ShoulderSlot = 3, ShirtSlot = 4, ChestSlot = 5, WaistSlot = 6, LegsSlot = 7, FeetSlot = 8,
     WristSlot = 9, HandsSlot = 10, Finger0Slot = 11, Finger1Slot = 12, Trinket0Slot = 13, Trinket1Slot = 14, BackSlot = 15,
     MainHandSlot = 16, SecondaryHandSlot = 17, RangedSlot = 18, TabardSlot = 19 }
@@ -466,10 +512,14 @@ local function UnitIndex(unit)
     for i, p in ipairs(M.group) do if p.name == unit or p.name:lower() == unit then return i end end
     return nil
 end
+-- other units (nameplateN, target, focus, mouseover...): M.units[token] = { name, class, guid, enemy, pvp, npc, hp, hpMax,
+-- level, classification }; the same table under two tokens is the same unit
+M.units = {}
 local function Who(unit)
     local i = UnitIndex(unit)
     if i == 1 or (i == nil and type(unit) == "string" and unit:lower() == "player") then return M.player end
-    return i and M.group[i]
+    if i then return M.group[i] end
+    return type(unit) == "string" and M.units[unit:lower()] or nil
 end
 M.Who = Who
 
@@ -515,7 +565,7 @@ function UnitIsGroupLeader(u) return UnitIndex(u) == 1 end
 function UnitIsGroupAssistant(u) return UnitIndex(u) == 1 end
 function UnitIsRaidOfficer(u) return UnitIndex(u) == 1 end
 function UnitExists(u) return Who(u) ~= nil end
-function UnitIsPlayer(u) return Who(u) ~= nil end
+function UnitIsPlayer(u) local p = Who(u); return p ~= nil and not p.npc end
 function UnitIsUnit(a, b) local x, y = Who(a), Who(b); return x ~= nil and x == y end
 function UnitIsConnected(u) return Who(u) ~= nil end
 function UnitIsVisible(u) return Who(u) ~= nil end
@@ -523,10 +573,14 @@ function UnitIsDeadOrGhost() return false end
 function UnitIsDead() return false end
 function UnitIsGhost() return false end
 function UnitIsAFK() return false end
-function UnitIsEnemy() return false end
-function UnitIsFriend(u) return Who(u) ~= nil end
-function UnitCanAttack() return false end
-function UnitIsPVP() return false end
+local function Hostile(a, b)
+    local x, y = Who(a), Who(b)
+    return x ~= nil and y ~= nil and ((x.enemy or false) ~= (y.enemy or false))
+end
+function UnitIsEnemy(a, b) return Hostile(a, b) end
+function UnitIsFriend(a, b) local x = Who(a); if b == nil then return x ~= nil and not x.enemy end return Who(b) ~= nil and x ~= nil and not Hostile(a, b) end
+function UnitCanAttack(a, b) return Hostile(a, b) end
+function UnitIsPVP(u) local p = Who(u); return p ~= nil and p.pvp or false end
 function UnitOnTaxi() return false end
 function UnitInRange(u) return Who(u) ~= nil, true end
 function CheckInteractDistance(u) return Who(u) ~= nil end
@@ -539,7 +593,12 @@ function UnitName(u)
 end
 function GetUnitName(u, withRealm) local n, r = UnitName(u); if withRealm and r then return n .. "-" .. r end return n end
 function UnitFullName(u) local n, r = UnitName(u); return n, r or (n and M.player.realm) end
-function UnitGUID(u) local i = UnitIndex(u); return i and ("Player-1-" .. string.format("%08X", i)) or nil end
+function UnitGUID(u)
+    local i = UnitIndex(u)
+    if i then return "Player-1-" .. string.format("%08X", i) end
+    local p = Who(u)
+    return p and p.guid or nil
+end
 function UnitClass(u)
     local p = Who(u)
     if not p then return nil end
@@ -548,17 +607,17 @@ end
 function UnitClassBase(u) local _, c = UnitClass(u); return c end
 function UnitRace(u) local p = Who(u); if p then local r = p.race or "Human"; return r, r, 1 end end
 function UnitSex() return 2 end
-function UnitLevel(u) local p = Who(u); return p and 60 or 0 end
-function UnitFactionGroup(u) if Who(u) then return "Alliance", "Alliance" end end
-function UnitHealth(u) return Who(u) and 1000 or 0 end
-function UnitHealthMax(u) return Who(u) and 1000 or 0 end
+function UnitLevel(u) local p = Who(u); return p and (p.level or 60) or 0 end
+function UnitFactionGroup(u) local p = Who(u); if p then local f = p.enemy and "Horde" or "Alliance"; return f, f end end
+function UnitHealth(u) local p = Who(u); return p and (p.hp or 1000) or 0 end
+function UnitHealthMax(u) local p = Who(u); return p and (p.hpMax or 1000) or 0 end
 function UnitPower(u) return Who(u) and 500 or 0 end
 function UnitPowerMax(u) return Who(u) and 1000 or 0 end
 function UnitPowerType() return 0, "MANA" end
 function UnitGroupRolesAssigned() return "DAMAGER" end
-function UnitClassification() return "normal" end
+function UnitClassification(u) local p = Who(u); return p and p.classification or "normal" end
 function UnitCreatureType() return nil end
-function UnitReaction() return 5 end
+function UnitReaction(a, b) return Hostile(a, b) and 2 or 5 end
 function UnitXP() return 0 end
 function UnitXPMax() return 1000 end
 function UnitCastingInfo() return nil end
@@ -628,6 +687,90 @@ function ClearInspectPlayer() end
 function Ambiguate(name) return (tostring(name):gsub("%-.*$", "")) end
 function GetPlayerInfoByGUID() return nil end
 function GetAverageItemLevel() return 60, 60 end
+
+-- The open world, for tools/smoke/openworld.lua (M.SetupWorld before the addons load: HereBeDragons reads the maps
+-- then). Two continents, a few zones (a box on their continent); positions: M.world.player / a unit's map, x, y
+-- (0-1 on that map). World coordinates in yards as the game gives them: UnitPosition = y, x (x = left - width * mapX).
+local worldStub = UnitPosition
+function UnitPosition(u)
+    if not M.world then return worldStub(u) end
+    local p = Who(u)
+    p = p == M.player and M.world.player or p
+    local r = p and p.map and M.world.maps[p.map]
+    if not r or not r.w then return nil end
+    return r.top - r.h * p.y, r.left - r.w * p.x, 0, r.instance
+end
+function M.SetupWorld()
+    local T = Enum.UIMapType
+    local maps = {
+        [946] = { "Cosmic", T.Cosmic },
+        [947] = { "Azeroth", T.World, 946 },
+        [1414] = { "Kalimdor", T.Continent, 947, 1, left = 12000, top = 11000, w = 36000, h = 24000 },
+        [1415] = { "Eastern Kingdoms", T.Continent, 947, 0, left = 16000, top = 5000, w = 34000, h = 22000 },
+        [1411] = { "Durotar", T.Zone, 1414, box = { 0.56, 0.50, 0.66, 0.66 } },
+        [1454] = { "Orgrimmar", T.Zone, 1414, box = { 0.56, 0.44, 0.60, 0.50 } },
+        [1413] = { "The Barrens", T.Zone, 1414, box = { 0.46, 0.50, 0.58, 0.80 } },
+        [1440] = { "Ashenvale", T.Zone, 1414, box = { 0.38, 0.28, 0.56, 0.44 } },
+        [1429] = { "Elwynn Forest", T.Zone, 1415, box = { 0.40, 0.76, 0.52, 0.84 } },
+        [1453] = { "Stormwind City", T.Zone, 1415, box = { 0.38, 0.70, 0.44, 0.76 } },
+    }
+    for id, m in pairs(maps) do
+        m.id, m.name, m.mapType, m.parent, m.instance = id, m[1], m[2], m[3], m[4]
+        local c = m.box and maps[m.parent]
+        if c then
+            m.instance = c.instance
+            m.left, m.top = c.left - c.w * m.box[1], c.top - c.h * m.box[2]
+            m.w, m.h = c.w * (m.box[3] - m.box[1]), c.h * (m.box[4] - m.box[2])
+        end
+    end
+    M.world = { maps = maps, player = { map = 1411, x = 0.52, y = 0.44 } }
+    local function Info(m) return { mapID = m.id, name = m.name, mapType = m.mapType, parentMapID = m.parent or 0, flags = 0 } end
+    C_Map.GetMapInfo = function(id) local m = maps[id]; return m and Info(m) or nil end
+    C_Map.GetMapChildrenInfo = function(id, mapType, all)
+        local out = {}
+        for _, m in pairs(maps) do
+            local p, under = m.parent, false
+            while p do if p == id then under = true; break end p = all and maps[p] and maps[p].parent or nil end
+            if under and (not mapType or m.mapType == mapType) then out[#out + 1] = Info(m) end
+        end
+        table.sort(out, function(a, b) return a.mapID < b.mapID end)
+        return out
+    end
+    C_Map.GetMapGroupID = function() return nil end
+    C_Map.GetMapGroupMembersInfo = function() return nil end
+    C_Map.GetMapArtID = function(id) return id end
+    C_Map.GetMapWorldSize = function(id) local m = maps[id]; if m and m.w then return m.w, m.h end return 0, 0 end
+    C_Map.GetWorldPosFromMapPos = function(id, pos)
+        local m = maps[id]
+        if not (m and m.w and pos) then return nil, nil end
+        local x, y = pos:GetXY()
+        return m.instance, CreateVector2D(m.top - m.h * y, m.left - m.w * x)
+    end
+    C_Map.GetMapPosFromWorldPos = function(instance, pos, override)
+        local wy, wx = pos:GetXY()
+        local m = maps[override or 0]
+        if not (m and m.w and m.instance == instance) then return nil, nil end
+        return m.id, CreateVector2D((m.left - wx) / m.w, (m.top - wy) / m.h)
+    end
+    C_Map.GetMapRectOnMap = function(id, parent)
+        local m = maps[id]
+        if not (m and m.box and m.parent == parent) then return 0, 0, 0, 0 end
+        return m.box[1], m.box[3], m.box[2], m.box[4]
+    end
+    C_Map.GetBestMapForUnit = function(u) if UnitIsUnit(u, "player") then return M.world.player.map end return nil end
+    -- the player's position on a map: through the world, as the game does (nil off that map)
+    C_Map.GetPlayerMapPosition = function(id, u)
+        local wy, wx, _, instance = UnitPosition(u)
+        local m = maps[id]
+        if not (wy and m and m.w and m.instance == instance) then return nil end
+        local x, y = (m.left - wx) / m.w, (m.top - wy) / m.h
+        if x < 0 or x > 1 or y < 0 or y > 1 then return nil end
+        return CreateVector2D(x, y)
+    end
+    C_Minimap = C_Minimap or {}
+    C_Minimap.GetViewRadius = function() return 233 end -- yards, outdoor zoom 0
+    Minimap.__w, Minimap.__h = 140, 140
+end
 
 -- what the addon sends: kept, and counted as "sensitive" when it acts for the player
 function M.Sensitive(what) M.sensitive[#M.sensitive + 1] = what .. " (" .. (M.phase or "?") .. ")" end
@@ -722,11 +865,19 @@ function M.Advance(seconds, step)
                 end
             end
         end
+        if M.onStep then M.Call(M.onStep, M.now) end -- the scenario's world: other players moving, sending
         for _, f in ipairs(frames) do
             local fn = f.__scripts.OnUpdate
             if fn and f:IsVisible() then
                 M.updates = (M.updates or 0) + 1
-                M.Call(fn, f, step)
+                if M.costs then
+                    local t0 = os.clock()
+                    M.Call(fn, f, step)
+                    local k = "OnUpdate " .. (f.__where or f:GetName() or "?")
+                    M.costs[k] = (M.costs[k] or 0) + (os.clock() - t0) * 1000
+                else
+                    M.Call(fn, f, step)
+                end
             end
         end
     end
@@ -772,19 +923,49 @@ end
 ChatFrame1.__shown = true
 DEFAULT_CHAT_FRAME = ChatFrame1
 SELECTED_CHAT_FRAME = ChatFrame1
+-- the world map is a MapCanvas (Blizzard_MapCanvas.lua, Blizzard_WorldMap.lua): no map until its first opening, then
+-- the player's map on each opening; data providers refreshed on show and on a map change; pins from pools: a pin
+-- acquired while the map is closed stays active until the next refresh, as in the game
 WorldMapFrame.ScrollContainer = New("Frame", nil, WorldMapFrame)
 WorldMapFrame.pinPools = {}
 WorldMapFrame.dataProviders = {}
 WorldMapFrame.BorderFrame = New("Frame", nil, WorldMapFrame)
-function WorldMapFrame:GetMapID() return 1454 end
-function WorldMapFrame:AddDataProvider() end
-function WorldMapFrame:RemoveDataProvider() end
-function WorldMapFrame:AcquirePin() return New("Frame", nil, WorldMapFrame) end
-function WorldMapFrame:RemoveAllPinsByTemplate() end
-function WorldMapFrame:EnumeratePinsByTemplate() return function() end end
+function WorldMapFrame:GetMapID() return self.mapID end
+function WorldMapFrame:RefreshAllDataProviders(fromOnShow)
+    for dp in pairs(self.dataProviders) do if dp.RefreshAllData then M.Call(dp.RefreshAllData, dp, fromOnShow) end end
+end
+function WorldMapFrame:SetMapID(id)
+    if id == self.mapID then return end
+    self.mapID = id
+    self:RefreshAllDataProviders(false)
+end
+function WorldMapFrame:AddDataProvider(dp) self.dataProviders[dp] = true; if dp.OnAdded then dp:OnAdded(self) end end
+function WorldMapFrame:RemoveDataProvider(dp)
+    if dp.RemoveAllData then dp:RemoveAllData() end
+    self.dataProviders[dp] = nil
+    if dp.OnRemoved then dp:OnRemoved(self) end
+end
+function WorldMapFrame:AcquirePin(template, ...)
+    local pool = self.pinPools[template]
+    if not pool then pool = CreateFramePool("Frame", self:GetCanvas(), template); self.pinPools[template] = pool end
+    local pin, new = pool:Acquire()
+    pin.pinTemplate = template
+    pin.owningMap = self
+    if new and pin.OnLoad then pin:OnLoad() end
+    pin:Show()
+    if pin.OnAcquired then pin:OnAcquired(...) end
+    return pin
+end
+function WorldMapFrame:RemovePin(pin) local pool = self.pinPools[pin.pinTemplate]; if pool then pool:Release(pin) end end
+function WorldMapFrame:RemoveAllPinsByTemplate(t) if self.pinPools[t] then self.pinPools[t]:ReleaseAll() end end
+function WorldMapFrame:EnumeratePinsByTemplate(t) if self.pinPools[t] then return self.pinPools[t]:EnumerateActive() end return function() end end
+function WorldMapFrame:GetNumActivePinsByTemplate(t) return self.pinPools[t] and self.pinPools[t]:GetNumActive() or 0 end
 function WorldMapFrame:GetCanvas() return WorldMapFrame.ScrollContainer end
-function WorldMapFrame:SetMapID() end
 function WorldMapFrame:RegisterCallback() end
+WorldMapFrame.__scripts.OnShow = function(self)
+    self:SetMapID(C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or self.mapID)
+    self:RefreshAllDataProviders(true)
+end
 function WorldMapFrame.ScrollContainer:GetNormalizedCursorPosition() return 0.5, 0.5 end
 function WorldMapFrame.ScrollContainer:GetCanvasScale() return 1 end
 function GameTooltip_SetDefaultAnchor(t) t:SetOwner(UIParent) end
@@ -850,7 +1031,9 @@ UiMapPoint = { CreateFromCoordinates = function(m, x, y) return { uiMapID = m, p
 BackdropTemplateMixin = { SetBackdrop = Widget.SetBackdrop }
 MapCanvasDataProviderMixin = { GetMap = function() return WorldMapFrame end, OnAdded = function(self, map) self.owningMap = map end,
     OnRemoved = function() end, RemoveAllData = function() end, RefreshAllData = function() end }
-MapCanvasPinMixin = { OnLoad = function() end, SetPosition = function() end, UseFrameLevelType = function() end }
+MapCanvasPinMixin = { OnLoad = function() end, SetPosition = function() end, UseFrameLevelType = function() end,
+    SetScalingLimits = function() end, OnAcquired = function() end, OnReleased = function() end,
+    SetOwningMap = function(self, map) self.owningMap = map end, GetMap = function(self) return self.owningMap end }
 MinimalSliderWithSteppersMixin = { Event = { OnValueChanged = 1 }, Label = { Left = 1, Right = 2, Top = 3, Min = 4, Max = 5 } }
 -- the rest of FrameXML the addon touches: tables whose functions do nothing and return nothing
 local function Inert(name)

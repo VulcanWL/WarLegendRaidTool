@@ -105,6 +105,9 @@ local function Place(m)
     if On("world") then
         m.world = m.world or NewPin()
         Paint(m.world, m)
+        -- the library takes a new map pin at each add and frees the old one only when the map refreshes (opened, other
+        -- map): the old one off first, else each line on the map shown last left one (thousands an hour, map closed)
+        Pins:RemoveWorldMapIcon(REF, m.world)
         Pins:AddWorldMapIconMap(REF, m.world, m.mapID, m.x, m.y, HBD_PINS_WORLDMAP_SHOW_CONTINENT or 2)
     elseif m.world then
         Pins:RemoveWorldMapIcon(REF, m.world)

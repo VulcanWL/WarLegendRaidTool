@@ -57,7 +57,9 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
 - `GuildPositions.lua` (`/wl map`): guild members on the maps. It sends addon messages to the GUILD (the user asked for it),
   with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
-  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc).
+  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc). HereBeDragons-Pins takes a
+  new world map pin at each `AddWorldMapIcon*` and frees the old one only when the map refreshes: a moved icon is removed
+  first (`RemoveWorldMapIcon`, as `Transports.lua` does), else pins pile up while the map is closed.
 
 ## Test all and Cost
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test must
@@ -89,10 +91,20 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   `/wl` command alone and in a raid, every tab, Test all, ready check, pull, combat (protected frames changed in combat
   are listed as the game would block them), hostile addon messages on every prefix, own messages replayed 100 times,
   event floods. Limits: values are never secret, frames draw nothing, the server never answers: it proves the code runs,
-  not that a feature works in game.
+  not that a feature works in game. The fake client follows FrameXML where the addon depends on it: pools reuse their
+  objects, the world map is a MapCanvas (no map before its first opening, pins from pools), a frame becomes protected when a
+  secure frame is its child or is anchored to it.
+- `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
+  120 and a raid of 40 outside instances (`M.SetupWorld`: two continents, a few zones, positions for HereBeDragons).
+  [1] enemy player frames of the danger alert (40 at most, clicks right after combat, nothing secure changed in combat),
+  frames drawn in a raid; [2] the raid forming, the same events with 10 and 40 players, the PvP addon loaded, the
+  addon's own lines sent by 39 raiders / 119 guild mates, OnUpdate at rest, `W.BusiestWork`; [3] 119 members sending
+  GuildMap lines built from the addon's own line (map never opened, open on a zone / the continent, closed; I move; edge;
+  "gone" line; silence; return): members placed, pins drawn, world map pins left active, frames reused. Fails on a Lua
+  error, a blocked action, a chat line or a failed check. fengari ms only compare with each other.
 - `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
   addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
-- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke), `wlrt-build-watch.yml` (hourly:
+- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke, open world smoke), `wlrt-build-watch.yml` (hourly:
   new build or UI source commit = one issue, with the API check and smoke results for a UI commit), `wlrt-deps-watch.yml`
   (Mondays: one issue per new upstream value), `.github/dependabot.yml` (pull requests for the pinned actions and tools).
   Scheduled workflows run from `main` only.

@@ -39,3 +39,6 @@ jobs:
 
       - name: Smoke test (simulated client, two runs)
         run: node tools/smoke.js
+
+      - name: Smoke test, open world (raid of 40, guild of 120, about 20 s)
+        run: node tools/smoke.js --open-world

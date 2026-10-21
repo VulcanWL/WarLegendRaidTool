@@ -1,5 +1,5 @@
 // WarLegend RaidTool - smoke test in a simulated client (not shipped).
-// Usage: node tools/smoke.js [--fuzz N] [--verbose]     (once: npm install --prefix tools)
+// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world]     (once: npm install --prefix tools)
 // Runs the four addons in fengari (a Lua VM in JavaScript) on top of tools/smoke/wow.lua, a small fake client whose
 // API answers come from Blizzard's own API documentation of the current build (tools/wow-api.js, cached UI source).
 // Plays tools/smoke/scenario.lua twice: a fresh install (English client), then a /reload with the saved data (French).
@@ -162,7 +162,7 @@ function run(options, savedIn) {
     const savedLua = "{" + Object.entries(savedIn || {}).map(([k, v]) => "[" + luaStr(k) + "]=" + luaStr(v)).join(",") + "}";
     const version = (fs.readFileSync(path.join(REPO, ADDONS[0], ADDONS[0] + ".toc"), "utf8").match(/^## Version:\s*(\S+)/m) || [])[1] || "?";
     const optsLua = "{locale=" + luaStr(options.locale) + ",race=" + luaStr(options.race || "Human") + ",fuzz=" + Number(options.fuzz) + ",version=" + luaStr(version) + "}";
-    for (const s of [apiModel(), path.join(TOOLS, "smoke", "wow.lua"), path.join(TOOLS, "smoke", "scenario.lua"), REPO]) lua.lua_pushstring(L, to_luastring(s));
+    for (const s of [apiModel(), path.join(TOOLS, "smoke", "wow.lua"), path.join(TOOLS, "smoke", options.scenario || "scenario.lua"), REPO]) lua.lua_pushstring(L, to_luastring(s));
     for (const s of ["{" + tocs.join(",") + "}", savedLua, optsLua]) {
         if (lauxlib.luaL_dostring(L, to_luastring("return " + s)) !== lua.LUA_OK) throw new Error(lua.lua_tojsstring(L, -1));
     }
@@ -210,7 +210,7 @@ function show(title, { out }) {
     const idle = r.idle || {};
     console.log("  idle (windows closed): " + list(idle.frames).length + " OnUpdate script(s) running: " + list(idle.frames).join(", ") + "; " + idle.timers + " timer(s) pending");
     if (list(r.frameCosts).length) {
-        console.log("  costliest event handlers during the floods (any frame, fengari ms total):");
+        console.log("  costliest event handlers / OnUpdate scripts during the floods and the idle time (any frame, fengari ms total):");
         for (const c of list(r.frameCosts).slice(0, 6)) console.log("    " + String(c[0]).padEnd(60) + Number(c[1]).toFixed(1).padStart(8));
     }
     if (list(r.busiest).length) {
@@ -219,6 +219,41 @@ function show(title, { out }) {
     }
     if (verbose && list(out.unknown).length) console.log("  globals read but nil here: " + out.unknown.slice(0, 40).map((u) => u[0]).join(" "));
     bad += errors.length + blocked.length + (r.testChat || 0) + (r.testAddon || 0) + fuzzChat + fuzzSens + (r.access === true ? 0 : 1);
+}
+
+// --open-world: tools/smoke/openworld.lua instead (one pass, English client): a raid of 40 and a guild of 120 in the
+// open world: enemy player frames of the danger alert, cost of the raid / guild traffic, guild members on the maps
+function showOpenWorld({ out }) {
+    const r = out.report || {};
+    console.log("== open world: raid of 40, guild of 120");
+    console.log("  access " + r.access + ", guild " + r.guild + " members, raid addon loaded: " + r.raidLoaded + ", PvP addon loaded: " + r.pvpLoaded);
+    const errors = list(out.errors);
+    console.log("  Lua errors: " + errors.length);
+    for (const e of errors) { console.log("    [" + e.phase + "] x" + e.count + " " + e.msg); if (verbose) console.log(ourTrace(e.trace)); }
+    const blocked = list(out.blocked);
+    console.log("  protected actions in combat (the game blocks them): " + blocked.length);
+    for (const b of blocked.slice(0, 10)) console.log("    " + b);
+    for (const s of list(r.sections)) {
+        console.log("  " + s.title);
+        for (const l of list(s.lines)) console.log("    " + l);
+    }
+    console.log("  checks:");
+    let failed = 0;
+    for (const c of list(r.checks)) {
+        if (!c.ok) failed++;
+        if (!c.ok || verbose) console.log("    " + (c.ok ? "ok   " : "FAIL ") + c.name + (c.detail ? " (" + c.detail + ")" : ""));
+    }
+    console.log("    " + (list(r.checks).length - failed) + " / " + list(r.checks).length + " passed");
+    const chat = list(out.chat);
+    console.log("  chat lines sent: " + chat.length);
+    for (const c of chat.slice(0, 8)) console.log("    [" + c[0] + "] " + c[1] + ": " + String(c[2]).slice(0, 90));
+    if (verbose) console.log("  addon messages sent: " + JSON.stringify(out.addon));
+    bad += errors.length + blocked.length + failed + chat.length + (r.access === true ? 0 : 1);
+}
+if (args.includes("--open-world")) {
+    showOpenWorld(run({ locale: "enUS", fuzz: 0, scenario: "openworld.lua" }));
+    console.log(bad ? "Open world smoke test: " + bad + " problem(s)." : "Open world smoke test: no problem found (simulated client: still test in game).");
+    process.exit(bad ? 1 : 0);
 }
 
 const fuzz = Number(opt("--fuzz", 300));
