@@ -1,0 +1,65 @@
+name: WoW Forever build watch
+
+# Every hour: read Blizzard's version servers and the Forever branch of wow-ui-source.
+# A new build or UI commit opens ONE issue (assigned to the owner, so the GitHub mobile app notifies).
+# It never changes the code, never pushes and never tags.
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check builds
+        shell: bash
+        run: |
+          set -u
+          TOC_IFACE=$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | tr -dc '0-9')
+          gh label create build-watch --color 1d76db --description "Automatic build watch" 2>/dev/null || true
+
+          open_issue() {
+            local title="$1" body="$2"
+            if [ -n "$(gh issue list --label build-watch --state all --search "\"$title\" in:title" --json title --jq ".[] | select(.title==\"$title\") | .title")" ]; then
+              echo "Already reported: $title"
+              return
+            fi
+            gh issue create --title "$title" --body "$body" --label build-watch --assignee "$OWNER"
+          }
+
+          for product in wow_classic_beta wowf; do
+            line=$(curl -s --max-time 20 "http://us.patch.battle.net:1119/$product/versions" | grep '^us|' | head -1)
+            [ -z "$line" ] && { echo "No answer for $product"; continue; }
+            version=$(echo "$line" | cut -d'|' -f6)
+            major=$(echo "$version" | cut -d. -f1); minor=$(echo "$version" | cut -d. -f2); patch=$(echo "$version" | cut -d. -f3)
+            iface=$((major * 10000 + minor * 100 + patch))
+            if [ "$iface" = "$TOC_IFACE" ]; then verdict="The .toc Interface ($TOC_IFACE) matches."; else verdict="**The .toc Interface is $TOC_IFACE but the game says $iface: update the .toc.**"; fi
+            open_issue "Build $version ($product)" "New build on Blizzard's version server.
+
+          - Product: \`$product\`
+          - Version: \`$version\` (Interface \`$iface\`)
+          - $verdict
+
+          Next: ask Claude to review the branch \`veille/$version\`, or run the local watch task. Test in game with \`/reload\` and \`/wl bugs\` before any release."
+          done
+
+          sha=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"sha"' | sed 's/.*: "\(.*\)",/\1/')
+          msg=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"message"' | sed 's/.*: "\(.*\)",\?/\1/')
+          if [ -n "$sha" ]; then
+            short=${sha:0:8}
+            open_issue "UI source ${msg} [$short]" "New commit on the \`forever\` branch of Gethe/wow-ui-source (community mirror of Blizzard's UI code, includes the addon API documentation).
+
+          https://github.com/Gethe/wow-ui-source/commit/$sha"
+          fi
