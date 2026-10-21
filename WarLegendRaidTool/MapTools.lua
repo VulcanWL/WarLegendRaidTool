@@ -70,14 +70,16 @@ end
 local function BuildBar()
     if bar then return end
     bar = CreateFrame("Frame", nil, WorldMapFrame)
-    bar:SetSize(300, 16)
-    bar:SetPoint("BOTTOM", WorldMapFrame.ScrollContainer or WorldMapFrame, "BOTTOM", 0, 6)
+    bar:SetSize(420, 22)
+    bar:SetPoint("BOTTOM", WorldMapFrame.ScrollContainer or WorldMapFrame, "BOTTOM", 0, 8)
     bar:SetFrameLevel(math.min((WorldMapFrame:GetFrameLevel() or 0) + 9000, 9900)) -- above the map pins
-    bar.me = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bar.me:SetPoint("RIGHT", bar, "CENTER", -8, 0)
+    bar.me = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    bar.me:SetFont(W.FONT, 16, "OUTLINE")
+    bar.me:SetPoint("RIGHT", bar, "CENTER", -10, 0)
     bar.me:SetTextColor(1, 0.82, 0)
-    bar.cursor = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    bar.cursor:SetPoint("LEFT", bar, "CENTER", 8, 0)
+    bar.cursor = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    bar.cursor:SetFont(W.FONT, 16, "OUTLINE")
+    bar.cursor:SetPoint("LEFT", bar, "CENTER", 10, 0)
     bar:SetScript("OnUpdate", OnUpdate) -- runs only while the map (its parent) is shown
 end
 
@@ -104,16 +106,18 @@ local function HookMap()
     hooked = true
     local sc = WorldMapFrame.ScrollContainer
     if sc and sc.HookScript and sc.GetNormalizedCursorPosition then
-        sc:HookScript("OnMouseUp", function(self, button)
+        sc:HookScript("OnMouseUp", W.Timed("map tools click", function(self, button)
             if not (db.waypoint and button == "LeftButton" and IsControlKeyDown()) then return end
             local x, y = self:GetNormalizedCursorPosition()
             local id = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
             -- after the game's own handling of the click
             W.After(0, function() DropPin(id, W.Safe(x), W.Safe(y)) end)
-        end)
+        end))
     end
-    WorldMapFrame:HookScript("OnHide", function() lastClosedMap = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID() end)
-    WorldMapFrame:HookScript("OnShow", function()
+    WorldMapFrame:HookScript("OnHide", W.Timed("map tools hide", function()
+        lastClosedMap = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    end))
+    WorldMapFrame:HookScript("OnShow", W.Timed("map tools show", function()
         if not db.reopen or not WorldMapFrame.GetMapID then return end
         local shown = WorldMapFrame:GetMapID()
         W.After(0, function()
@@ -123,7 +127,7 @@ local function HookMap()
             local mine = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
             if type(mine) == "number" and mine ~= shown and WorldMapFrame.SetMapID then WorldMapFrame:SetMapID(mine) end
         end)
-    end)
+    end))
 end
 
 local function Apply()
