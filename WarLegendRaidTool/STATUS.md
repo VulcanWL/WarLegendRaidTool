@@ -15,6 +15,10 @@ Pas dans le zip des releases.
   `wlrt-build-watch.yml` étendu (résultats API + banc dans l'issue d'un commit UI, checkout épinglé, curl sans arrêt) ; doc `docs/modules.md`
   « Checks and watch ». Vérifié hors jeu : check.js 0, Luacheck 0, wow-api 0 nouveau (147 noms vus), banc 0 erreur sur 2 passes (mutation
   détectée), répétitions à blanc des deux veilles avec un faux `gh`. Les workflows planifiés ne tournent que depuis `main` : à pousser.
+  PR n° 4 vers `main` (Auto-fix activé). **Testé en jeu (21/10)** : `/wl bugs` sans erreur ; `/wl perf` sain (3,4 Mo, 0,005 ms par image,
+  pic 58 ms au chargement ; en tête : remplissage des onglets `Core.lua:2087` 4,7 ms au plus, voulu) ; `GetBattlefieldTeamInfo` et
+  `GetGuildRosterInfo` existent, `IsItemInRange` = nil (seulement dans `UpdateRangeViaItem` du PvP, jamais appelée : sans effet).
+  **Reste à tester en jeu** : « Inviter sur mon layer », prévision de fin de BG (`CapTimers`), message PvP sans lien en client français.
 - **Veille locale** (note d'une autre session retrouvée dans le dossier du jeu) : tâche planifiée « Veille news WoW Forever » (toutes les 6 h,
   app ouverte requise ; builds `wow_classic_beta` / `wowf`, branche `forever` de Gethe/wow-ui-source, news ; branche `veille/<build>` + `.toc`
   + rapport, sans push). `wlrt-build-watch.yml` a tourné une fois à la main (21/10 08:41) : issues n° 1-3 (builds 70450 / 70245, UI 172a387e) ;
@@ -98,8 +102,7 @@ Pas dans le zip des releases.
 - **Audit du 21/10, à décider** : (1) PvP : `WarLegendPvP:GROUP_ROSTER_UPDATE` recalcule tous les alliés à chaque événement, même hors BG
   une fois l'addon PvP chargé (le plus coûteux du banc) → ignorer hors BG ; (2) LibRangeCheck-3.0 : MINOR 28, amont 38 ; HereBeDragons
   « -gm » 33, amont 35 ; (3) métiers lus en 3 copies (Alts, Guild, SimExport) : seule Guild a le repli Classic `GetSkillLineInfo` →
-  une fonction partagée ; (4) en jeu : `/run print(GetBattlefieldTeamInfo, GetGuildRosterInfo, IsItemInRange)` (fonctions non
-  documentées) ; (5) release : faire dépendre le zip de check.js + Luacheck ; (6) Skyborne : hébergement amont inconnu (veille manuelle).
+  une fonction partagée ; (4) PvP : `UpdateRangeViaItem` (code mort, `IsItemInRange` absent de Forever) peut être retirée ; (5) release : faire dépendre le zip de check.js + Luacheck ; (6) Skyborne : hébergement amont inconnu (veille manuelle).
 
 - **À faire plus tard (demande du 20/10)** : intégrer des images dans l'addon. Rien n'est fait. À préciser dans une nouvelle
   session : quelles images (logo, fond de fenêtre, icônes, bouton minicarte), où sont les fichiers (dossier, format, taille),
