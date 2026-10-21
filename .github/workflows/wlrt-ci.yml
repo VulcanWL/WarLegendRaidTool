@@ -1,0 +1,41 @@
+name: WarLegend RaidTool checks
+
+# On every push, pull request and tag (or by hand): the checks of the PC (tools/check.js) plus Luacheck, the API used
+# against Blizzard's documentation of the current Forever build, and the smoke test in a simulated client.
+# A failure puts a red cross on the commit and GitHub e-mails the person who pushed. It never changes the code.
+# It does not block a release: wlrt-release.yml runs apart (a red cross on a tag means: do not announce it).
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions pinned to a full commit SHA (a tag can be moved); the comment says which release it is.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Tools (luaparse, fengari)
+        run: npm ci --prefix tools --no-audit --no-fund
+
+      - name: check.js (Lua 5.1 syntax, BOM / CRLF, .toc, globals, /wl vs HELP / README, prefixes, French texts)
+        run: node tools/check.js
+
+      - name: Luacheck 1.2.0 (signed release binary, SHA-256 pinned)
+        run: |
+          curl -sSfL --max-time 60 -o "$RUNNER_TEMP/luacheck" https://github.com/lunarmodules/luacheck/releases/download/v1.2.0/luacheck
+          echo "d68da17fca0697d9e2fb04201f3884abd259fa558b3a449bccaed47f1390defc  $RUNNER_TEMP/luacheck" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/luacheck"
+          "$RUNNER_TEMP/luacheck" --config tools/.luacheckrc --codes --formatter plain \
+            WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne
+
+      - name: API used vs Blizzard's documentation (Gethe/wow-ui-source, branch forever)
+        run: node tools/wow-api.js check
+
+      - name: Smoke test (simulated client, two runs)
+        run: node tools/smoke.js

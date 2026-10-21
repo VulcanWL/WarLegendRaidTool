@@ -534,7 +534,8 @@ local function ReadScores()
     for i, id in ipairs(w.ids) do
         local ok, t = pcall(UI.GetIconAndTextWidgetVisualizationInfo, id)
         local text = ok and t and W.Safe(t.text)
-        local s, m = type(text) == "string" and text:match("(%d+)%s*/%s*(%d+)")
+        local s, m -- not "type(text) == 'string' and text:match()": "and" keeps only the first capture
+        if type(text) == "string" then s, m = text:match("(%d+)%s*/%s*(%d+)") end
         scores[i], max = tonumber(s), tonumber(m) or max
     end
     if scores[1] and scores[2] and max and max > 0 then return scores[1], scores[2], max end

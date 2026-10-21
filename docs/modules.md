@@ -75,3 +75,24 @@ kept as the original so its users are heard; on by default; NOT guild messages, 
 Saved in `WarLegendRaidTool_SkyborneDB`. The addon is loaded after login: `ns.Start` / `ns.CommStart` replace ADDON_LOADED / PLAYER_LOGIN.
 Removed from the original: About / Discord page, first-run popup, "show on non-Skyborne", dev/test commands, `Watch` hooks.
 The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` and the release workflow.
+
+## Checks and watch (tools/, .github/: not shipped)
+- `tools/check.js` (offline, the project rules), `tools/.luacheckrc` (Luacheck: unused / lost values, `not x == y`,
+  shadowing; the warnings already looked at are listed per file, a new one fails the CI).
+- `tools/wow-api.js`: model of the game's API from Blizzard_APIDocumentationGenerated in Gethe/wow-ui-source, branch
+  `forever` (cloned into `tools/.cache`, 50 MB). `check` lists the C_ functions / Enum / Constants the addon uses that
+  the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
+  Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). Names already looked at are in
+  `tools/api-baseline.txt`; only new ones fail.
+- `tools/smoke.js` + `tools/smoke/wow.lua` (the fake client) + `tools/smoke/scenario.lua`: fengari (Lua 5.3 in JS) runs
+  the four addons twice (fresh English install; /reload with the saved data, French, Skyborne character): login, every
+  `/wl` command alone and in a raid, every tab, Test all, ready check, pull, combat (protected frames changed in combat
+  are listed as the game would block them), hostile addon messages on every prefix, own messages replayed 100 times,
+  event floods. Limits: values are never secret, frames draw nothing, the server never answers: it proves the code runs,
+  not that a feature works in game.
+- `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
+  addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
+- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke), `wlrt-build-watch.yml` (hourly:
+  new build or UI source commit = one issue, with the API check and smoke results for a UI commit), `wlrt-deps-watch.yml`
+  (Mondays: one issue per new upstream value), `.github/dependabot.yml` (pull requests for the pinned actions and tools).
+  Scheduled workflows run from `main` only.

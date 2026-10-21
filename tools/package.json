@@ -3,6 +3,7 @@
     "private": true,
     "description": "Offline checks for WarLegend RaidTool (not shipped)",
     "dependencies": {
+        "fengari": "0.1.5",
         "luaparse": "0.3.1"
     }
 }

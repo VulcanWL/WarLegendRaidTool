@@ -1587,7 +1587,7 @@ local function parseBattlefieldScore(index)
 
  		]]
 		if not scoreInfo then return end
-		if not type(scoreInfo) == "table" then return end
+		if type(scoreInfo) ~= "table" then return end
 		result = scoreInfo
 	else
 		local _, name, faction, race, classToken, specName

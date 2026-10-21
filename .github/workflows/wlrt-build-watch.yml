@@ -2,6 +2,8 @@ name: WoW Forever build watch
 
 # Every hour: read Blizzard's version servers and the Forever branch of wow-ui-source.
 # A new build or UI commit opens ONE issue (assigned to the owner, so the GitHub mobile app notifies).
+# For a new UI commit, the issue also says whether the addon still matches that UI source: the API names it uses that
+# Blizzard's documentation no longer has (tools/wow-api.js check) and the smoke test (tools/smoke.js).
 # It never changes the code, never pushes and never tags.
 
 on:
@@ -21,7 +23,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       OWNER: ${{ github.repository_owner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Check builds
         shell: bash
@@ -30,9 +32,12 @@ jobs:
           TOC_IFACE=$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | tr -dc '0-9')
           gh label create build-watch --color 1d76db --description "Automatic build watch" 2>/dev/null || true
 
+          reported() {
+            [ -n "$(gh issue list --label build-watch --state all --search "\"$1\" in:title" --json title --jq ".[] | select(.title==\"$1\") | .title")" ]
+          }
           open_issue() {
             local title="$1" body="$2"
-            if [ -n "$(gh issue list --label build-watch --state all --search "\"$title\" in:title" --json title --jq ".[] | select(.title==\"$title\") | .title")" ]; then
+            if reported "$title"; then
               echo "Already reported: $title"
               return
             fi
@@ -40,7 +45,7 @@ jobs:
           }
 
           for product in wow_classic_beta wowf; do
-            line=$(curl -s --max-time 20 "http://us.patch.battle.net:1119/$product/versions" | grep '^us|' | head -1)
+            line=$(curl -s --max-time 20 "http://us.patch.battle.net:1119/$product/versions" | grep '^us|' | head -1) || true # no answer: the step must go on (bash -e -o pipefail)
             [ -z "$line" ] && { echo "No answer for $product"; continue; }
             version=$(echo "$line" | cut -d'|' -f6)
             major=$(echo "$version" | cut -d. -f1); minor=$(echo "$version" | cut -d. -f2); patch=$(echo "$version" | cut -d. -f3)
@@ -55,11 +60,42 @@ jobs:
           Next: ask Claude to review the branch \`veille/$version\`, or run the local watch task. Test in game with \`/reload\` and \`/wl bugs\` before any release."
           done
 
-          sha=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"sha"' | sed 's/.*: "\(.*\)",/\1/')
-          msg=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"message"' | sed 's/.*: "\(.*\)",\?/\1/')
+          sha=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"sha"' | sed 's/.*: "\(.*\)",/\1/') || true
+          msg=$(curl -s --max-time 20 "https://api.github.com/repos/Gethe/wow-ui-source/commits?sha=forever&per_page=1" | grep -m1 '"message"' | sed 's/.*: "\(.*\)",\?/\1/') || true
           if [ -n "$sha" ]; then
             short=${sha:0:8}
-            open_issue "UI source ${msg} [$short]" "New commit on the \`forever\` branch of Gethe/wow-ui-source (community mirror of Blizzard's UI code, includes the addon API documentation).
+            title="UI source ${msg} [$short]"
+            if reported "$title"; then
+              echo "Already reported: $title"
+            else
+              # the addon against this UI source (bash -e: keep the exit codes)
+              npm ci --prefix tools --no-audit --no-fund >/dev/null 2>&1 || true
+              api=$(node tools/wow-api.js check 2>&1) && apiRc=0 || apiRc=$?
+              smoke=$(node tools/smoke.js 2>&1) && smokeRc=0 || smokeRc=$?
+              [ $apiRc -eq 0 ] && apiVerdict="no new API name missing from the documentation" || apiVerdict="**API names to look at** (see below)"
+              [ $smokeRc -eq 0 ] && smokeVerdict="no problem in the simulated client" || smokeVerdict="**problems in the simulated client** (see below)"
+              open_issue "$title" "New commit on the \`forever\` branch of Gethe/wow-ui-source (community mirror of Blizzard's UI code, includes the addon API documentation).
 
-          https://github.com/Gethe/wow-ui-source/commit/$sha"
+          https://github.com/Gethe/wow-ui-source/commit/$sha
+
+          The addon (\`main\`) against this UI source:
+          - API check: $apiVerdict
+          - Smoke test: $smokeVerdict
+
+          <details><summary>tools/wow-api.js check</summary>
+
+          \`\`\`
+          $(echo "$api" | tail -30)
+          \`\`\`
+          </details>
+
+          <details><summary>tools/smoke.js</summary>
+
+          \`\`\`
+          $(echo "$smoke" | grep -v 'Testmode' | tail -45)
+          \`\`\`
+          </details>
+
+          A simulated client is not the game: test in game with \`/reload\` and \`/wl bugs\` before any release."
+            fi
           fi

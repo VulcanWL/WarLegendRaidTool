@@ -1,0 +1,19 @@
+# WarLegend RaidTool - Dependabot: a pull request when an action of the workflows (pinned by SHA) or a tool of tools/
+# (luaparse, fengari) has a new version. Grouped: at most one pull request per kind and per period. Nothing is shipped
+# to the players by these (the release zip holds only the addon folders); merge after the CI is green.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: npm
+    directory: /tools
+    schedule:
+      interval: monthly
+    groups:
+      tools:
+        patterns: ["*"]

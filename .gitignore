@@ -5,13 +5,16 @@
 !/WarLegendRaidTool_Skyborne/
 !/.gitignore
 !/.gitattributes
-# only our release workflow: the rest of .github on disk belongs to EllesmereUI
+# only our workflows and Dependabot: the rest of .github on disk belongs to EllesmereUI
 !/.github/
 /.github/*
 !/.github/workflows/
 /.github/workflows/*
 !/.github/workflows/wlrt-release.yml
 !/.github/workflows/wlrt-build-watch.yml
+!/.github/workflows/wlrt-ci.yml
+!/.github/workflows/wlrt-deps-watch.yml
+!/.github/dependabot.yml
 /WarLegendRaidTool/*.rar
 /WarLegendRaidTool/*.zip
 *.bak
@@ -19,3 +22,4 @@
 !/docs/
 !/tools/
 /tools/node_modules/
+/tools/.cache/
