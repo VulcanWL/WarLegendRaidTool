@@ -53,5 +53,6 @@ Minotaure.lua
 LootSparkles.lua
 Settings.lua
 Skyborne.lua
+MapTools.lua
 Audit.lua
 VersionCheck.lua

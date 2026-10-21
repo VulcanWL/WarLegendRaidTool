@@ -1519,7 +1519,7 @@ local CATEGORIES = {
     } },
     { key = "options", title = "Options", accordion = true, sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
-        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife", "LootSparkles" } },
+        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife", "MapTools", "LootSparkles" } },
     } },
 }
 
@@ -2321,6 +2321,7 @@ W.AddFR({
     ["recent Lua errors"] = "erreurs Lua récentes",
     ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
     ["addon traffic log of the session (on / off)"] = "journal du trafic de l'addon pour la session (on / off)",
+    ["world map coordinates, Ctrl+click map pin, reopen on my zone"] = "coordonnées de la carte du monde, repère par Ctrl+clic, carte rouverte sur ma zone",
     ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
     ["combat log auto-start debug"] = "débogage du journal de combat automatique",
     ["apply the preset: marks + groups"] = "appliquer le preset : marques + groupes",
@@ -2368,6 +2369,7 @@ local HELP = {
     { "/wl bugs", "recent Lua errors" },
     { "/wl perf", "memory and CPU used by the addon" },
     { "/wl audit", "addon traffic log of the session (on / off)" },
+    { "/wl maptools", "world map coordinates, Ctrl+click map pin, reopen on my zone" },
     { "/wl modules", "switch modules fully off (Settings > Modules)" },
     { "/wl move", "move Blizzard windows, screen elements, tooltip, FPS" },
     { "/wl cvar", "hidden game options (camera, nameplates, combat text) and every CVar" },
