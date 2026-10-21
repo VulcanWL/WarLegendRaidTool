@@ -44,6 +44,10 @@ local flags = {
 	FixedPosition = true
 }
 
+-- WarLegend: the ally bars that read their unit 4 times a second (AttachToPlayerButton), one OnUpdate for all of them
+local allyBars, allyBarsDriver = {}, nil
+local function ReadBar(bar) bar:ReadOwnUnit() end
+
 local power = WarLegendPvP:NewButtonModule({
 	moduleName = "Power",
 	localizedModuleName = L.PowerBar,
@@ -132,19 +136,22 @@ function power:AttachToPlayerButton(playerButton)
 
 	-- Allies: the bar also reads its unit 4 times a second, whatever the events do (a hidden bar runs nothing).
 	-- My own button reads "player" itself. Fake players (test mode) and enemies keep to the events.
-	local sinceRead = 0
-	playerButton.Power:SetScript("OnUpdate", function(self, elapsed)
-		sinceRead = sinceRead + elapsed
-		if sinceRead < 0.25 then return end
-		sinceRead = 0
-		if playerButton.PlayerIsEnemy or not playerButton.isShown then return end
+	-- WarLegend: one OnUpdate for all the ally bars, spread over the frames (WarLegendPvP.Spread), not one per bar
+	function playerButton.Power:ReadOwnUnit()
+		if playerButton.PlayerIsEnemy or not playerButton.isShown or not self:IsVisible() then return end
 		local unit = playerButton.unitID
 		if WarLegendPvP.UserButton == playerButton then unit = "player" end
 		if not unit then return end
 		local details = playerButton.PlayerDetails
 		if details and details.isFakePlayer then return end
 		self:UpdatePower(unit)
-	end)
+	end
+	if not playerButton.PlayerIsEnemy then
+		allyBars[#allyBars + 1] = playerButton.Power
+		if not allyBarsDriver then
+			allyBarsDriver = WarLegendPvP.Spread(playerButton:GetParent(), 0.25, function() return allyBars end, ReadBar)
+		end
+	end
 
 	function playerButton.Power:ApplyAllSettings()
 		if not self.config then return end

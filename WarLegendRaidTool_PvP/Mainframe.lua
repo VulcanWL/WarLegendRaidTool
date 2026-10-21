@@ -169,6 +169,25 @@ local function CreateMainFrame(playerType)
         self[event](self, ...)
     end)
 
+	-- WarLegend: each shown button every 0.2 s in combat (BattleGroundEnemies used 0.1: half the work with 40 players,
+	-- still smooth), 0.4 s out of combat: enemies UpdateAll (range, target, health of a unit without events), allies
+	-- their range. One OnUpdate for the side spreads the buttons over the frames (WarLegendPvP.Spread). Fake players
+	-- (test mode) have none; nothing while I am dead.
+	local function UpdateButtonsInTurn(playerButton)
+		if not WarLegendPvP.states.userIsAlive or not playerButton:IsVisible() then return end
+		local details = playerButton.PlayerDetails
+		if not details or details.isFakePlayer then return end
+		if playerButton.PlayerIsEnemy then
+			playerButton:UpdateAll()
+		elseif playerButton ~= WarLegendPvP.UserButton then
+			playerButton:UpdateRangeViaLibRangeCheck(playerButton.unitID)
+		else
+			playerButton:UpdateRange(true)
+		end
+	end
+	WarLegendPvP.Spread(mainframe, function() return InCombatLockdown() and 0.2 or 0.4 end,
+		function() return mainframe.CurrentPlayerOrder end, UpdateButtonsInTurn)
+
 
 	function mainframe:InitializeAllPlayerSources()
 		for sourceName in pairs(WarLegendPvP.consts.PlayerSources) do
@@ -204,15 +223,24 @@ local function CreateMainFrame(playerType)
 		table_insert(self.PlayerSources[source], playerT)
 	end
 
+	-- WarLegend: the entries of a source by their name with spaces ("First-Surname" and "First Surname" are the same
+	-- player), made once per source update instead of a scan of the source (a gsub per entry) for each player looked for
+	local sourceIndex = setmetatable({}, { __mode = "k" })
+
 	function mainframe:FindPlayerInSource(source, playerT)
 		local playerSource = self.PlayerSources[source]
 		local wanted = playerT.name and playerT.name:gsub("%-", " ")
-		for i = 1, #playerSource do
-			local playerData = playerSource[i]
-			if playerData.name == playerT.name or (wanted and playerData.name:gsub("%-", " ") == wanted) then
-				return playerData
+		if not wanted then return end
+		local index = sourceIndex[playerSource]
+		if not index or index.n ~= #playerSource then
+			index = { n = #playerSource, byName = {} }
+			for i = #playerSource, 1, -1 do -- backwards: the first entry with a name wins, as in the scan
+				local name = playerSource[i].name
+				if type(name) == "string" then index.byName[(name:gsub("%-", " "))] = playerSource[i] end
 			end
+			sourceIndex[playerSource] = index
 		end
+		return index.byName[wanted]
 	end
 
 	function mainframe:AfterPlayerSourceUpdate()
@@ -537,44 +565,12 @@ local function CreateMainFrame(playerType)
 
 		self.Target = nil
 
-		local TimeSinceLastOnUpdate = 0
-		local UpdatePeroid = 0.2 -- every 0.2 s (BattleGroundEnemies used 0.1: half the work with 40 players, still smooth)
-
+		-- WarLegend: the range / UpdateAll of every 0.2 s is done for all the buttons of the side by one OnUpdate
+		-- (UpdateButtonsInTurn below), no more one per button
 		if playerButton.PlayerIsEnemy then
 			playerButton:UpdateRange(false)
-			if playerButton.PlayerDetails.isFakePlayer then
-				playerButton:SetScript("OnUpdate", nil)
-			else
-				playerButton:SetScript("OnUpdate", function(self, elapsed)
-					TimeSinceLastOnUpdate = TimeSinceLastOnUpdate + elapsed
-					if TimeSinceLastOnUpdate > UpdatePeroid then
-						if WarLegendPvP.states.userIsAlive then
-							playerButton:UpdateAll()
-						end
-						TimeSinceLastOnUpdate = 0
-					end
-				end)
-			end
 		else
 			playerButton:UpdateRange(true)
-			if playerButton.PlayerDetails.isFakePlayer then
-				playerButton:SetScript("OnUpdate", nil)
-			else
-				playerButton:SetScript("OnUpdate", function(self, elapsed)
-					TimeSinceLastOnUpdate = TimeSinceLastOnUpdate + elapsed
-					if TimeSinceLastOnUpdate > UpdatePeroid then
-						if WarLegendPvP.states.userIsAlive then
-							if playerButton ~= WarLegendPvP.UserButton then
-								--self:Debug(IsItemInRange(self.playerTypeConfig.RangeIndicator_Range, allyButton.unitID), self.playerTypeConfig.RangeIndicator_Range, allyButton.unitID)
-								playerButton:UpdateRangeViaLibRangeCheck(playerButton.unitID)
-							else
-								playerButton:UpdateRange(true)
-							end
-						end
-						TimeSinceLastOnUpdate = 0
-					end
-				end)
-			end
 		end
 
 
@@ -866,19 +862,27 @@ local function CreateMainFrame(playerType)
 			BlizzardsSortOrder[CLASS_SORT_ORDER[i]] = i --key = ENGLISH CLASS NAME, value = number
 		end
 
+		-- WarLegend: the role order is read once per setting (it was split into two new tables at each comparison:
+		-- about 300 per sort of 40 players, at each scoreboard update and roster event)
+		local roleOrderKey, roleOrder
+		local function RoleOrder()
+			--WarLegendPvP.db.profile.RoleSortingOrder is somethng like "HEALER_TANK_DAMAGER"
+			local key = WarLegendPvP.db.profile.RoleSortingOrder
+			if key ~= roleOrderKey or not roleOrder then
+				roleOrder = {}
+				for k, v in pairs({strsplit("_", key)}) do
+					roleOrder[v] = k
+				end
+				roleOrderKey = key
+			end
+			return roleOrder
+		end
+
 		local function PlayerSortingByRoleClassName(playerA, playerB) -- a and b are playerButtons
 			local detailsPlayerA = playerA.PlayerDetails
 			local detailsPlayerB = playerB.PlayerDetails
 
-
-			--WarLegendPvP.db.profile.RoleSortingOrder is somethng like "HEALER_TANK_DAMAGER"
-
-			local roleT = {strsplit("_", WarLegendPvP.db.profile.RoleSortingOrder)}
-			local reverseRoleT = {}
-
-			for k,v in pairs(roleT) do
-				reverseRoleT[v] = k
-			end
+			local reverseRoleT = RoleOrder()
 
 			local roleSortingNumerPlayerA = reverseRoleT[detailsPlayerA.PlayerRole]
 			local roleSortingNumerPlayerB = reverseRoleT[detailsPlayerB.PlayerRole]

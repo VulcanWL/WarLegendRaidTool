@@ -2241,6 +2241,7 @@ W.AddFR({
     ["CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"] =
         "CPU : %.3f ms par image (récent), %.3f ms (dernier boss), pic %.2f ms",
     ["CPU: this client has no addon profiler."] = "CPU : ce client n'a pas de profileur d'addons.",
+    ["  %s: %.3f ms per frame (recent), peak %.2f ms"] = "  %s : %.3f ms par image (récent), pic %.2f ms",
     ["load the raid modules at the loading screen (fewer freezes) on / off"] =
         "charger les modules de raid pendant l'écran de chargement (moins de gels) oui / non",
     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
@@ -2259,9 +2260,16 @@ W.slash.perf = function()
     end
     local P, M = C_AddOnProfiler, Enum and Enum.AddOnProfilerMetric
     if P and P.GetAddOnMetric and M then
-        local function get(metric) return (metric and P.GetAddOnMetric(ADDON, metric)) or 0 end
+        local function get(metric, name) return (metric and P.GetAddOnMetric(name or ADDON, metric)) or 0 end
         W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
             get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
+        -- the load-on-demand addons, once loaded: they have their own figures (the battleground frames are in the PvP one)
+        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do
+            if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then
+                W.Print(string.format(L("  %s: %.3f ms per frame (recent), peak %.2f ms"), (name:gsub("^WarLegendRaidTool_", "")),
+                    get(M.RecentAverageTime, name), get(M.PeakTime, name)))
+            end
+        end
     else
         W.Print(L("CPU: this client has no addon profiler."))
     end

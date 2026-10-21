@@ -14,6 +14,15 @@ Read only the part about the file you are changing. The rules that always apply 
   can dispel and give; `Modules/CrowdControl.lua`: the CC on the class icon. Both use `Modules/NativeAuras.lua`: Blizzard's
   `CreateFrame("AuraContainer")` (Forever 12.1 aura system) shows the auras itself, also the secret ones.
   Trinket / DR tracking is NOT possible in battlegrounds (the client hides that data there).
+  Work per frame (Alterac, 80 buttons): no OnUpdate per button. `WarLegendPvP.Spread(parent, period, getList, fn)` (`Main.lua`)
+  runs fn for each item every `period` s from ONE OnUpdate that spreads the items over the frames (round robin): the range /
+  `UpdateAll` of each side's buttons (`Mainframe.lua`, 0.2 s in combat, 0.4 s out of combat), the ally power read
+  (`Power.lua`, 0.25 s), the dispel type symbols (`NativeAuras.lua`, 0.25 s: the container's frames have no event).
+  `GROUP_ROSTER_UPDATE` is not read outside a battleground / the test mode (`PLAYER_ENTERING_WORLD` in a battleground and
+  `EnableTestMode` read it with `force`); in a battleground a burst is read at once, then once more 0.2 s later at most.
+  `UPDATE_BATTLEFIELD_SCORE` (asked every 2 s) rebuilds nothing when the scoreboard holds the same players (name, side,
+  class, race, spec; secret values never compared); `lastScoreboard` is cleared at each loading screen. The player sort
+  reads the role order once per setting (`RoleOrder`), `FindPlayerInSource` uses an index per source update.
 
 ## Guild-side modules (personal only, no addon messages)
 `Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank, `/wl trials`), `GuildBank.lua`
@@ -59,7 +68,9 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
   HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc). HereBeDragons-Pins takes a
   new world map pin at each `AddWorldMapIcon*` and frees the old one only when the map refreshes: a moved icon is removed
-  first (`RemoveWorldMapIcon`, as `Transports.lua` does), else pins pile up while the map is closed.
+  first (`RemoveWorldMapIcon`, as `Transports.lua` does), else pins pile up while the map is closed. A line that changes
+  neither the place, the class nor the options (`PlaceKey`) places nothing again: each minimap add makes the library
+  update every pin.
 
 ## Test all and Cost
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test must
@@ -77,6 +88,7 @@ kept as the original so its users are heard; on by default; NOT guild messages, 
 Saved in `WarLegendRaidTool_SkyborneDB`. The addon is loaded after login: `ns.Start` / `ns.CommStart` replace ADDON_LOADED / PLAYER_LOGIN.
 Removed from the original: About / Discord page, first-run popup, "show on non-Skyborne", dev/test commands, `Watch` hooks.
 The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` and the release workflow.
+`Comm.lua` reads nameplates / target / mouseover (the phase) in the open world only: `inInstance`, set by `OnWorld`.
 
 ## Checks and watch (tools/, .github/: not shipped)
 - `tools/check.js` (offline, the project rules), `tools/.luacheckrc` (Luacheck: unused / lost values, `not x == y`,
@@ -102,9 +114,22 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   GuildMap lines built from the addon's own line (map never opened, open on a zone / the continent, closed; I move; edge;
   "gone" line; silence; return): members placed, pins drawn, world map pins left active, frames reused. Fails on a Lua
   error, a blocked action, a chat line or a failed check. fengari ms only compare with each other.
+- `node tools/smoke.js --bg` (`tools/smoke/battleground.lua`, one English run with a Skyborne character, about 20 s, also in
+  the CI): Alterac Valley 40 vs 40. The fake client models the battleground (`M.instance = "pvp"`, `M.scores` = the
+  scoreboard read by `C_PvP.GetScoreInfo`, `M.bgFaction`; `RequestBattlefieldScoreData` answers with
+  `UPDATE_BATTLEFIELD_SCORE`). `M.frameStats` gives the cost of each simulated frame (one step of 1/20 s: only the time in
+  the addons' code; an event the scenario fires between two steps counts in the next one), reported as average,
+  percentiles, worst frame and what it did (`M.costs` on: handlers, OnUpdate, timers by the file:line of their callback).
+  Phases: the raid forming (39 joins, 3 roster events each), rest at the start, a fight (20 enemies on nameplates, about 280
+  UNIT_HEALTH, 160 UNIT_POWER_FREQUENT, 160 UNIT_AURA a second, targets, mouseover), combat in / out with players coming and
+  going, dead at the graveyard, roster / scoreboard floods, back outside (PvP frames hidden, roster cost), the test mode
+  before any battleground and after one (my own button shown), the next battleground and a fight in it. Fails on a Lua
+  error, a blocked action, a chat line or a failed check. To compare with the code before a change, run the same bench on
+  the addons of `HEAD` (`git archive HEAD <the four folders>` into a scratch folder with a copy of `tools/smoke*`, then
+  `NODE_PATH=tools/node_modules WLRT_WUS=<the UI source> node tools/smoke.js --bg` there).
 - `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
   addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
-- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke, open world smoke), `wlrt-build-watch.yml` (hourly:
+- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke, open world and battleground smoke), `wlrt-build-watch.yml` (hourly:
   new build or UI source commit = one issue, with the API check and smoke results for a UI commit), `wlrt-deps-watch.yml`
   (Mondays: one issue per new upstream value), `.github/dependabot.yml` (pull requests for the pinned actions and tools).
   Scheduled workflows run from `main` only.

@@ -140,7 +140,10 @@ end
 NA.LayoutTypeIcons = LayoutTypeIcons
 
 -- item: a frame or texture placed by LayoutTypeIcons. No script is set on it (the container's frames refuse
--- HookScript): a throttled OnUpdate on a frame of mine, running only while the unit frame is shown, looks again.
+-- HookScript, and whether one is shown can be secret: no event says it): the unit frame is looked at again 4 times a
+-- second while it is shown, by one OnUpdate per side for all its unit frames (WarLegendPvP.Spread)
+local typeIconFrames = {} -- [parent of the unit frames] = { unit frame, ... }
+local function LayoutAgain(pb) if pb:IsVisible() then LayoutTypeIcons(pb) end end
 function NA.RegisterTypeIcon(pb, item)
 	pb.WLTypeIcons = pb.WLTypeIcons or {}
 	pb.WLTypeIcons[#pb.WLTypeIcons + 1] = item
@@ -152,13 +155,14 @@ function NA.RegisterTypeIcon(pb, item)
 		pcall(hooksecurefunc, pb, "SetModulePositions", function() pb.WLNameShift = nil; again() end)
 		if pb.Name and pb.Name.SetName then pcall(hooksecurefunc, pb.Name, "SetName", again) end
 	end
-	local ticker, acc = CreateFrame("Frame", nil, pb), 0
-	ticker:SetScript("OnUpdate", function(_, elapsed)
-		acc = acc + elapsed
-		if acc < 0.25 then return end
-		acc = 0
-		LayoutTypeIcons(pb)
-	end)
+	local parent = pb:GetParent() or UIParent
+	local list = typeIconFrames[parent]
+	if not list then
+		list = {}
+		typeIconFrames[parent] = list
+		WarLegendPvP.Spread(parent, 0.25, function() return list end, LayoutAgain)
+	end
+	list[#list + 1] = pb
 end
 
 local function TypeIcon(button, unitFrame, slot)

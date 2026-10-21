@@ -5,6 +5,22 @@ Pas dans le zip des releases.
 
 ## Maintenant (21/10/2026)
 
+- **Fluidité en champ de bataille (21/10)**, branche `claude/nostalgic-jang-b845ed` (worktree), commit local **non poussé**, pas de
+  version, dossier du jeu à jour. Banc `node tools/smoke.js --bg` (`tools/smoke/battleground.lua`, ~20 s, ajouté au CI) : Alterac 40
+  contre 40, coût de chaque image (moyenne, centiles, pire image et son contenu). Faux client : tableau des scores (`M.scores`,
+  `C_PvP.GetScoreInfo`), minuteurs attribués par fichier:ligne, un événement tiré entre deux images compte dans la suivante.
+  **Changé** (aucun rafraîchissement en combat ralenti) : PvP `Main.lua` `WarLegendPvP.Spread` = un seul OnUpdate par côté qui
+  répartit les boutons sur les images (portée / `UpdateAll` 0,2 s en combat, 0,4 s hors combat ; `Power.lua` 0,25 s ; `NativeAuras.lua`
+  0,25 s) au lieu d'un par bouton ; `GROUP_ROSTER_UPDATE` ignoré hors BG / mode test (relu à l'entrée en BG et au mode test), rafales
+  regroupées en BG ; `UPDATE_BATTLEFIELD_SCORE` ne reconstruit rien si le tableau n'a pas changé ; tri des joueurs sans `strsplit` à
+  chaque comparaison ; `FindPlayerInSource` indexé. Skyborne `Comm.lua` : plaques / cible / survol ignorés en instance.
+  `GuildPositions.lua` : une ligne sans changement (place, classe, options) ne replace rien. `/wl perf` montre aussi le CPU des modules
+  Raid / PvP / Skyborne chargés (`Core.lua`, README). Mesuré (ms fengari, `HEAD` vs après, même banc) : repos moyenne 0,69 → 0,24,
+  pire 14,6 → 2,6 ; combat 30 s moyenne 2,30 → 1,91, pire 16,6 → 5,1 ; mort pire 15,7 → 4,5 ; raid qui change pire 486 → 77 ;
+  score 13,0 → 2,2 ms ; `GROUP_ROSTER_UPDATE` hors BG 10,3 → 0,01 ms. Vérifié hors jeu : check.js 0, wow-api 0 nouveau, smoke 2 passes
+  0 erreur, open world 37 / 37, BG 15 / 15 (mode test avant / après un BG : mon bouton affiché). Luacheck non lancé ici (CI).
+  **Rien testé en jeu.** À tester : Alterac, `/wl perf` (ligne « PvP ») ; cadres alliés / ennemis : portée qui grise, PV, cible, en
+  et hors combat ; un joueur qui rejoint / quitte le raid ; `/wl pvp` mode test hors BG (mon bouton présent) ; carte de guilde.
 - **Version publiée (21/10)** : 1.35.3-beta (tag `v1.35.3-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le banc
   open world et ses 3 correctifs (carte de guilde, alerte danger).
 - **Banc « open world » (21/10)**, branche `claude/openworld-bench-77ee57` (worktree), fusionnée dans `main`, dossier du jeu à jour.
@@ -117,13 +133,12 @@ Pas dans le zip des releases.
 
 ## Pistes ouvertes (audit du 17/10, non corrigées)
 
-- **Banc open world du 21/10, à décider** : (a) PvP `GROUP_ROSTER_UPDATE` hors BG (= point (1) ci-dessous) : 14,3 ms fengari par
-  événement à 40, x5,1 pour 4 fois plus de joueurs ; ignorer hors BG sauf mode test, ou regrouper comme `W.OnRoster` ;
-  (b) et (c) faits le 21/10 ; (d) optionnel : ne pas re-placer un membre dont la position n'a pas changé (moins de mises à jour
-  complètes de la minicarte).
+- **Banc BG du 21/10, pistes** : `Dispel.lua` (alliés) = maintenant le premier coût en combat (~la moitié de l'image moyenne) :
+  `UNIT_AURA` → bouton par le nom, puis `f:Update` toutes les 0,2 s par allié qui ré-ancre le cadre et toutes les icônes même sans
+  changement (le faux client ne rend aucune aura : coût réel sans doute plus haut) ; création des 40 boutons ennemis d'un coup au
+  premier tableau des scores (~150 ms fengari, hors combat, début de BG). Banc open world : (a) (b) (c) (d) faits le 21/10.
 
-- **Audit du 21/10, à décider** : (1) PvP : `WarLegendPvP:GROUP_ROSTER_UPDATE` recalcule tous les alliés à chaque événement, même hors BG
-  une fois l'addon PvP chargé (le plus coûteux du banc) → ignorer hors BG ; (2) LibRangeCheck-3.0 : MINOR 28, amont 38 ; HereBeDragons
+- **Audit du 21/10, à décider** : (1) fait le 21/10 (banc BG) ; (2) LibRangeCheck-3.0 : MINOR 28, amont 38 ; HereBeDragons
   « -gm » 33, amont 35 ; (3) métiers lus en 3 copies (Alts, Guild, SimExport) : seule Guild a le repli Classic `GetSkillLineInfo` →
   une fonction partagée ; (4) PvP : `UpdateRangeViaItem` (code mort, `IsItemInRange` absent de Forever) peut être retirée ; (5) release : faire dépendre le zip de check.js + Luacheck ; (6) Skyborne : hébergement amont inconnu (veille manuelle).
 

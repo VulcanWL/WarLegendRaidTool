@@ -116,7 +116,8 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
    vs HELP / README, module keys vs `CATEGORIES`, addon prefixes sent vs received vs `lodPrefix`, `L()` without French).
    Read every line it prints. Never filter its output. No need to re-check those by hand. When Lua code changed, also
    `node tools/smoke.js` (simulated client, about 20 s; a new legacy API call may need a line in `tools/smoke/wow.lua`
-   once you checked the function exists) and `node tools/wow-api.js check`. The CI runs them all on every push, with Luacheck.
+   once you checked the function exists) and `node tools/wow-api.js check`; `--open-world` / `--bg` too when the change
+   touches the open world / battlegrounds (PvP addon, frame cost). The CI runs them all on every push, with Luacheck.
 5. Finish with: what changed, what to test in game (`/reload`, which `/wl` command or window tab).
 6. At the end of the session, update `STATUS.md` (French, short): "Maintenant" (version published / unpushed
    commits, feature in progress, files, decisions, what was verified, next step), move what is done to

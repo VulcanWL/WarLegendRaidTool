@@ -1,5 +1,5 @@
 // WarLegend RaidTool - smoke test in a simulated client (not shipped).
-// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world]     (once: npm install --prefix tools)
+// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world] [--bg]    (once: npm install --prefix tools)
 // Runs the four addons in fengari (a Lua VM in JavaScript) on top of tools/smoke/wow.lua, a small fake client whose
 // API answers come from Blizzard's own API documentation of the current build (tools/wow-api.js, cached UI source).
 // Plays tools/smoke/scenario.lua twice: a fresh install (English client), then a /reload with the saved data (French).
@@ -223,10 +223,13 @@ function show(title, { out }) {
 
 // --open-world: tools/smoke/openworld.lua instead (one pass, English client): a raid of 40 and a guild of 120 in the
 // open world: enemy player frames of the danger alert, cost of the raid / guild traffic, guild members on the maps
+// --bg: tools/smoke/battleground.lua (one pass, English client, Skyborne character): Alterac Valley 40 vs 40, the cost
+// of each frame (worst, average) at rest, in a fight, dead, while the raid changes; the frames of the PvP addon
 function showOpenWorld({ out }) {
     const r = out.report || {};
-    console.log("== open world: raid of 40, guild of 120");
-    console.log("  access " + r.access + ", guild " + r.guild + " members, raid addon loaded: " + r.raidLoaded + ", PvP addon loaded: " + r.pvpLoaded);
+    console.log("== " + (r.title || "open world: raid of 40, guild of 120"));
+    console.log("  access " + r.access + ", guild " + r.guild + " members, raid addon loaded: " + r.raidLoaded + ", PvP addon loaded: " + r.pvpLoaded +
+        (r.skyLoaded !== undefined ? ", Skyborne addon loaded: " + r.skyLoaded : ""));
     const errors = list(out.errors);
     console.log("  Lua errors: " + errors.length);
     for (const e of errors) { console.log("    [" + e.phase + "] x" + e.count + " " + e.msg); if (verbose) console.log(ourTrace(e.trace)); }
@@ -249,6 +252,11 @@ function showOpenWorld({ out }) {
     for (const c of chat.slice(0, 8)) console.log("    [" + c[0] + "] " + c[1] + ": " + String(c[2]).slice(0, 90));
     if (verbose) console.log("  addon messages sent: " + JSON.stringify(out.addon));
     bad += errors.length + blocked.length + failed + chat.length + (r.access === true ? 0 : 1);
+}
+if (args.includes("--bg")) {
+    showOpenWorld(run({ locale: "enUS", race: "Skyborne", fuzz: 0, scenario: "battleground.lua" }));
+    console.log(bad ? "Battleground smoke test: " + bad + " problem(s)." : "Battleground smoke test: no problem found (simulated client: still test in game).");
+    process.exit(bad ? 1 : 0);
 }
 if (args.includes("--open-world")) {
     showOpenWorld(run({ locale: "enUS", fuzz: 0, scenario: "openworld.lua" }));

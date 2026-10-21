@@ -53,6 +53,7 @@ local pending = {}           -- pending[phase] = { mapID, x, y, ... } while we w
 local answeredAt = {}        -- answeredAt[phase] = GetTime() of our last answer to a Q for it
 local queue, sending = {}, false
 local started                -- ns.CommStart has run
+local inInstance             -- in an instance (OnWorld): no nameplate / target read there, the phase is the open world's
 local me = {}                -- our names as senders show them
 local debug                  -- /wl sk share debug: print traffic
 local reorderUntil           -- GetTime() until which our channel is kept numbered after the game's
@@ -450,6 +451,7 @@ local function ReadUnit(unit)
 end
 
 local function ScanNameplates()
+    if inInstance then return end
     for i = 1, 40 do
         local unit = "nameplate" .. i
         if Clean(UnitExists(unit)) then ReadUnit(unit) end
@@ -615,6 +617,8 @@ local function OnLogin()
 end
 
 local function OnWorld()
+    -- WarLegend: battlegrounds / dungeons are not read (a nameplate each, 40 vs 40 in Alterac), as Scan.lua
+    inInstance = Clean(IsInInstance()) and true or false
     -- these also fire on /reload and login without moving: only a real zone change resets the phase
     if PlayerMap() ~= phaseMap then
         phase, phaseMap, tentativeNpc, waiting = nil, nil, nil, nil
@@ -656,6 +660,8 @@ events:SetScript("OnEvent", function(_, event, ...)
         ns.GetDB().crowdPhase = phase and { phase = phase, mapID = phaseMap, at = GetServerTime() } or nil
     elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
         OnWorld()
+    elseif inInstance then -- the reads below: open world only
+        return
     elseif event == "NAME_PLATE_UNIT_ADDED" then
         ReadUnit((...))
     elseif event == "PLAYER_TARGET_CHANGED" then

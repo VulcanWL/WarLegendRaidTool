@@ -100,8 +100,16 @@ local function Unpin(m)
     if m.mini then Pins:RemoveMinimapIcon(REF, m.mini) end
 end
 
+-- what a Place draws: a line that changes none of it (a member standing still sends the same place every 20 s) draws
+-- nothing again, the minimap library sweeping all its pins after each add
+local function PlaceKey(m)
+    return m.mapID .. ":" .. m.x .. ":" .. m.y .. ":" .. m.class .. ":" .. tostring(On("world")) .. tostring(On("minimap"))
+        .. tostring(db and db.edge) .. tostring(db and db.size)
+end
+
 local function Place(m)
     if not (HBD and Pins) then return end
+    m.placed = PlaceKey(m)
     if On("world") then
         m.world = m.world or NewPin()
         Paint(m.world, m)
@@ -192,7 +200,7 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
     m.level = level or 0
     m.class = type(class) == "string" and class:upper() or "WARRIOR"
     m.mapID, m.x, m.y, m.t = mapID, x, y, now
-    Place(m)
+    if PlaceKey(m) ~= m.placed then Place(m) end
 end)
 
 ---------------------------------------------------------------------------

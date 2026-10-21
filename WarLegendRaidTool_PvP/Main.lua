@@ -545,6 +545,30 @@ function WarLegendPvP.GameRangeCheck(mode, unit, isEnemy)
 	return nil
 end
 
+-- WarLegend: fn(item) every `period` seconds (a number or a function giving it) for each item of getList() (an array),
+-- by ONE OnUpdate on a frame child of parent (it runs while parent is shown) that spreads the items over the frames
+-- (round robin). One throttled OnUpdate per button, all started together (the scoreboard makes the 40 buttons of a side
+-- at once), did the work of every button in the same frame: a spike every 0.2 s.
+function WarLegendPvP.Spread(parent, period, getList, fn)
+	local driver = CreateFrame("Frame", nil, parent)
+	local budget, index = 0, 1
+	driver:SetScript("OnUpdate", function(_, elapsed)
+		local list = getList()
+		local n = #list
+		if n == 0 then budget = 0; return end
+		local p = type(period) == "function" and period() or period
+		budget = math_min(budget + n * elapsed / p, n) -- a long frame (loading screen) does one round, not more
+		while budget >= 1 do
+			budget = budget - 1
+			if index > n then index = 1 end
+			local item = list[index]
+			index = index + 1
+			if item then fn(item) end
+		end
+	end)
+	return driver
+end
+
 -- WarLegend: one style per side (Allies / Enemies), the general one when a side has none. Textures of the game
 -- only: blizzard (raid health bar + status bar), flat (plain), smooth (raid bar everywhere), classic (skill bar)
 local SKILL_BAR = [[Interface\PaperDollInfoFrame\UI-Character-Skills-Bar]]
@@ -846,6 +870,7 @@ function WarLegendPvP:EnableTestMode()
 	if InCombatLockdown() then
 		return WarLegendPvP:Information(L.ErrorTestmodeInCombat)
 	end
+	self:GROUP_ROSTER_UPDATE(true) -- not read outside a battleground: my own button comes from it, as before the test mode
 	self.states.testmodeActive = true
 	self:SetupTestmode()
 
@@ -1617,6 +1642,12 @@ end
 
 
 
+-- a scoreboard value as text to compare (UPDATE_BATTLEFIELD_SCORE), "?" for a secret one
+local function plainValue(v)
+	if issecret(v) then return "?" end
+	return tostring(v)
+end
+
 function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 	self:Debug("UPDATE_BATTLEFIELD_SCORE")
 	-- self:Debug(GetCurrentMapAreaID())
@@ -1663,10 +1694,23 @@ function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 		local name = score.name
 		local faction = score.faction
 
-		if self:IsUserName(name) and faction == self.EnemyFaction then
+		if faction == self.EnemyFaction and self:IsUserName(name) then -- the cheap test first (80 entries every 2 s)
 			self:SetAllyFaction(self.EnemyFaction)
 		end
 	end
+
+	-- WarLegend: the scoreboard is asked for every 2 s; when it holds the same players as the last time (name, side,
+	-- class, race, spec) the frames are not built again from it. A secret value is never compared: "?" in its place.
+	local parts = {}
+	for i = 1, #battlefieldScores do
+		local score = battlefieldScores[i]
+		parts[i] = plainValue(score.name) .. "\2" .. plainValue(score.faction) .. "\2" .. plainValue(score.classToken)
+			.. "\2" .. plainValue(score.raceName) .. "\2" .. plainValue(score.talentSpec)
+	end
+	parts[#parts + 1] = tostring(self.EnemyFaction)
+	local content = table.concat(parts, "\1")
+	if content == self.lastScoreboard then return end
+	self.lastScoreboard = content
 
 	WarLegendPvP.Enemies:BeforePlayerSourceUpdate(self.consts.PlayerSources.Scoreboard)
 	WarLegendPvP.Allies:BeforePlayerSourceUpdate(self.consts.PlayerSources.Scoreboard)
@@ -1694,7 +1738,27 @@ end
 
 
 
-function WarLegendPvP:GROUP_ROSTER_UPDATE()
+local rosterReadAt, rosterAgain = 0, false
+-- force: read now (the direct calls of PLAYER_ENTERING_WORLD in a battleground and EnableTestMode; the events have no payload)
+function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
+	if not force then
+		-- WarLegend: outside a battleground and the test mode the frames are hidden: the roster is not read at each
+		-- event (about 10 ms each in the bench with a raid of 40, several a second while a raid forms)
+		if not (self.states.real.isInBattleground or self.states.testmodeActive) then return end
+		-- the events come in bursts (3 or more for a player joining): read at once, then once more 0.2 s later at most
+		local now = GetTime()
+		if now - rosterReadAt < 0.2 then
+			if not rosterAgain then
+				rosterAgain = true
+				C_Timer.After(0.2 - (now - rosterReadAt), function()
+					rosterAgain, rosterReadAt = false, 0
+					self:GROUP_ROSTER_UPDATE()
+				end)
+			end
+			return
+		end
+	end
+	rosterReadAt = GetTime()
 	self.Allies:BeforePlayerSourceUpdate(self.consts.PlayerSources.GroupMembers)
 	self.Allies.groupLeader = nil
 	self.Allies.assistants = {}
@@ -1757,6 +1821,7 @@ function WarLegendPvP:PLAYER_ENTERING_WORLD()
 
 	self.Enemies:RemoveAllPlayersFromAllSources()
 	self.Allies:RemoveAllPlayersFromSource(self.consts.PlayerSources.Scoreboard)
+	self.lastScoreboard = nil -- the next scoreboard builds the frames again
 	local _, zone = IsInInstance()
 	self:Debug("zone", zone)
 	if zone == "pvp" then
@@ -1768,6 +1833,7 @@ function WarLegendPvP:PLAYER_ENTERING_WORLD()
 		end
 
 		WarLegendPvP.states.real.isInBattleground = true
+		self:GROUP_ROSTER_UPDATE(true) -- not read outside a battleground: read it now
 
 		C_Timer.After(5,
 			function()        --Delay this check, since its happening sometimes that this data is not ready yet

@@ -509,6 +509,10 @@ local function UnitIndex(unit)
         if unit:find("^party") then n = n + 1 end
         if M.group[n] then return n end
     end
+    -- the other unit tokens (raid5target, nameplate3, mouseover...) are no names: the group is not searched (the game
+    -- does this in C; a search here made the roster code of the PvP addon look slower than it is)
+    if unit:find("^raid%d") or unit:find("^party%d") or unit:find("^nameplate%d") or unit:find("target$")
+        or unit == "focus" or unit == "mouseover" or unit == "pet" then return nil end
     for i, p in ipairs(M.group) do if p.name == unit or p.name:lower() == unit then return i end end
     return nil
 end
@@ -537,7 +541,7 @@ function IsLoggedIn() return M.loggedIn end
 function InCombatLockdown() return M.combat end
 function UnitAffectingCombat(u) return M.combat and Who(u) ~= nil end
 function IsInInstance() return M.instance ~= nil, M.instance or "none" end
-function GetInstanceInfo() return M.instance and "Molten Core" or "Kalimdor", M.instance or "none", 0, "", 40, 0, false, M.instance and 409 or 1 end
+function GetInstanceInfo() return M.instance and (M.instanceName or "Molten Core") or "Kalimdor", M.instance or "none", 0, "", 40, 0, false, M.instance and (M.instanceID or 409) or 1 end
 function IsInGuild() return true end
 function GetGuildInfo(u) if Who(u) == M.player then return "War Legend", "Officier", 1, M.player.realm end end
 function GetNumGuildMembers() return #M.guild, #M.guild, #M.guild end
@@ -670,14 +674,25 @@ function GetPlayerFacing() return 0 end
 function IsSwimming() return false end
 function GetXPExhaustion() return nil end
 function RequestTimePlayed() end
-function GetBattlefieldStatus() return "none" end
+-- a battleground (tools/smoke/battleground.lua): M.instance = "pvp", M.scores = the scoreboard, a list of PVPScoreInfo
+-- tables (C_PvP.GetScoreInfo, PvpInfoDocumentation.lua: name, faction 0 Horde / 1 Alliance, classToken... never
+-- secret), M.bgFaction = my side; the server answers RequestBattlefieldScoreData with UPDATE_BATTLEFIELD_SCORE
+local function InBG() return M.instance == "pvp" and M.scores ~= nil end
+function GetBattlefieldStatus(i) if InBG() and i == 1 then return "active", M.instanceName or "Alterac Valley" end return "none" end
 function GetMaxBattlefieldID() return 2 end
-function GetNumBattlefieldScores() return 0 end
+function GetNumBattlefieldScores() return InBG() and #M.scores or 0 end
 function GetBattlefieldTeamInfo() return nil end
-function GetBattlefieldArenaFaction() return 0 end
+function GetBattlefieldArenaFaction() return InBG() and (M.bgFaction or 0) or 0 end
 function GetBattlefieldWinner() return nil end
-function GetBattlefieldInstanceRunTime() return 0 end
-function RequestBattlefieldScoreData() end
+function GetBattlefieldInstanceRunTime() return InBG() and math.floor((M.now - (M.bgStart or M.now)) * 1000) or 0 end
+C_PvP = C_PvP or {}
+C_PvP.GetScoreInfo = function(i) return InBG() and M.scores[i] or nil end
+function RequestBattlefieldScoreData()
+    if InBG() and not M.scoreAsked then
+        M.scoreAsked = true
+        C_Timer.After(0.15, function() M.scoreAsked = nil; if InBG() then M.Fire("UPDATE_BATTLEFIELD_SCORE") end end)
+    end
+end
 function SetBattlefieldScoreFaction() end
 function GetNumSavedInstances() return 0 end
 function RequestRaidInfo() end
@@ -842,10 +857,20 @@ C_Timer.NewTicker = function(d, fn, n)
 end
 
 -- runs the clock: timers in order, then OnUpdate of every visible frame, step by step (default 1/20 s)
+-- M.frameStats = { list = {} } before: the cost of each step (one frame of the game) goes into list, the worst one into
+-- max / maxAt (phase) / maxWhat (its costliest handlers when M.costs is on too). Only the time spent in the addons'
+-- code counts (timers, the scenario's events, OnUpdate scripts), not this loop over every frame
 function M.Advance(seconds, step)
     step = step or 0.05
     local stop = M.now + seconds
     while M.now < stop - 1e-9 do
+        local fs = M.frameStats
+        -- the events the scenario fired since the last step belong to this frame (M.Fire)
+        local spent = fs and M.frameCarry or 0
+        M.frameCarry = 0
+        local before = fs and M.costs and (fs.mark or {})
+        if before and not fs.mark then for k, v in pairs(M.costs) do before[k] = v end end
+        M.inStep = true
         M.now = M.now + step
         local due = {}
         local keep = {}
@@ -858,34 +883,74 @@ function M.Advance(seconds, step)
         table.sort(due, function(a, b) return a.at < b.at end)
         for _, t in ipairs(due) do
             if not t.cancelled then
+                local t0 = (fs or M.costs) and os.clock()
                 M.Call(t.fn, t)
+                if t0 then
+                    local ms = os.clock() - t0
+                    if fs then spent = spent + ms end
+                    local info = M.costs and type(t.fn) == "function" and debug.getinfo(t.fn, "S")
+                    -- by the file:line where the callback is written; not this file's (the server answering: its
+                    -- event is counted by handler)
+                    if info and not info.source:find("wow%.lua$") then
+                        local k = "timer " .. (info.source:match("([^/]+%.lua)$") or "?") .. ":" .. info.linedefined
+                        M.costs[k] = (M.costs[k] or 0) + ms * 1000
+                    end
+                end
                 if t.every and not t.cancelled then
                     if t.left then t.left = t.left - 1 end
                     if not t.left or t.left > 0 then t.at = M.now + t.every; timers[#timers + 1] = t end
                 end
             end
         end
-        if M.onStep then M.Call(M.onStep, M.now) end -- the scenario's world: other players moving, sending
+        if M.onStep then -- the scenario's world: other players moving, sending
+            local t0 = fs and os.clock()
+            M.Call(M.onStep, M.now)
+            if t0 then spent = spent + os.clock() - t0 end
+        end
         for _, f in ipairs(frames) do
             local fn = f.__scripts.OnUpdate
             if fn and f:IsVisible() then
                 M.updates = (M.updates or 0) + 1
-                if M.costs then
+                if M.costs or fs then
                     local t0 = os.clock()
                     M.Call(fn, f, step)
-                    local k = "OnUpdate " .. (f.__where or f:GetName() or "?")
-                    M.costs[k] = (M.costs[k] or 0) + (os.clock() - t0) * 1000
+                    local ms = os.clock() - t0
+                    spent = spent + ms
+                    if M.costs then
+                        local k = "OnUpdate " .. (f.__where or f:GetName() or "?")
+                        M.costs[k] = (M.costs[k] or 0) + ms * 1000
+                    end
                 else
                     M.Call(fn, f, step)
                 end
             end
         end
+        M.inStep = false
+        if fs then
+            local ms = spent * 1000
+            fs.list[#fs.list + 1] = ms
+            if ms > (fs.max or 0) then
+                fs.max, fs.maxAt, fs.maxWhat = ms, M.phase, nil
+                if before then -- what that frame did, costliest first (M.costs on)
+                    local what = {}
+                    for k, v in pairs(M.costs) do if v - (before[k] or 0) > 0.05 then what[#what + 1] = { k, v - (before[k] or 0) } end end
+                    table.sort(what, function(a, b) return a[2] > b[2] end)
+                    for i = 1, #what do what[i] = string.format("%s %.1f", what[i][1], what[i][2]) end
+                    fs.maxWhat = table.concat(what, ", ", 1, math.min(#what, 3))
+                end
+            end
+            if M.costs then fs.mark = {}; for k, v in pairs(M.costs) do fs.mark[k] = v end end
+        end
     end
 end
 function M.PendingTimers() local n = 0; for _, t in ipairs(timers) do if not t.cancelled then n = n + 1 end end return n end
 
--- an event to every frame that registered it (creation order)
+-- an event to every frame that registered it (creation order). Fired by the scenario between two steps (M.frameStats
+-- on), its cost goes to the next frame (M.frameCarry), as the game runs it in a frame
+local fireDepth = 0
 function M.Fire(event, ...)
+    local t0 = M.frameStats and not M.inStep and fireDepth == 0 and os.clock()
+    fireDepth = fireDepth + 1
     for _, list in ipairs({ byEvent[event] or {}, byEvent["*"] or {} }) do
         local copy = { table.unpack(list) }
         for _, f in ipairs(copy) do
@@ -904,6 +969,8 @@ function M.Fire(event, ...)
             end
         end
     end
+    fireDepth = fireDepth - 1
+    if t0 then M.frameCarry = (M.frameCarry or 0) + os.clock() - t0 end
 end
 
 -- frames the game has
