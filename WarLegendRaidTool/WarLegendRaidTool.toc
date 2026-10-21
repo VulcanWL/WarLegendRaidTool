@@ -53,4 +53,5 @@ Minotaure.lua
 LootSparkles.lua
 Settings.lua
 Skyborne.lua
+Audit.lua
 VersionCheck.lua

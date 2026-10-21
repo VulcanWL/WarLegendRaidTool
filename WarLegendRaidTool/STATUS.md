@@ -5,6 +5,16 @@ Pas dans le zip des releases.
 
 ## Maintenant (20/10/2026)
 
+- **Non publié (21/10)** : `Audit.lua` (nouveau, dans le .toc avant `VersionCheck.lua`) + crochet dans `Dispatch` de `Core.lua` : journal
+  automatique du trafic (reçus / refusés avec la raison / envoyés par préfixe, lignes publiques, pic par minute, travaux les plus
+  lents, mémoire, CPU), métadonnées seulement, dans `WarLegendRaidToolDB.auditLog.cur` (`.prev` = session d'avant), écrit par le jeu
+  au `/reload` ou à la sortie. `/wl audit` (résumé), `/wl audit off`. `check.js` 0 problème, jeu à jour, **rien testé en jeu**.
+  Audit du 21/10 (sans raid) : banc fengari hors dépôt (API WoW simulée, 18 préfixes × 400 messages hostiles + 6 sondes de flood) :
+  0 erreur Lua, chuchotements d'inconnus refusés, amplification bornée (au pire 30 réponses / 300 requêtes, ≈ 1 / 10 s, sur
+  `WLRT_INSQ` et `WLRT_VERQ`). Relus : récepteur Skyborne, import de profil (macros en liste blanche, aucun texte de `main`
+  vers le chat), conditions de Blizzard (aucune pub / don, annonces éteintes par défaut). Perf mesurée en jeu : rien d'anormal
+  (le minuteur `Core.lua:2087` = remplissage des onglets, voulu). **Pas encore vu : du trafic réel d'autres joueurs** (le journal
+  ne l'a vu que lui-même) ; le banc est dans le scratchpad, à copier dans `tools/` si on le garde.
 - **Version publiée (20/10)** : 1.34.1-beta (tag `v1.34.1-beta`) = correctifs de sécurité « confiance zéro » (puce suivante), sur 1.34.0-beta (Skyborne, audit externe n°2, textes « WaR LegenD »). **Rien testé en jeu.**
 - **Inclus dans 1.34.1-beta (audit sécurité « confiance zéro »)** : failles présentes dans 1.34.0, corrigées ici. Import de
   profil : macros des clics PvP filtrées par **liste blanche** `MACRO_CMDS` (ciblage / sorts ; avant, /gquit, /gdisband, /gleader,

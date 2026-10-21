@@ -419,15 +419,32 @@ function Dispatch(prefix, msg, channel, sender)
         end
         return
     end
-    if offFiles[addonFiles[prefix]] then return end
+    local audit = W.AuditNote -- Audit.lua: what came in, what was refused and why (metadata only)
+    if offFiles[addonFiles[prefix]] then
+        if audit then audit("module-off", prefix, channel, nil, 0) end
+        return
+    end
     msg, sender = W.Safe(msg), W.Safe(sender)
-    if not msg or not sender or sender == "" then return end
+    if not msg or not sender or sender == "" then
+        if audit then audit("bad-sender", prefix, channel, nil, 0) end
+        return
+    end
     local full = W.FullName(sender)
     if not GROUP_CHANNELS[channel] then
-        if channel ~= "WHISPER" then return end
-        if not (W.UnitByName(full) or W.GuildMember(full)) then return end
+        if channel ~= "WHISPER" then
+            if audit then audit("bad-channel", prefix, channel, full, #msg) end
+            return
+        end
+        if not (W.UnitByName(full) or W.GuildMember(full)) then
+            if audit then audit("stranger", prefix, channel, full, #msg) end
+            return
+        end
     end
+    if not audit then return fn(msg, W.BaseName(sender), channel, full) end
+    audit("ok", prefix, channel, full, #msg)
+    local t0 = clock and clock()
     fn(msg, W.BaseName(sender), channel, full)
+    if t0 then audit("time", prefix, channel, nil, 0, clock() - t0) end
 end
 W.On("CHAT_MSG_ADDON", function(prefix, msg, channel, sender) Dispatch(prefix, msg, channel, sender) end)
 
@@ -2303,6 +2320,7 @@ W.AddFR({
     ["show / hide the minimap button"] = "afficher / cacher le bouton de la minicarte",
     ["recent Lua errors"] = "erreurs Lua récentes",
     ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
+    ["addon traffic log of the session (on / off)"] = "journal du trafic de l'addon pour la session (on / off)",
     ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
     ["combat log auto-start debug"] = "débogage du journal de combat automatique",
     ["apply the preset: marks + groups"] = "appliquer le preset : marques + groupes",
@@ -2349,6 +2367,7 @@ local HELP = {
     { "/wl minimap", "show / hide the minimap button" },
     { "/wl bugs", "recent Lua errors" },
     { "/wl perf", "memory and CPU used by the addon" },
+    { "/wl audit", "addon traffic log of the session (on / off)" },
     { "/wl modules", "switch modules fully off (Settings > Modules)" },
     { "/wl move", "move Blizzard windows, screen elements, tooltip, FPS" },
     { "/wl cvar", "hidden game options (camera, nameplates, combat text) and every CVar" },
