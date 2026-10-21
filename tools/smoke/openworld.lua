@@ -387,7 +387,8 @@ LineFrames("combat over (1.5 s)", f4)
 Check("frames: after the combat, the clicks follow the rows again", f4.clicks == f4.rows and f4.bad == 0, f4.clicks .. " / " .. f4.rows .. ", bad " .. f4.bad)
 local plated = 0
 for i = 1, 40 do if M.units["nameplate" .. i] then plated = plated + 1 end end
-Line("  enemies on a nameplate now: %d; rows: %d (a player refused while the 40 rows were full comes back only with a new nameplate event)", plated, f4.rows)
+Line("  enemies on a nameplate now: %d; rows: %d", plated, f4.rows)
+Check("frames: after the combat, the players refused while the 40 rows were full get a row", f4.rows == math.min(plated, 40), f4.rows .. " / " .. plated)
 for i = 1, 40 do Unplate(i) end
 M.units.target = nil
 M.Fire("PLAYER_TARGET_CHANGED")
@@ -520,6 +521,18 @@ sending = true
 for _, s in ipairs(senders) do s.next = M.now + Rand() * 5 end
 local s12 = MapRun("in the raid, 30 s", 30)
 Check("raid members not placed (119 - 39 = 80 members)", s12.world == 80 and s12.mini == 80, s12.world .. " / " .. s12.mini)
+-- 5 leave the raid: on the map again with their next line; they come back: off the map again
+local left = {}
+for _ = 1, 5 do left[#left + 1] = table.remove(M.group) end
+M.Fire("GROUP_ROSTER_UPDATE")
+local s13 = MapRun("5 left the raid, 25 s", 25)
+Check("members who left my raid are placed again", s13.world == 85, s13.world)
+for i = #left, 1, -1 do M.group[#M.group + 1] = left[i] end
+M.Fire("GROUP_ROSTER_UPDATE")
+local s14 = MapRun("they joined again, 25 s", 25)
+Check("members who joined my raid are taken off again", s14.world == 80, s14.world)
+-- each phase above starts right after a roster change (every sender asked once): the same raid a minute later
+MapRun("in the raid, 60 s more, no roster change", 60)
 
 ---------------------------------------------------------------------------
 -- [2 cost] at rest: raid of 40, guild on the maps (still sending), window and map closed, out of combat

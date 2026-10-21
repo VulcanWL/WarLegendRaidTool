@@ -227,6 +227,7 @@ local MAX_ROWS, PER_COLUMN, ROW_W, ROW_H, LOST = 40, 20, 150, 14, 15
 local holder, header, made = nil, nil, 0
 local rows, clicks = {}, {}
 local slots, byGuid, byUnit, pool = {}, {}, {}, {} -- slots[i] = entry shown on row i; byUnit[unit token] = entry
+local waiting, refill = {}, {} -- waiting[nameplate token] = refused while the 40 rows were full, still shown
 local count, framesOn, clickPending, testing, ticking, dirty = 0, false, false, false, false, false
 local fHealthEv, fMaxEv, fRegenEv, Tick
 
@@ -460,7 +461,11 @@ local function Bind(unit)
         local guid = W.Safe(UnitGUID(unit))
         if guid then
             e = byGuid[guid]
-            if not e then e = NewEntry(unit, guid); new = e ~= nil end
+            if not e then
+                e = NewEntry(unit, guid)
+                new = e ~= nil
+                if not e and count >= MAX_ROWS and unit:find("^nameplate") then waiting[unit] = true end
+            end
         end
     end
     local old = byUnit[unit]
@@ -483,6 +488,17 @@ local function Unbind(unit)
     if e.unit == unit then Rebind(e); Paint(e.slot) end
 end
 
+-- rows came free (players gone, end of combat): the nameplates refused while the rows were full get one now
+local function Refill()
+    if count >= MAX_ROWS or not next(waiting) then return end
+    wipe(refill)
+    for unit in pairs(waiting) do refill[#refill + 1] = unit end
+    wipe(waiting)
+    for _, unit in ipairs(refill) do
+        if W.Safe(UnitExists(unit)) then Bind(unit) end -- full again: Bind puts it back in waiting
+    end
+end
+
 Tick = function()
     ticking = false
     if not framesOn then return end
@@ -499,7 +515,7 @@ Tick = function()
             if e.lost and now - e.lost >= LOST and not (lockdown and Clickable(e)) then Remove(e); gone = true end
         end
     end
-    if gone then Layout() end
+    if gone then Layout(); Refill() end
     Changed()
 end
 
@@ -509,6 +525,7 @@ local function ClearFrames()
         if e then Remove(e) end
     end
     wipe(byUnit)
+    wipe(waiting)
     for i = 1, made do Paint(i) end
     Changed()
     SyncClicks()
@@ -534,6 +551,7 @@ end
 
 local fAddEv = W.On("NAME_PLATE_UNIT_ADDED", function(unit) if OpenWorld() then Bind(unit) end end, nil, true)
 local fRemoveEv = W.On("NAME_PLATE_UNIT_REMOVED", function(unit)
+    waiting[unit] = nil
     if byUnit[unit] then Unbind(unit); Changed() end
 end, nil, true)
 local fTargetEv = W.On("PLAYER_TARGET_CHANGED", function() if OpenWorld() then Bind("target") end end, nil, true)
@@ -551,6 +569,7 @@ fRegenEv = W.On("PLAYER_REGEN_ENABLED", function()
             if e and e.lost and now - e.lost >= LOST then Remove(e) end
         end
         Layout()
+        Refill()
         Changed()
     elseif clickPending then
         SyncClicks()

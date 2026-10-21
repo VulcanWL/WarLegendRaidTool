@@ -148,6 +148,20 @@ local function ForgetAll()
     for full in pairs(members) do Forget(full) end
 end
 
+-- Is this sender in my group? W.UnitByName walks the whole raid (40 units) and a raid gets a line from every guild
+-- member every 5 to 20 s: the answer is kept per sender, asked again after a roster change or 2 min (a name the game
+-- did not know yet when the member joined)
+local grouped, groupedAt = {}, {}
+local function InMyGroup(full, now)
+    local at = groupedAt[full]
+    if not at or now - at > 120 then
+        grouped[full] = W.UnitByName and W.UnitByName(full) and true or false
+        groupedAt[full] = now
+    end
+    return grouped[full]
+end
+W.On("GROUP_ROSTER_UPDATE", function() wipe(grouped); wipe(groupedAt) end)
+
 ---------------------------------------------------------------------------
 -- Receive: "name,rank,level,class,race,x,y,mapID,health,layer,version,dueling" (class STEALTH: gone)
 ---------------------------------------------------------------------------
@@ -165,7 +179,8 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
     x, y, mapID, level = W.Finite(x), W.Finite(y), W.Int(mapID, 0, 100000), W.Int(level, 0, 100)
     if not (x and y and mapID) or x <= 0 or x > 1 or y <= 0 or y > 1 or mapID <= 0 then Forget(full); return end
     -- the game shows the players of my group itself
-    if W.UnitByName and W.UnitByName(full) then Forget(full); return end
+    local now = GetTime()
+    if InMyGroup(full, now) then Forget(full); return end
     local m = members[full]
     if not m then
         if count >= MAX_PINS then return end
@@ -176,7 +191,7 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
     m.name = (type(name) == "string" and name ~= "" and #name <= 60) and W.Plain(name, 60) or full
     m.level = level or 0
     m.class = type(class) == "string" and class:upper() or "WARRIOR"
-    m.mapID, m.x, m.y, m.t = mapID, x, y, GetTime()
+    m.mapID, m.x, m.y, m.t = mapID, x, y, now
     Place(m)
 end)
 

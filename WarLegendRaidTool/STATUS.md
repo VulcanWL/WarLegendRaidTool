@@ -11,13 +11,15 @@ Pas dans le zip des releases.
   (parent / ancre d'un cadre sécurisé), unités ennemies (`M.units`), monde `M.SetupWorld` (C_Map, UnitPosition, minicarte).
   **Corrigé** : `GuildPositions.lua` laissait un repère de carte actif à chaque position reçue (HereBeDragons ne libère l'ancien qu'au
   rafraîchissement de la carte) : 1 326 repères pour 119 membres après 60 s carte fermée (~50 000 / h), maintenant 1 par membre
-  (retrait avant ajout, comme `Transports.lua`). Vérifié hors jeu : check.js 0, wow-api 0 nouveau, banc 0 erreur (2 passes + open
-  world 34 / 34), mutation détectée (garde de combat retirée → 1 345 actions bloquées). **Rien testé en jeu.**
-  Constats sans correctif (voir « Pistes ouvertes ») : PvP chargé = 14 ms fengari par `GROUP_ROSTER_UPDATE` à 40 (x5 vs 10) ; ligne
-  de position 3,3 fois plus chère en raid (`W.UnitByName` sur les 40) ; cadres ennemis : un joueur refusé quand les 40 lignes sont
-  pleines ne revient qu'avec une nouvelle barre de nom.
+  (retrait avant ajout, comme `Transports.lua`). Ensuite (demande de l'utilisateur) : `GuildPositions` garde par expéditeur
+  « dans mon groupe ? » (vidé à `GROUP_ROSTER_UPDATE`, redemandé après 2 min) : ligne en raid 0,92 → 0,17 ms fengari en régime établi ;
+  `DangerAlert` reprend les barres de nom refusées quand les 40 lignes étaient pleines dès qu'une ligne se libère (`waiting`, `Refill`
+  après `Tick` / fin de combat) : 40 lignes pour 40 ennemis après le combat (24 avant). Vérifié hors jeu : check.js 0, wow-api 0
+  nouveau, banc 0 erreur (2 passes + open world 37 / 37), mutation détectée (garde de combat retirée → 1 345 actions bloquées).
+  **Rien testé en jeu.** Reste sans correctif : PvP chargé = 14 ms fengari par `GROUP_ROSTER_UPDATE` à 40 (x5 vs 10).
   **À tester en jeu** : `/wl perf` en raid de 40 hors instance ; carte du monde ouverte / fermée avec la guilde (`/wl map`, les
-  repères suivent les membres, plus de traces à l'ancienne place) ; alerte danger, cadres allumés, ennemis en / hors combat, `/wl test`.
+  repères suivent les membres, plus de traces à l'ancienne place ; un joueur qui quitte le raid réapparaît sur la carte) ; alerte
+  danger, cadres allumés, plus de 40 ennemis puis fin de combat (les refusés arrivent), `/wl test`.
 - **Version publiée (21/10)** : 1.35.2-beta (tag `v1.35.2-beta`, depuis `main` après la fusion de la PR n° 4) = l'audit ci-dessous.
 - **Audit complet (21/10)**, branche `claude/audit-warlegend-raid-tool-176431` (worktree), fusionnée dans `main` (PR n° 4), dossier du jeu à jour.
   Corrigé : `CapTimers.lua` (prévision de fin de BG jamais calculée avec les compteurs « texte » :
@@ -115,10 +117,8 @@ Pas dans le zip des releases.
 
 - **Banc open world du 21/10, à décider** : (a) PvP `GROUP_ROSTER_UPDATE` hors BG (= point (1) ci-dessous) : 14,3 ms fengari par
   événement à 40, x5,1 pour 4 fois plus de joueurs ; ignorer hors BG sauf mode test, ou regrouper comme `W.OnRoster` ;
-  (b) `GuildPositions` : `W.UnitByName` parcourt le raid à chaque ligne reçue (0,92 ms contre 0,28 ms fengari par ligne en raid
-  de 40) → cache par expéditeur vidé à `GROUP_ROSTER_UPDATE` ; (c) `DangerAlert` : un ennemi refusé quand les 40 lignes sont
-  pleines n'est pas repris quand des lignes se libèrent (fin de combat) → relire `nameplate1..40` après `Layout` ; (d) optionnel :
-  ne pas re-placer un membre dont la position n'a pas changé (moins de mises à jour complètes de la minicarte).
+  (b) et (c) faits le 21/10 ; (d) optionnel : ne pas re-placer un membre dont la position n'a pas changé (moins de mises à jour
+  complètes de la minicarte).
 
 - **Audit du 21/10, à décider** : (1) PvP : `WarLegendPvP:GROUP_ROSTER_UPDATE` recalcule tous les alliés à chaque événement, même hors BG
   une fois l'addon PvP chargé (le plus coûteux du banc) → ignorer hors BG ; (2) LibRangeCheck-3.0 : MINOR 28, amont 38 ; HereBeDragons
