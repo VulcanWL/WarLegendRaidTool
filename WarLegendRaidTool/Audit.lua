@@ -38,7 +38,7 @@ local function NewSession()
 end
 
 W.OnReady(function()
-    cfg = W.DB("auditCfg", { on = true })
+    cfg = W.DB("auditCfg", { on = false }) -- off for the players: /wl audit on starts the record
     local log = W.DB("auditLog")
     if type(log.cur) == "table" and (log.cur.inN or 0) + (log.cur.outN or 0) + (log.cur.chatN or 0) > 0 then
         log.prev = log.cur -- the session before is kept until the next one replaces it
@@ -152,7 +152,10 @@ W.slash.audit = function(rest)
         W.Print(string.format(L("Audit log: %s"), arg:upper()))
         return
     end
-    if not cur or (cur.inN + cur.outN + cur.chatN) == 0 then W.Print(L("Audit: nothing recorded yet.")); return end
+    if not cur or (cur.inN + cur.outN + cur.chatN) == 0 then
+        W.Print(cfg.on and L("Audit: nothing recorded yet.") or string.format(L("Audit log: %s"), "OFF (/wl audit on)"))
+        return
+    end
     W.Print(string.format(L("Audit (this session, %d min): in %d, refused %d, sent %d, public lines %d"),
         math.floor((time() - cur.start) / 60), cur.inN, cur.refused, cur.outN, cur.chatN))
     local list = {}

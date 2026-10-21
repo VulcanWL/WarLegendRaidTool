@@ -5,7 +5,11 @@ Pas dans le zip des releases.
 
 ## Maintenant (20/10/2026)
 
-- **Non publié (21/10)** : `Audit.lua` (nouveau, dans le .toc avant `VersionCheck.lua`) + crochet dans `Dispatch` de `Core.lua` : journal
+- **Version publiée (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
+  rouvrir la carte sur ma zone ; idées d'OpenMap, MIT ; `/wl maptools` ; testé en jeu : coordonnées et Ctrl + clic OK, points de guilde /
+  Overlord / Skyborne OK) + journal d'audit (ci-dessous), **éteint par défaut pour les joueurs** (`/wl audit on` ; allumé chez l'auteur).
+  Pas encore vu : pic CPU de 85 ms au lancement du jeu (cause inconnue, accroches de MapTools mesurées par `W.Timed`).
+- **Dans 1.35.0-beta** : `Audit.lua` (nouveau, dans le .toc avant `VersionCheck.lua`) + crochet dans `Dispatch` de `Core.lua` : journal
   automatique du trafic (reçus / refusés avec la raison / envoyés par préfixe, lignes publiques, pic par minute, travaux les plus
   lents, mémoire, CPU), métadonnées seulement, dans `WarLegendRaidToolDB.auditLog.cur` (`.prev` = session d'avant), écrit par le jeu
   au `/reload` ou à la sortie. `/wl audit` (résumé), `/wl audit off`. `check.js` 0 problème, jeu à jour, **rien testé en jeu**.
@@ -91,7 +95,8 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.0-beta** (21/10) : MapTools (outils de carte), journal d'audit `/wl audit`, audit sans raid (banc fengari, 0 erreur).
 - **1.34.1-beta** (20/10) : correctifs de sécurité (macros d'import en liste blanche, canal Skyborne plafonné, Readiness, Layers, Loot Council).
 - **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD » (voir Maintenant).
-- **1.33.0-beta** (19/10) : fenêtre redimensionnable + taille, plafond de la file des presets, Loot Council (Classes).
+- **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD ».
 - Versions plus anciennes : `git tag`, `git log`.
