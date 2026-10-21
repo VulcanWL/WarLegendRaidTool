@@ -5,7 +5,9 @@ Pas dans le zip des releases.
 
 ## Maintenant (21/10/2026)
 
-- **Banc « open world » (21/10)**, branche `claude/openworld-bench-77ee57` (worktree), commit non poussé, dossier du jeu à jour.
+- **Version publiée (21/10)** : 1.35.3-beta (tag `v1.35.3-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le banc
+  open world et ses 3 correctifs (carte de guilde, alerte danger).
+- **Banc « open world » (21/10)**, branche `claude/openworld-bench-77ee57` (worktree), fusionnée dans `main`, dossier du jeu à jour.
   `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, ~20 s, ajouté au CI) : guilde de 120, raid de 40 hors instance.
   Faux client plus fidèle (`tools/smoke/wow.lua`) : réserves de cadres réutilisées, carte du monde = MapCanvas, protection implicite
   (parent / ancre d'un cadre sécurisé), unités ennemies (`M.units`), monde `M.SetupWorld` (C_Map, UnitPosition, minicarte).
@@ -20,7 +22,7 @@ Pas dans le zip des releases.
   **À tester en jeu** : `/wl perf` en raid de 40 hors instance ; carte du monde ouverte / fermée avec la guilde (`/wl map`, les
   repères suivent les membres, plus de traces à l'ancienne place ; un joueur qui quitte le raid réapparaît sur la carte) ; alerte
   danger, cadres allumés, plus de 40 ennemis puis fin de combat (les refusés arrivent), `/wl test`.
-- **Version publiée (21/10)** : 1.35.2-beta (tag `v1.35.2-beta`, depuis `main` après la fusion de la PR n° 4) = l'audit ci-dessous.
+- **Avant (21/10)** : 1.35.2-beta (tag `v1.35.2-beta`, depuis `main` après la fusion de la PR n° 4) = l'audit ci-dessous.
 - **Audit complet (21/10)**, branche `claude/audit-warlegend-raid-tool-176431` (worktree), fusionnée dans `main` (PR n° 4), dossier du jeu à jour.
   Corrigé : `CapTimers.lua` (prévision de fin de BG jamais calculée avec les compteurs « texte » :
   `a and s:match()` ne garde qu'une capture), `Layers.lua` (« Inviter sur mon layer » appelait `SendChatMessage`, qui n'existe ici que
@@ -141,7 +143,8 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.3-beta** (21/10) : banc open world (raid de 40, guilde de 120) ; carte de guilde (plus de repères accumulés, cache
+  « dans mon groupe ? ») ; alerte danger (ennemis refusés repris quand une ligne se libère).
 - **1.35.2-beta** (21/10) : audit complet (CapTimers, Layers, PvP), banc `tools/smoke.js`, contrôle d'API, Luacheck, CI et veilles GitHub.
 - **1.35.1-beta** (21/10) : MoveFrames (+10 fenêtres, Ctrl + clic droit, mémoire en 3 modes), MapTools (infobulles).
-- **1.35.0-beta** (21/10) : MapTools (outils de carte), journal d'audit `/wl audit`, audit sans raid (banc fengari, 0 erreur).
 - Versions plus anciennes : `git tag`, `git log`.
