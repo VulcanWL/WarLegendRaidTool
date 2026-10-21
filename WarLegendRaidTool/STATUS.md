@@ -5,8 +5,9 @@ Pas dans le zip des releases.
 
 ## Maintenant (21/10/2026)
 
-- **Audit complet (21/10)**, branche `claude/audit-warlegend-raid-tool-176431` (worktree), **rien de commité ni poussé**, dossier du jeu à jour.
-  Corrigé, **rien testé en jeu** : `CapTimers.lua` (prévision de fin de BG jamais calculée avec les compteurs « texte » :
+- **Version publiée (21/10)** : 1.35.2-beta (tag `v1.35.2-beta`, depuis `main` après la fusion de la PR n° 4) = l'audit ci-dessous.
+- **Audit complet (21/10)**, branche `claude/audit-warlegend-raid-tool-176431` (worktree), fusionnée dans `main` (PR n° 4), dossier du jeu à jour.
+  Corrigé : `CapTimers.lua` (prévision de fin de BG jamais calculée avec les compteurs « texte » :
   `a and s:match()` ne garde qu'une capture), `Layers.lua` (« Inviter sur mon layer » appelait `SendChatMessage`, qui n'existe ici que
   par un shim Blizzard_Deprecated → `W.SendChat`), PvP `Main.lua` (`not type(x) == "table"` toujours faux), PvP `Locales.lua` (plus de
   lien vers le site de traduction de BattleGroundEnemies). Outils ajoutés (non livrés) : `tools/smoke.js` + `tools/smoke/` (banc fengari),
@@ -24,7 +25,7 @@ Pas dans le zip des releases.
   + rapport, sans push). `wlrt-build-watch.yml` a tourné une fois à la main (21/10 08:41) : issues n° 1-3 (builds 70450 / 70245, UI 172a387e) ;
   aucune exécution planifiée vue. Tests gardés pour plus tard : annonces en emote hors instance (clic requis), MoveFrames (`GetFrameStrata`
   secret), Raid Buffs / DangerAlert (valeurs secrètes).
-- **Version publiée (21/10)** : 1.35.1-beta (tag `v1.35.1-beta`) = `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
+- **Avant (21/10)** : 1.35.1-beta (tag `v1.35.1-beta`) = `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
 - **Avant (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
   rouvrir la carte sur ma zone ; idées d'OpenMap, MIT ; `/wl maptools` ; testé en jeu : coordonnées et Ctrl + clic OK, points de guilde /
   Overlord / Skyborne OK) + journal d'audit (ci-dessous), **éteint par défaut pour les joueurs** (`/wl audit on` ; allumé chez l'auteur).
@@ -120,8 +121,7 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.2-beta** (21/10) : audit complet (CapTimers, Layers, PvP), banc `tools/smoke.js`, contrôle d'API, Luacheck, CI et veilles GitHub.
 - **1.35.1-beta** (21/10) : MoveFrames (+10 fenêtres, Ctrl + clic droit, mémoire en 3 modes), MapTools (infobulles).
 - **1.35.0-beta** (21/10) : MapTools (outils de carte), journal d'audit `/wl audit`, audit sans raid (banc fengari, 0 erreur).
-- **1.34.1-beta** (20/10) : correctifs de sécurité (macros d'import en liste blanche, canal Skyborne plafonné, Readiness, Layers, Loot Council).
-- **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD ».
 - Versions plus anciennes : `git tag`, `git log`.
