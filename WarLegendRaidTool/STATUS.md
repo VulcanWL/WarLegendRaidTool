@@ -5,8 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (20/10/2026)
 
-- **Non publié (21/10, après 1.35.0-beta)** : `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
-- **Version publiée (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
+- **Version publiée (21/10)** : 1.35.1-beta (tag `v1.35.1-beta`) = `MoveFrames.lua` +10 fenêtres (menu Échap, ready check, sacs, options, journal de quêtes flottant, config du chat...), Ctrl + clic droit = remise à zéro, mémoire « jamais / jusqu au /reload / toujours » (`winMemory`, repli sur `savePos`) ; idées de BlizzMove. `MapTools` : infobulles corrigées (tableau de lignes, pas une phrase). Testé en jeu par l utilisateur : OK. Un plantage client (BREAKPOINT, sans addon en cause) a eu lieu à 19:51, non reproduit.
+- **Avant (21/10)** : 1.35.0-beta (tag `v1.35.0-beta`) = `MapTools.lua` (coordonnées sous la carte du monde, Ctrl + clic = repère,
   rouvrir la carte sur ma zone ; idées d'OpenMap, MIT ; `/wl maptools` ; testé en jeu : coordonnées et Ctrl + clic OK, points de guilde /
   Overlord / Skyborne OK) + journal d'audit (ci-dessous), **éteint par défaut pour les joueurs** (`/wl audit on` ; allumé chez l'auteur).
   Pas encore vu : pic CPU de 85 ms au lancement du jeu (cause inconnue, accroches de MapTools mesurées par `W.Timed`).
@@ -96,8 +96,8 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.1-beta** (21/10) : MoveFrames (+10 fenêtres, Ctrl + clic droit, mémoire en 3 modes), MapTools (infobulles).
 - **1.35.0-beta** (21/10) : MapTools (outils de carte), journal d'audit `/wl audit`, audit sans raid (banc fengari, 0 erreur).
 - **1.34.1-beta** (20/10) : correctifs de sécurité (macros d'import en liste blanche, canal Skyborne plafonné, Readiness, Layers, Loot Council).
-- **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD » (voir Maintenant).
 - **1.34.0-beta** (20/10) : addon Skyborne, audit externe n°2, textes « WaR LegenD ».
 - Versions plus anciennes : `git tag`, `git log`.
