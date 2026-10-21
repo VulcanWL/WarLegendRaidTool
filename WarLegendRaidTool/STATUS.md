@@ -5,8 +5,9 @@ Pas dans le zip des releases.
 
 ## Maintenant (21/10/2026)
 
-- **Fluidité en champ de bataille (21/10)**, branche `claude/nostalgic-jang-b845ed` (worktree), commit local **non poussé**, pas de
-  version, dossier du jeu à jour. Banc `node tools/smoke.js --bg` (`tools/smoke/battleground.lua`, ~20 s, ajouté au CI) : Alterac 40
+- **Version publiée (21/10)** : 1.35.4-beta (tag `v1.35.4-beta`, depuis `main`, avance rapide de la branche ci-dessous) = la fluidité
+  en champ de bataille. **Rien testé en jeu.**
+- **Fluidité en champ de bataille (21/10)**, branche `claude/nostalgic-jang-b845ed` (worktree), fusionnée dans `main`, dossier du jeu à jour. Banc `node tools/smoke.js --bg` (`tools/smoke/battleground.lua`, ~20 s, ajouté au CI) : Alterac 40
   contre 40, coût de chaque image (moyenne, centiles, pire image et son contenu). Faux client : tableau des scores (`M.scores`,
   `C_PvP.GetScoreInfo`), minuteurs attribués par fichier:ligne, un événement tiré entre deux images compte dans la suivante.
   **Changé** (aucun rafraîchissement en combat ralenti) : PvP `Main.lua` `WarLegendPvP.Spread` = un seul OnUpdate par côté qui
@@ -21,7 +22,7 @@ Pas dans le zip des releases.
   0 erreur, open world 37 / 37, BG 15 / 15 (mode test avant / après un BG : mon bouton affiché). Luacheck non lancé ici (CI).
   **Rien testé en jeu.** À tester : Alterac, `/wl perf` (ligne « PvP ») ; cadres alliés / ennemis : portée qui grise, PV, cible, en
   et hors combat ; un joueur qui rejoint / quitte le raid ; `/wl pvp` mode test hors BG (mon bouton présent) ; carte de guilde.
-- **Version publiée (21/10)** : 1.35.3-beta (tag `v1.35.3-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le banc
+- **Avant (21/10)** : 1.35.3-beta (tag `v1.35.3-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le banc
   open world et ses 3 correctifs (carte de guilde, alerte danger).
 - **Banc « open world » (21/10)**, branche `claude/openworld-bench-77ee57` (worktree), fusionnée dans `main`, dossier du jeu à jour.
   `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, ~20 s, ajouté au CI) : guilde de 120, raid de 40 hors instance.
@@ -158,8 +159,9 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.4-beta** (21/10) : banc champ de bataille (`--bg`, coût par image) ; cadres PvP plus fluides (un OnUpdate par côté, groupe
+  non lu hors BG, tableau des scores inchangé = rien reconstruit) ; Skyborne muet en instance ; carte de guilde ; `/wl perf` + modules.
 - **1.35.3-beta** (21/10) : banc open world (raid de 40, guilde de 120) ; carte de guilde (plus de repères accumulés, cache
   « dans mon groupe ? ») ; alerte danger (ennemis refusés repris quand une ligne se libère).
 - **1.35.2-beta** (21/10) : audit complet (CapTimers, Layers, PvP), banc `tools/smoke.js`, contrôle d'API, Luacheck, CI et veilles GitHub.
-- **1.35.1-beta** (21/10) : MoveFrames (+10 fenêtres, Ctrl + clic droit, mémoire en 3 modes), MapTools (infobulles).
 - Versions plus anciennes : `git tag`, `git log`.
