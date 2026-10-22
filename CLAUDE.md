@@ -7,7 +7,7 @@ zip holds only the three addon folders):
 @WarLegendRaidTool/STATUS.md
 
 Tools: `node tools/check.js` (checks, also the cross-file ones: W fields, `/wl` vs HELP / README, CATEGORIES,
-addon prefixes / lodPrefix, missing French; `npm install --prefix tools` once if `tools/node_modules` is missing),
+addon prefixes / lodPrefix, missing French; `cd tools && npm install` once if `tools/node_modules` is missing),
 `bash tools/sync.sh` (copy to the game folder), module detail in `docs/modules.md`.
 Also: `node tools/smoke.js` (the addons run in a simulated client: Lua errors, protected actions in combat, messages
 sent by tests or caused by hostile addon messages, cost; `--open-world`: raid of 40 / guild of 120; `--bg`: Alterac
