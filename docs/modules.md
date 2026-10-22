@@ -98,6 +98,10 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
   Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). Names already looked at are in
   `tools/api-baseline.txt`; only new ones fail.
+- `tools/sync.sh` copies to every installed client (`_classic_beta_`, `_forever_`), one state file each; `WLRT_GAME=<AddOns folder>` restricts it to one.
+- `tools/forever-report.js [--flavor beta] [--since DATE|all] [--all]` (read-only): what a game session left on disk - installed version vs the repo,
+  our Lua errors from !BugGrabber (file:line, count) since the installed files, `auditLog` (refused, peaks, slowest work, CPU), `bgMessages`,
+  login errors; exit 1 when one of our addons raised an error or the audit refused a message.
 - `tools/smoke.js` + `tools/smoke/wow.lua` (the fake client) + `tools/smoke/scenario.lua`: fengari (Lua 5.3 in JS) runs
   the four addons twice (fresh English install; /reload with the saved data, French, Skyborne character): login, every
   `/wl` command alone and in a raid, every tab, Test all, ready check, pull, combat (protected frames changed in combat

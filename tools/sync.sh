@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# WarLegend RaidTool - copy the repo's three addon folders to the game's AddOns folder (not shipped).
+# WarLegend RaidTool - copy the repo's addon folders to the game's AddOns folder(s) (not shipped).
 # Usage: bash tools/sync.sh [--force]
+# Without WLRT_GAME it makes one pass per installed client (_classic_beta_, _forever_), each with its own state; WLRT_GAME
+# (an AddOns folder) restricts it to that one.
 # A game file is overwritten only when it is missing or is a version git already knows (some past commit or the
 # index): a file changed ONLY in the game folder is skipped and listed, so no work is lost (see 1.27.1).
 # --force overwrites those too. Nothing is ever deleted in the game folder. Prints only what it did.
@@ -8,9 +10,21 @@
 # Symbolic links are never followed, in the repo or in the game folder (skipped and listed).
 set -u
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-GAME="${WLRT_GAME:-/c/Program Files (x86)/World of Warcraft/_classic_beta_/Interface/AddOns}"
+GAME="${WLRT_GAME:-}"
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
+if [ -z "${WLRT_GAME:-}" ]; then
+    WOW="/c/Program Files (x86)/World of Warcraft"
+    rc=0; n=0
+    for flavor in _classic_beta_ _forever_; do
+        [ -d "$WOW/$flavor/Interface/AddOns" ] || continue
+        echo "== $flavor"
+        WLRT_GAME="$WOW/$flavor/Interface/AddOns" WLRT_STATE="wlrt-synced${flavor/_classic_beta_/}" bash "$0" "$@" || rc=1
+        n=$((n + 1))
+    done
+    [ $n -gt 0 ] || { echo "No game AddOns folder found under: $WOW"; exit 1; }
+    exit $rc
+fi
 cd "$REPO" || exit 1
 [ -d "$GAME" ] || { echo "Game AddOns folder not found: $GAME"; exit 1; }
 
@@ -18,7 +32,7 @@ ADDONS=(WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegend
 copied=0; skipped=0; untracked=0
 # What this script last copied (path -> blob): a game file still equal to it is OUR previous copy (an edit not committed
 # yet), so it is safe to replace; only a game file that is neither in git nor our last copy is someone's own change.
-STATE="$(git rev-parse --git-dir)/wlrt-synced"
+STATE="$(git rev-parse --git-dir)/${WLRT_STATE:-wlrt-synced}"
 declare -A synced
 if [ -f "$STATE" ]; then
     while IFS=$'	' read -r blob path; do [ -n "$path" ] && synced["$path"]="$blob"; done < "$STATE"
