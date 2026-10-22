@@ -5,7 +5,7 @@ Pas dans le zip des releases.
 
 ## Maintenant (22/10/2026)
 
-- **Menu réorganisé (22/10, non publié)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
+- **Menu réorganisé (22/10, non publié ; accordéon retiré : toutes les sections visibles sous des légendes, entrées moins indentées)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
   lieu de 3, seulement `CATEGORIES` dans `Core.lua` (clés des modules inchangées) + `openSection_pvp` dans la liste blanche du profil
   (`Settings.lua`) ; README et AGENTS à jour. Raid : Organisation, Préparation, Combat, Butin et présences (+ Dashboard, Essais) ;
   JcJ : Champs de bataille, Monde ouvert (alerte danger, duels, layers) ; Guilde : Minotaure ici ; Options : section « Petits

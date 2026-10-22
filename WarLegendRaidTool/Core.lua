@@ -1502,25 +1502,26 @@ end
 
 -- Menu: 4 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot and attendance).
 -- PvP = battlegrounds and the open world. Guild = the guild and my characters. Options = the addon itself, the
--- interface tools and the small automations (nothing to do with a raid or the guild). Every tab has collapsible
--- sections (accordion = true: one open at a time, the "+" / "-" sign on its header), each tab remembers its own.
--- English keys, translated when the window is built. Modules not listed go to the last section of the last tab.
+-- interface tools and the small automations (nothing to do with a raid or the guild). Every tab shows all its
+-- sections at once under plain captions (a tab fits in the menu column: no accordion, nothing hidden; a category
+-- may still set accordion = true). English keys, translated when the window is built. Modules not listed go to
+-- the last section of the last tab.
 local CATEGORIES = {
-    { key = "pve", title = "Raid", accordion = true, sections = {
+    { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
         { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled" } },
         { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
     } },
-    { key = "pvp", title = "PvP", pvp = true, accordion = true, sections = {
+    { key = "pvp", title = "PvP", pvp = true, sections = {
         { key = "bg", title = "Battlegrounds", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats" } },
         { key = "world", title = "Open world", items = { "DangerAlert", "DuelTimer", "Layers" } },
     } },
-    { key = "me", title = "Guild", accordion = true, sections = {
+    { key = "me", title = "Guild", sections = {
         { key = "members", title = "Members", items = { "Guild", "Classes", "GuildPositions", "Minotaure" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
-    { key = "options", title = "Options", accordion = true, sections = {
+    { key = "options", title = "Options", sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
         { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer" } },
@@ -1870,10 +1871,10 @@ function W.BuildMain()
         b.sel:Hide()
         b.text = b:CreateFontString(nil, "OVERLAY")
         b.text:SetFont(W.FONT, 11, "")
-        b.text:SetPoint("LEFT", 18, 0) -- indented under its section
+        b.text:SetPoint("LEFT", 12, 0) -- slightly indented under its caption
         b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
         -- a long label (French, a new module) shrinks to fit, then is cut: it never runs into the content
-        local avail, size = BTN_W - 22, 11
+        local avail, size = BTN_W - 16, 11
         while b.text:GetStringWidth() > avail and size > 8 do
             size = size - 1
             b.text:SetFont(W.FONT, size, "")
@@ -1948,7 +1949,7 @@ function W.BuildMain()
                 W.SetColor(hhl, 1, 1, 1, 0.08)
                 h.text = h:CreateFontString(nil, "OVERLAY")
                 h.text:SetFont(W.FONT, 10, "OUTLINE")
-                h.text:SetPoint("LEFT", 8, 0)
+                h.text:SetPoint("LEFT", 4, 0)
                 h.text:SetText(W.Upper(L(sec.title)))
                 h.text:SetTextColor(W.R, W.G, W.B)
                 h.sign = h:CreateTexture(nil, "OVERLAY")
