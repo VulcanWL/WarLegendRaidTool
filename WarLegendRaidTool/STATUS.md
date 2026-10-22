@@ -3,7 +3,16 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (21/10/2026)
+## Maintenant (22/10/2026)
+
+- **Menu réorganisé (22/10, non publié)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
+  lieu de 3, seulement `CATEGORIES` dans `Core.lua` (clés des modules inchangées) + `openSection_pvp` dans la liste blanche du profil
+  (`Settings.lua`) ; README et AGENTS à jour. Raid : Organisation, Préparation, Combat, Butin et présences (+ Dashboard, Essais) ;
+  JcJ : Champs de bataille, Monde ouvert (alerte danger, duels, layers) ; Guilde : Minotaure ici ; Options : section « Petits
+  automatismes ». Aussi : CI avec bancs open world / BG en jobs parallèles. Vérifié : check.js 0, smoke 0 erreur. **Rien testé en jeu.**
+  À tester : `/reload`, les 4 onglets, `/wl pvp` (ouvre l'onglet JcJ), `/wl map`, recherche d'une option, section ouverte retenue.
+
+## Avant (21/10/2026)
 
 - **Version publiée (21/10)** : 1.35.4-beta (tag `v1.35.4-beta`, depuis `main`, avance rapide de la branche ci-dessous) = la fluidité
   en champ de bataille. **Rien testé en jeu.**

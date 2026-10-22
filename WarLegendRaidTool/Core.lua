@@ -1500,26 +1500,30 @@ local function SavePos()
     ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
 end
 
--- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP.
--- Guild = the guild and my characters. Options = the addon itself and the interface tools (nothing to do
--- with a raid or the guild). Every tab has collapsible sections (accordion = true: one open at a time, the
--- "+" / "-" sign on its header), each tab remembers its own. English keys, translated when the window is built.
--- Modules not listed go to the last section of the last tab.
+-- Menu: 4 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot and attendance).
+-- PvP = battlegrounds and the open world. Guild = the guild and my characters. Options = the addon itself, the
+-- interface tools and the small automations (nothing to do with a raid or the guild). Every tab has collapsible
+-- sections (accordion = true: one open at a time, the "+" / "-" sign on its header), each tab remembers its own.
+-- English keys, translated when the window is built. Modules not listed go to the last section of the last tab.
 local CATEGORIES = {
     { key = "pve", title = "Raid", accordion = true, sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "CombatTimer", "WhoPulled", "AutoLog", "CCAlert" } },
-        { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "Minotaure", "DuelTimer", "DangerAlert" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled" } },
+        { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
+    } },
+    { key = "pvp", title = "PvP", pvp = true, accordion = true, sections = {
+        { key = "bg", title = "Battlegrounds", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats" } },
+        { key = "world", title = "Open world", items = { "DangerAlert", "DuelTimer", "Layers" } },
     } },
     { key = "me", title = "Guild", accordion = true, sections = {
-        { key = "members", title = "Members", items = { "Guild", "Dashboard", "Classes", "Roster", "GuildPositions", "Layers" } },
+        { key = "members", title = "Members", items = { "Guild", "Classes", "GuildPositions", "Minotaure" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
     { key = "options", title = "Options", accordion = true, sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
-        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife", "MapTools", "LootSparkles" } },
+        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer" } },
     } },
 }
 
@@ -1529,6 +1533,10 @@ W.AddFR({
     ["Preparation"] = "Préparation",
     ["Combat"] = "Combat",
     ["Loot"] = "Butin",
+    ["Loot and attendance"] = "Butin et présences",
+    ["Battlegrounds"] = "Champs de bataille",
+    ["Open world"] = "Monde ouvert",
+    ["Small automations"] = "Petits automatismes",
     ["Raid"] = "Raid",
     ["PvP"] = "JcJ",
     ["Guild"] = "Guilde",

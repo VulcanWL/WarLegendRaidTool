@@ -7,10 +7,11 @@ export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipati
 historique et records des premades de BG, liste de summon, layers de la guilde, classement JcJ de saison (Minotaure) et
 guilde par classe (responsables, rôles déclarés), repris de l'addon WarLegend v3 de Sashoof.
 Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage).
-La fenêtre a trois onglets : **Raid** (sections Organisation, Préparation, Combat, Butin, JcJ : les outils d'une soirée,
-dans l'ordre), **Guilde** (Membres : guilde, classes, recrues, carte, layers ; Mes personnages : rerolls, banque, export sim) et
-**Options** (Addon : réglages, version, bugs ; Interface : cadres, options cachées, niveaux d'objet, texte de recharge,
-focus, qualité de vie), chacun avec des sections repliables « + / - » (une ouverte à la fois, retenue) ; les choix
+La fenêtre a quatre onglets : **Raid** (Organisation, Préparation, Combat, Butin et présences : les outils d'une soirée,
+dans l'ordre), **JcJ** (Champs de bataille ; Monde ouvert : alerte danger, duels, layers), **Guilde** (Membres : guilde, classes,
+carte, Minotaure ; Mes personnages : rerolls, banque, export sim) et **Options** (Addon : réglages, version, bugs ; Interface :
+cadres, options cachées, niveaux d'objet, carte ; Petits automatismes : qualité de vie, focus, texte de recharge, journal,
+alerte de contrôle, minuteur de combat), chacun avec des sections repliables « + / - » (une ouverte à la fois, retenue) ; les choix
 de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
