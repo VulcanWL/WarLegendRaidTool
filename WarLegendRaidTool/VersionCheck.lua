@@ -1,7 +1,10 @@
 -- WarLegend RaidTool - Version Check
 -- Broadcasts your version to the raid, warns if a newer one exists, lists who runs what.
 local W = WLRT
-W.AddFR({ ["Version Check"] = "Vérification de version" })
+W.AddFR({
+    ["Version Check"] = "Vérification de version",
+    ["|cffffcc00A newer version (%s) is available (you have %s). Please update!|r"] = "|cffffcc00Une nouvelle version (%s) est disponible (tu as %s). Mets à jour !|r",
+})
 local L = W.L
 local VER, VERQ = "WLRT_VER", "WLRT_VERQ"
 local known, warned = {}, false
@@ -24,6 +27,11 @@ local function Newer(a, b)
 end
 
 local function Broadcast() lastBroadcast = GetTime(); W.Send(VER, W.version) end
+
+-- My version to the guild, so a player who is alone (not in a group) still learns that an update exists
+local function BroadcastGuild()
+    if W.IsInGuild() then W.Send(VER, W.version, "GUILD") end
+end
 
 local function Request()
     if GetTime() - lastRequest < 15 then return end
@@ -60,13 +68,14 @@ local function RefreshList()
 end
 
 W.OnAddon(VER, function(msg, from, _, full)
+    if msg == "" or #msg > 20 or W.IsMe(full or from) then return end
+    if not msg:match("^%d+%.%d+[%w%.%-]*$") then return end -- a version number, nothing else (it is printed)
+    -- a guild member out of my group is not listed (known), but his version still tells me about an update
     local unit = W.UnitByName(full or from)
-    if not unit or W.UnitIsMe(unit) or msg == "" or #msg > 20 then return end
-    if not msg:match("^[%w%.%-]+$") then return end -- a version number, nothing else
-    known[W.UnitKey(unit)] = msg
+    if unit and not W.UnitIsMe(unit) then known[W.UnitKey(unit)] = msg end
     if Newer(msg, W.version) and not warned then
         warned = true
-        W.Print(L("|cffffcc00New version available: ") .. msg .. L(" (you have ") .. W.version .. ").|r")
+        W.Print(string.format(L("|cffffcc00A newer version (%s) is available (you have %s). Please update!|r"), msg, W.version))
     end
     if W.IsShown("VersionCheck") then RefreshList() end
 end)
@@ -80,7 +89,9 @@ end)
 local wasInGroup = false
 W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload)
     wasInGroup = W.InGroup()
-    if isLogin or isReload then W.After(5, function() if not W.InPvP() then Broadcast() end end) end
+    if isLogin or isReload then
+        W.After(5, function() if not W.InPvP() then Broadcast(); BroadcastGuild() end end)
+    end
 end)
 W.OnRoster(function()
     local inGroup = W.InGroup()
