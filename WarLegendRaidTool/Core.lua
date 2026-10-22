@@ -1492,7 +1492,7 @@ local function BuildOff(m, p)
 end
 
 local main, mini
-local MENU_W = 140
+local MENU_W = 160
 
 local function SavePos()
     local p, _, rp, x, y = main:GetPoint(1)
@@ -1655,7 +1655,7 @@ local MIN_SCALE, MAX_SCALE = 0.8, 1.6
 function W.SetWindowScale(s, keepCorner)
     if not main then return end
     local ui = W.DB("ui")
-    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 980)
+    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 1000)
     s = math.max(MIN_SCALE, math.min(tonumber(s) or 1, fit))
     s = math.floor(s * 100 + 0.5) / 100
     local old = main:GetScale()
@@ -1676,7 +1676,7 @@ function W.BuildMain()
     local blizz, S = W.IsBlizzard(), W.Skin()
     local IN = blizz and 11 or 1           -- inner edge of the frame border
     main = CreateFrame("Frame", "WarLegendRaidToolFrame", UIParent, W.BT)
-    W.Size(main, 980, 640)
+    W.Size(main, 1000, 640)
     local ui = W.DB("ui")
     if ui.point then
         main:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, ui.x or 0, ui.y or 0)
@@ -1851,7 +1851,7 @@ function W.BuildMain()
     local BTN_W = MENU_W - 4 - IN
     local function EntryButton(m, sec, cat)
         local b = CreateFrame("Button", nil, main)
-        W.Size(b, BTN_W, 21)
+        W.Size(b, BTN_W, 22)
         local hl = b:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
         W.SetColor(hl, 1, 1, 1, 0.07)
@@ -2003,7 +2003,7 @@ function W.BuildMain()
                         b:ClearAllPoints()
                         b:SetPoint("TOPLEFT", IN + 3, y)
                         b:Show()
-                        y = y - 22
+                        y = y - 24
                     else
                         b:Hide()
                     end
