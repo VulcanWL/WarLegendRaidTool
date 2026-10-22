@@ -5,7 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (22/10/2026)
 
-- **Menu réorganisé (22/10, non publié ; accordéon retiré : toutes les sections visibles sous des légendes, entrées moins indentées)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
+- **Version publiée (22/10)** : 1.35.5-beta (tag `v1.35.5-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le menu réorganisé. **Rien testé en jeu.**
+- **Menu réorganisé (22/10 ; accordéon retiré : toutes les sections visibles sous des légendes, entrées moins indentées ; menu 160 px, lignes 24 px, fenêtre 1000 px)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
   lieu de 3, seulement `CATEGORIES` dans `Core.lua` (clés des modules inchangées) + `openSection_pvp` dans la liste blanche du profil
   (`Settings.lua`) ; README et AGENTS à jour. Raid : Organisation, Préparation, Combat, Butin et présences (+ Dashboard, Essais) ;
   JcJ : Champs de bataille, Monde ouvert (alerte danger, duels, layers) ; Guilde : Minotaure ici ; Options : section « Petits
@@ -168,9 +169,9 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.5-beta** (22/10) : menu en 4 onglets (Raid, JcJ, Guilde, Options) sans accordéon, menu 160 px ; CI avec bancs en parallèle.
 - **1.35.4-beta** (21/10) : banc champ de bataille (`--bg`, coût par image) ; cadres PvP plus fluides (un OnUpdate par côté, groupe
   non lu hors BG, tableau des scores inchangé = rien reconstruit) ; Skyborne muet en instance ; carte de guilde ; `/wl perf` + modules.
 - **1.35.3-beta** (21/10) : banc open world (raid de 40, guilde de 120) ; carte de guilde (plus de repères accumulés, cache
   « dans mon groupe ? ») ; alerte danger (ennemis refusés repris quand une ligne se libère).
-- **1.35.2-beta** (21/10) : audit complet (CapTimers, Layers, PvP), banc `tools/smoke.js`, contrôle d'API, Luacheck, CI et veilles GitHub.
 - Versions plus anciennes : `git tag`, `git log`.
