@@ -55,6 +55,7 @@ Settings.lua
 Skyborne.lua
 Myslot.lua
 LootTriage.lua
+DoesItDie.lua
 MapTools.lua
 Audit.lua
 VersionCheck.lua

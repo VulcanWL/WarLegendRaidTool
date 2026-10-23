@@ -13,7 +13,7 @@ const api = require("./wow-api");
 
 const TOOLS = __dirname;
 const REPO = path.join(TOOLS, "..");
-const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot"];
+const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot", "WarLegendRaidTool_DoesItDie"];
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : def; };
 const verbose = args.includes("--verbose");

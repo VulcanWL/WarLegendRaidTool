@@ -1510,7 +1510,7 @@ local CATEGORIES = {
     { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "DoesItDie" } },
         { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
     } },
     { key = "pvp", title = "PvP", pvp = true, sections = {
@@ -2273,7 +2273,7 @@ W.slash.perf = function()
         W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
             get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
         -- the load-on-demand addons, once loaded: they have their own figures (the battleground frames are in the PvP one)
-        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot" }) do
+        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot", "WarLegendRaidTool_DoesItDie" }) do
             if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then
                 W.Print(string.format(L("  %s: %.3f ms per frame (recent), peak %.2f ms"), (name:gsub("^WarLegendRaidTool_", "")),
                     get(M.RecentAverageTime, name), get(M.PeakTime, name)))
@@ -2418,6 +2418,7 @@ local HELP = {
     { "/wl mino", "Minotaure: guild PvP season ranking and weekly challenges" },
     { "/wl sk", "Skyborne: leylines / convergences on the map (settings, export, share)" },
     { "/wl myslot", "Myslot: save / restore action bars, macros, key bindings (text or named exports)" },
+    { "/wl did", "DoesItDie: marks of the DoTs on the target and the nameplates (on demand, off by default)" },
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },

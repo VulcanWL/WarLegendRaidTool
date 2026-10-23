@@ -1,7 +1,7 @@
 name: WarLegend RaidTool release
 
 # Push a tag like v1.24.1 -> GitHub builds WarLegendRaidTool-1.24.1-forever.zip with the three addon folders
-# (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP, WarLegendRaidTool_Skyborne, WarLegendRaidTool_Myslot) and publishes it as a Release.
+# (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP, WarLegendRaidTool_Skyborne, WarLegendRaidTool_Myslot, WarLegendRaidTool_DoesItDie) and publishes it as a Release.
 # The guild downloads that zip, and WowUp reads the Releases to offer the update.
 # WowUp (github-addon-provider.ts): the _classic_beta_ client is "ClassicBeta" = flavor "forever". It takes the
 # asset named in release.json for that flavor, or else a zip whose name ends in "-forever.zip". The zip name is
@@ -25,7 +25,7 @@ jobs:
       - name: Check that the tag matches the .toc versions
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          for toc in WarLegendRaidTool/WarLegendRaidTool.toc WarLegendRaidTool_Raid/WarLegendRaidTool_Raid.toc WarLegendRaidTool_PvP/WarLegendRaidTool_PvP.toc WarLegendRaidTool_Skyborne/WarLegendRaidTool_Skyborne.toc WarLegendRaidTool_Myslot/WarLegendRaidTool_Myslot.toc; do
+          for toc in WarLegendRaidTool/WarLegendRaidTool.toc WarLegendRaidTool_Raid/WarLegendRaidTool_Raid.toc WarLegendRaidTool_PvP/WarLegendRaidTool_PvP.toc WarLegendRaidTool_Skyborne/WarLegendRaidTool_Skyborne.toc WarLegendRaidTool_Myslot/WarLegendRaidTool_Myslot.toc WarLegendRaidTool_DoesItDie/WarLegendRaidTool_DoesItDie.toc; do
             VERSION="$(grep -m1 '^## Version:' "$toc" | sed 's/^## Version:[[:space:]]*//' | tr -d '\r')"
             if [ "$VERSION" != "$TAG" ]; then
               echo "::error::$toc says $VERSION, the tag says $TAG"
@@ -38,6 +38,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           ZIP="WarLegendRaidTool-${VERSION}-forever.zip"
           zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne \
+            WarLegendRaidTool_Myslot WarLegendRaidTool_DoesItDie \
             -x "*/AGENTS.md" "*/STATUS.md" "*/.git*" "*/Libs/LibStub/tests/*"
           INTERFACE="$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | sed 's/^## Interface:[[:space:]]*//' | tr -d '\r')"
           cat > release.json <<EOF
