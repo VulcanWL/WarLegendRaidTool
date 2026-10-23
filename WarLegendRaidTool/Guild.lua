@@ -513,7 +513,10 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
         W.After(2 + math.random() * 10, function() answering = false; G.Broadcast() end)
     elseif t[1] == "D" then
         local e = { t = time(), profs = {}, rec = {}, links = {} }
+        local count = 0 -- a forged message of thousands of tiny fields stops here, not after a long loop
         for item in (t[2] or ""):gmatch("[^;]+") do
+            count = count + 1
+            if count > 40 then break end
             local n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$")
             if n and #n <= 40 and #e.profs < 20 then
                 n = W.Plain(n, 40)
@@ -521,9 +524,13 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
             end
         end
         for prof, list in (t[3] or ""):gmatch("([^=;]+)=([%d,]+)") do
+            count = count + 1
+            if count > 80 then break end
             if #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
         end
         for prof, link in (t[4] or ""):gmatch("([^\30\31]+)\31([^\30]+)") do
+            count = count + 1
+            if count > 120 then break end
             if #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
         end
         local key, name = W.Key(who), W.FullName(who)
@@ -1170,7 +1177,8 @@ local function BuildProfs(p)
     nameLbl:SetPoint("TOPLEFT", 14, -10)
     UI.nameSearch = W.EditBox(p, 130, 40)
     UI.nameSearch:SetPoint("LEFT", nameLbl, "RIGHT", 8, 0)
-    UI.nameSearch:SetScript("OnTextChanged", G.RefreshProfs)
+    local typed = W.Debounce(0.25, function() G.RefreshProfs() end)
+    UI.nameSearch:SetScript("OnTextChanged", typed)
     local profLbl = W.Label(p, L("Profession:"), "GameFontHighlightSmall")
     profLbl:SetPoint("LEFT", UI.nameSearch, "RIGHT", 16, 0)
     -- a drop-down menu (the game's MenuUtil, as Naowh Forever uses it); on a client without it, a click
@@ -1223,7 +1231,7 @@ local function BuildProfs(p)
     lbl:SetPoint("TOPLEFT", 14, -38)
     UI.search = W.EditBox(p, 220, 60)
     UI.search:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
-    UI.search:SetScript("OnTextChanged", G.RefreshProfs)
+    UI.search:SetScript("OnTextChanged", typed)
     W.LinkTarget(UI.search) -- shift-click an item while typing: its name is searched
     local onlineCheck = W.Check(p, L("Online members only"), function() return db.profOnline end,
         function(v) db.profOnline = v; UI.profs:ScrollToTop(); G.RefreshProfs() end,

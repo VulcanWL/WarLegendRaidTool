@@ -82,6 +82,16 @@ function W.Int(v, min, max)
     return n and math.floor(n) or nil
 end
 
+-- Search boxes: fn runs once typing pauses for delay seconds, not on every key (big tables rebuilt once)
+function W.Debounce(delay, fn)
+    local gen = 0
+    return function()
+        gen = gen + 1
+        local mine = gen
+        W.After(delay, function() if mine == gen then fn() end end)
+    end
+end
+
 -- Long text: split into chunks "id:i:n:chunk", rebuilt by W.OnAddonLong
 local CHUNK = 220
 local longId = 0
