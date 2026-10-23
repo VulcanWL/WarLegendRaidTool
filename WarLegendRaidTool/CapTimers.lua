@@ -205,7 +205,7 @@ local function Layout()
     anchor:SetShown(next(active) ~= nil)
 end
 
-local function StopBar(key)
+local function StopBar(key, noLayout)
     local a = active[key]
     if not a then return end
     a.bar:Hide()
@@ -214,7 +214,7 @@ local function StopBar(key)
     a.bar:SetScale(1)
     pool[#pool + 1] = a.bar
     active[key] = nil
-    Layout()
+    if not noLayout then Layout() end
 end
 
 -- every 0.1 s: bars entering their last seconds move to the middle; the soonest one is counted aloud
@@ -243,9 +243,11 @@ local function Emphasize(now)
 end
 
 local function StopMatching(prefix)
+    local stopped = false
     for key in pairs(active) do
-        if key:sub(1, #prefix) == prefix then StopBar(key) end
+        if key:sub(1, #prefix) == prefix then StopBar(key, true); stopped = true end
     end
+    if stopped then Layout() end
 end
 
 local acc = 0
@@ -254,15 +256,18 @@ local function OnUpdate(_, e)
     if acc < 0.1 then return end
     acc = 0
     local now = GetTime()
+    local stopped = false -- bars ending in the same tick: one Layout after the loop
     for key, a in pairs(active) do
         local left = a.ends - now
         if left <= 0 then
-            StopBar(key)
+            StopBar(key, true)
+            stopped = true
         else
             a.bar.bar:SetValue(left)
             a.bar.time:SetText(TimeText(left))
         end
     end
+    if stopped then Layout() end
     Emphasize(now)
 end
 
