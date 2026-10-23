@@ -1,5 +1,5 @@
 // WarLegend RaidTool - offline checks (not shipped: only the three addon folders go in the release zip).
-// Usage: node tools/check.js [root]   (once: npm install --prefix tools)
+// Usage: node tools/check.js [root]   (once: cd tools && npm install)
 //          (root = the folder holding the three addon folders, default: the repo)
 // Prints only the problems, then one summary line. Exit code 1 when something is wrong.
 // Checks: UTF-8 BOM / CRLF, Lua 5.1 syntax, .toc entries <-> files, global writes, unknown lowercase

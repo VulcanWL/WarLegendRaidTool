@@ -72,9 +72,9 @@ local db
   Build the UI with `W.Title(p, text)`, `W.Check(p, text, get, set, tip)`, `W.Button(p, text, w, h, onClick, tip)`,
   `W.Label(p, text, font)`, `W.EditBox(p, w, maxLetters)`, `W.Cycle` (a drop-down of values), `W.ScrollList`, `W.Table`, `W.SubTabs`,
   then `:SetPoint("TOPLEFT", x, -y)`. To show the module in the menu, add its key to `CATEGORIES`
-  in `Core.lua`: three tabs, Raid (the raid night in order: Organisation, Preparation, Combat, Loot, then PvP), Guild (Members, My
-  characters) and Options (Addon, Interface: nothing to do with a raid or the guild), all with collapsible sections. A key
-  left out goes to the last section of Options.
+  in `Core.lua`: four tabs, Raid (the raid night in order: Organisation, Preparation, Combat, Loot and attendance), PvP (Battlegrounds,
+  Open world), Guild (Members, My characters) and Options (Addon, Interface, Small automations: nothing to do with a raid or the
+  guild), all with every section visible under plain captions (no accordion). A key left out goes to the last section of Options.
 - **Slash sub-command**: `W.slash.name = function(rest) ... end` gives `/wl name`.
 - **Chat output**: `W.Print(msg)` (local), `W.Announce(text, channel)` / `W.SendChat(...)` (public).
 - **Addon messages**: `W.OnAddon(prefix, fn)` to receive, `W.Send(prefix, msg, channel, target)` to send,

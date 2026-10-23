@@ -1,5 +1,5 @@
 // WarLegend RaidTool - smoke test in a simulated client (not shipped).
-// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world] [--bg]    (once: npm install --prefix tools)
+// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world] [--bg]    (once: cd tools && npm install)
 // Runs the four addons in fengari (a Lua VM in JavaScript) on top of tools/smoke/wow.lua, a small fake client whose
 // API answers come from Blizzard's own API documentation of the current build (tools/wow-api.js, cached UI source).
 // Plays tools/smoke/scenario.lua twice: a fresh install (English client), then a /reload with the saved data (French).

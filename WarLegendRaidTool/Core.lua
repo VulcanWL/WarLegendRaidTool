@@ -1492,7 +1492,7 @@ local function BuildOff(m, p)
 end
 
 local main, mini
-local MENU_W = 140
+local MENU_W = 160
 
 local function SavePos()
     local p, _, rp, x, y = main:GetPoint(1)
@@ -1500,26 +1500,31 @@ local function SavePos()
     ui.point, ui.relPoint, ui.x, ui.y = p, rp, x, y
 end
 
--- Menu: 3 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot) plus PvP.
--- Guild = the guild and my characters. Options = the addon itself and the interface tools (nothing to do
--- with a raid or the guild). Every tab has collapsible sections (accordion = true: one open at a time, the
--- "+" / "-" sign on its header), each tab remembers its own. English keys, translated when the window is built.
--- Modules not listed go to the last section of the last tab.
+-- Menu: 4 tabs on top. Raid = the raid night in order (organisation, preparation, combat, loot and attendance).
+-- PvP = battlegrounds and the open world. Guild = the guild and my characters. Options = the addon itself, the
+-- interface tools and the small automations (nothing to do with a raid or the guild). Every tab shows all its
+-- sections at once under plain captions (a tab fits in the menu column: no accordion, nothing hidden; a category
+-- may still set accordion = true). English keys, translated when the window is built. Modules not listed go to
+-- the last section of the last tab.
 local CATEGORIES = {
-    { key = "pve", title = "Raid", accordion = true, sections = {
+    { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
         { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "CombatTimer", "WhoPulled", "AutoLog", "CCAlert" } },
-        { key = "loot", title = "Loot", items = { "LootCouncil", "Attendance" } },
-        { key = "bg", title = "PvP", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats", "Minotaure", "DuelTimer", "DangerAlert" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled" } },
+        { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
     } },
-    { key = "me", title = "Guild", accordion = true, sections = {
-        { key = "members", title = "Members", items = { "Guild", "Dashboard", "Classes", "Roster", "GuildPositions", "Layers" } },
+    { key = "pvp", title = "PvP", pvp = true, sections = {
+        { key = "bg", title = "Battlegrounds", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats" } },
+        { key = "world", title = "Open world", items = { "DangerAlert", "DuelTimer", "Layers" } },
+    } },
+    { key = "me", title = "Guild", sections = {
+        { key = "members", title = "Members", items = { "Guild", "Classes", "GuildPositions", "Minotaure" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
-    { key = "options", title = "Options", accordion = true, sections = {
+    { key = "options", title = "Options", sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
-        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "CooldownText", "Focus", "QualityOfLife", "MapTools", "LootSparkles" } },
+        { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer" } },
     } },
 }
 
@@ -1529,6 +1534,10 @@ W.AddFR({
     ["Preparation"] = "Préparation",
     ["Combat"] = "Combat",
     ["Loot"] = "Butin",
+    ["Loot and attendance"] = "Butin et présences",
+    ["Battlegrounds"] = "Champs de bataille",
+    ["Open world"] = "Monde ouvert",
+    ["Small automations"] = "Petits automatismes",
     ["Raid"] = "Raid",
     ["PvP"] = "JcJ",
     ["Guild"] = "Guilde",
@@ -1646,7 +1655,7 @@ local MIN_SCALE, MAX_SCALE = 0.8, 1.6
 function W.SetWindowScale(s, keepCorner)
     if not main then return end
     local ui = W.DB("ui")
-    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 980)
+    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 1000)
     s = math.max(MIN_SCALE, math.min(tonumber(s) or 1, fit))
     s = math.floor(s * 100 + 0.5) / 100
     local old = main:GetScale()
@@ -1667,7 +1676,7 @@ function W.BuildMain()
     local blizz, S = W.IsBlizzard(), W.Skin()
     local IN = blizz and 11 or 1           -- inner edge of the frame border
     main = CreateFrame("Frame", "WarLegendRaidToolFrame", UIParent, W.BT)
-    W.Size(main, 980, 640)
+    W.Size(main, 1000, 640)
     local ui = W.DB("ui")
     if ui.point then
         main:SetPoint(ui.point, UIParent, ui.relPoint or ui.point, ui.x or 0, ui.y or 0)
@@ -1842,7 +1851,7 @@ function W.BuildMain()
     local BTN_W = MENU_W - 4 - IN
     local function EntryButton(m, sec, cat)
         local b = CreateFrame("Button", nil, main)
-        W.Size(b, BTN_W, 21)
+        W.Size(b, BTN_W, 22)
         local hl = b:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
         W.SetColor(hl, 1, 1, 1, 0.07)
@@ -1862,10 +1871,10 @@ function W.BuildMain()
         b.sel:Hide()
         b.text = b:CreateFontString(nil, "OVERLAY")
         b.text:SetFont(W.FONT, 11, "")
-        b.text:SetPoint("LEFT", 18, 0) -- indented under its section
+        b.text:SetPoint("LEFT", 12, 0) -- slightly indented under its caption
         b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
         -- a long label (French, a new module) shrinks to fit, then is cut: it never runs into the content
-        local avail, size = BTN_W - 22, 11
+        local avail, size = BTN_W - 16, 11
         while b.text:GetStringWidth() > avail and size > 8 do
             size = size - 1
             b.text:SetFont(W.FONT, size, "")
@@ -1940,7 +1949,7 @@ function W.BuildMain()
                 W.SetColor(hhl, 1, 1, 1, 0.08)
                 h.text = h:CreateFontString(nil, "OVERLAY")
                 h.text:SetFont(W.FONT, 10, "OUTLINE")
-                h.text:SetPoint("LEFT", 8, 0)
+                h.text:SetPoint("LEFT", 4, 0)
                 h.text:SetText(W.Upper(L(sec.title)))
                 h.text:SetTextColor(W.R, W.G, W.B)
                 h.sign = h:CreateTexture(nil, "OVERLAY")
@@ -1994,7 +2003,7 @@ function W.BuildMain()
                         b:ClearAllPoints()
                         b:SetPoint("TOPLEFT", IN + 3, y)
                         b:Show()
-                        y = y - 22
+                        y = y - 24
                     else
                         b:Hide()
                     end
