@@ -102,6 +102,7 @@ local LC = {}
 W.LootCouncil = LC
 local PREFIX = "WLRT_LC"
 local db
+local hist -- loot history, newest first
 
 local RESP = {
     { key = "need", text = L("Need (BiS)"), color = "33ff66" },
@@ -134,7 +135,12 @@ W.OnReady(function()
         timeout = 60, councilRank = 1, councilExtra = "", logLoot = true,
         srWhisper = true, srMax = 1,
     })
-    if type(db.history) ~= "table" then db.history = {} end
+    -- the loot history has its own key (WarLegendRaidToolDB.lootHistory), apart from the module options
+    if type(W.db.lootHistory) ~= "table" then
+        W.db.lootHistory = type(db.history) == "table" and db.history or {} -- moved once from loot.history
+    end
+    db.history = nil
+    hist = W.db.lootHistory
     if type(db.sr) ~= "table" then db.sr = {} end
     if type(db.pending) ~= "table" then db.pending = {} end
 end)
@@ -335,8 +341,8 @@ end
 
 local function Record(entry)
     if entry.g == nil then entry.g = GuildRaid() end
-    table.insert(db.history, 1, entry)
-    while #db.history > 1000 do table.remove(db.history) end
+    table.insert(hist, 1, entry)
+    while #hist > 1000 do table.remove(hist) end
     if UI.history and UI.history:IsVisible() then LC.RefreshHistory() end
 end
 
@@ -706,7 +712,7 @@ end
 
 local function LootCounts()
     local counts, since = {}, time() - LOOT_DAYS * 86400
-    for _, h in ipairs(db.history) do
+    for _, h in ipairs(hist) do
         if (h.t or 0) < since then break end -- newest first
         if h.g ~= false and h.winner then
             local k = CountKey(h.winner)
@@ -1120,8 +1126,8 @@ local lootEv = W.On("CHAT_MSG_LOOT", function(msg)
     if (W.ItemQuality(link) or 0) < (db.minQuality or 4) then return end
     who = W.BaseName(who)
     -- already recorded by a council award?
-    for i = 1, math.min(10, #db.history) do
-        local h = db.history[i]
+    for i = 1, math.min(10, #hist) do
+        local h = hist[i]
         if h.item == str and h.winner == who and time() - h.t < 300 then return end
     end
     local _, class = W.UnitByName(who)
@@ -1326,7 +1332,7 @@ end
 local function HistoryRows()
     local filter = UI.filter and UI.filter:GetText():lower() or ""
     local rows = {}
-    for i, h in ipairs(db.history) do
+    for i, h in ipairs(hist) do
         local link = W.ItemLink(h.item)
         local text = (h.winner .. " " .. link .. " " .. (h.zone or "")):lower()
         if filter == "" or text:find(filter, 1, true) then
@@ -1350,7 +1356,7 @@ local function BuildHistory(p)
     UI.filter:SetScript("OnTextChanged", LC.RefreshHistory)
     W.Button(p, L("Export CSV"), 110, 22, function()
         local out = { "date,item,itemID,winner,response,zone,source" }
-        for _, h in ipairs(db.history) do
+        for _, h in ipairs(hist) do
             local name = W.GetItemInfo(h.item) or ""
             out[#out + 1] = W.CSV(date("%Y-%m-%d %H:%M", h.t), name, W.ItemID(h.item) or "",
                 h.winner, h.resp or "", h.zone or "", h.src or "")
@@ -1358,18 +1364,18 @@ local function BuildHistory(p)
         W.TextPopup(L("History"), table.concat(out, "\n"), { hint = "Ctrl+C" })
     end):SetPoint("TOPRIGHT", -130, -6)
     W.Button(p, L("Clear"), 100, 22, function()
-        W.Confirm(L("Clear history?"), function() wipe(db.history); LC.RefreshHistory() end)
+        W.Confirm(L("Clear history?"), function() wipe(hist); LC.RefreshHistory() end)
     end):SetPoint("TOPRIGHT", -16, -6)
     UI.history = W.Table(p, { { L("Date"), 80 }, { L("Item"), 230 }, { L("Winner"), 110 }, { L("Response"), 110 },
         { L("Zone"), 130 }, { L("Source"), 70 } }, 470)
     UI.history:SetPoint("TOPLEFT", 10, -38)
     UI.history.onEnter = function(d, row)
-        local h = db.history[d.index]
+        local h = hist[d.index]
         if h then GameTooltip:SetOwner(row, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(h.item); GameTooltip:Show() end
     end
     UI.history.onClick = function(d, btn)
         if btn == "RightButton" then
-            W.Confirm(L("Delete this entry?"), function() table.remove(db.history, d.index); LC.RefreshHistory() end)
+            W.Confirm(L("Delete this entry?"), function() table.remove(hist, d.index); LC.RefreshHistory() end)
         end
     end
     p:SetScript("OnShow", LC.RefreshHistory)
