@@ -5,7 +5,7 @@ Pas dans le zip des releases.
 
 ## Maintenant (22/10/2026)
 
-- **Non publié, sur `main` (22/10, pas poussé)** : `VersionCheck.lua` envoie aussi la version à la GUILDE à la connexion (un joueur hors groupe est prévenu d une mise à jour) ; `docs/guide-joueur.md` (guide joueur, 4 addons / 4 onglets). Vérifié : check.js 0, wow-api 0 nouveau, smoke + open world 0 erreur. **Rien testé en jeu.** Worktrees fusionnés supprimés.
+- **Version publiée (22/10)** : 1.35.7 (tag `v1.35.7`) = `VersionCheck.lua` envoie aussi la version à la GUILDE à la connexion (un joueur hors groupe est prévenu d une mise à jour) ; `docs/guide-joueur.md` (guide joueur, 4 addons / 4 onglets). Vérifié : check.js 0, wow-api 0 nouveau, smoke + open world 0 erreur. **Rien testé en jeu.** Aussi : `CapTimers.lua` replace les barres une seule fois quand plusieurs finissent ensemble. Worktrees fusionnés supprimés.
 
 - **Version publiée (22/10)** : 1.35.6 (tag `v1.35.6`) = Loot Council : après un vote on passe à l objet suivant à voter (onglets pour revenir) ; historique dans sa propre clé `lootHistory` (migré depuis `loot.history`). **Rien testé en jeu.**
 
@@ -173,9 +173,8 @@ Pas dans le zip des releases.
 
 ## Historique
 
+- **1.35.6** (22/10) : Loot Council, après un vote on passe à l objet suivant ; historique du butin dans `lootHistory`.
 - **1.35.5-beta** (22/10) : menu en 4 onglets (Raid, JcJ, Guilde, Options) sans accordéon, menu 160 px ; CI avec bancs en parallèle.
 - **1.35.4-beta** (21/10) : banc champ de bataille (`--bg`, coût par image) ; cadres PvP plus fluides (un OnUpdate par côté, groupe
   non lu hors BG, tableau des scores inchangé = rien reconstruit) ; Skyborne muet en instance ; carte de guilde ; `/wl perf` + modules.
-- **1.35.3-beta** (21/10) : banc open world (raid de 40, guilde de 120) ; carte de guilde (plus de repères accumulés, cache
-  « dans mon groupe ? ») ; alerte danger (ennemis refusés repris quand une ligne se libère).
 - Versions plus anciennes : `git tag`, `git log`.
