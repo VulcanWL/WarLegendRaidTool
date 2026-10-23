@@ -5,6 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (22/10/2026)
 
+- **Non publié, sur `main` (22/10, pas poussé)** : `VersionCheck.lua` envoie aussi la version à la GUILDE à la connexion (un joueur hors groupe est prévenu d une mise à jour) ; `docs/guide-joueur.md` (guide joueur, 4 addons / 4 onglets). Vérifié : check.js 0, wow-api 0 nouveau, smoke + open world 0 erreur. **Rien testé en jeu.** Worktrees fusionnés supprimés.
+
 - **Version publiée (22/10)** : 1.35.6 (tag `v1.35.6`) = Loot Council : après un vote on passe à l objet suivant à voter (onglets pour revenir) ; historique dans sa propre clé `lootHistory` (migré depuis `loot.history`). **Rien testé en jeu.**
 
 - **Version publiée (22/10)** : 1.35.5-beta (tag `v1.35.5-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le menu réorganisé. **Rien testé en jeu.**
