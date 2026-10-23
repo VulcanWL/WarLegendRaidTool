@@ -5,6 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (22/10/2026)
 
+- **Version publiée (22/10)** : 1.35.6 (tag `v1.35.6`) = Loot Council : après un vote on passe à l objet suivant à voter (onglets pour revenir) ; historique dans sa propre clé `lootHistory` (migré depuis `loot.history`). **Rien testé en jeu.**
+
 - **Version publiée (22/10)** : 1.35.5-beta (tag `v1.35.5-beta`, depuis `main`, avance rapide de la branche ci-dessous) = le menu réorganisé. **Rien testé en jeu.**
 - **Menu réorganisé (22/10 ; accordéon retiré : toutes les sections visibles sous des légendes, entrées moins indentées ; menu 160 px, lignes 24 px, fenêtre 1000 px)**, branche `claude/unused-tools-inventory-6afaec` : 4 onglets (Raid, JcJ, Guilde, Options) au
   lieu de 3, seulement `CATEGORIES` dans `Core.lua` (clés des modules inchangées) + `openSection_pvp` dans la liste blanche du profil
