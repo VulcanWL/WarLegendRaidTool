@@ -742,6 +742,20 @@ local function GearIcon(parent)
     return b
 end
 
+-- after a vote, show the next item (after this one, then from the start) that has no winner and none of my votes
+local function NextToVote(from)
+    local me = MyKey()
+    for k = 1, S.n - 1 do
+        local i = (from - 1 + k) % S.n + 1
+        local item = S.items[i]
+        if item and not item.winner then
+            local voted = false
+            for _, c in pairs(item.cands) do if c.votes[me] then voted = true; break end end
+            if not voted then UI.vote.sel = i; return end
+        end
+    end
+end
+
 local function VoteRow(content)
     local r = CreateFrame("Button", nil, content)
     local hl = r:CreateTexture(nil, "HIGHLIGHT")
@@ -767,6 +781,7 @@ local function VoteRow(content)
         if not S or not r.cand then return end
         local mine = r.cand.votes[MyKey()]
         Send("V", S.sid, UI.vote.sel, r.cand.key, mine and "0" or "1")
+        if not mine then NextToVote(UI.vote.sel) end -- like RCLootCouncil: on to the next item; the item tabs go back
     end)
     r.vote:SetPoint("LEFT", x + 4, 0)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
