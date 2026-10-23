@@ -62,7 +62,13 @@ end
 -- channel nil = raid/party; "LOCAL" when alone. Messages leave one every 0.25 s, in order.
 function W.Queue(prefix, msg, channel, target)
     channel = channel or W.Channel() or "LOCAL"
-    if #queue >= MAX_QUEUE then table.remove(queue, 1) end -- long lockdown: the oldest goes, memory stays small
+    if #queue >= MAX_QUEUE then -- long lockdown: the oldest goes, memory stays small, said once a minute
+        table.remove(queue, 1)
+        if GetTime() - warnedAt > 60 then
+            warnedAt = GetTime()
+            W.Print(L("Some messages could not be sent to the group (chat locked or throttled for too long)."))
+        end
+    end
     queue[#queue + 1] = { prefix = prefix, msg = msg, channel = channel, target = target, at = GetTime() }
     if not pumping then pumping = true; Pump() end
     return true
