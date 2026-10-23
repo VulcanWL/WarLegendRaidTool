@@ -3,12 +3,14 @@ name: WarLegend RaidTool checks
 # On every push, pull request and tag (or by hand): the checks of the PC (tools/check.js) plus Luacheck, the API used
 # against Blizzard's documentation of the current Forever build, and the smoke test in a simulated client.
 # A failure puts a red cross on the commit and GitHub e-mails the person who pushed. It never changes the code.
-# It does not block a release: wlrt-release.yml runs apart (a red cross on a tag means: do not announce it).
+# A tag runs it from wlrt-release.yml (workflow_call): the release is published only when every check passed.
 
 on:
   push:
+    branches: ["**"] # tags: run by wlrt-release.yml before the zip
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read

@@ -31,7 +31,8 @@ AddOns\
 ├── WarLegendRaidTool_Raid\   modules de raid (chargés à la demande, comme BigWigs)
 ├── WarLegendRaidTool_PvP\    cadres ennemis / alliés en champ de bataille (chargés à la demande)
 ├── WarLegendRaidTool_Skyborne\  épingles lignes de force / convergences sur la carte (à la demande)
-└── WarLegendRaidTool_Myslot\    sauvegarde des barres, macros, raccourcis (à la demande, /wl myslot)
+├── WarLegendRaidTool_Myslot\    sauvegarde des barres, macros, raccourcis (à la demande, /wl myslot)
+└── WarLegendRaidTool_DoesItDie\ marques des DoT sur la cible et les barres de nom (à la demande, /wl did)
 ```
 
 Le plus simple : télécharger le zip de la dernière **Release** (les six dossiers sont à la racine) et le

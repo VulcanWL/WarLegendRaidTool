@@ -1,6 +1,6 @@
 name: WarLegend RaidTool release
 
-# Push a tag like v1.24.1 -> GitHub builds WarLegendRaidTool-1.24.1-forever.zip with the three addon folders
+# Push a tag like v1.24.1 -> GitHub builds WarLegendRaidTool-1.24.1-forever.zip with the six addon folders
 # (WarLegendRaidTool, WarLegendRaidTool_Raid, WarLegendRaidTool_PvP, WarLegendRaidTool_Skyborne, WarLegendRaidTool_Myslot, WarLegendRaidTool_DoesItDie) and publishes it as a Release.
 # The guild downloads that zip, and WowUp reads the Releases to offer the update.
 # WowUp (github-addon-provider.ts): the _classic_beta_ client is "ClassicBeta" = flavor "forever". It takes the
@@ -16,7 +16,14 @@ permissions:
   contents: write
 
 jobs:
+  # every check of wlrt-ci.yml first: a red check means no release
+  checks:
+    uses: ./.github/workflows/wlrt-ci.yml
+    permissions:
+      contents: read
+
   release:
+    needs: checks
     runs-on: ubuntu-latest
     steps:
       # Actions pinned to a full commit SHA (a tag can be moved); the comment says which release it is.

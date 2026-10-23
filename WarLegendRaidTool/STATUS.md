@@ -158,6 +158,8 @@ Pas dans le zip des releases.
 
 ## Pistes ouvertes (audit du 17/10, non corrigées)
 
+- **Audit externe du 23/10 (sur 1.36.0)** : fait (poussé sur `main`, pas de tag) : README arbre à 6 dossiers, guide joueur (6 addons, fichiers Myslot / DoesItDie à sauvegarder), **release liée aux checks** (`wlrt-release.yml` appelle `wlrt-ci.yml` en `workflow_call`, `needs: checks` ; la CI ne tourne plus seule sur les tags). Restent : campagne de tests en jeu (fiche par testeur) ; pic d entrée en BG (création des 80 boutons, `Mainframe.lua`) ; `Dispel.lua` redessin seulement si les auras changent ; DoesItDie : 3 OnUpdate au repos (code d origine) ; recherche du menu qui construit tous les panneaux (`Core.lua` ~2078) ; licence GPL du module PvP ; dette (métiers en 3 copies, découpage, libs à jour).
+
 - **Banc BG du 21/10, pistes** : `Dispel.lua` (alliés) = maintenant le premier coût en combat (~la moitié de l'image moyenne) :
   `UNIT_AURA` → bouton par le nom, puis `f:Update` toutes les 0,2 s par allié qui ré-ancre le cadre et toutes les icônes même sans
   changement (le faux client ne rend aucune aura : coût réel sans doute plus haut) ; création des 40 boutons ennemis d'un coup au
