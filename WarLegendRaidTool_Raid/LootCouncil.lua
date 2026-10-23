@@ -1014,6 +1014,7 @@ function LC.AskAward(idx, key)
     local c = item.cands[key]
     local name = c and c.name or W.BaseName(key)
     W.Confirm(string.format(L("Award %s to %s?"), W.ItemLink(item.str), name), function()
+        if not S or S.items[idx] ~= item then return end -- the session ended while the window was open
         local given, found = GiveLoot(item.str, key, name)
         if not given then
             if found then

@@ -210,7 +210,7 @@ function RB.Send()
 end
 
 -- Popup on the caster's screen
-local popup
+local popup, popupId
 W.OnAddon(PREFIX, function(msg, from, channel, full)
     local t = W.Unpack(msg)
     if t[1] ~= "A" or not W.IsGroupLead(full or from, channel) then return end
@@ -234,7 +234,9 @@ W.OnAddon(PREFIX, function(msg, from, channel, full)
     popup:SetHeight(50 + popup.text:GetHeight())
     popup:Show()
     W.Print(L("Your buffs") .. ": " .. db.mine)
-    W.After(30, function() popup:Hide() end)
+    popupId = (popupId or 0) + 1
+    local id = popupId
+    W.After(30, function() if popupId == id then popup:Hide() end end)
 end)
 
 -- A player too far (not visible, out of range) gives no aura data: unknown, never reported as missing.

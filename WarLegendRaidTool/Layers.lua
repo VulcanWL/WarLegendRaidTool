@@ -49,6 +49,7 @@ local KEEP = 3600      -- a guild member's reading is forgotten after 1 h
 local SHARE_GAP = 120  -- the same layer is sent again at most every 2 min
 local MIN_GAP = 10     -- and never two messages within 10 s (zone borders)
 local MAX_PER_ZONE = 20
+local MAX_ZONES = 300 -- a guild member (or a buggy client) sending endless map ids must not grow the saved data
 local LOOK_GAP = 2     -- once the layer is known: one creature looked at every 2 s at most (nameplates come in bursts)
 
 local current -- { id = "server-zoneUID", map = mapID, zone = name, at = server time }
@@ -71,7 +72,12 @@ end)
 local function Number(map, id)
     local key = tostring(map)
     local zone = db.registry[key]
-    if type(zone) ~= "table" then zone = { next = 0, ids = {} }; db.registry[key] = zone end
+    if type(zone) ~= "table" then
+        local zones = 0
+        for _ in pairs(db.registry) do zones = zones + 1 end
+        if zones >= MAX_ZONES then return 0 end
+        zone = { next = 0, ids = {} }; db.registry[key] = zone
+    end
     local e = zone.ids[id]
     if not e then
         local count, oldest = 0, nil

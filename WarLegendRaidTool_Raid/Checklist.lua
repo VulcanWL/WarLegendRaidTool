@@ -29,6 +29,7 @@ local L = W.L
 local CL = {}
 W.Checklist = CL
 local PREFIX = "WLRT_CON"
+local lastAnswer = 0
 local db
 
 W.OnReady(function()
@@ -92,6 +93,8 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
             CL.Refresh()
         end, L("Replace"))
     elseif t[1] == "Q" and W.IsGroupLead(full or from, channel) then
+        if GetTime() - lastAnswer < 10 then return end -- one answer per 10 s whoever asks
+        lastAnswer = GetTime()
         local items = Decode(t[2])
         local ans = {}
         for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end

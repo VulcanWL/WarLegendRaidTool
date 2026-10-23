@@ -302,6 +302,7 @@ local SetUnit
 local function OnAura(self, _, unit, info)
     local row = self.row
     if unit ~= row.unit then return end
+    if W.IsOff("AuraTracker") then SetUnit(row, nil); return end
     if not W.Allowed() then SetUnit(row, nil); return end -- access lost: stop listening
     local byId = C_UnitAuras and C_UnitAuras.GetAuraDataByAuraInstanceID
     -- WoW: Forever can hide the whole update (restricted combat): read the unit again instead
@@ -452,7 +453,7 @@ local function UpdateStatus()
 end
 
 local function Running()
-    return db and db.enabled and W.Allowed() and (db.pvp or not W.InPvP())
+    return db and db.enabled and not W.IsOff("AuraTracker") and W.Allowed() and (db.pvp or not W.InPvP())
 end
 
 -- Registers / unregisters everything from the current options, zone and roster

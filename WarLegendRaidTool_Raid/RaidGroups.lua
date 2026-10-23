@@ -316,6 +316,8 @@ end
 -- the button, out of combat, never during the click itself.
 ---------------------------------------------------------------------------
 W.AddFR({
+    ["Presets"] = "Presets",
+    ["Main assist "] = "Assist principal ",
     ["INV ALL"] = "INV TLM",
     ["INV ALL is reserved for the two highest guild ranks."] = "INV TLM est réservé aux deux premiers rangs de la guilde.",
     ["Invites every player of the preset who is not in the group yet."] =
@@ -960,7 +962,7 @@ W.TranslateField({ StaticPopupDialogs["WLRT_DELETE_PRESET"] }, "text")
 local function BuildPresetPanel(parent)
     local p = W.Panel(parent, 190, 540)
     p:SetPoint("TOPLEFT", 0, 0)
-    W.Label(p, "Presets"):SetPoint("TOPLEFT", 10, -8)
+    W.Label(p, L("Presets")):SetPoint("TOPLEFT", 10, -8)
 
     UI.presetList = W.ScrollList(p, 150, 300, 20, function(content)
         local r = CreateFrame("Button", nil, content)
@@ -1127,7 +1129,7 @@ local function MakeSlot(parent, g)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:AddLine(self.data.name, W.ClassColor(self.data.class))
         GameTooltip:AddLine(L("Drag: move / swap"), 0.8, 0.8, 0.8)
-        if self.data.ma then GameTooltip:AddLine("Main assist " .. self.data.ma, W.R, W.G + 0.3, W.B + 0.3) end
+        if self.data.ma then GameTooltip:AddLine(L("Main assist ") .. self.data.ma, W.R, W.G + 0.3, W.B + 0.3) end
         GameTooltip:AddLine(L("Alt-click: set / remove main assist"), 0.8, 0.8, 0.8)
         GameTooltip:AddLine(L("Right-click: remove from preset"), 0.8, 0.8, 0.8)
         GameTooltip:Show()
