@@ -1,0 +1,28 @@
+## Interface: 16001
+## Title: |cffffffffWar|r|cffce1918Legend|r RaidTool - Myslot
+## Notes: Save and restore action bars, macros, key bindings and settings as text or named exports (Myslot 6.2.1 by Boshi Lian, Apache-2.0). Loaded on demand by WarLegendRaidTool (/wl myslot).
+## Notes-frFR: Sauvegarde et restaure barres d'action, macros, raccourcis et réglages en texte ou en exports nommés (Myslot 6.2.1 de Boshi Lian, Apache-2.0). Chargé à la demande par WarLegendRaidTool (/wl myslot).
+## Author: WarLegend, Boshi Lian (Myslot)
+## Version: 1.35.7
+## X-License: Apache-2.0
+## Dependencies: WarLegendRaidTool
+## LoadOnDemand: 1
+## SavedVariables: MyslotExports
+## SavedVariablesPerCharacter: MyslotSettings
+## IconTexture: Interface\AddOns\WarLegendRaidTool_Myslot\Myslot.blp
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Libs\base64.lua
+Libs\crc32.lua
+Libs\lua-pb\lua-pb.xml
+protobuf\Myslot.lua
+event.lua
+locales.lua
+keys.lua
+Myslot.lua
+gui.lua
+share.lua
+options.lua

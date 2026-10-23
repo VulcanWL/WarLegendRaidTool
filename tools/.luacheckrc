@@ -1,5 +1,5 @@
 -- WarLegend RaidTool - Luacheck settings (not shipped).
--- luacheck --config tools/.luacheckrc WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne
+-- luacheck --config tools/.luacheckrc WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne WarLegendRaidTool_Myslot
 -- Run by the CI workflow (.github/workflows/wlrt-ci.yml). It finds what tools/check.js does not look for:
 -- unused variables and values, a value that never reaches its variable ("a and f()" keeps one value), "not x == y",
 -- shadowed locals, empty branches, unreachable code.
@@ -16,7 +16,7 @@ ignore = {
 -- the globals the addon creates or changes (anything else written is an accident)
 globals = {
     "WLRT", "WarLegendRaidToolDB", "WarLegendRaidTool_PvPDB", "WarLegendRaidTool_SkyborneDB",
-    "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne",
+    "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne", "MyslotExports", "MyslotSettings",
     "SlashCmdList", "StaticPopupDialogs", "BINDING_HEADER_WARLEGENDRAIDTOOL",
     "SLASH_WARLEGENDRT1", "SLASH_WARLEGENDRT2", "SLASH_WARLEGENDRT3", "SLASH_WLRTREADYCHECK1",
 }
@@ -32,3 +32,4 @@ files["WarLegendRaidTool_Raid/RaidBuffs.lua"] = { ignore = { "241/BUFF_BY" } }
 files["WarLegendRaidTool_Raid/RaidCooldowns.lua"] = { ignore = { "211/UI" } }
 files["WarLegendRaidTool_Raid/Readiness.lua"] = { ignore = { "211/asked" } }
 files["WarLegendRaidTool_Skyborne"] = { ignore = { "211/ADDON", "211/W", "311/saved" } }
+files["WarLegendRaidTool_Myslot"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- Myslot (Boshi Lian) as upstream: only syntax errors are looked at

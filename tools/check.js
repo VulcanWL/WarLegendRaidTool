@@ -12,11 +12,11 @@ const path = require("path");
 const luaparse = require("luaparse");
 
 const root = path.resolve(process.argv[2] || path.join(__dirname, ".."));
-const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne"];
+const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot"];
 
 // Globals the addon may create (anything else written at global scope is an accident).
 // ClickCastFrames: Clique's shared table (PvP frames register there).
-const OK_WRITE = /^([A-Z0-9_]+|WLRT\w*|WarLegend\w*|ClickCastFrames)$/;
+const OK_WRITE = /^([A-Z0-9_]+|WLRT\w*|WarLegend\w*|ClickCastFrames|Myslot[A-Za-z]*)$/;
 // Lowercase globals that exist in the WoW Lua environment.
 const OK_READ = new Set((
     "_G assert collectgarbage error getmetatable setmetatable ipairs pairs next pcall xpcall print rawequal rawget " +

@@ -152,3 +152,38 @@ legacy (no guard) SwapRaidSubgroup
 undocumented C_Console.GetAllCommands
 undocumented Constants.CharacterNameSeparatorConsts
 undocumented Enum.SendChatMessageResult
+
+# Myslot (WarLegendRaidTool_Myslot, 22/10/2026): bar / macro / binding functions of the base Classic API that Myslot calls as upstream;
+# the specialization ones are retail-only, its loops are empty on this client (GetNumSpecializations is nil).
+deprecated shim (guarded) FindBaseSpellByID
+deprecated shim (guarded) GetSpecialization
+deprecated shim (guarded) GetSpecializationInfo
+deprecated shim (no guard) GetSpecializationInfo
+legacy (guarded) CreateMacro
+legacy (guarded) GetActionInfo
+legacy (guarded) GetNumMacros
+legacy (guarded) GetNumSpecializations
+legacy (guarded) GetPvpTalentInfoByID
+legacy (guarded) GetSpecializationInfoByID
+legacy (guarded) IsPetActive
+legacy (guarded) PickupAction
+legacy (guarded) PlaceAction
+legacy (no guard) DeleteMacro
+legacy (no guard) GetActionInfo
+legacy (no guard) GetBinding
+legacy (no guard) GetCurrentBindingSet
+legacy (no guard) GetFlyoutSlotInfo
+legacy (no guard) GetNumBindings
+legacy (no guard) GetNumSpellTabs
+legacy (no guard) GetPetActionInfo
+legacy (no guard) GetProfessionInfo
+legacy (no guard) GetSpellBookItemInfo
+legacy (no guard) GetSpellTabInfo
+legacy (no guard) PickupAction
+legacy (no guard) PickupMacro
+legacy (no guard) PickupPetAction
+legacy (no guard) PickupPetSpell
+legacy (no guard) PlaceAction
+legacy (no guard) SaveBindings
+legacy (no guard) SetBinding
+undocumented C_PetJournal.PickupPet

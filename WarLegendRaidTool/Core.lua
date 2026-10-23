@@ -1524,7 +1524,7 @@ local CATEGORIES = {
     { key = "options", title = "Options", sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
-        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot" } },
     } },
 }
 
@@ -2273,7 +2273,7 @@ W.slash.perf = function()
         W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
             get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
         -- the load-on-demand addons, once loaded: they have their own figures (the battleground frames are in the PvP one)
-        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do
+        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot" }) do
             if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then
                 W.Print(string.format(L("  %s: %.3f ms per frame (recent), peak %.2f ms"), (name:gsub("^WarLegendRaidTool_", "")),
                     get(M.RecentAverageTime, name), get(M.PeakTime, name)))
@@ -2378,6 +2378,7 @@ W.AddFR({
     ["the guild by class: class leaders, declared roles, my profile"] = "la guilde par classe : responsables, rôles déclarés, mon profil",
     ["Minotaure: guild PvP season ranking and weekly challenges"] = "Minotaure : classement JcJ de saison de la guilde et défis de la semaine",
     ["Skyborne: leylines / convergences on the map (settings, export, share)"] = "Skyborne : lignes de force / convergences sur la carte (réglages, export, partage)",
+    ["Myslot: save / restore action bars, macros, key bindings (text or named exports)"] = "Myslot : sauvegarde / restaure barres d'action, macros, raccourcis (texte ou exports nommés)",
 })
 local HELP = {
     { "/wl", "open / close the window" },
@@ -2416,6 +2417,7 @@ local HELP = {
     { "/wl bg", "my premade history and records" },
     { "/wl mino", "Minotaure: guild PvP season ranking and weekly challenges" },
     { "/wl sk", "Skyborne: leylines / convergences on the map (settings, export, share)" },
+    { "/wl myslot", "Myslot: save / restore action bars, macros, key bindings (text or named exports)" },
     { "/wl gy", "graveyard timer test (fake waves)" },
     { "/wl pvp", "PvP frames settings" },
     { "/wl pvpcheck", "are the addon restrictions active in this battleground?" },

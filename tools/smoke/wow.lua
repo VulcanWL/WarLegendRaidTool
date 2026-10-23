@@ -1044,6 +1044,8 @@ end
 
 -- FrameXML helpers the addon uses (the shapes it reads)
 RAID_CLASS_COLORS = {}
+RED_FONT_COLOR = { r = 1, g = 0.1, b = 0.1, GetRGB = function() return 1, 0.1, 0.1 end,
+    WrapTextInColorCode = function(_, t) return "|cffff1919" .. tostring(t) .. "|r" end }
 LOCALIZED_CLASS_NAMES_MALE, LOCALIZED_CLASS_NAMES_FEMALE, CLASS_ICON_TCOORDS = {}, {}, {}
 CLASS_SORT_ORDER = {}
 for i, c in ipairs(CLASSES) do
