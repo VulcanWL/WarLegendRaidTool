@@ -3,7 +3,12 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (22/10/2026)
+## Maintenant (23/10/2026)
+
+- **Branche `claude/fps-debounce-gc-optimization-68ba73` (23/10, non poussée, non fusionnée)** : `W.Debounce` (`Lib.lua`) sur les recherches Guilde > Métiers et Banque de guilde (0,25 s) ; plafond d itérations sur le message de métiers reçu (`Guild.lua`) ; avertissement quand la file d envoi pleine jette un message ; README = 5 dossiers. Audits externes du 23/10 relus : `DangerAlert` taint = faux constat (barres et boutons sécurisés frères), `pendingMsgs` repasse par `Dispatch` (sain). Vérifié : check.js 0, smoke 0, wow-api 0 nouveau. **Rien testé en jeu.**
+- **Prochaine session : module « tri du butin » recodé par nous** (idée de LootTriage 1.1.1 de Krelock : sacs pleins, quel butin vaut la place, quoi jeter, le moins cher d abord). LootTriage n a **aucune licence** : ne rien copier de son code ; sa liste d objets de quête vient de cmangos (GPL-3.0) : ne pas la reprendre non plus. Zip d origine : `C:\Users\vulca\Downloads\LootTriage-1.1.1.zip` (pour l idée seulement).
+
+## Avant (22/10/2026)
 
 - **Myslot intégré (22/10, non publié)** : 5e addon à la demande `WarLegendRaidTool_Myslot` (Myslot 6.2.1 de Boshi Lian, Apache-2.0, repris tel quel : libs en `Libs`, LF, seulement `GetAddOnMetadata` du nom d addon et bouton minicarte masqué par défaut) + chargeur `WarLegendRaidTool/Myslot.lua` (`/wl myslot`, onglet Options > Petits automatismes). Données `MyslotExports` / `MyslotSettings` (noms d origine : désactiver l addon Myslot d origine). Choix de l utilisateur : barres + macros, raccourcis, options, exports gardés ; confirmation d origine, refus en combat. Outils : listes des addons (check, smoke, wow-api, sync, CI, release), baseline API (32 noms Myslot), faux `RED_FONT_COLOR`. Vérifié : check.js 0, smoke 0 erreur, wow-api 0 nouveau. **Rien testé en jeu.** À tester : `/reload`, `/wl myslot` (fenêtre), exporter puis réimporter ses barres, macros, raccourcis ; import refusé en combat.
 - **Version publiée (22/10)** : 1.35.7 (tag `v1.35.7`) = `VersionCheck.lua` envoie aussi la version à la GUILDE à la connexion (un joueur hors groupe est prévenu d une mise à jour) ; `docs/guide-joueur.md` (guide joueur, 4 addons / 4 onglets). Vérifié : check.js 0, wow-api 0 nouveau, smoke + open world 0 erreur. **Rien testé en jeu.** Aussi : `CapTimers.lua` replace les barres une seule fois quand plusieurs finissent ensemble. Worktrees fusionnés supprimés.
