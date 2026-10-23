@@ -983,6 +983,26 @@ WarLegendPvP.Allies.GUIDToAllyname = {}
 WarLegendPvP.Enemies = CreateMainFrame(WarLegendPvP.consts.PlayerTypes.Enemies)
 WarLegendPvP.Enemies.Counter = {}
 
+-- WarLegend: the buttons are made a few per frame out of combat as soon as this addon is loaded (the queue pops),
+-- hidden in InactivePlayerButtons, so the first scoreboard of the battleground does not create 80 of them at once
+do
+	local PRECREATE_MAX, PER_FRAME = 40, 2
+	local precreate = CreateFrame("Frame")
+	precreate:SetScript("OnUpdate", function(self)
+		if InCombatLockdown() or not WarLegendPvP.db then return end
+		local done = true
+		for _, mainframe in ipairs({ WarLegendPvP.Allies, WarLegendPvP.Enemies }) do
+			for _ = 1, PER_FRAME do
+				if (mainframe.buttonCounter or 0) >= PRECREATE_MAX then break end
+				done = false
+				mainframe.buttonCounter = (mainframe.buttonCounter or 0) + 1
+				table_insert(mainframe.InactivePlayerButtons, 1, WarLegendPvP:CreatePlayerButton(mainframe, mainframe.buttonCounter))
+			end
+		end
+		if done then self:SetScript("OnUpdate", nil); self:Hide() end
+	end)
+end
+
 
 function WarLegendPvP.Allies:AddGroupMember(name, isLeader, isAssistant, classToken, unitID)
 	local raceName, raceFile, raceID = UnitRace(unitID)
