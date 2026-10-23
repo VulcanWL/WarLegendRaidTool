@@ -1524,7 +1524,7 @@ local CATEGORIES = {
     { key = "options", title = "Options", sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
-        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot", "LootTriage" } },
     } },
 }
 

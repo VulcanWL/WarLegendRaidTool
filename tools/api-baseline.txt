@@ -53,6 +53,7 @@ legacy (guarded) GetInviteConfirmationInfo
 legacy (guarded) GetItemCount
 legacy (guarded) GetItemIcon
 legacy (guarded) GetLootMethod
+legacy (guarded) GetLootSlotInfo
 legacy (guarded) GetLootSlotLink
 legacy (guarded) GetLootSourceInfo
 legacy (guarded) GetMacroIndexByName

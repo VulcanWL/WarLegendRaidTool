@@ -11,7 +11,7 @@ La fenêtre a quatre onglets : **Raid** (Organisation, Préparation, Combat, But
 dans l'ordre), **JcJ** (Champs de bataille ; Monde ouvert : alerte danger, duels, layers), **Guilde** (Membres : guilde, classes,
 carte, Minotaure ; Mes personnages : rerolls, banque, export sim) et **Options** (Addon : réglages, version, bugs ; Interface :
 cadres, options cachées, niveaux d'objet, carte ; Petits automatismes : qualité de vie, focus, texte de recharge, journal,
-alerte de contrôle, minuteur de combat), chacun avec toutes ses sections visibles sous de simples légendes ; les choix
+alerte de contrôle, minuteur de combat, tri du butin), chacun avec toutes ses sections visibles sous de simples légendes ; les choix
 de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
