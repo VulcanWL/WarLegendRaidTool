@@ -355,6 +355,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	end
 
 	function f:Clear()
+		f.lastSig = nil
 		for i = 1, #f.icons do f.icons[i]:Hide() end
 		if tint then tint:Hide() end
 		for i = 1, #typeIcons do typeIcons[i]:Hide() end
@@ -370,8 +371,25 @@ function dispel:AttachToPlayerButton(playerButton)
 			local iconLeft, barRight = icon:GetLeft(), playerButton:GetRight()
 			if iconLeft and barRight and iconLeft >= barRight - 2 then target = icon end
 		end
+		if self.anchorTarget == target then return end -- WarLegend: re-anchor only when it changes
+		self.anchorTarget = target
 		self:ClearAllPoints()
 		self:SetPoint("LEFT", target, "RIGHT", x, 0)
+	end
+
+	-- WarLegend: what Show_ would draw; Update redraws only when it changes (it runs every 0.2 s per ally in combat)
+	local function Signature(debuffs, buffs, border)
+		local parts = { playerButton:GetHeight() or 0, border and border[1] or "-" }
+		for _, d in ipairs(debuffs) do parts[#parts + 1] = tostring(d.icon) .. (d.dtype or "") end
+		parts[#parts + 1] = "|"
+		for _, b in ipairs(buffs) do parts[#parts + 1] = tostring(b.icon) .. (b.grey and "g" or "") end
+		return table.concat(parts, ",")
+	end
+	function f:Draw(debuffs, buffs, border)
+		local sig = Signature(debuffs, buffs, border)
+		if sig == self.lastSig then return end
+		self.lastSig = sig
+		self:Show_(debuffs, buffs, border)
 	end
 
 	function f:Update()
@@ -388,12 +406,12 @@ function dispel:AttachToPlayerButton(playerButton)
 				if f.leftNative then NA.SetUnit(f.leftNative, unit) end
 			end
 			local ok, _, missing = pcall(ReadUnit, unit, true)
-			self:Show_({}, ok and missing or {}, nil)
+			self:Draw({}, ok and missing or {}, nil)
 			return
 		end
 		local ok, debuffs, buffs, border = pcall(ReadUnit, unit)
 		if not ok then return self:Clear() end
-		self:Show_(debuffs, buffs, border)
+		self:Draw(debuffs, buffs, border)
 	end
 
 	-- UNIT_AURA can fire many times in a row: one read per button every 0.2 s at most
@@ -404,7 +422,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	end
 
 	function f:UnitIdUpdate() self:Schedule() end
-	function f:PlayerButtonSizeChanged() self:Schedule() end
+	function f:PlayerButtonSizeChanged() self.anchorTarget = nil; self:Schedule() end
 
 	function f:OnTestmodeEnabled()
 		self.testmode = true
@@ -414,6 +432,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:OnTestmodeDisabled() self.testmode = false; self:Clear(); f.nativeUnit = nil end
 	function f:OnTestmodeTick()
 		self.testmode = true
+		self.lastSig = nil
 		if playerButton.PlayerIsEnemy then return end
 		self:Anchor()
 		local buffs = MyClass()
@@ -434,6 +453,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:ApplyAllSettings()
 		if not self.config then return end
 		if playerButton.PlayerIsEnemy then self:Clear(); return end
+		self.lastSig, self.anchorTarget = nil, nil
 		self:Schedule()
 	end
 
