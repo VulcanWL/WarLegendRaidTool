@@ -808,6 +808,41 @@ C_ChatInfo.GetNumActiveChannels = function() return 0 end
 function JoinTemporaryChannel() M.Sensitive("JoinTemporaryChannel"); return 0 end
 function LeaveChannelByName() end
 function InviteUnit(n) M.Sensitive("InviteUnit " .. tostring(n)) end
+-- C_EncodingUtil: real Base64, "compression" = a marker (round trip only; garbage in raises an error like the game)
+C_EncodingUtil = C_EncodingUtil or {}
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+C_EncodingUtil.CompressString = function(s) return "~" .. s end
+C_EncodingUtil.DecompressString = function(s)
+    if s:sub(1, 1) ~= "~" then error("invalid compressed data") end
+    return s:sub(2)
+end
+C_EncodingUtil.EncodeBase64 = function(s)
+    local out = {}
+    for i = 1, #s, 3 do
+        local a, b, c = s:byte(i, i + 2)
+        local n = a * 65536 + (b or 0) * 256 + (c or 0)
+        local q = {}
+        for k = 3, 0, -1 do q[4 - k] = math.floor(n / 64 ^ k) % 64 + 1 end
+        out[#out + 1] = B64:sub(q[1], q[1]) .. B64:sub(q[2], q[2])
+            .. (b and B64:sub(q[3], q[3]) or "=") .. (c and B64:sub(q[4], q[4]) or "=")
+    end
+    return table.concat(out)
+end
+C_EncodingUtil.DecodeBase64 = function(s)
+    local out = {}
+    for i = 1, #s, 4 do
+        local n, pad = 0, 0
+        for k = 0, 3 do
+            local ch = s:sub(i + k, i + k)
+            local v = B64:find(ch, 1, true)
+            if ch == "=" then pad = pad + 1; v = 1 elseif not v then error("invalid base64") end
+            n = n * 64 + v - 1
+        end
+        local bytes = string.char(math.floor(n / 65536) % 256, math.floor(n / 256) % 256, n % 256)
+        out[#out + 1] = bytes:sub(1, 3 - pad)
+    end
+    return table.concat(out)
+end
 C_PartyInfo = C_PartyInfo or {}
 C_PartyInfo.InviteUnit = function(n) M.Sensitive("InviteUnit " .. tostring(n)) end
 C_PartyInfo.ConvertToRaid = function() M.Sensitive("ConvertToRaid") end

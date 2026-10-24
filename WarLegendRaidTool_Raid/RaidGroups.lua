@@ -774,13 +774,16 @@ function RG.Share(name)
     if not preset then return end
     local channel = W.Channel()
     if not channel then W.Print(L("You are not in a group.")); return end
-    local data = RG.Serialize(name, preset)
+    -- compressed then Base64 (safe on the addon channel): about 6 times fewer fragments
+    local EU = C_EncodingUtil
+    local ok, data = pcall(function() return EU.EncodeBase64(EU.CompressString(RG.Serialize(name, preset))) end)
+    if not ok or type(data) ~= "string" or data == "" then W.Print(L("Compression is not available: the preset was not sent.")); return end
     local size = 200
     local total = math.ceil(#data / size)
     if #sendQueue + total > MAX_SEND_QUEUE then W.Print(L("Preset sharing is still in progress: wait a few seconds.")); return end
     local id = tostring(math.random(10000, 99999))
     for i = 1, total do
-        sendQueue[#sendQueue + 1] = { msg = "P:" .. id .. ":" .. i .. ":" .. total .. ":" .. data:sub((i - 1) * size + 1, i * size), channel = channel }
+        sendQueue[#sendQueue + 1] = { msg = "Z:" .. id .. ":" .. i .. ":" .. total .. ":" .. data:sub((i - 1) * size + 1, i * size), channel = channel }
     end
     sender:Show()
     W.Print("Preset \"" .. name .. L("\" shared with the group."))
@@ -790,7 +793,9 @@ local incoming = {}
 -- Shared presets: only from the group leader / an assistant, and saved after I say yes.
 -- Unfinished transfers are dropped after a minute; the number of saved presets is capped.
 local MAX_PRESETS, TRANSFER_TTL = 100, 60
+local MAX_PLAIN = 20000 -- decompressed size refused above this (a real preset is far smaller)
 W.AddFR({
+    ["Compression is not available: the preset was not sent."] = "Compression indisponible : le preset n'a pas été envoyé.",
     ["%s shares the preset \"%s\". Save it?"] = "%s partage le preset « %s ». L'enregistrer ?",
     ["Too many presets saved: delete some to receive new ones."] = "Trop de presets enregistrés : supprime-en pour en recevoir de nouveaux.",
 })
@@ -798,7 +803,7 @@ W.AddFR({
 W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     if not db or W.IsMe(full or from) or not db.acceptShared then return end
     if not W.IsGroupLead(full or from, channel) then return end
-    local id, i, total, payload = msg:match("^P:(%d+):(%d+):(%d+):(.*)$")
+    local id, i, total, payload = msg:match("^Z:(%d+):(%d+):(%d+):(.*)$")
     if not id then return end
     i, total = tonumber(i), tonumber(total)
     if not i or not total or i < 1 or i > total or total > 50 then return end
@@ -813,7 +818,11 @@ W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     if not buf.parts[i] then buf.parts[i] = payload; buf.n = buf.n + 1 end
     if buf.n < total then return end
     incoming[key] = nil
-    local name, preset = RG.Deserialize(table.concat(buf.parts, "", 1, total))
+    local EU = C_EncodingUtil
+    if not EU then return end
+    local ok, plain = pcall(function() return EU.DecompressString(EU.DecodeBase64(table.concat(buf.parts, "", 1, total))) end)
+    if not ok or type(plain) ~= "string" or #plain > MAX_PLAIN then return end
+    local name, preset = RG.Deserialize(plain)
     if not name then return end
     local count = 0
     for _ in pairs(db.presets) do count = count + 1 end
