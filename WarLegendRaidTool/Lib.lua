@@ -102,12 +102,24 @@ end
 
 -- Long text: split into chunks "id:i:n:chunk", rebuilt by W.OnAddonLong
 local CHUNK = 220
+local COMPRESS_MIN = 300 -- below this, Base64 makes the text longer than compression saves
+local MAX_PLAIN = 65536 -- a compressed message is refused if it opens to more than this
 local longId = 0
 function W.SendLong(prefix, text, channel, target)
     longId = (longId + 1) % 1000
-    text = text:gsub("~", "~1"):gsub("\n", "~2"):gsub("|", "~3") -- no raw newlines / pipes in addon messages
-    local n = math.max(1, math.ceil(#text / CHUNK))
     local id = tostring(math.random(100, 999)) .. longId
+    -- a long text goes compressed then Base64 (id starts with "z"); a short one or no compression: escaped as before
+    local EU = C_EncodingUtil
+    local ok, packed = false, nil
+    if #text > COMPRESS_MIN and EU and EU.CompressString and EU.EncodeBase64 then
+        ok, packed = pcall(function() return EU.EncodeBase64(EU.CompressString(text)) end)
+    end
+    if ok and type(packed) == "string" and packed ~= "" and #packed < #text then
+        text, id = packed, "z" .. id
+    else
+        text = text:gsub("~", "~1"):gsub("\n", "~2"):gsub("|", "~3") -- no raw newlines / pipes in addon messages
+    end
+    local n = math.max(1, math.ceil(#text / CHUNK))
     for i = 1, n do
         W.Queue(prefix, id .. ":" .. i .. ":" .. n .. ":" .. text:sub((i - 1) * CHUNK + 1, i * CHUNK), channel, target)
     end
@@ -118,7 +130,7 @@ local MAX_CHUNKS = 64 -- 14 KB: far above a raid note or a profession list, refu
 function W.OnAddonLong(prefix, fn)
     local parts = {}
     W.OnAddon(prefix, function(msg, from, channel, full)
-        local id, i, n, chunk = msg:match("^(%d+):(%d+):(%d+):(.*)$")
+        local id, i, n, chunk = msg:match("^(z?%d+):(%d+):(%d+):(.*)$")
         if not id then return end
         i, n = tonumber(i), tonumber(n)
         if not i or not n or n < 1 or n > MAX_CHUNKS or i < 1 or i > n then return end
@@ -136,7 +148,16 @@ function W.OnAddonLong(prefix, fn)
         if not p[i] then p[i] = chunk; p.got = p.got + 1 end
         if p.got >= p.n then
             parts[key] = nil
-            local text = table.concat(p, "", 1, p.n):gsub("~3", "|"):gsub("~2", "\n"):gsub("~1", "~")
+            local text = table.concat(p, "", 1, p.n)
+            if id:sub(1, 1) == "z" then
+                local EU = C_EncodingUtil
+                if not EU or not EU.DecompressString then return end
+                local ok, plain = pcall(function() return EU.DecompressString(EU.DecodeBase64(text)) end)
+                if not ok or type(plain) ~= "string" or #plain > MAX_PLAIN then return end
+                text = plain
+            else
+                text = text:gsub("~3", "|"):gsub("~2", "\n"):gsub("~1", "~")
+            end
             fn(text, from, channel, full)
         end
     end, 3) -- the module that called W.OnAddonLong owns the prefix (Settings > Modules)
