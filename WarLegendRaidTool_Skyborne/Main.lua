@@ -345,6 +345,9 @@ function ns.LearnShared(mapID, x, y)
     shared[mapID] = shared[mapID] or {}
     -- heard on a public channel and saved for good: capped, a stranger cannot fill the map (or the saved file)
     if #shared[mapID] >= 100 then return end
+    local total = 0 -- and in all: the number of maps is capped by nothing else
+    for _, list in pairs(shared) do total = total + #list end
+    if total >= 2000 then return end
     table.insert(shared[mapID], { x, y })
 end
 

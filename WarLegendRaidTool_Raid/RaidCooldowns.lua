@@ -147,7 +147,7 @@ local function KnownList()
     return table.concat(parts, ",")
 end
 
-local lastKnown = 0
+local lastKnown, lastQ = 0, 0
 local function SendKnown()
     -- "Share my cooldowns" off: nothing is sent (else the others would see me ready forever)
     if not (db and db.share) or not W.InGroup() or W.InPvP() or GetTime() - lastKnown < 5 then return end
@@ -326,6 +326,8 @@ W.OnAddon(PREFIX, function(msg, from, _, full)
     local who = W.UnitKey(unit)
     local t = W.Unpack(msg)
     if t[1] == "Q" then
+        if GetTime() - lastKnown < 5 or GetTime() - lastQ < 3 then return end -- one timer per burst of questions
+        lastQ = GetTime()
         W.After(0.5 + math.random() * 2.5, SendKnown)
         return
     end

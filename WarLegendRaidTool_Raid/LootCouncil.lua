@@ -430,6 +430,8 @@ end
 
 Receive.S = function(t, from, full)
     if not db.enabled or not MayStart(full) then return end
+    -- a session driven by someone else is not reset by another leader (10 min: one whose end never came)
+    if S and not SameName(S.mlFull, full) and GetTime() - S.started < 600 then return end
     local n = W.Int(t[3]) or 0
     if n < 1 or n > MAX_ITEMS or not t[2] or #t[2] > 12 then return end
     local timeout = W.Finite(t[4], 10, 300) or 60

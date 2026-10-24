@@ -30,14 +30,18 @@ end
 local function IsFriend(name)
     if not name then return false end
     local short = W.BaseName(name)
+    -- full names compared: on Forever the short name is only the first name, shared by strangers
+    local key = W.FullName(name):lower()
+    local function same(n) return type(n) == "string" and n ~= "" and W.FullName(n):lower() == key end
     if C_FriendList and C_FriendList.GetFriendInfo then
-        if C_FriendList.GetFriendInfo(short) then return true end
+        local info = C_FriendList.GetFriendInfo(name) or C_FriendList.GetFriendInfo(short)
+        if info and same(info.name) then return true end
     end
     if BNGetNumFriends and C_BattleNet and C_BattleNet.GetFriendAccountInfo then
         for i = 1, (BNGetNumFriends() or 0) do
             local acc = C_BattleNet.GetFriendAccountInfo(i)
             local game = acc and acc.gameAccountInfo
-            if game and game.characterName == short then return true end
+            if game and same(game.characterName) then return true end
         end
     end
     return false

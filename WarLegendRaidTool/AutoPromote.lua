@@ -33,10 +33,15 @@ local function RefreshRanks()
 end
 
 local function ShouldPromote(name)
+    local full = W.FullName(name)
+    if W.HasFullPart(full) and (db.names[name] or db.names[full]) then return true end
+    -- a short name of the list or a rank: only the guild member with that name, never a stranger with the same
+    -- first name (Forever), and not when two guild members share it
+    local m = W.GuildMember(name)
     local short = W.BaseName(name)
-    if db.names[name] or db.names[short] then return true end
-    local rank = rankByName[short]
-    return rank and db.ranks[rank] or false
+    if not m or rankByName[short] == false then return false end
+    if db.names[short] then return true end
+    return m.rank and db.ranks[m.rank] or false
 end
 
 local function Promote(name)
