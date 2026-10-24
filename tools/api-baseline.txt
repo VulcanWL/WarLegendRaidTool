@@ -192,3 +192,4 @@ undocumented C_PetJournal.PickupPet
 deprecated shim (guarded) ChatFrame_OpenChat
 legacy (guarded) GetMouseFocus
 legacy (local alias) EllesmereNameplates_NS
+legacy (guarded) GetTradePlayerItemLink

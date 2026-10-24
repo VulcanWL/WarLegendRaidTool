@@ -126,6 +126,9 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 - Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées).
 - Import de profil : confirmation qui liste tout ce qui sera changé ; les macros des clics PvP sont filtrées par liste blanche (ciblage et sorts seulement : jamais `/gquit`, `/logout`, `/run`...). Les macros que tu écris toi-même dans les réglages ne sont pas filtrées : tu en es responsable.
 - Actions automatiques (invitations, promotions) éteintes par défaut, promotions hors combat seulement ; les annonces publiques partent sur un clic ou une confirmation ; aucun code reçu n'est exécuté.
+- Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; ce qui y arrive est borné (nombres finis, 200 signalements et 100 épingles par carte) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
+- Valeurs « secrètes » du jeu (vie, GUID, cible en combat...) : jamais comparées ni envoyées ; une valeur illisible est traitée comme absente.
+- Aucune action protégée en combat : les marques, le placement des groupes, le `/reload` et le ciblage PvP passent par des boutons sécurisés préparés hors combat.
 - Essais de guilde, banque de guilde, statistiques de BG, tri du butin, Myslot et DoesItDie n'envoient rien.
 
 ## Crédits

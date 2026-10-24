@@ -963,6 +963,7 @@ end
 -- put in the trade window (RCLootCouncil does the same). Nothing is given before both of us accept.
 local owed, OWED_MAX = {}, 40 -- { id, key, name }
 local tradePlaced -- the owed entries put in the trade window now open
+local tradeGiven, tradeBefore -- [item id] = copies in my side of the accepted trade / in my bags at TRADE_SHOW
 local NumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
 local LinkOf = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
 local PickupItem = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem
@@ -983,6 +984,17 @@ local function FindInBags(id, used)
             if not used[at] and W.ItemID(W.Safe(LinkOf(bag, slot))) == id then return bag, slot, at end
         end
     end
+end
+
+local function CountInBags(id)
+    local n, used = 0, {}
+    local _, _, at = FindInBags(id, used)
+    while at do
+        used[at] = true
+        n = n + 1
+        _, _, at = FindInBags(id, used)
+    end
+    return n
 end
 
 W.On("TRADE_SHOW", function()
@@ -1011,16 +1023,34 @@ W.On("TRADE_SHOW", function()
     if shown == 0 then return end
     W.Print(string.format(L("%d item(s) won by %s added to the trade."), shown, W.Plain(placed[1].name, 40)))
     tradePlaced = placed
+    tradeGiven = nil
+    tradeBefore = {}
+    for _, o in ipairs(placed) do tradeBefore[o.id] = CountInBags(o.id) end
 end)
 
--- once the trade is over, what left my bags is no longer owed
+-- both of us accepted: what is in my trade slots now is what leaves (I may have changed the slots by hand)
+W.On("TRADE_ACCEPT_UPDATE", function(mine, theirs)
+    if not tradePlaced or not GetTradePlayerItemLink then return end
+    if mine ~= 1 or theirs ~= 1 then tradeGiven = nil; return end
+    tradeGiven = {}
+    for i = 1, 6 do
+        local id = W.ItemID(W.Safe(GetTradePlayerItemLink(i)))
+        if id then tradeGiven[id] = (tradeGiven[id] or 0) + 1 end
+    end
+end)
+
+-- once the trade is over, an owed item is paid only if it was in my side of the accepted trade and one copy
+-- left my bags (not one sold or moved, nor another copy of the same item)
 W.On("TRADE_CLOSED", function()
-    local placed = tradePlaced
-    tradePlaced = nil
-    if not placed then return end
+    local placed, given, before = tradePlaced, tradeGiven, tradeBefore
+    tradePlaced, tradeGiven, tradeBefore = nil, nil, nil
+    if not placed or not given then return end
     W.After(1, function()
+        local gone = {}
+        for id, n in pairs(before) do gone[id] = math.min(given[id] or 0, n - CountInBags(id)) end
         for _, o in ipairs(placed) do
-            if not FindInBags(o.id, {}) then
+            if (gone[o.id] or 0) > 0 then
+                gone[o.id] = gone[o.id] - 1
                 for i = #owed, 1, -1 do if owed[i] == o then table.remove(owed, i) end end
             end
         end
