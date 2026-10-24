@@ -542,11 +542,12 @@ local function Flush()
     end
 end
 
+local FLUSH_LABEL = "timer " .. W.Where(1) -- up to 5 timers a second: the /wl perf label built once
 local function OnHealth(unit)
     local e = byUnit[unit]
     if not e or e.unit ~= unit then return end
     e.dirty = true
-    if not dirty then dirty = true; W.After(0.2, Flush) end
+    if not dirty then dirty = true; W.After(0.2, Flush, FLUSH_LABEL) end
 end
 
 local fAddEv = W.On("NAME_PLATE_UNIT_ADDED", function(unit) if OpenWorld() then Bind(unit) end end, nil, true)

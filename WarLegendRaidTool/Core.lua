@@ -112,11 +112,12 @@ function W.Timed(label, fn)
     end
 end
 
-function W.After(delay, fn)
+-- label: "timer File.lua:line" for /wl perf; a hot caller passes it, built once (debugstack costs on every call)
+function W.After(delay, fn, label)
     if not (C_Timer and C_Timer.After) then return end
-    local where = W.Where(2)
+    label = label or ("timer " .. W.Where(2))
     C_Timer.After(delay, function()
-        local ok, err = W.Measure("timer " .. where, fn)
+        local ok, err = W.Measure(label, fn)
         if not ok then geterrorhandler()(err) end
     end)
 end
@@ -217,10 +218,11 @@ evFrame:SetScript("OnEvent", function(_, event, ...)
     Run(event, false, ...)
 end)
 
+local ROSTER_LABEL = "timer " .. W.Where(1)
 local function RosterChanged()
     if rosterPending then return end
     rosterPending = true
-    W.After(0.5, RosterSettled)
+    W.After(0.5, RosterSettled, ROSTER_LABEL)
 end
 W.On("GROUP_ROSTER_UPDATE", RosterChanged)
 W.On("RAID_ROSTER_UPDATE", RosterChanged) -- older clients

@@ -108,7 +108,7 @@ W.OnAddon(DUR_PREFIX, function(msg, from, _, full)
     local p = W.Finite(msg, 0, 100)
     if p then
         durability[W.UnitKey(unit)] = p -- full identity: two players can share a first name
-        if frame and frame:IsShown() then W.ReadyCheckRefresh() end
+        if frame then frame.nextRefresh = 0 end -- redrawn once on the next frame, not once per message
     end
 end)
 
@@ -194,6 +194,11 @@ local function NewRow(i)
     return r
 end
 
+-- a cell keeps the text it shows: an unchanged one is not set again (40 rows x 8 cells every refresh)
+local function Set(fs, text)
+    if fs.last ~= text then fs.last = text; fs:SetText(text) end
+end
+
 function W.ReadyCheckRefresh()
     if not frame or not frame:IsShown() then return end
     local units = W.GroupUnits()
@@ -209,15 +214,16 @@ function W.ReadyCheckRefresh()
         local r = rows[i] or NewRow(i)
         rows[i] = r
         local c = r.cells
-        c[1]:SetText(name)
-        c[1]:SetTextColor(W.ClassColor(W.UnitClassToken(unit)))
-        c[2]:SetText(ReadyText(st))
-        c[3]:SetText(DurText(durability[key]))
-        c[4]:SetText(OK(Check(unit, "food", set)))
-        c[5]:SetText(OK(Check(unit, "flask", set)))
-        c[6]:SetText(OK(Check(unit, "int", set)))
-        c[7]:SetText(OK(Check(unit, "stam", set)))
-        c[8]:SetText(OK(Check(unit, "motw", set)))
+        Set(c[1], name)
+        local cls = W.UnitClassToken(unit)
+        if cls ~= r.cls then r.cls = cls; c[1]:SetTextColor(W.ClassColor(cls)) end
+        Set(c[2], ReadyText(st))
+        Set(c[3], DurText(durability[key]))
+        Set(c[4], OK(Check(unit, "food", set)))
+        Set(c[5], OK(Check(unit, "flask", set)))
+        Set(c[6], OK(Check(unit, "int", set)))
+        Set(c[7], OK(Check(unit, "stam", set)))
+        Set(c[8], OK(Check(unit, "motw", set)))
         r:Show()
     end
     for i = count + 1, #rows do rows[i]:Hide() end
@@ -255,7 +261,7 @@ W.On("READY_CHECK_CONFIRM", function(unit, isReady)
     local key = W.UnitKey(unit)
     if not key then return end
     statuses[key] = isReady and "ready" or "notready"
-    W.ReadyCheckRefresh()
+    if frame then frame.nextRefresh = 0 end -- up to 40 answers in a second: one redraw on the next frame
 end)
 W.On("READY_CHECK_FINISHED", function()
     if frame and frame:IsShown() then

@@ -209,7 +209,7 @@ local function StopBar(key, noLayout)
     local a = active[key]
     if not a then return end
     a.bar:Hide()
-    a.bar.data = nil
+    a.bar.data, a.bar.lastStep = nil, nil
     a.bar:SetParent(anchor)
     a.bar:SetScale(1)
     pool[#pool + 1] = a.bar
@@ -264,7 +264,9 @@ local function OnUpdate(_, e)
             stopped = true
         else
             a.bar.bar:SetValue(left)
-            a.bar.time:SetText(TimeText(left))
+            -- the text changes every 0.1 s under 10 s, every second above: no new string in between
+            local step = left < 10 and math.floor(left * 10) or -math.floor(left)
+            if a.bar.lastStep ~= step then a.bar.lastStep = step; a.bar.time:SetText(TimeText(left)) end
         end
     end
     if stopped then Layout() end

@@ -61,10 +61,17 @@ local function OnUpdate(self, dt)
     since = since + dt
     if since < 0.1 then return end
     since = 0
+    -- standing still / cursor not moving: no new string
     local px, py = PlayerXY(WorldMapFrame.GetMapID and WorldMapFrame:GetMapID())
-    self.me:SetText(meText .. "  " .. Fmt(px, py))
+    if px ~= self.px or py ~= self.py or meText ~= self.meText then
+        self.px, self.py, self.meText = px, py, meText
+        self.me:SetText(meText .. "  " .. Fmt(px, py))
+    end
     local cx, cy = CursorXY()
-    self.cursor:SetText(Valid(cx, cy) and (cursorText .. "  " .. Fmt(cx, cy)) or "")
+    if cx ~= self.cx or cy ~= self.cy or cursorText ~= self.cursorText then
+        self.cx, self.cy, self.cursorText = cx, cy, cursorText
+        self.cursor:SetText(Valid(cx, cy) and (cursorText .. "  " .. Fmt(cx, cy)) or "")
+    end
 end
 
 local function BuildBar()
