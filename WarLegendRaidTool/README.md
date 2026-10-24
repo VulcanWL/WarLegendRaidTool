@@ -123,6 +123,13 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 
 Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarLegendRaidTool.toc`.
 
+## Sécurité
+
+- Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées).
+- Import de profil : confirmation qui liste tout ce qui sera changé ; les macros des clics PvP sont filtrées par liste blanche (ciblage et sorts seulement : jamais `/gquit`, `/logout`, `/run`...). Les macros que tu écris toi-même dans les réglages ne sont pas filtrées : tu en es responsable.
+- Actions automatiques (invitations, promotions) éteintes par défaut, promotions hors combat seulement ; les annonces publiques partent sur un clic ou une confirmation ; aucun code reçu n'est exécuté.
+- Essais de guilde, banque de guilde, statistiques de BG, tri du butin, Myslot et DoesItDie n'envoient rien.
+
 ## Crédits
 
 - Voix du décompte **Amy**, **David**, **Jim** et police **Noto Sans** : reprises de [BigWigs](https://github.com/BigWigsMods/BigWigs)
