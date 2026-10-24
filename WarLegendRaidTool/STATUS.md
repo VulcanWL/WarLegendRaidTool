@@ -5,6 +5,8 @@ Pas dans le zip des releases.
 
 ## Maintenant (23/10/2026)
 
+- **Version publiée (23/10)** : 1.37.1 (tag `v1.37.1`) = Loot Council, dette d échange effacée seulement après « Échange terminé » ; README Sécurité complété. **Rien testé en jeu.**
+
 - **Brief de recodage d une IA externe (23/10, branche `claude/wlrt-audit-refactor-453435`, non poussée)** : relu contre le code ; découpage de `Core.lua`, `Locale/`, caches de regex / préfixes refusés (faux ou risqués). Fait : Loot Council, une dette d échange n est effacée que si le jeu dit « Échange terminé » (`UI_INFO_MESSAGE` = `ERR_TRADE_COMPLETE`, comme RCLootCouncil), que l objet était dans MON côté quand j ai accepté (`TRADE_ACCEPT_UPDATE` + `GetTradePlayerItemLink`) et qu une copie a quitté les sacs ; 6 scénarios rejoués sous fengari (banc jetable) : OK (avant : effacée si l objet n était plus dans les sacs, même vendu / déplacé, ou gardée si j en avais une 2e copie) ; README « Sécurité » : Skyborne (canal public), valeurs secrètes, boutons sécurisés. Vérifié : check 0, smoke 0, wow-api 0 nouveau (`GetTradePlayerItemLink` ajouté à la baseline), jeu à jour. **Rien testé en jeu.** Reste possible : `W.Where` dans `W.After` (mesurer avec `--bg` avant), `W.After` annulable (si un module en a besoin).
 
 - **Version publiée (23/10)** : 1.37.0 (tag `v1.37.0`) = DoesItDie et Myslot intégrés au noyau, zip à 4 dossiers.
