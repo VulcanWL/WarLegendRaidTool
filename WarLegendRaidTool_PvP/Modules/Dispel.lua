@@ -418,8 +418,9 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:Schedule()
 		if self.pending then return end
 		self.pending = true
-		C_Timer.After(0.2, function() f:Update() end)
+		C_Timer.After(0.2, self.runUpdate)
 	end
+	f.runUpdate = function() f:Update() end -- made once per button, not on every schedule
 
 	function f:UnitIdUpdate() self:Schedule() end
 	function f:PlayerButtonSizeChanged() self.anchorTarget = nil; self:Schedule() end
@@ -463,10 +464,14 @@ end
 -- one listener for every ally button, registered only while the frames are enabled (in a battleground):
 -- UNIT_AURA fires for every unit, hundreds of times a second in a raid, and once this addon has been loaded
 -- (a battleground, the PvP tab, a profile export) it stays in memory for the rest of the session
+local GROUP_UNITS = { player = true } -- the units the patterns matched, as one table lookup
+for i = 1, 40 do GROUP_UNITS["raid" .. i] = true end
+for i = 1, 4 do GROUP_UNITS["party" .. i] = true end
 local auraFrame = CreateFrame("Frame")
 auraFrame:SetScript("OnEvent", function(_, _, unit)
-	if type(unit) ~= "string" or not (unit:find("^raid%d") or unit:find("^party%d") or unit == "player") then return end
+	-- cheapest test first: outside a battleground nothing else runs
 	if not WarLegendPvP.states or not WarLegendPvP.states.real or not WarLegendPvP.states.real.isInBattleground then return end
+	if not GROUP_UNITS[unit] then return end
 	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit)
 	if ok and btn and not btn.PlayerIsEnemy and btn.Dispel and btn.Dispel.Enabled then btn.Dispel:Schedule() end
 end)
