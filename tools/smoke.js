@@ -218,6 +218,10 @@ function show(title, { out }) {
         for (const b of r.busiest.slice(0, 8)) console.log("    " + String(b[0]).padEnd(50) + Number(b[3]).toFixed(1).padStart(8) + " / " + b[2]);
     }
     if (verbose && list(out.unknown).length) console.log("  globals read but nil here: " + out.unknown.slice(0, 40).map((u) => u[0]).join(" "));
+    const failedChecks = list(r.checks).filter((c) => !c.ok);
+    console.log("  trust checks: " + (list(r.checks).length - failedChecks.length) + " / " + list(r.checks).length + " passed");
+    for (const c of failedChecks) console.log("    FAIL " + c.name + (c.detail !== undefined ? " (" + c.detail + ")" : ""));
+    bad += failedChecks.length;
     bad += errors.length + blocked.length + (r.testChat || 0) + (r.testAddon || 0) + fuzzChat + fuzzSens + (r.access === true ? 0 : 1);
 }
 

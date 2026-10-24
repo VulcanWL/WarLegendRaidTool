@@ -221,7 +221,7 @@ W.OnAddon(PREFIX, function(msg, from, channel, full)
     -- the lines are separated by " | ": split first, then every line is plain text
     local lines = {}
     for line in ((t[3] or "") .. " | "):gmatch("(.-) | ") do lines[#lines + 1] = W.Plain(line, 120) end
-    local shown = table.concat(lines, "\n")
+    local shown = string.format(L("From %s"), W.Sender(from, full)) .. "\n" .. table.concat(lines, "\n")
     db.mine = table.concat(lines, " | ")
     if not popup then
         popup = W.Window("WLRTBuffPopup", 420, 90, L("Your buffs"))

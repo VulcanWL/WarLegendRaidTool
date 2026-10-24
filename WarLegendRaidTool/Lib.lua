@@ -22,6 +22,8 @@ local MAX_WAIT, MAX_QUEUE = 300, 150
 W.AddFR({
     ["Voice: auto"] = "Voix : auto",
     ["Beep"] = "Bip",
+    ["not in guild"] = "hors guilde",
+    ["From %s"] = "De %s",
     ["Some messages could not be sent to the group (chat locked or throttled for too long)."] =
         "Des messages n'ont pas pu être envoyés au groupe (chat verrouillé ou bridé trop longtemps).",
 })
@@ -169,6 +171,13 @@ function W.Plain(s, max)
     if max and #s > max then s = s:sub(1, max) end -- cut first: a cut after doubling could leave one "|"
     s = s:gsub("[%z\1-\31]", " "):gsub("|", "||")
     return s
+end
+
+-- The sender of a received prompt, as shown to me: plain name, flagged when not in my guild
+function W.Sender(from, full)
+    local name = W.Plain(from, 40)
+    if W.GuildMember(full or from) then return name end
+    return name .. " |cffff8040(" .. L("not in guild") .. ")|r"
 end
 
 -- Fields separated by "^" (never used in names, links are sent as item strings)

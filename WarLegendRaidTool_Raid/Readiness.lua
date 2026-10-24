@@ -322,9 +322,9 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
     local answer = id .. "#" .. table.concat(parts, ";")
     W.After(math.random() * 2, function() W.Queue(PREFIX_ANS, answer, "WHISPER", full or from) end)
     if #missing > 0 then
-        W.Print(string.format(L("Readiness check from %s: you are missing %s"), W.Plain(from, 40), table.concat(missing, ", ")))
+        W.Print(string.format(L("Readiness check from %s: you are missing %s"), W.Sender(from, full), table.concat(missing, ", ")))
     else
-        W.Print(string.format(L("Readiness check from %s: you are ready."), from))
+        W.Print(string.format(L("Readiness check from %s: you are ready."), W.Sender(from, full)))
     end
 end)
 

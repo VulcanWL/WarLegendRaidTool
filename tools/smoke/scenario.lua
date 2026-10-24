@@ -103,6 +103,18 @@ M.Advance(5)
 AllTabs("raid window")
 report.raidCommands = Commands("raid commands")
 
+-- trust checks of the security review: a stranger is flagged on prompts, a burst of questions schedules one reply
+Phase("trust")
+report.checks = {}
+local function Check(name, ok, detail) report.checks[#report.checks + 1] = { name = name, ok = ok and true or false, detail = detail } end
+Check("guild member not flagged", W.Sender and not W.Sender("Guildie1-Forever"):find("|cff", 1, true))
+Check("stranger flagged as not in guild", W.Sender and W.Sender("Stranger-Other"):find("|cff", 1, true) ~= nil)
+M.Advance(10)
+local timers0 = M.PendingTimers()
+for _ = 1, 50 do M.Fire("CHAT_MSG_ADDON", "WLRT_CD2", "Q", "RAID", "Raider2-Forever", "Raider2-Forever", 0, 0, "", 0) end
+Check("50 cooldown questions schedule at most 1 reply", M.PendingTimers() - timers0 <= 1, M.PendingTimers() - timers0)
+M.Advance(5)
+
 -- every addon in memory (PvP: battleground frames, Skyborne: a Skyborne character), so all their prefixes are listened to
 for _, n in ipairs({ "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do C_AddOns.LoadAddOn(n) end
 M.Fire("PLAYER_ENTERING_WORLD", false, false)

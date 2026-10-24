@@ -54,6 +54,9 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
 - Received data (addon messages, whispers, pasted strings, the Skyborne public channel) is untrusted: numbers through
   `W.Finite` / `W.Int` (a `tonumber("nan")` passes `<` / `>` tests), lists and tables capped, texts through `W.Plain`, names
   that reach a macro without `[ ] ; ,` or control characters, and a "?" / "Q" request answered once a minute at most.
+- Names: on Forever the short name (`W.BaseName`) is only the first name, shared by strangers. Anything that grants
+  trust (promotion, auto-accept, leader checks) matches the full name (`W.FullName`, `W.GuildMember`), a short name only
+  for the one guild member who has it. Prompts from other players show the sender with `W.Sender` (flags "not in guild").
 
 ## Interface modules
 - `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
