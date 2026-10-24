@@ -1,6 +1,6 @@
 # WarLegendRaidTool — context for coding agents
 
-World of Warcraft **Classic** addon (client beta, `## Interface: 16001`) for the "War Legend" guild:
+World of Warcraft **Classic** addon (WoW Forever client, `_forever_` folder, `## Interface: 16001`) for the "War Legend" guild:
 raid groups, loot council, buffs, ready check, attendance, who pulled, inspect, aura
 tracking, raid cooldowns, alts, guild tools, trials, guild bank characters, battleground frames / graveyard
 timer / premade history. Slash command `/wl` (also `/wlrt`, `/warlegend`), `/wl help` lists every command.
@@ -33,8 +33,11 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
   tracking is NOT possible in battlegrounds). Each lists its files in ITS `.toc`.
 - `Roster.lua`, `GuildBank.lua`, `BGStats.lua` are **personal only: no addon messages** (the user's choice).
   `GuildPositions.lua` does send to the GUILD with GuildMap's prefix `GuildMapEx1`: keep that format.
-- Options: a whole-addon option goes in Settings > General; **a new option saved as a table goes in `TABLE_FIELDS`**
-  (`Settings.lua`); a module with its own event frame checks `W.IsOff("Key")` in its OnEvent.
+- Options:
+  - a whole-addon option goes in Settings > General;
+  - **a new option saved as a table goes in `TABLE_FIELDS`** (`Settings.lua`, `{ dbKey = { field = true } }`): it lists
+    which table fields are options, so profiles export / import them (any other table is treated as data and skipped);
+  - a module with its own event frame checks `W.IsOff("Key")` in its OnEvent.
 - `MoveFrames.lua` never moves a protected frame (no action bars, unit / group frames, buffs, minimap). CVars are set out
   of combat through `pcall`. `ItemLevels.lua` writes nothing in Blizzard's tables.
 - Tests (`W.RegisterTest`) end by themselves and never send messages. Frequent hooks on Blizzard code are wrapped in
@@ -60,6 +63,10 @@ Every file starts with:
 local W = WLRT
 local L = W.L
 local db
+
+W.AddFR({
+    ["English text"] = "Texte français",
+})
 ```
 - **Saved data**: `W.OnReady(function() db = W.DB("moduleKey", { option = false }) end)`.
   Defaults are scalars only. SavedVariables is `WarLegendRaidToolDB` (`W.db`). Changing the format of
@@ -68,8 +75,9 @@ local db
   (4th arg) to start it off and switch with `W.Activate(handler, on)`. Handlers only run once the
   player is confirmed in the War Legend guild (`W.Allowed()`), except core ones with `always = true`.
   Group changes: `W.OnRoster(fn)`. Timers: `W.After(seconds, fn)`.
-- **Window tab**: `W.RegisterModule("Key", "Label", function(panel) ... end, refreshFn)`.
-  Build the UI with `W.Title(p, text)`, `W.Check(p, text, get, set, tip)`, `W.Button(p, text, w, h, onClick, tip)`,
+- **Window tab**: `W.RegisterModule("Key", "Label", function(p) ... end, refresh)`: the build
+  function runs once, the first time the tab opens; `refresh(p)` (optional) runs each time the tab is shown, to update
+  the widgets. Build the UI with `W.Title(p, text)`, `W.Check(p, text, get, set, tip)`, `W.Button(p, text, w, h, onClick, tip)`,
   `W.Label(p, text, font)`, `W.EditBox(p, w, maxLetters)`, `W.Cycle` (a drop-down of values), `W.ScrollList`, `W.Table`, `W.SubTabs`,
   then `:SetPoint("TOPLEFT", x, -y)`. To show the module in the menu, add its key to `CATEGORIES`
   in `Core.lua`: four tabs, Raid (the raid night in order: Organisation, Preparation, Combat, Loot and attendance), PvP (Battlegrounds,
@@ -91,7 +99,8 @@ local db
   })
   ```
 - The language is only known at `ADDON_LOADED`: call `L()` inside build functions, event handlers or
-  `W.OnReady`, not at file load time. Tables of texts built at load time use `W.TranslateField(list, field)`.
+  `W.OnReady`, not at file load time (wrong: `local TITLE = L("Raid")` at the top of a file; right: `L("Raid")` in the
+  build function). Tables of texts built at load time use `W.TranslateField(list, field)`.
 - Keep color codes (`|cff......|r`) and `%s` / `%d` identical in the French string.
 
 ## How to work here
@@ -106,7 +115,7 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
    (`AskUserQuestion`, 1 to 4 questions with choices) instead of exploring the code to guess. The user prefers that.
 2. Say which file(s) you will touch and why, in one or two lines.
 3. Read them, then edit with small, targeted changes in the existing style. The source is the git repo
-   `C:\Dev\WarLegendRaidTool`; then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
+   `C:\Dev\WarLegendRaidTool` (never edit the game folder: it is a copy); then run `bash tools/sync.sh`: it copies the changed files to the game's AddOns folder
    and skips (lists) any file changed only there — never overwrite those without asking. **After every change the game
    folder must hold the newest version** (the user plays from it): run it after each edit, read its output (a new file
    must be `git add`-ed to be copied), and say in the report that the game folder is up to date. Before a release:
