@@ -962,8 +962,8 @@ end
 -- Items a winner must get by trade (not in the loot window): when that player opens a trade with me, they are
 -- put in the trade window (RCLootCouncil does the same). Nothing is given before both of us accept.
 local owed, OWED_MAX = {}, 40 -- { id, key, name }
-local tradePlaced -- the owed entries put in the trade window now open
-local tradeGiven, tradeBefore -- [item id] = copies in my side of the accepted trade / in my bags at TRADE_SHOW
+local tradePlaced -- the owed entries put in the trade window now open (.done: the game said "Trade complete.")
+local tradeGiven, tradeBefore -- [item id] = copies in my side of the trade when I accepted / in my bags at TRADE_SHOW
 local NumSlots = (C_Container and C_Container.GetContainerNumSlots) or GetContainerNumSlots
 local LinkOf = (C_Container and C_Container.GetContainerItemLink) or GetContainerItemLink
 local PickupItem = (C_Container and C_Container.PickupContainerItem) or PickupContainerItem
@@ -1028,10 +1028,11 @@ W.On("TRADE_SHOW", function()
     for _, o in ipairs(placed) do tradeBefore[o.id] = CountInBags(o.id) end
 end)
 
--- both of us accepted: what is in my trade slots now is what leaves (I may have changed the slots by hand)
-W.On("TRADE_ACCEPT_UPDATE", function(mine, theirs)
-    if not tradePlaced or not GetTradePlayerItemLink then return end
-    if mine ~= 1 or theirs ~= 1 then tradeGiven = nil; return end
+-- I accepted: what is in my trade slots now is what leaves if the trade goes through (I may have changed the
+-- slots by hand; any change clears both accepts, so the last snapshot is the one the trade was made with). Not
+-- cleared when the accept drops: the game may send that as the trade ends, "Trade complete." decides.
+W.On("TRADE_ACCEPT_UPDATE", function(mine)
+    if not tradePlaced or not GetTradePlayerItemLink or mine ~= 1 then return end
     tradeGiven = {}
     for i = 1, 6 do
         local id = W.ItemID(W.Safe(GetTradePlayerItemLink(i)))
@@ -1039,13 +1040,19 @@ W.On("TRADE_ACCEPT_UPDATE", function(mine, theirs)
     end
 end)
 
--- once the trade is over, an owed item is paid only if it was in my side of the accepted trade and one copy
--- left my bags (not one sold or moved, nor another copy of the same item)
+W.On("UI_INFO_MESSAGE", function(_, msg)
+    if tradePlaced and ERR_TRADE_COMPLETE and W.Safe(msg) == ERR_TRADE_COMPLETE then tradePlaced.done = true end
+end)
+
+-- once the trade is over, an owed item is paid only if the game said "Trade complete.", the item was in my side
+-- of the trade when I accepted and one copy left my bags (not one sold or moved, nor another copy). The message
+-- may come just after TRADE_CLOSED: read 1 s later. Without the game string, the bags alone decide.
 W.On("TRADE_CLOSED", function()
     local placed, given, before = tradePlaced, tradeGiven, tradeBefore
-    tradePlaced, tradeGiven, tradeBefore = nil, nil, nil
-    if not placed or not given then return end
+    if not placed then return end
     W.After(1, function()
+        if tradePlaced == placed then tradePlaced, tradeGiven, tradeBefore = nil, nil, nil end
+        if not given or (ERR_TRADE_COMPLETE and not placed.done) then return end
         local gone = {}
         for id, n in pairs(before) do gone[id] = math.min(given[id] or 0, n - CountInBags(id)) end
         for _, o in ipairs(placed) do
