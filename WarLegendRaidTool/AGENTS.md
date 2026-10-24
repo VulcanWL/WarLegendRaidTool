@@ -6,7 +6,7 @@ tracking, raid cooldowns, alts, guild tools, trials, guild bank characters, batt
 timer / premade history. Slash command `/wl` (also `/wlrt`, `/warlegend`), `/wl help` lists every command.
 Current version is in `WarLegendRaidTool.toc` (`## Version:`).
 
-The user is French: **always answer in French**. Code, comments and English UI strings stay in English.
+The user is French but asked (23/10) for **answers in English** (fewer tokens). Code, comments and English UI strings stay in English; French only in `W.AddFR`, README and STATUS.md.
 
 ## Hard rules
 - **Lua 5.1** (WoW): no `goto`, no `//`, no bitwise operators, no `table.unpack` (use `unpack`).
