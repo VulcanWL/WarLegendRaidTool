@@ -44,7 +44,7 @@ jobs:
             gh issue create --title "$title" --body "$body" --label build-watch --assignee "$OWNER"
           }
 
-          for product in wow_classic_beta wowf; do
+          for product in wowf; do # the Classic beta (wow_classic_beta) is no longer used
             line=$(curl -s --max-time 20 "http://us.patch.battle.net:1119/$product/versions" | grep '^us|' | head -1) || true # no answer: the step must go on (bash -e -o pipefail)
             [ -z "$line" ] && { echo "No answer for $product"; continue; }
             version=$(echo "$line" | cut -d'|' -f6)

@@ -1,6 +1,6 @@
 # WaR LegenD RaidTool — guide simple
 
-Quatre parties : installer WowUp, installer l'addon, s'en servir, sauvegarder ses données avant un wipe de la bêta.
+Quatre parties : installer WowUp, installer l'addon, s'en servir, sauvegarder ses données avant une réinstallation ou un wipe du jeu.
 
 ---
 
@@ -10,7 +10,7 @@ WowUp-CF met les addons à jour tout seul. Les membres de la guilde l'utilisent 
 
 1. Télécharger **WowUp-CF** (le WowUp qui marche avec CurseForge) depuis sa page officielle et lancer l'installeur.
 2. Au premier lancement, WowUp cherche le jeu. S'il ne le trouve pas : **Mes addons → Ajouter une installation** (ou le choix du client) et pointer vers le dossier du jeu, par exemple `C:\Program Files (x86)\World of Warcraft`.
-3. Choisir le client **Classic bêta** (dossier `_classic_beta_`). C'est ce dossier-là que le jeu lit, pas `_classic_` ni `_retail_`.
+3. Choisir le client **WoW Forever** (dossier `_forever_`). C'est ce dossier-là que le jeu lit, pas `_classic_`, `_classic_beta_` ni `_retail_`.
 4. Vérifier que WowUp affiche bien ce client en haut de la fenêtre avant d'installer quoi que ce soit.
 
 ---
@@ -31,7 +31,7 @@ WowUp-CF met les addons à jour tout seul. Les membres de la guilde l'utilisent 
 ### À la main (si WowUp pose problème)
 
 1. Télécharger le zip de la dernière **Release** sur la page GitHub du dépôt.
-2. Le décompresser dans `World of Warcraft\_classic_beta_\Interface\AddOns\`.
+2. Le décompresser dans `World of Warcraft\_forever_\Interface\AddOns\`.
 3. Les dossiers `WarLegendRaidTool`, `WarLegendRaidTool_Raid`, etc. doivent être directement dans `AddOns` (pas dans un sous-dossier en plus).
 
 ### Mettre à jour
@@ -86,7 +86,7 @@ Toutes les sections sont visibles, sous leur titre. La fenêtre se redimensionne
 
 ---
 
-## 4. Sauvegarder ses données avant un wipe de la bêta
+## 4. Sauvegarder ses données avant une réinstallation ou un wipe
 
 Un wipe peut vider le dossier `WTF` (réglages et données des addons). Il faut donc **copier ses fichiers avant**, et les remettre après.
 
@@ -95,7 +95,7 @@ Un wipe peut vider le dossier `WTF` (réglages et données des addons). Il faut 
 Les données sont dans :
 
 ```
-World of Warcraft\_classic_beta_\WTF\Account\<NOM DU COMPTE>\SavedVariables\
+World of Warcraft\_forever_\WTF\Account\<NOM DU COMPTE>\SavedVariables\
 ```
 
 Copier ces fichiers (ceux qui existent) :
@@ -119,7 +119,7 @@ Le plus simple et le plus sûr : **copier tout le dossier `WTF`** dans un endroi
 
 ### Étapes après le wipe
 
-1. Réinstaller le jeu / la bêta si besoin, puis **réinstaller WowUp et l'addon** (parties 1 et 2).
+1. Réinstaller le jeu si besoin, puis **réinstaller WowUp et l'addon** (parties 1 et 2).
 2. **Lancer le jeu une fois**, se connecter, puis quitter : ça recrée l'arborescence `WTF\Account\<NOM>\SavedVariables\`.
 3. **Le jeu fermé**, recopier les fichiers sauvegardés dans ce dossier `SavedVariables` (remplacer ceux qui y sont). Le nom du compte doit être le même ; sinon copier dans le dossier du nouveau nom de compte.
 4. Relancer le jeu : l'addon retrouve ses données. En cas de doute, `/wl` et regarder si les presets et réglages sont là.

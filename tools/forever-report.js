@@ -12,7 +12,7 @@ const REPO = path.join(__dirname, "..");
 const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne"];
 const argv = process.argv.slice(2);
 const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : null; };
-const flavor = opt("--flavor") === "beta" ? "_classic_beta_" : "_forever_";
+const flavor = "_forever_"; // the Classic beta is no longer used
 const GAME = opt("--game") || path.join("C:\\Program Files (x86)\\World of Warcraft", flavor);
 let since = opt("--since") === "all" ? 0 : opt("--since") ? Date.parse(opt("--since")) / 1000 : null;
 const showAll = argv.includes("--all");

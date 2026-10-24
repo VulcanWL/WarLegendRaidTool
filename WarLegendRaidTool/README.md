@@ -23,7 +23,7 @@ Monochrome, logo de la même couleur).
 
 ## Installation
 
-Il faut **quatre dossiers** dans `World of Warcraft\_classic_beta_\Interface\AddOns\` :
+Il faut **quatre dossiers** dans `World of Warcraft\_forever_\Interface\AddOns\` :
 
 ```
 AddOns\
