@@ -141,30 +141,38 @@ local function Overlay(button)
 end
 
 -- kind: "character" / "inspect" (enchant marks, no upgrade arrow) or "bags" / "loot"
+-- File level, not one new function per slot and per bag update; level / quality given when already known
+local function Paint(button, link, kind, level, quality)
+    if wanted[button] ~= link then return end -- the button shows another item now
+    if not level then
+        local _
+        _, _, quality = W.GetItemInfo(link)
+        level = W.ItemLevel(link)
+    end
+    local _, _, _, _, _, classID = GetInfoInstant(link)
+    if not level or (classID ~= CLASS_WEAPON and classID ~= CLASS_ARMOR) or (quality or -1) < db.quality then return end
+    local o = Overlay(button)
+    local r, g, b = 1, 1, 1
+    if db.color and quality and QualityColor then r, g, b = QualityColor(quality) end
+    o.level:SetText(level)
+    o.level:SetTextColor(r or 1, g or 1, b or 1)
+    o.level:Show()
+    if db.upgrades and (kind == "bags" or kind == "loot") and IsUpgrade(link, level) then o.up:Show() end
+    if db.enchants and (kind == "character" or kind == "inspect") and MissingEnchant(link) then o.miss:Show() end
+end
+
 local function Mark(button, link, kind)
     Clean(button)
     if not link then return end
-    local function paint()
-        if wanted[button] ~= link then return end -- the button shows another item now
-        local _, _, quality = W.GetItemInfo(link)
-        local level = W.ItemLevel(link)
-        local _, _, _, _, _, classID = GetInfoInstant(link)
-        if not level or (classID ~= CLASS_WEAPON and classID ~= CLASS_ARMOR) or (quality or -1) < db.quality then return end
-        local o = Overlay(button)
-        local r, g, b = 1, 1, 1
-        if db.color and quality and QualityColor then r, g, b = QualityColor(quality) end
-        o.level:SetText(level)
-        o.level:SetTextColor(r or 1, g or 1, b or 1)
-        o.level:Show()
-        if db.upgrades and (kind == "bags" or kind == "loot") and IsUpgrade(link, level) then o.up:Show() end
-        if db.enchants and (kind == "character" or kind == "inspect") and MissingEnchant(link) then o.miss:Show() end
-    end
     wanted[button] = link
-    if W.ItemLevel(link) and W.GetItemInfo(link) then
-        paint()
+    local level = W.ItemLevel(link)
+    local name, _, quality = W.GetItemInfo(link)
+    if level and name then
+        Paint(button, link, kind, level, quality)
     elseif Item and Item.CreateFromItemLink then
+        -- not loaded yet: a small wrapper only here, level and quality read again once loaded
         local item = Item:CreateFromItemLink(link)
-        if item and not item:IsItemEmpty() then item:ContinueOnItemLoad(paint) end
+        if item and not item:IsItemEmpty() then item:ContinueOnItemLoad(function() Paint(button, link, kind) end) end
     end
 end
 

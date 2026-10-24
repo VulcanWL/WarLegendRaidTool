@@ -84,10 +84,11 @@ local function Create()
     Place()
 end
 
-local shownKey, ticking
+local shownKind, shownEnds, ticking -- the control drawn now: the same one is not drawn again every 0.2 s
+local TICK_LABEL
 local function Scan()
     if not db or not db.enabled or not frame then return end
-    local best
+    local best, bestIcon, bestStart, bestDur, bestEnds, bestText -- locals, no table per control found
     local LoC = C_LossOfControl
     if LoC and LoC.GetActiveLossOfControlDataCount and LoC.GetActiveLossOfControlData then
         local ok, count = pcall(LoC.GetActiveLossOfControlDataCount)
@@ -98,9 +99,9 @@ local function Scan()
                 local start, dur = W.Safe(data.startTime), W.Safe(data.duration)
                 if kind and (kind ~= "ROOT" or db.roots) then
                     local ends = (type(start) == "number" and type(dur) == "number") and (start + dur) or 0
-                    if not best or ends > best.ends then
-                        best = { kind = kind, icon = W.Safe(data.iconTexture) or W.Safe(data.texture), start = start, dur = dur, ends = ends,
-                            text = W.Safe(data.displayText) }
+                    if not best or ends > bestEnds then
+                        best, bestIcon, bestStart, bestDur, bestEnds = kind, W.Safe(data.iconTexture) or W.Safe(data.texture), start, dur, ends
+                        bestText = W.Safe(data.displayText)
                     end
                 end
             end
@@ -108,20 +109,19 @@ local function Scan()
     end
     if not best then
         frame:Hide()
-        shownKey = nil
+        shownKind, shownEnds = nil, nil
         return
     end
-    local k = KINDS[best.kind]
-    frame:SetSize(db.size, db.size)
-    frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
-    frame.icon:SetTexture(best.icon or 136116)
-    frame.label:SetText(best.text or L(k[1]))
-    frame.label:SetTextColor(k[2], k[3], k[4])
-    local key = best.kind .. tostring(best.ends)
-    if key ~= shownKey then
-        shownKey = key
-        if type(best.start) == "number" and type(best.dur) == "number" and best.dur > 0 then
-            frame.cd:SetCooldown(best.start, best.dur)
+    if best ~= shownKind or bestEnds ~= shownEnds then
+        shownKind, shownEnds = best, bestEnds
+        local k = KINDS[best]
+        frame:SetSize(db.size, db.size)
+        frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
+        frame.icon:SetTexture(bestIcon or 136116)
+        frame.label:SetText(bestText or L(k[1]))
+        frame.label:SetTextColor(k[2], k[3], k[4])
+        if type(bestStart) == "number" and type(bestDur) == "number" and bestDur > 0 then
+            frame.cd:SetCooldown(bestStart, bestDur)
         else
             frame.cd:Clear()
         end
@@ -133,7 +133,8 @@ end
 -- one check every 0.2 s while a control lasts (they can end without an event)
 local function Tick()
     Scan()
-    if frame and frame:IsShown() then W.After(0.2, Tick) else ticking = false end
+    TICK_LABEL = TICK_LABEL or ("timer " .. W.Where(1))
+    if frame and frame:IsShown() then W.After(0.2, Tick, TICK_LABEL) else ticking = false end
 end
 local function Start()
     if not db or not db.enabled then return end
@@ -150,6 +151,7 @@ events:SetScript("OnEvent", function() if W.Allowed() and not W.IsOff("CCAlert")
 
 local function Test()
     Create()
+    shownKind, shownEnds = nil, nil -- the test draws its own: a real control after it is drawn again
     local k = KINDS.STUN
     frame:SetSize(db.size, db.size)
     frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
