@@ -9,9 +9,9 @@ guilde par classe (responsables, rôles déclarés), repris de l'addon WarLegend
 Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage).
 La fenêtre a quatre onglets : **Raid** (Organisation, Préparation, Combat, Butin et présences : les outils d'une soirée,
 dans l'ordre), **JcJ** (Champs de bataille ; Monde ouvert : alerte danger, duels, layers), **Guilde** (Membres : guilde, classes,
-carte, Minotaure ; Mes personnages : rerolls, banque, export sim) et **Options** (Addon : réglages, version, bugs ; Interface :
+carte, Minotaure ; Mes personnages : rerolls, banque, export sim) et **Options** (Addon : réglages, version, bugs, temps de chargement ; Interface :
 cadres, options cachées, niveaux d'objet, carte ; Petits automatismes : qualité de vie, focus, texte de recharge, journal,
-alerte de contrôle, minuteur de combat, tri du butin), chacun avec toutes ses sections visibles sous de simples légendes ; les choix
+alerte de contrôle, minuteur de combat, tri du butin, améliorations dans les sacs, objectif d'or), chacun avec toutes ses sections visibles sous de simples légendes ; les choix
 de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
 décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
 copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
@@ -129,7 +129,7 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 - Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; ce qui y arrive est borné (nombres finis, 200 signalements et 100 épingles par carte) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
 - Valeurs « secrètes » du jeu (vie, GUID, cible en combat...) : jamais comparées ni envoyées ; une valeur illisible est traitée comme absente.
 - Aucune action protégée en combat : les marques, le placement des groupes, le `/reload` et le ciblage PvP passent par des boutons sécurisés préparés hors combat.
-- Essais de guilde, banque de guilde, statistiques de BG, tri du butin, Myslot et DoesItDie n'envoient rien.
+- Essais de guilde, banque de guilde, statistiques de BG, tri du butin, améliorations dans les sacs, objectif d'or, temps de chargement, Myslot et DoesItDie n'envoient rien.
 
 ## Crédits
 

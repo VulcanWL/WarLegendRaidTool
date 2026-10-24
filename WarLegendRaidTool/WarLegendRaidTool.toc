@@ -69,6 +69,9 @@ Myslot\share.lua
 Myslot\options.lua
 Myslot.lua
 LootTriage.lua
+Upgrades.lua
+MoneyGoal.lua
+LoadTimes.lua
 DoesItDie\Locale.lua
 DoesItDie\Locale_deDE.lua
 DoesItDie\Locale_esES.lua

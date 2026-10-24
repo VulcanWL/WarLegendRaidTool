@@ -1524,9 +1524,9 @@ local CATEGORIES = {
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
     { key = "options", title = "Options", sections = {
-        { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs" } },
+        { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs", "LoadTimes" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
-        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot", "LootTriage" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot", "LootTriage", "Upgrades", "MoneyGoal" } },
     } },
 }
 
