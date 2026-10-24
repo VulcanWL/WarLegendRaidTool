@@ -154,7 +154,7 @@ undocumented C_Console.GetAllCommands
 undocumented Constants.CharacterNameSeparatorConsts
 undocumented Enum.SendChatMessageResult
 
-# Myslot (WarLegendRaidTool_Myslot, 22/10/2026): bar / macro / binding functions of the base Classic API that Myslot calls as upstream;
+# Myslot (WarLegendRaidTool/Myslot, 22/10/2026): bar / macro / binding functions of the base Classic API that Myslot calls as upstream;
 # the specialization ones are retail-only, its loops are empty on this client (GetNumSpecializations is nil).
 deprecated shim (guarded) FindBaseSpellByID
 deprecated shim (guarded) GetSpecialization
@@ -188,7 +188,7 @@ legacy (no guard) PlaceAction
 legacy (no guard) SaveBindings
 legacy (no guard) SetBinding
 undocumented C_PetJournal.PickupPet
-# DoesItDie (WarLegendRaidTool_DoesItDie, 23/10/2026): kept as upstream, every call guarded (EllesmereNameplates_NS = another addon's table).
+# DoesItDie (WarLegendRaidTool/DoesItDie, 23/10/2026): kept as upstream, every call guarded (EllesmereNameplates_NS = another addon's table).
 deprecated shim (guarded) ChatFrame_OpenChat
 legacy (guarded) GetMouseFocus
 legacy (local alias) EllesmereNameplates_NS

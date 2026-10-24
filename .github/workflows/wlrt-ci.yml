@@ -34,7 +34,7 @@ jobs:
           echo "d68da17fca0697d9e2fb04201f3884abd259fa558b3a449bccaed47f1390defc  $RUNNER_TEMP/luacheck" | sha256sum -c -
           chmod +x "$RUNNER_TEMP/luacheck"
           "$RUNNER_TEMP/luacheck" --config tools/.luacheckrc --codes --formatter plain \
-            WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne WarLegendRaidTool_Myslot WarLegendRaidTool_DoesItDie
+            WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne
 
       - name: API used vs Blizzard's documentation (Gethe/wow-ui-source, branch forever)
         run: node tools/wow-api.js check

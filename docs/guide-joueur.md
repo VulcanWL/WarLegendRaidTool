@@ -22,13 +22,11 @@ WowUp-CF met les addons à jour tout seul. Les membres de la guilde l'utilisent 
 1. Dans WowUp : **Obtenir des addons → Installer depuis une URL**.
 2. Coller l'adresse du dépôt : `https://github.com/VulcanWL/WarLegendRaidTool`
 3. Valider. WowUp télécharge la dernière version et la range dans `Interface\AddOns`.
-4. Lancer le jeu. Dans la liste des addons (écran de choix du personnage), vérifier que ces **six** lignes sont cochées :
+4. Lancer le jeu. Dans la liste des addons (écran de choix du personnage), vérifier que ces **quatre** lignes sont cochées :
    - `WarLegendRaidTool` (le noyau)
    - `WarLegendRaidTool_Raid` (modules de raid, chargés quand il faut)
    - `WarLegendRaidTool_PvP` (cadres de champ de bataille, chargés quand il faut)
    - `WarLegendRaidTool_Skyborne` (lignes de force / convergences Skyborne, chargé quand il faut)
-   - `WarLegendRaidTool_Myslot` (sauvegarde des barres, macros, raccourcis, chargé quand il faut)
-   - `WarLegendRaidTool_DoesItDie` (marques des DoT, chargé seulement une fois allumé)
 
 ### À la main (si WowUp pose problème)
 
@@ -107,8 +105,7 @@ Copier ces fichiers (ceux qui existent) :
 | `WarLegendRaidTool.lua` | Tout le noyau : réglages, presets de groupes, historiques, membres, présences, loot, etc. **Le plus important.** |
 | `WarLegendRaidTool_PvP.lua` | Réglages des cadres de champ de bataille. |
 | `WarLegendRaidTool_Skyborne.lua` | Positions Skyborne (si tu en as un). |
-| `WarLegendRaidTool_Myslot.lua` | Exports Myslot nommés (`MyslotExports`). Ses réglages (`MyslotSettings`) sont par personnage, dans `WTFAccount<compte><royaume><personnage>SavedVariables`. |
-| `WarLegendRaidTool_DoesItDie.lua` | Réglages de DoesItDie (`DoesItDieDB`). |
+| `WarLegendRaidTool.lua` (dans le dossier du personnage : `WTF\Account\<compte>\<royaume>\<personnage>\SavedVariables\`) | Réglages Myslot propres au personnage (`MyslotSettings`). Les exports Myslot (`MyslotExports`) et les réglages de DoesItDie (`DoesItDieDB`) sont dans le `WarLegendRaidTool.lua` du compte. |
 
 Les fichiers `.lua.bak` à côté sont une copie de secours faite par le jeu : les garder aussi, ça ne coûte rien.
 
@@ -136,4 +133,4 @@ Le plus simple et le plus sûr : **copier tout le dossier `WTF`** dans un endroi
 
 ---
 
-*Version courte à retenir : WowUp → URL du dépôt → six addons cochés → `/wl`. Avant un wipe : jeu fermé, copier `WTF\Account\<compte>\SavedVariables`, remettre après le premier lancement.*
+*Version courte à retenir : WowUp → URL du dépôt → quatre addons cochés → `/wl`. Avant un wipe : jeu fermé, copier `WTF\Account\<compte>\SavedVariables`, remettre après le premier lancement.*

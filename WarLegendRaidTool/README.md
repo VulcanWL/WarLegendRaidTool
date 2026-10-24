@@ -23,24 +23,22 @@ Monochrome, logo de la même couleur).
 
 ## Installation
 
-Il faut **six dossiers** dans `World of Warcraft\_classic_beta_\Interface\AddOns\` :
+Il faut **quatre dossiers** dans `World of Warcraft\_classic_beta_\Interface\AddOns\` :
 
 ```
 AddOns\
 ├── WarLegendRaidTool\        noyau (toujours chargé)
 ├── WarLegendRaidTool_Raid\   modules de raid (chargés à la demande, comme BigWigs)
 ├── WarLegendRaidTool_PvP\    cadres ennemis / alliés en champ de bataille (chargés à la demande)
-├── WarLegendRaidTool_Skyborne\  épingles lignes de force / convergences sur la carte (à la demande)
-├── WarLegendRaidTool_Myslot\    sauvegarde des barres, macros, raccourcis (à la demande, /wl myslot)
-└── WarLegendRaidTool_DoesItDie\ marques des DoT sur la cible et les barres de nom (à la demande, /wl did)
+└── WarLegendRaidTool_Skyborne\  épingles lignes de force / convergences sur la carte (à la demande)
 ```
 
-Le plus simple : télécharger le zip de la dernière **Release** (les six dossiers sont à la racine) et le
+Le plus simple : télécharger le zip de la dernière **Release** (les quatre dossiers sont à la racine) et le
 décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer depuis une URL* → adresse de ce dépôt.
 
 ## Premier lancement
 
-1. Vérifier que les six addons sont cochés dans la liste des addons.
+1. Vérifier que les quatre addons sont cochés dans la liste des addons.
 2. `/wl` ouvre la fenêtre. Le chargement des modules de raid se fait tout seul (groupe, donjon, `/wl`),
    celui des cadres PvP en entrant dans un champ de bataille (réglages : `/wl pvp`).
 3. Raccourci de rechargement : Échap → Options → Raccourcis → AddOns → WaR LegenD RaidTool.
@@ -109,8 +107,8 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl bg` | Historique de mes premades de BG, stats par joueur, records par BG (victoires les plus rapides). |
 | `/wl mino` | Minotaure (règles de WarLegend v3, Sashoof) : classement JcJ de la guilde par saisons de 28 jours (UTC, à partir du lundi 12 octobre 2026). 5 points par victoire honorable (monde ou BG), 30 par victoire en BG, 200 points par jour au plus ; score sur 100 = 50 × monde / (monde + 200) + 50 × BG / (BG + 200). Défis de la semaine (victoires honorables, victoires et BG joués, victoires selon le rôle déclaré dans Classes), historique de mes saisons. Les totaux des autres membres viennent de leur addon (affichés « déclaré »). |
 | `/wl sk` | Skyborne (personnages de race Skyborne seulement) : épingles des lignes de force (Alliance) ou convergences élémentaires (Horde) sur la carte du monde, positions connues + celles que tu trouves (sort racial ou détection sur la minicarte). Réglages dans les options de l'interface du jeu (`/wl sk`) ; `/wl sk export` copie tes positions ; `/wl sk share` état du partage ; partage des repérages (phase, position, heure) avec les autres joueurs de l'addon par un canal caché, **activé par défaut sur les Skyborne** (désactivable dans les réglages). Addon à la demande `WarLegendRaidTool_Skyborne`, basé sur *Skyborne Leyline & Convergence Marker* de tr0tsky (licence MIT). |
-| `/wl myslot` | Myslot : sauvegarde et restaure tes barres d'action, macros, raccourcis clavier et réglages, en texte à copier ou en exports nommés (passage d'un personnage ou d'un compte à l'autre). Aussi dans Options > Petits automatismes > Myslot. L'import remplace tes barres : refusé en combat, confirmation de Myslot. Addon à la demande `WarLegendRaidTool_Myslot` (*Myslot* de Boshi Lian, licence Apache 2.0, données dans `MyslotExports` : désactive l'addon Myslot d'origine s'il est installé). |
-| `/wl did` | DoesItDie : marque sur la barre de vie de ta cible (et sur les barres de nom) les dégâts que tes DoT doivent encore faire, icône de mort quand ils vont l'achever. **Éteint par défaut** : Raid > Combat > DoesItDie (case à cocher, affichage sur les barres de nom : rien / marque / marque et icône). `/wl did` ouvre ses options (`/did` aussi). Addon à la demande `WarLegendRaidTool_DoesItDie` (*DoesItDie* 0.8.3 de Joe Greive, licence MIT, données dans `DoesItDieDB` : désactive l'addon d'origine s'il est installé). |
+| `/wl myslot` | Myslot : sauvegarde et restaure tes barres d'action, macros, raccourcis clavier et réglages, en texte à copier ou en exports nommés (passage d'un personnage ou d'un compte à l'autre). Aussi dans Options > Petits automatismes > Myslot. L'import remplace tes barres : refusé en combat, confirmation de Myslot. Intégré à l'addon (dossier `Myslot`, *Myslot* de Boshi Lian, licence Apache 2.0, données dans `MyslotExports` : désactive l'addon Myslot d'origine s'il est installé). |
+| `/wl did` | DoesItDie : marque sur la barre de vie de ta cible (et sur les barres de nom) les dégâts que tes DoT doivent encore faire, icône de mort quand ils vont l'achever. **Éteint par défaut** : Raid > Combat > DoesItDie (case à cocher, affichage sur les barres de nom : rien / marque / marque et icône). `/wl did` ouvre ses options (`/did` aussi). Intégré à l'addon (dossier `DoesItDie`, rien ne tourne tant qu'il est éteint ; l'allumer ou l'éteindre demande un `/reload` ; *DoesItDie* 0.8.3 de Joe Greive, licence MIT, données dans `DoesItDieDB` : désactive l'addon d'origine s'il est installé). |
 | `/wl gy` | Active / coupe le test du chrono de cimetière (fausses vagues). |
 | `/wl pvp` | Réglages des cadres PvP, par côté (sous-onglets Ennemis / Alliés). Case « Synchro » à leur gauche : un réglage changé s'applique aux deux côtés (les réglages déjà différents restent tels quels). Largeur, hauteur, échelle et hauteur de la barre d'énergie (sous la barre de vie) sont réglables. |
 | `/wl pvpcheck` | Vérifie si les restrictions d'addons sont actives dans ce champ de bataille. |

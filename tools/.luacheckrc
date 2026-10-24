@@ -1,5 +1,5 @@
 -- WarLegend RaidTool - Luacheck settings (not shipped).
--- luacheck --config tools/.luacheckrc WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne WarLegendRaidTool_Myslot WarLegendRaidTool_DoesItDie
+-- luacheck --config tools/.luacheckrc WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne
 -- Run by the CI workflow (.github/workflows/wlrt-ci.yml). It finds what tools/check.js does not look for:
 -- unused variables and values, a value that never reaches its variable ("a and f()" keeps one value), "not x == y",
 -- shadowed locals, empty branches, unreachable code.
@@ -32,5 +32,5 @@ files["WarLegendRaidTool_Raid/RaidBuffs.lua"] = { ignore = { "241/BUFF_BY" } }
 files["WarLegendRaidTool_Raid/RaidCooldowns.lua"] = { ignore = { "211/UI" } }
 files["WarLegendRaidTool_Raid/Readiness.lua"] = { ignore = { "211/asked" } }
 files["WarLegendRaidTool_Skyborne"] = { ignore = { "211/ADDON", "211/W", "311/saved" } }
-files["WarLegendRaidTool_Myslot"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- Myslot (Boshi Lian) as upstream: only syntax errors are looked at
-files["WarLegendRaidTool_DoesItDie"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- DoesItDie (Joe Greive) as upstream: only syntax errors are looked at
+files["WarLegendRaidTool/Myslot"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- Myslot (Boshi Lian) as upstream: only syntax errors are looked at
+files["WarLegendRaidTool/DoesItDie"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- DoesItDie (Joe Greive) as upstream: only syntax errors are looked at

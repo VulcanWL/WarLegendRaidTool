@@ -2273,7 +2273,7 @@ W.slash.perf = function()
         W.Print(string.format(L("CPU: %.3f ms per frame (recent), %.3f ms (last boss fight), peak %.2f ms"),
             get(M.RecentAverageTime), get(M.EncounterAverageTime), get(M.PeakTime)))
         -- the load-on-demand addons, once loaded: they have their own figures (the battleground frames are in the PvP one)
-        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Myslot", "WarLegendRaidTool_DoesItDie" }) do
+        for _, name in ipairs({ "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do
             if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) then
                 W.Print(string.format(L("  %s: %.3f ms per frame (recent), peak %.2f ms"), (name:gsub("^WarLegendRaidTool_", "")),
                     get(M.RecentAverageTime, name), get(M.PeakTime, name)))

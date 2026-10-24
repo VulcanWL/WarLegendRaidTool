@@ -5,7 +5,8 @@
 ## Version: 1.36.1
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 ## Notes-frFR: Outils de raid et de guilde WaR LegenD : groupes, loot council (style RCLootCouncil), loot log, soft-res, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
-## SavedVariables: WarLegendRaidToolDB
+## SavedVariables: WarLegendRaidToolDB, MyslotExports, DoesItDieDB
+## SavedVariablesPerCharacter: MyslotSettings
 ## OptionalDeps: RaidPresets, EllesmereUI, Blizzard_MapCanvas, Blizzard_WorldMap
 
 Libs\LibStub.lua
@@ -53,8 +54,35 @@ Minotaure.lua
 LootSparkles.lua
 Settings.lua
 Skyborne.lua
+Myslot\Libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
+Myslot\Libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
+Myslot\Libs\base64.lua
+Myslot\Libs\crc32.lua
+Myslot\Libs\lua-pb\lua-pb.xml
+Myslot\protobuf\Myslot.lua
+Myslot\event.lua
+Myslot\locales.lua
+Myslot\keys.lua
+Myslot\Myslot.lua
+Myslot\gui.lua
+Myslot\share.lua
+Myslot\options.lua
 Myslot.lua
 LootTriage.lua
+DoesItDie\Locale.lua
+DoesItDie\Locale_deDE.lua
+DoesItDie\Locale_esES.lua
+DoesItDie\Locale_frFR.lua
+DoesItDie\Locale_koKR.lua
+DoesItDie\Locale_ptBR.lua
+DoesItDie\Locale_zhCN.lua
+DoesItDie\DoesItDie.lua
+DoesItDie\Display.lua
+DoesItDie\Frames.lua
+DoesItDie\Options.lua
+DoesItDie\Nameplates.lua
+DoesItDie\Focus.lua
+DoesItDie\Execute.lua
 DoesItDie.lua
 MapTools.lua
 Audit.lua

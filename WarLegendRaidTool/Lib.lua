@@ -721,3 +721,11 @@ function W.Table(parent, cols, h, rowH)
     holder.list = list
     return holder
 end
+
+-- Private table of an addon ported inside this folder (DoesItDie, Myslot): it stands in for the "..." table the
+-- game gives each addon, which here would be shared by every file of WarLegendRaidTool.
+local spaces = {}
+function W.Space(name)
+    spaces[name] = spaces[name] or {}
+    return spaces[name]
+end

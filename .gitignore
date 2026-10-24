@@ -3,8 +3,6 @@
 !/WarLegendRaidTool_Raid/
 !/WarLegendRaidTool_PvP/
 !/WarLegendRaidTool_Skyborne/
-!/WarLegendRaidTool_Myslot/
-!/WarLegendRaidTool_DoesItDie/
 !/.gitignore
 !/.gitattributes
 # only our workflows and Dependabot: the rest of .github on disk belongs to EllesmereUI
