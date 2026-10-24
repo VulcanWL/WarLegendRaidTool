@@ -3,7 +3,7 @@
 ## Notes: Marks the damage your DoTs still have left on your target's health bar and nameplates, kill icon when they finish it (DoesItDie 0.8.3 by Joe Greive, MIT). Loaded on demand by WarLegendRaidTool (/wl did).
 ## Notes-frFR: Marque les dégâts que vos DoT doivent encore faire sur la barre de vie de la cible et les barres de nom, icône de mort s'ils l'achèvent (DoesItDie 0.8.3 de Joe Greive, MIT). Chargé à la demande par WarLegendRaidTool (/wl did).
 ## Author: WarLegend, Joe Greive (DoesItDie)
-## Version: 1.36.0
+## Version: 1.36.1
 ## X-License: MIT
 ## Dependencies: WarLegendRaidTool
 ## LoadOnDemand: 1
