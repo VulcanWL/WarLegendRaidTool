@@ -5,6 +5,8 @@
 local API = ...
 local M = { errors = {}, chat = {}, addon = {}, prints = {}, blocked = {}, sensitive = {}, now = 1000, combat = false }
 SMOKE = M
+-- fengari has no garbage collector control (lua_gc): "count" answers a fixed size, the rest does nothing
+collectgarbage = function(opt) if opt == nil or opt == "count" then return 1024 end return 0 end
 
 ---------------------------------------------------------------------------
 -- API answers from Blizzard's documentation: typed neutral values

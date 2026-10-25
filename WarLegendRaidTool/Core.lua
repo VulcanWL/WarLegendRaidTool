@@ -64,7 +64,8 @@ end
 -- (debugprofilestop, microseconds) and the slowest are listed with the file and line that made them.
 ---------------------------------------------------------------------------
 local clock = debugprofilestop
-local costs = {} -- [label] = { max, count, total }
+local costs = {} -- [label] = { max, count, total, kb }
+local gcCount = collectgarbage
 function W.Where(level)
     local s = debugstack and debugstack((level or 2) + 1, 1, 0) or ""
     local file, line = s:match("([%w_]+%.lua)%D+(%d+)")
@@ -73,20 +74,24 @@ end
 
 function W.Measure(label, fn, ...)
     if not clock then return pcall(fn, ...) end
-    local t0 = clock()
+    local k0, t0 = gcCount("count"), clock()
     local ok, err = pcall(fn, ...)
     local dt = clock() - t0
+    -- KB allocated by the run (tables, strings, closures: what makes the garbage collector work); a
+    -- collection during the run makes it negative: counted as 0 then (undercounts, never invents)
+    local dk = gcCount("count") - k0
     local c = costs[label]
-    if not c then c = { max = 0, count = 0, total = 0 }; costs[label] = c end
+    if not c then c = { max = 0, count = 0, total = 0, kb = 0 }; costs[label] = c end
     c.count, c.total = c.count + 1, c.total + dt
+    if dk > 0 then c.kb = c.kb + dk end
     if dt > c.max then c.max = dt end
     return ok, err
 end
 
--- the n slowest (one run), { label, max ms, count, total ms }
+-- the n slowest (one run), { label, max ms, count, total ms, KB allocated in all }
 function W.SlowestWork(n)
     local list = {}
-    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
+    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total, c.kb } end
     table.sort(list, function(a, b) return a[2] > b[2] end)
     while #list > (n or 5) do table.remove(list) end
     return list
@@ -95,8 +100,19 @@ end
 -- the n busiest (most time in all since the login), same entries: what costs frames, even in small runs
 function W.BusiestWork(n)
     local list = {}
-    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total } end
+    for label, c in pairs(costs) do list[#list + 1] = { label, c.max, c.count, c.total, c.kb } end
     table.sort(list, function(a, b) return a[4] > b[4] end)
+    while #list > (n or 5) do table.remove(list) end
+    return list
+end
+
+-- the n that allocate the most memory in all (same entries): the garbage makers
+function W.HungriestWork(n)
+    local list = {}
+    for label, c in pairs(costs) do
+        if c.kb >= 1 then list[#list + 1] = { label, c.max, c.count, c.total, c.kb } end
+    end
+    table.sort(list, function(a, b) return a[5] > b[5] end)
     while #list > (n or 5) do table.remove(list) end
     return list
 end
@@ -2303,6 +2319,7 @@ W.AddFR({
         "charger les modules de raid pendant l'écran de chargement (moins de gels) oui / non",
     ["Slowest work (one run, ms):"] = "Travaux les plus lents (une exécution, ms) :",
     ["Busiest work (total ms since login):"] = "Travaux les plus coûteux (total en ms depuis la connexion) :",
+    ["Most memory allocated (KB since login):"] = "Mémoire la plus allouée (Ko depuis la connexion) :",
     ["Raid modules loaded at the loading screen: "] = "Modules de raid chargés à l'écran de chargement : ",
 })
 -- /wl test: the test of every module switched on, at once (again: stops it); /wl test stop
@@ -2341,6 +2358,11 @@ W.slash.perf = function()
     if #busy > 0 then
         W.Print(L("Busiest work (total ms since login):"))
         for _, s in ipairs(busy) do W.Print(string.format("  %.0f  %s  (x%d, max %.1f)", s[4], s[1], s[3], s[2])) end
+    end
+    local hungry = W.HungriestWork(5)
+    if #hungry > 0 then
+        W.Print(L("Most memory allocated (KB since login):"))
+        for _, s in ipairs(hungry) do W.Print(string.format("  %.0f  %s  (x%d, %.2f KB per run)", s[5], s[1], s[3], s[5] / s[3])) end
     end
     W.Print(L("Raid modules loaded at the loading screen: ") .. (W.DB("ui").preloadRaid and L("YES") or L("no"))
         .. "  |cff999999(/wl preload)|r")
