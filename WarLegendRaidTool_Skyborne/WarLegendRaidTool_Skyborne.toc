@@ -3,7 +3,7 @@
 ## Notes: Leylines and elemental convergences on the world map for Skyborne characters (based on Skyborne Leyline & Convergence Marker by tr0tsky, MIT). Loaded on demand by WarLegendRaidTool.
 ## Notes-frFR: Lignes de force et convergences élémentaires sur la carte pour les personnages Skyborne (basé sur Skyborne Leyline & Convergence Marker de tr0tsky, MIT). Chargé à la demande par WarLegendRaidTool.
 ## Author: WarLegend, tr0tsky (Skyborne Leyline & Convergence Marker)
-## Version: 1.40.0
+## Version: 1.40.1
 ## X-License: MIT
 ## Dependencies: WarLegendRaidTool
 ## OptionalDeps: Blizzard_WorldMap

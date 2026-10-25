@@ -3,7 +3,9 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (24/10/2026)
+## Maintenant (25/10/2026)
+
+- **Version publiée (25/10)** : 1.40.1 (tag `v1.40.1`) = correctifs. Modules désactivés vraiment éteints (audit des dépendances) : premier rafraîchissement d Upgrades / MoneyGoal, LoadTimes (cadre à lui), clic droit minicarte (pas de chargement en combat ni avec Raid Groups éteint), boucle locale solo (`W.AddonOff`), RaidInspect -> Dashboard, invitations RaidGroups -> InviteTool, GuildBank signale Alts éteint, addon de raid non chargé pour un module éteint (`OffKey`). Loot council : les attributions d une session test (bouton Test ou session seul) ne sont plus enregistrées comme vrai loot (marquées `test`, hors comptes 30 j et CSV, retirées au reload). Vérifié : check 0, hook-check 0, smoke + open world + bg 0. **Rien testé en jeu.**
 
 - **Version publiée (24/10)** : 1.40.0 (tag `v1.40.0`) = durcissement des messages et perf, idées de Naowh, EllesmereUI, Overlord, RCLootCouncil (audités en lecture seule). Messages : taille décompressée lue dans les codes deflate avant `DecompressString` (`W.InflatedSize` / `W.Inflate`, Lib.lua, RaidGroups), plafond par expéditeur (40 messages / 5 s dans Dispatch, 4 messages longs en cours par expéditeur), alerte de version après 2 joueurs. Perf : `W.Coalesce` (RaidCooldowns, AuraTracker, vote du loot), mémoire allouée par fonction dans `/wl perf`, `/wl perf log` (10 sessions, ~12 Ko, `perfLog`). Loot council : conseil en plusieurs messages « C » (15 noms dépassaient 255 octets), objet / attribution / réponse / note / vote verrouillés, resync « Q » après un reload (le ML chuchote, 3 joueurs / 30 s), session du ML gardée 10 min, session fermée si le ML quitte le groupe, noms du conseil = clé de l unité. Vérifié : check 0, smoke + open world + bg 0, wow-api 0 nouveau, banc deflate réel (raw / zlib / gzip, bombe 5 Mo refusée). **Rien testé en jeu** : session de loot à 2+, reload raider puis ML.
 
