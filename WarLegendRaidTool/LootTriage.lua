@@ -39,7 +39,8 @@ local ItemLink = C.GetContainerItemLink or _G.GetContainerItemLink
 local CLASS_QUEST = (Enum and Enum.ItemClass and Enum.ItemClass.Questitem) or 12
 local NUM_BAGS = NUM_BAG_SLOTS or 4
 
-local function On(what) return db and db.enabled and db[what] end
+-- the hooks stay installed: they do nothing once the module is switched off (Settings > Modules) or out of the guild
+local function On(what) return db and db.enabled and db[what] and W.Allowed() and not W.IsOff("LootTriage") end
 
 ---------------------------------------------------------------------------
 -- Prices (per unit, in copper)

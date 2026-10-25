@@ -287,10 +287,19 @@ function LC.SRFor(str)
     return id and db.sr[id] or nil
 end
 
+-- a soft-res name and a player: the same full name, or the same first name when one side has no surname /
+-- realm (a softres.it import), so two raiders sharing a first name keep their own whispered soft-res
+local function SRMatch(a, b)
+    if not a or not b then return false end
+    if a:lower() == b:lower() then return true end
+    if W.HasFullPart(a) and W.HasFullPart(b) then return false end
+    return W.BaseName(a):lower() == W.BaseName(b):lower()
+end
+
 local function HasSR(str, name)
     local list = LC.SRFor(str)
     if not list then return false end
-    for _, n in ipairs(list) do if n:lower() == name:lower() then return true end end
+    for _, n in ipairs(list) do if SRMatch(n, name) then return true end end
     return false
 end
 
@@ -435,8 +444,8 @@ end
 
 local function SameName(a, b) return a and b and a:lower() == b:lower() end
 
-local function MayStart(full)
-    if not W.InGroup() then return true end -- alone: our own test session
+local function MayStart(full, channel)
+    if not W.InGroup() then return channel == "LOCAL" end -- alone: our own test session, never a whisper
     if W.IsGroupLead(full) then return true end
     local u = MasterLooterUnit()
     return u and SameName(W.UnitFullName(u), full) or false
@@ -450,8 +459,8 @@ local function FromML(full)
     return W.SameUnit(a, b)
 end
 
-Receive.S = function(t, from, full)
-    if not db.enabled or not MayStart(full) then return end
+Receive.S = function(t, from, full, channel)
+    if not db.enabled or not MayStart(full, channel) then return end
     -- a session driven by someone else is not reset by another leader (10 min: one whose end never came)
     if S and not SameName(S.mlFull, full) and GetTime() - S.started < 600 then return end
     -- the session I already have (a resync answer for someone else, a repeat): kept as it is
@@ -733,7 +742,7 @@ W.OnAddon(PREFIX, function(msg, from, channel, full)
     local t = W.Unpack(msg)
     if not LOOT_CHANNELS[channel] and not (channel == "WHISPER" and WHISPERED[t[1]]) then return end
     local fn = Receive[t[1]]
-    if fn then fn(t, from, full or W.FullName(from)) end
+    if fn then fn(t, from, full or W.FullName(from), channel) end
 end)
 
 ---------------------------------------------------------------------------
@@ -828,7 +837,7 @@ function LC.ShowLootFrame()
                 r.tex:SetTexture(W.ItemIcon(item.str))
                 r.name:SetText(W.ItemLink(item.str))
                 local lvl = Ilvl(item.str)
-                local sr = HasSR(item.str, Me()) and "  |cff00ccffSR|r" or ""
+                local sr = HasSR(item.str, W.UnitDisplayName("player") or Me()) and "  |cff00ccffSR|r" or ""
                 r.info:SetText((lvl and ("ilvl " .. lvl .. "  ") or "") .. (_G[EquipLoc(item.str) or ""] or "") .. sr)
                 r.note:SetText("")
                 r:ClearAllPoints()
@@ -1058,7 +1067,7 @@ function LC.RefreshVote()
     for i, c in ipairs(list) do
         local r = f.list:Row(i)
         r.cand = c
-        local tag = HasSR(item.str, W.BaseName(c.name)) and " |cff00ccffSR|r" or ""
+        local tag = HasSR(item.str, c.name) and " |cff00ccffSR|r" or ""
         r.cells[1]:SetText(W.ColorName(c.name, c.class) .. tag)
         r.cells[2]:SetText(c.rank or "")
         r.cells[3]:SetText(RespText(c.resp))
@@ -1344,7 +1353,7 @@ end, nil, true) -- on in a raid with the loot log enabled (LC.Watch)
 local function PlayerSR(name)
     local out = {}
     for id, list in pairs(db.sr) do
-        for _, n in ipairs(list) do if n:lower() == name:lower() then out[#out + 1] = id end end
+        for _, n in ipairs(list) do if SRMatch(n, name) then out[#out + 1] = id; break end end
     end
     return out
 end
@@ -1361,7 +1370,7 @@ function LC.AddSR(name, id)
         db.sr[id] = {}
     end
     if #db.sr[id] >= SR_MAX_NAMES then return false end
-    for _, n in ipairs(db.sr[id]) do if n:lower() == name:lower() then return false end end
+    for _, n in ipairs(db.sr[id]) do if SRMatch(n, name) then return false end end
     table.insert(db.sr[id], name)
     return true
 end
@@ -1391,7 +1400,7 @@ local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
     if not text or not sender or not text:lower():match("^!sr") then return end
     -- only my group and my guild can soft-reserve; answers go to the full "Name-Realm"
     if not (W.UnitByName(W.FullName(sender)) or W.GuildMember(sender)) then return end
-    local name = W.BaseName(sender)
+    local name = W.Plain(W.FOREVER and W.FullName(sender) or W.BaseName(sender), 40) -- with the surname on Forever
     local rest = text:gsub("^!%a+%s*", "")
     local mine = PlayerSR(name)
     local function list()

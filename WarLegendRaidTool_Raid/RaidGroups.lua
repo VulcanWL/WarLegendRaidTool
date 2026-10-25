@@ -1393,7 +1393,7 @@ local function BuildFreePanel(parent)
         local name = W.SanitizeName(add:GetText())
         local class
         if name == "" and UnitExists("target") and UnitIsPlayer("target") then
-            name = W.Safe(UnitName("target")) or ""
+            name = W.UnitDisplayName("target") or ""
             class = W.UnitClassToken("target")
         end
         if name == "" then W.Print(L("Type a name or target a player.")); return end

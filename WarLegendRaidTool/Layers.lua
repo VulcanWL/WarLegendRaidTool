@@ -277,7 +277,7 @@ function Refresh()
     end
     local list = {}
     if current then
-        list[#list + 1] = { name = UnitName("player"), full = W.UnitFullName("player"), id = current.id, map = current.map,
+        list[#list + 1] = { name = W.UnitDisplayName("player") or "?", full = W.UnitFullName("player"), id = current.id, map = current.map,
             zone = current.zone, at = current.at, me = true }
     end
     for key, e in pairs(guild) do
@@ -294,7 +294,7 @@ function Refresh()
         local m = W.GuildMember(e.full)
         local old = now - e.at > FRESH
         local same = current and not e.me and e.map == current.map and e.id == current.id
-        local name = W.ColorName(e.name, m and m.class or (e.me and select(2, UnitClass("player")))) .. (e.me and (" " .. L("(me)")) or "")
+        local name = W.ColorName((W.FOREVER and e.full) or e.name, m and m.class or (e.me and select(2, UnitClass("player")))) .. (e.me and (" " .. L("(me)")) or "")
         if selected and W.Key(e.full) == W.Key(selected) then name = "|cffffff00> |r" .. name end
         local layer = string.format(L("Layer %d"), e.n)
         rows[#rows + 1] = { full = e.full, me = e.me, cells = {

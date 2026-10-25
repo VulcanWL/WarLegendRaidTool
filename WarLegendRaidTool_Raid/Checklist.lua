@@ -96,9 +96,12 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
         if GetTime() - lastAnswer < 10 then return end -- one answer per 10 s whoever asks
         lastAnswer = GetTime()
         local items = Decode(t[2])
-        local ans = {}
-        for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end
-        W.SendLong(PREFIX, W.Pack("A", table.concat(ans, ",")))
+        -- spread over 2 s: a whole raid must not answer on the same frame
+        W.After(0.2 + math.random() * 1.8, function()
+            local ans = {}
+            for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end
+            W.SendLong(PREFIX, W.Pack("A", table.concat(ans, ",")))
+        end, "checklist answer")
     elseif t[1] == "A" and unit then
         -- answers keyed by full identity: two "Arthur" in the raid stay two rows
         local r = { name = W.UnitDisplayName(unit) or from, class = class, counts = {} }

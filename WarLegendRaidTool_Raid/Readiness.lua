@@ -58,7 +58,6 @@ local UI = {}
 local results, asked, askedAt = {}, {}, 0 -- name -> { {ok, value}, ... } for the last check I started
 local askId -- id of my last check: answers must carry it
 
-local function Me() return W.Safe(UnitName("player")) or "?" end
 
 ---------------------------------------------------------------------------
 -- Requirements
@@ -307,7 +306,7 @@ end
 -- One answer every 5 s at most: a flood of checks ("gold 100", "gold 200"...) must not read my gold step by step.
 local lastAnswered = -1000
 W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
-    if from == Me() or not MayAsk(from, full, channel) then return end
+    if W.IsMe(full or from) or not MayAsk(from, full, channel) then return end
     if GetTime() - lastAnswered < 5 then return end
     lastAnswered = GetTime()
     local id, list = text:match("^(%d+)\n(.*)$")

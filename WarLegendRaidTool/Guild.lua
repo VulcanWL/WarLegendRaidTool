@@ -181,7 +181,8 @@ function G.Inactive()
             if GetGuildRosterLastOnline then y, m, d, h = GetGuildRosterLastOnline(i) end
             local days = (y or 0) * 365 + (m or 0) * 30 + (d or 0) + (h or 0) / 24
             if days >= (db.inactiveDays or 14) and not (db.hideOfficers and (rankIndex or 9) <= 1) then
-                out[#out + 1] = { name = W.BaseName(name), rank = rank, level = level, class = class, days = days, note = note or "" }
+                -- "First Surname" on Forever: two inactive members may share a first name
+                out[#out + 1] = { name = W.FOREVER and W.FullName(name) or W.BaseName(name), rank = rank, level = level, class = class, days = days, note = note or "" }
             end
         end
     end
@@ -686,7 +687,7 @@ end
 -- Recruitment
 ---------------------------------------------------------------------------
 local function Fill(msg)
-    return ((msg or ""):gsub("{guild}", GuildName() or ""):gsub("{me}", Me()))
+    return ((msg or ""):gsub("{guild}", GuildName() or ""):gsub("{me}", W.UnitDisplayName("player") or Me()))
 end
 
 function G.Post()

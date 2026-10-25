@@ -353,12 +353,12 @@ function Refresh()
     if tab == 1 then
         local list = {}
         if s.world + s.bg + s.matches > 0 then
-            list[#list + 1] = { name = UnitName("player"), class = select(2, UnitClass("player")), w = s.world, b = s.bg, v = s.wins, m = s.matches, me = true }
+            list[#list + 1] = { name = W.UnitDisplayName("player") or "?", class = select(2, UnitClass("player")), w = s.world, b = s.bg, v = s.wins, m = s.matches, me = true }
         end
         for _, p in pairs(db.peers) do
             if p.s == start then
                 local g = W.GuildMember(p.f)
-                list[#list + 1] = { name = p.n, full = p.f, class = g and g.class, w = p.w, b = p.b, v = p.v, m = p.m }
+                list[#list + 1] = { name = (W.FOREVER and p.f) or p.n, full = p.f, class = g and g.class, w = p.w, b = p.b, v = p.v, m = p.m }
             end
         end
         for _, e in ipairs(list) do e.score = Score(e.w, e.b) end
