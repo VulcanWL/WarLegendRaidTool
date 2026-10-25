@@ -124,13 +124,34 @@ function W.SendChat(text, channel, target)
     return ok
 end
 
+-- Perf history, like BugSack for errors: the last PERF_KEEP sessions (login / reload to logout / reload),
+-- kept even with the audit off. Bounded: 5 lines per list, labels cut, so 10 sessions stay near 12 KB
+-- of the saved file. A short session (quick /reload) is kept only if it had a freeze: else it would
+-- push out the long ones.
+local PERF_KEEP, PERF_LINES, PERF_LABEL = 10, 5, 60
+local PERF_MIN_SECONDS, PERF_FREEZE_MS = 180, 50
+
+local function Line(s, fmt, ...) return string.format("%s|" .. fmt, s[1]:sub(1, PERF_LABEL), ...) end
+
+local function KeepPerf(perf)
+    local log = W.DB("perfLog")
+    if type(log.sessions) ~= "table" then log.sessions = {} end
+    local slowest = W.SlowestWork(1)[1]
+    local start = cur and cur.start or time()
+    if time() - start < PERF_MIN_SECONDS and not (slowest and slowest[2] >= PERF_FREEZE_MS) then return end
+    local entry = { start = start, stop = time(), version = W.version, group = perf.group, memoryKB = perf.memoryKB,
+        cpuAvgMs = perf.cpuAvgMs, cpuPeakMs = perf.cpuPeakMs, busiest = {}, slowest = {}, hungriest = {} }
+    -- "label|runs|total ms|slowest run ms" / "label|runs|KB in all"
+    for _, s in ipairs(W.BusiestWork(PERF_LINES)) do entry.busiest[#entry.busiest + 1] = Line(s, "%d|%.1f|%.2f", s[3], s[4], s[2]) end
+    for _, s in ipairs(W.SlowestWork(PERF_LINES)) do entry.slowest[#entry.slowest + 1] = Line(s, "%d|%.1f|%.2f", s[3], s[4], s[2]) end
+    for _, s in ipairs(W.HungriestWork(PERF_LINES)) do entry.hungriest[#entry.hungriest + 1] = Line(s, "%d|%.0f", s[3], s[5]) end
+    table.insert(log.sessions, 1, entry) -- newest first
+    while #log.sessions > PERF_KEEP do table.remove(log.sessions) end
+end
+
 -- Cost of our own work and memory, taken when the game closes or reloads (the file is written right after)
 local function Snapshot()
-    if not (cfg and cfg.on and cur) then return end
     local perf = { busiest = {}, slowest = {} }
-    -- "label|runs|total ms|slowest run ms" (debugprofilestop counts in milliseconds)
-    for _, s in ipairs(W.BusiestWork(8)) do perf.busiest[#perf.busiest + 1] = string.format("%s|%d|%.1f|%.2f", s[1], s[3], s[4], s[2]) end
-    for _, s in ipairs(W.SlowestWork(5)) do perf.slowest[#perf.slowest + 1] = string.format("%s|%d|%.1f|%.2f", s[1], s[3], s[4], s[2]) end
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
         perf.memoryKB = math.floor(GetAddOnMemoryUsage(W.ADDON) or 0)
@@ -141,7 +162,36 @@ local function Snapshot()
         perf.cpuPeakMs = P.GetAddOnMetric(W.ADDON, M.PeakTime) or 0
     end
     perf.group = W.InRaid() and "raid" or (W.InGroup() and "group" or "solo")
+    KeepPerf(perf)
+    if not (cfg and cfg.on and cur) then return end
+    -- "label|runs|total ms|slowest run ms" (debugprofilestop counts in milliseconds)
+    for _, s in ipairs(W.BusiestWork(8)) do perf.busiest[#perf.busiest + 1] = string.format("%s|%d|%.1f|%.2f", s[1], s[3], s[4], s[2]) end
+    for _, s in ipairs(W.SlowestWork(5)) do perf.slowest[#perf.slowest + 1] = string.format("%s|%d|%.1f|%.2f", s[1], s[3], s[4], s[2]) end
     cur.perf, cur.stop = perf, time()
+end
+
+-- /wl perf log: the sessions kept, newest first (the worst freeze and the biggest garbage maker of each)
+W.AddFR({
+    ["Perf history: nothing kept yet (sessions of 3 min or more, or with a freeze, at logout / reload)."] =
+        "Historique perf : rien de gardé pour l'instant (sessions de 3 min ou plus, ou avec un gel, à la sortie / au reload).",
+    ["Perf history (newest first, file WTF > SavedVariables > WarLegendRaidTool.lua):"] =
+        "Historique perf (le plus récent d'abord, fichier WTF > SavedVariables > WarLegendRaidTool.lua) :",
+    ["  %s  %d min  %s  v%s  memory %s KB  worst %s  garbage %s"] =
+        "  %s  %d min  %s  v%s  mémoire %s Ko  pire %s  déchets %s",
+})
+function W.PerfLogPrint()
+    local log = W.DB("perfLog")
+    local list = type(log.sessions) == "table" and log.sessions or {}
+    if #list == 0 then W.Print(L("Perf history: nothing kept yet (sessions of 3 min or more, or with a freeze, at logout / reload).")); return end
+    W.Print(L("Perf history (newest first, file WTF > SavedVariables > WarLegendRaidTool.lua):"))
+    for _, e in ipairs(list) do
+        local worst = e.slowest and e.slowest[1]
+        local fat = e.hungriest and e.hungriest[1]
+        worst = worst and (worst:match("^([^|]*)") .. " " .. (worst:match("([%d%.]+)$") or "?") .. " ms") or "-"
+        fat = fat and (fat:match("^([^|]*)") .. " " .. (fat:match("([%d%.]+)$") or "?") .. " KB") or "-"
+        W.Print(string.format(L("  %s  %d min  %s  v%s  memory %s KB  worst %s  garbage %s"), date("%d/%m %H:%M", e.start or 0),
+            math.floor(((e.stop or 0) - (e.start or 0)) / 60), e.group or "?", e.version or "?", tostring(e.memoryKB or "?"), worst, fat))
+    end
 end
 W.On("PLAYER_LOGOUT", Snapshot, true)
 

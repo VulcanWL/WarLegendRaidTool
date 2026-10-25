@@ -175,6 +175,14 @@ for (const acc of accounts) {
         if (p.slowest && p.slowest.length) console.log("       slowest: " + p.slowest.slice(0, 3).map((s) => s.split("|")[0] + " " + s.split("|")[3] + " ms").join("; "));
         if (p.busiest && p.busiest.length) console.log("       busiest: " + p.busiest.slice(0, 3).map((s) => s.split("|")[0] + " " + s.split("|")[2] + " ms/" + s.split("|")[1]).join("; "));
     }
+    const perfLog = db && db.perfLog && db.perfLog.sessions;
+    const perfList = perfLog ? (Array.isArray(perfLog) ? perfLog : Object.values(perfLog)) : [];
+    console.log("  perf history (/wl perf log): " + (perfList.length ? perfList.length + " session(s)" : "none"));
+    for (const e of perfList.slice(0, 5)) {
+        console.log("     " + fmt(e.start) + "  " + Math.floor(((e.stop || 0) - (e.start || 0)) / 60) + " min  v" + e.version + "  " + (e.group || "?") +
+            "  memory " + e.memoryKB + " KB" + (e.slowest && e.slowest[0] ? "  worst " + e.slowest[0].split("|")[0] + " " + e.slowest[0].split("|")[3] + " ms" : "") +
+            (e.hungriest && e.hungriest[0] ? "  garbage " + e.hungriest[0].split("|")[0] + " " + e.hungriest[0].split("|")[2] + " KB" : ""));
+    }
     const bg = db && ((db.pvp && db.pvp.bgMessages) || db.bgMessages);
     console.log("  bgMessages: " + (bg && bg.length ? bg.length + " line(s), newest: " + bg[0] : "none"));
 }

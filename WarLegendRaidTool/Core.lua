@@ -2327,7 +2327,8 @@ W.slash.test = function(rest)
     if rest and rest:lower():match("^%s*stop") then W.StopTests() else W.ToggleTests() end
 end
 
-W.slash.perf = function()
+W.slash.perf = function(rest)
+    if rest and rest:lower():match("^%s*log") and W.PerfLogPrint then return W.PerfLogPrint() end -- Audit.lua
     if UpdateAddOnMemoryUsage and GetAddOnMemoryUsage then
         UpdateAddOnMemoryUsage()
         W.Print(string.format(L("Memory: %.0f KB"), GetAddOnMemoryUsage(ADDON) or 0))
@@ -2407,6 +2408,7 @@ W.AddFR({
     ["show / hide the minimap button"] = "afficher / cacher le bouton de la minicarte",
     ["recent Lua errors"] = "erreurs Lua récentes",
     ["memory and CPU used by the addon"] = "mémoire et CPU utilisés par l'addon",
+    ["perf of the last 10 sessions (saved)"] = "perf des 10 dernières sessions (sauvegardée)",
     ["addon traffic log of the session (on / off)"] = "journal du trafic de l'addon pour la session (on / off)",
     ["world map coordinates, Ctrl+click map pin, reopen on my zone"] = "coordonnées de la carte du monde, repère par Ctrl+clic, carte rouverte sur ma zone",
     ["reset one module's saved data (no name: list them)"] = "remettre à zéro les données d'un module (sans nom : les lister)",
@@ -2456,6 +2458,7 @@ local HELP = {
     { "/wl minimap", "show / hide the minimap button" },
     { "/wl bugs", "recent Lua errors" },
     { "/wl perf", "memory and CPU used by the addon" },
+    { "/wl perf log", "perf of the last 10 sessions (saved)" },
     { "/wl audit", "addon traffic log of the session (on / off)" },
     { "/wl maptools", "world map coordinates, Ctrl+click map pin, reopen on my zone" },
     { "/wl modules", "switch modules fully off (Settings > Modules)" },
