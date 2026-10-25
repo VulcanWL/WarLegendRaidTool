@@ -525,7 +525,7 @@ local function RosterChanged()
     if db and db.enabled then Apply() end
 end
 W.OnRoster(RosterChanged)
-W.On("PLAYER_ROLES_ASSIGNED", RosterChanged)
+W.On("PLAYER_ROLES_ASSIGNED", W.Coalesce(0.5, RosterChanged)) -- a leader setting the tanks fires one per change
 
 ---------------------------------------------------------------------------
 -- Panel

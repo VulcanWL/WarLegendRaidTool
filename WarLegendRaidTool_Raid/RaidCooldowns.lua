@@ -302,6 +302,9 @@ local function Listen()
     else castFrame:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED") end
 end
 
+-- 40 answers to one question come in a few seconds: the window is drawn again once per 0.2 s at most
+local RedrawSoon = W.Coalesce(0.2, function() if win and win:IsShown() then Redraw() end end)
+
 castFrame:SetScript("OnEvent", function(_, _, _, _, spellID)
     if W.IsOff("RaidCooldowns") then return end -- switched off in Settings > Modules
     local id = W.Safe(spellID)
@@ -349,7 +352,7 @@ W.OnAddon(PREFIX, function(msg, from, _, full)
     else
         return
     end
-    if win and win:IsShown() then Redraw() end
+    RedrawSoon()
 end)
 
 local wasInGroup = false

@@ -122,6 +122,19 @@ function W.After(delay, fn, label)
     end)
 end
 
+-- Bursts: returns a function that can be called any number of times; fn runs once, delay seconds after
+-- the first call of the burst (not pushed back by the next ones, unlike W.Debounce: a steady stream still updates).
+function W.Coalesce(delay, fn)
+    local pending = false
+    local label = "timer " .. W.Where(2)
+    local function Run() pending = false; fn() end
+    return function()
+        if pending then return end
+        pending = true
+        W.After(delay, Run, label)
+    end
+end
+
 ---------------------------------------------------------------------------
 -- Events (a single frame for the whole addon)
 ---------------------------------------------------------------------------
