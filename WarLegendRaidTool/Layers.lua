@@ -240,7 +240,7 @@ local function InviteSelected()
     if not selected then return end
     local key = W.Key(selected)
     local e = guild[key]
-    local name = e and e.name or selected
+    local name = e and ((W.FOREVER and e.full) or e.name) or selected
     if InCombatLockdown() or IsInInstance() then W.Print(L("Invite: not in combat or in an instance.")); return end
     if not current then W.Print(L("Invite: my layer is unknown.")); return end
     if not e or e.map ~= current.map or e.id == current.id then
@@ -308,7 +308,7 @@ function Refresh()
     UI.table:SetData(rows)
     if UI.sel then
         local e = selected and guild[W.Key(selected)]
-        UI.sel:SetText(e and string.format(L("Selected: %s"), e.name) or "|cffaaaaaa" .. L("Click a player on another layer of my zone, then Invite.") .. "|r")
+        UI.sel:SetText(e and string.format(L("Selected: %s"), (W.FOREVER and e.full) or e.name) or "|cffaaaaaa" .. L("Click a player on another layer of my zone, then Invite.") .. "|r")
         if UI.invite then
             local ok = e and current and e.map == current.map and e.id ~= current.id and GetServerTime() - e.at <= FRESH
             if ok then UI.invite:Enable() else UI.invite:Disable() end
