@@ -75,7 +75,7 @@ local function CreateBar()
     bar:EnableMouse(true)
     bar:RegisterForDrag("LeftButton")
     bar:SetScript("OnDragStart", function(self) if not db.locked and not InCombatLockdown() then self:StartMoving() end end)
-    bar:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); SavePos() end)
+    bar:SetScript("OnDragStop", function(self) if not InCombatLockdown() then self:StopMovingOrSizing(); SavePos() end end)
     bar:SetPoint(db.point or "CENTER", UIParent, db.relPoint or "CENTER", db.x or 0, db.y or -180)
     for i = 1, 8 do
         -- secure "raidtarget" action on the target: WoW: Forever refuses SetRaidTarget to addon code
@@ -86,7 +86,7 @@ local function CreateBar()
         b:SetAttribute("type2", "raidtarget"); b:SetAttribute("marker2", i); b:SetAttribute("action2", "clear")
         b:RegisterForDrag("LeftButton")
         b:SetScript("OnDragStart", function() if not db.locked and not InCombatLockdown() then bar:StartMoving() end end)
-        b:SetScript("OnDragStop", function() bar:StopMovingOrSizing(); SavePos() end)
+        b:SetScript("OnDragStop", function() if not InCombatLockdown() then bar:StopMovingOrSizing(); SavePos() end end)
         W.Tooltip(b, L("Raid mark: ") .. W.ICON_NAMES[i], { L("Left-click: set on target"), L("Right-click: remove") })
         raidButtons[i] = b
     end
@@ -108,11 +108,12 @@ end
 
 W.OnReady(function()
     db = W.DB("marksBar", { enabled = false, locked = false, mouseover = false, orientation = "HORIZONTAL", scale = 1 })
-    if not InCombatLockdown() then CreateBar() end -- secure buttons: a /reload in combat makes it after
+    -- secure buttons: a /reload in combat makes it after; switched off in the module list: not made at all
+    if not InCombatLockdown() and not W.IsOff("MarksBar") then CreateBar() end
 end)
 
 W.On("PLAYER_REGEN_ENABLED", function()
-    if not bar and db then CreateBar() end
+    if not bar and db and not W.IsOff("MarksBar") then CreateBar() end
     if layoutPending then Layout() end
     ApplyDisplay()
 end)

@@ -83,7 +83,7 @@ local function ToZone(lx, ly)
     local mapID, px, py = PlayerPos()
     local zw, zh
     if mapID then zw, zh = ns.ZoneSizeYards(mapID) end
-    if not zw then return end
+    if not zw or not (C_Minimap and C_Minimap.GetViewRadius) then return end
     local w, h = Minimap:GetSize()
     local ypp = C_Minimap.GetViewRadius() / (w / 2)
     local dx, dy = (lx - w / 2) * ypp, (ly - h / 2) * ypp -- yards; +x east, +y north
@@ -327,8 +327,9 @@ end
 local function Watch()
     if Scanning() or not ns.ScanEnabled() then return FinishSample() end
     local lx, ly = PointerOnMinimap()
+    if not lx then return FinishSample() end -- the tooltip is only read while the pointer is on the minimap
     local ok, node = pcall(HoverShowsNode) -- tooltip text can be secret in combat
-    if not (lx and ok and node) then return FinishSample() end
+    if not (ok and node) then return FinishSample() end
     local mapID, x, y = ToZone(lx, ly)
     if not mapID then return end
     if sample and sample.mapID ~= mapID then FinishSample() end

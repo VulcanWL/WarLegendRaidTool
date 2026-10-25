@@ -65,6 +65,7 @@ function level:AttachToPlayerButton(playerButton)
 
 
 	function fs:SetLevel(level)
+		if issecretvalue and issecretvalue(level) then return end -- WoW Forever secret values can't be compared
 		if not playerButton.PlayerLevel or level ~= playerButton.PlayerLevel then
 			playerButton.PlayerLevel = level
 			

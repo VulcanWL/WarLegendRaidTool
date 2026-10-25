@@ -1330,12 +1330,15 @@ local lootEv = W.On("CHAT_MSG_LOOT", function(msg)
     if not who then
         for _, p in ipairs(PAT_SELF) do
             local a = msg:match(p)
-            if a then who, link = Me(), a; break end
+            if a then who, link = W.UnitDisplayName("player") or Me(), a; break end
         end
     end
     local str = W.ItemString(link)
     if not who or not str then return end
     if (W.ItemQuality(link) or 0) < (db.minQuality or 4) then return end
+    -- saved under the full name when the group tells who it is (two raiders with that first name: it can't)
+    local unit, class = W.UnitByName(who)
+    local winner = unit and W.UnitDisplayName(unit) or W.BaseName(who)
     who = W.BaseName(who)
     -- already recorded by a council award?
     for i = 1, math.min(10, #hist) do
@@ -1343,8 +1346,7 @@ local lootEv = W.On("CHAT_MSG_LOOT", function(msg)
         -- the award keeps the surname ("First Surname" on Forever), the loot line only the first name
         if h.item == str and W.BaseName(h.winner) == who and time() - h.t < 300 then return end
     end
-    local _, class = W.UnitByName(who)
-    Record({ t = time(), item = str, winner = who, class = class, resp = "", zone = ZoneName(), src = "loot" })
+    Record({ t = time(), item = str, winner = winner, class = class, resp = "", zone = ZoneName(), src = "loot" })
 end, nil, true) -- on in a raid with the loot log enabled (LC.Watch)
 
 ---------------------------------------------------------------------------

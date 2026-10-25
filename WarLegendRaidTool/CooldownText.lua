@@ -43,7 +43,7 @@ local function Apply()
 end
 W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload) if isLogin or isReload then Apply() end end)
 
-W.RegisterModule("CooldownText", L("Cooldown text"), function(p)
+W.RegisterModule("CooldownText", "Cooldown text", function(p)
     W.Title(p, L("Cooldown text"))
     if GetCV(CVAR) == nil then
         W.Label(p, L("This client has no countdown option."), "GameFontDisable"):SetPoint("TOPLEFT", 16, -44)

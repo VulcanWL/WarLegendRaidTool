@@ -36,11 +36,12 @@ local function ShouldPromote(name)
     local full = W.FullName(name)
     if W.HasFullPart(full) and (db.names[name] or db.names[full]) then return true end
     -- a short name of the list or a rank: only the guild member with that name, never a stranger with the same
-    -- first name (Forever), and not when two guild members share it
+    -- first name (Forever), and not when two guild members share it (a known surname still tells them apart for a rank)
     local m = W.GuildMember(name)
     local short = W.BaseName(name)
-    if not m or rankByName[short] == false then return false end
-    if db.names[short] then return true end
+    local shared = rankByName[short] == false
+    if not m or (shared and not W.HasFullPart(full)) then return false end
+    if db.names[short] and not shared then return true end
     return m.rank and db.ranks[m.rank] or false
 end
 
@@ -59,7 +60,8 @@ local function Check()
     for i = 1, W.NumRaid() do
         local name, rank = GetRaidRosterInfo(i)
         name, rank = W.Safe(name), W.Safe(rank)
-        if name and rank == 0 and now - (promotedAt[name] or 0) > 5 and ShouldPromote(name) then
+        if name and rank == 0 and now - (promotedAt[name] or 0) > 5
+                and ShouldPromote(W.UnitFullName("raid" .. i) or name) then
             promotedAt[name] = now
             Promote(name)
             W.Print(name .. L(" promoted to assistant."))

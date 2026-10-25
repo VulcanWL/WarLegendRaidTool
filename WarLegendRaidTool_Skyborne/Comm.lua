@@ -34,6 +34,7 @@ local MAX_SWAPS = 10         -- channel swaps allowed per join (the game has abo
 local MAX_REPORTS = 200      -- sightings (and "not there"s) kept per map
 local MAX_QUEUE = 60         -- messages waiting to be sent
 local ANSWER_GAP = 60        -- one answer per phase a minute, however many Q arrive
+local MAX_ANSWERS = 5        -- and 5 answers a minute in all: Q for many made-up phases can't make us flood the channel
 
 local reports = {}           -- this faction's: reports[mapID] = { { phase, x, y, t, first }, ... }
 local allReports = {}        -- db.crowdReports = { A = reports, H = reports }: an alt of the other faction
@@ -51,6 +52,7 @@ local joinedAt               -- GetTime() we joined the channel: after TTL we've
 local pending = {}           -- pending[phase] = { mapID, x, y, ... } while we wait to answer a Q for it: what other
                                                           -- answers for the phase have covered meanwhile
 local answeredAt = {}        -- answeredAt[phase] = GetTime() of our last answer to a Q for it
+local answersFrom, answers = 0, 0 -- start of the current minute and answers planned in it (MAX_ANSWERS)
 local queue, sending = {}, false
 local started                -- ns.CommStart has run
 local inInstance             -- in an instance (OnWorld): no nameplate / target read there, the phase is the open world's
@@ -185,6 +187,8 @@ local function Valid(mapID, x, y, t)
     if not (x >= 0 and x <= 1 and y >= 0 and y <= 1) then return end
     mapID, x, y = OnZoneMap(mapID, x, y)
     if not (mapID and x >= 0 and x <= 1 and y >= 0 and y <= 1) then return end
+    -- a zone map only: on the others (dungeon, world...) Near can't merge repeats, so they'd fill the caps
+    if not ns.ZoneSizeYards(mapID) then return end
     if t > now + 60 or now - t > TTL then return end
     return mapID, x, y
 end
@@ -387,6 +391,10 @@ local function OnMessage(text, sender)
             end
         end
         if not have then return end
+        local now = GetTime()
+        if now - answersFrom > 60 then answersFrom, answers = now, 0 end
+        if answers >= MAX_ANSWERS then return end
+        answers = answers + 1
         pending[p] = {}
         C_Timer.After(mine and 1 + math.random() * 2 or 4 + math.random() * 8, function() SendReply(p) end)
 

@@ -57,7 +57,7 @@ W.On("PLAYER_ENTERING_WORLD", Apply)
 W.On("PLAYER_REGEN_ENABLED", Apply)
 
 local MODS = { { "Shift", "shift" }, { "Alt", "alt" }, { "Ctrl", "ctrl" } }
-local BUTTONS = { { L("Left"), "1" }, { L("Right"), "2" }, { L("Middle"), "3" }, { L("Mouse 4"), "4" }, { L("Mouse 5"), "5" } }
+local BUTTONS = { { "Left", "1" }, { "Right", "2" }, { "Middle", "3" }, { "Mouse 4", "4" }, { "Mouse 5", "5" } } -- L() in Label
 
 local function Label(list, v)
     for _, e in ipairs(list) do if e[2] == v then return L(e[1]) end end

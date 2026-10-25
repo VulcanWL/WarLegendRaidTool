@@ -141,7 +141,7 @@ W.On("ENCOUNTER_START", function(_, name)
     local boss = W.Safe(name)
     W.After(0.5, function()
         if first and GetTime() - first.at < STALE then Report(first, boss); return end
-        local who = W.Safe(UnitName("boss1target"))
+        local who = W.UnitDisplayName("boss1target")
         if who then Report({ who = who, how = L("boss target") }, boss) end
     end)
 end)

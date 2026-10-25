@@ -200,9 +200,9 @@ end
 local evBags = W.On("BAG_UPDATE_DELAYED", Rebuild, nil, true)
 local evLoot = W.On("LOOT_OPENED", Rebuild, nil, true)
 local function Apply()
-    local on = db and db.enabled and true or false
+    local on = db and db.enabled and not W.IsOff("LootTriage") and true or false
     W.Activate(evBags, on); W.Activate(evLoot, on)
-    Rebuild()
+    if on then Rebuild() else wipe(rank); cheapest = nil; bagsFull = false end -- switched off: no bag scan
 end
 W.OnReady(function() W.After(1, Apply) end)
 

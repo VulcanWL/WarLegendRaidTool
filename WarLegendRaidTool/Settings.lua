@@ -150,8 +150,11 @@ local TABLE_FIELDS = {
     classes = { leaders = true },
     dangerAlert = { framesPoint = true },
 }
+-- these save "point" as an anchor name (a string), the others as a table
+local STRING_POINT = { marksBar = true, moneyGoal = true, upgrades = true, combatTimer = true }
 local function IsTableOption(key, field)
-    return field == "point" or field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false
+    if field == "point" then return not STRING_POINT[key] end
+    return field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false
 end
 
 local function Copy(v, depth)
