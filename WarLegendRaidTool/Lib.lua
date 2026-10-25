@@ -31,7 +31,7 @@ W.AddFR({
 -- Delivers a message to ourselves when we are alone (tests / solo), like the game does in a group
 local function Loopback(prefix, msg)
     local fn = W.AddonHandler(prefix)
-    if fn then W.After(0, function() fn(msg, UnitName("player"), "LOCAL") end) end
+    if fn and not W.AddonOff(prefix) then W.After(0, function() fn(msg, UnitName("player"), "LOCAL") end) end
 end
 
 local warnedAt = 0

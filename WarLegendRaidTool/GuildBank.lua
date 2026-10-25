@@ -3,6 +3,7 @@
 -- mailbox), with a search. The data comes from the alts module (read on each character); nothing is sent.
 local W = WLRT
 W.AddFR({
+    ["Alts is switched off: the bags and money shown are not updated."] = "Alts est désactivé : les sacs et l'or affichés ne sont plus mis à jour.",
     ["Guild bank"] = "Banque de guilde",
     ["Search an item:"] = "Chercher un objet :",
     ["Bank rank:"] = "Rang banque :",
@@ -84,8 +85,9 @@ local function Refresh()
     end)
     while #rows > 500 do table.remove(rows) end
     UI.stock:SetData(rows)
-    UI.banks:SetText(#banks > 0 and string.format(L("Bank characters: %s"), table.concat(banks, ", "))
-        or L("No bank character on this account: log in once on your bank characters (they must be at the bank rank)."))
+    local text = #banks > 0 and string.format(L("Bank characters: %s"), table.concat(banks, ", "))
+        or L("No bank character on this account: log in once on your bank characters (they must be at the bank rank).")
+    UI.banks:SetText(text .. (W.IsOff("Alts") and ("   |cffffcc33" .. L("Alts is switched off: the bags and money shown are not updated.") .. "|r") or ""))
 end
 
 -- item names arrive from the server a moment after they are asked: one refresh once they settle

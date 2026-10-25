@@ -105,10 +105,12 @@ end
 -- The button
 ---------------------------------------------------------------------------
 local btn, current
+-- on: the option, the access and Settings > Modules (the first refresh comes from a timer, not an event)
+local function Active() return db.enabled and W.Allowed() and not W.IsOff("Upgrades") end
 
 local function Refresh()
     if not btn then return end
-    current = db.enabled and Best() or nil
+    current = Active() and Best() or nil
     if not current then btn:Hide(); return end
     local name = W.GetItemInfo(current.link) or current.link
     btn.icon:SetTexture(select(5, W.GetItemInfoInstant(current.link)))
@@ -179,7 +181,7 @@ handlers[#handlers + 1] = W.On("PLAYER_REGEN_ENABLED", function()
 end, nil, true)
 
 local function Apply()
-    for _, h in ipairs(handlers) do W.Activate(h, db.enabled and true or false) end
+    for _, h in ipairs(handlers) do W.Activate(h, Active() and true or false) end
     Refresh()
 end
 W.OnReady(function()

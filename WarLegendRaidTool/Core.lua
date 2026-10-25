@@ -337,6 +337,8 @@ function W.OnAddon(prefix, fn, level)
 end
 
 function W.AddonHandler(prefix) return addonHandlers[prefix] end
+-- true when the module that owns the prefix is switched off (Lib.lua loopback: same rule as Dispatch)
+function W.AddonOff(prefix) return offFiles[addonFiles[prefix]] and true or false end
 
 -- Addon messages are taken from my group and my guild only. Anyone on the realm can whisper an
 -- addon message (and any addon can reuse our prefixes): a whisper must come from a group or guild
@@ -354,6 +356,15 @@ local GROUP_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, GUILD 
 ---------------------------------------------------------------------------
 local RAID_ADDON = "WarLegendRaidTool_Raid"
 local lodPrefix = {}
+-- prefix -> module of the raid addon that reads it: a message for a switched-off module loads nothing
+local LOD_MODULE = { WLRT_CON = "Checklist", WLRT_LC = "LootCouncil", WLRT_BUFF = "RaidBuffs", WLRT_CD2 = "RaidCooldowns",
+    WLRT_RG = "RaidGroups", WLRT_INSQ = "RaidInspect", WLRT_INSD = "RaidInspect", WLRT_RDYQ = "Readiness", WLRT_RDYA = "Readiness",
+    WLRT_DUR = "ReadyCheck" }
+-- switched off in Settings > Modules, read from the saved list (works before the module's file is loaded)
+local function OffKey(key)
+    local off = W.db and W.db.ui and W.db.ui.off
+    return type(off) == "table" and off[key] and not (W.CORE_MODULES and W.CORE_MODULES[key]) and true or false
+end
 for _, p in ipairs({ "WLRT_CON", "WLRT_LC", "WLRT_BUFF", "WLRT_CD2", "WLRT_RG", "WLRT_INSQ", "WLRT_INSD",
     "WLRT_RDYQ", "WLRT_RDYA", "WLRT_DUR" }) do
     lodPrefix[p] = true
@@ -413,7 +424,7 @@ end
 local function WantRaid()
     if W.access ~= true or W.raidLoaded or loadFailed then return false end
     local auras = W.db and W.db.auras
-    if auras and auras.enabled then return true end -- Aura Tracking works everywhere, PvP included
+    if auras and auras.enabled and not OffKey("AuraTracker") then return true end -- Aura Tracking works everywhere, PvP included
     if W.InGroup() then return true end -- a battleground raid too (Raid Groups, marks)
     -- loaded during the loading screen (PLAYER_ENTERING_WORLD comes before it goes away): no freeze at the
     -- first /wl in the open world, the cost is the memory of the raid modules when playing alone
@@ -464,7 +475,7 @@ function Dispatch(prefix, msg, channel, sender, replay)
     if not fn then
         -- a message for a raid module that is not loaded yet: load it, then deliver the message.
         -- Only from my group / guild (a whisper of a stranger must not load anything), and after the fight.
-        if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true then
+        if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true and not OffKey(LOD_MODULE[prefix] or "") then
             local who = W.Safe(sender)
             if type(who) ~= "string" or who == "" then return end
             if not GROUP_CHANNELS[channel] then
@@ -2281,9 +2292,12 @@ local function CreateMinimapButton()
     mini:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     mini:RegisterForDrag("LeftButton")
     mini:SetScript("OnClick", function(_, btn)
-        if btn == "RightButton" then W.LoadRaid() end
-        if btn == "RightButton" and W.ApplySelectedPreset then
-            W.ApplySelectedPreset()
+        if btn == "RightButton" and (InCombatLockdown() or OffKey("RaidGroups")) then
+            -- the raid addon is not loaded in combat (frames), nor for a switched-off Raid Groups
+            W.Print(InCombatLockdown() and L("Not in combat.") or L("This module is switched off: it gets no events and does nothing."))
+        elseif btn == "RightButton" then
+            W.LoadRaid()
+            if W.ApplySelectedPreset then W.ApplySelectedPreset() else W.Toggle() end
         else
             W.Toggle()
         end

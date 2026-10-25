@@ -663,6 +663,7 @@ function RG.ApplyAll(preset, name, marksDone)
 end
 
 function W.ApplySelectedPreset()
+    if W.IsOff("RaidGroups") then return end
     local name = db and db.selected
     local preset = name and db.presets[name]
     if preset then RG.ApplyAll(preset, name) else W.Print(L("No preset selected.")) end
@@ -1606,6 +1607,7 @@ local function BuildBottomBar(parent)
         if not preset then return end
         local names = {}
         for _, p in ipairs(preset.players) do names[#names + 1] = p.name end
+        if W.IsOff("InviteTool") then W.Print(L("This module is switched off: it gets no events and does nothing.")); return end
         if W.InviteMany then W.InviteMany(names) end
     end, { L("Invites every player of the preset who is not in the group yet.") })
     add(L("Assist macro"), 95, function()

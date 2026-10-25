@@ -116,6 +116,7 @@ local function Extras(rec)
 end
 
 local function Keep(rec, unit)
+    if W.IsOff("Dashboard") then return end -- its data is not kept while it is switched off
     if not (W.DashboardGear and unit and rec.ilvl and not rec.loading and rec.links) then return end
     if W.Safe(UnitGUID(unit)) ~= rec.guid then return end
     -- a self-report has no item links: the set and gems read at the last inspection stay

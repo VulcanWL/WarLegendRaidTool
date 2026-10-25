@@ -55,11 +55,13 @@ end
 -- The card
 ---------------------------------------------------------------------------
 local card, money, junk
+-- on: the option, the access and Settings > Modules (the first refresh comes from a timer, not an event)
+local function Active() return db.enabled and W.Allowed() and not W.IsOff("MoneyGoal") end
 
 local function Refresh()
     if not card then return end
     local need = (tonumber(db.goal) or 0) * 10000
-    if not db.enabled or need <= 0 then card:Hide(); return end
+    if not Active() or need <= 0 then card:Hide(); return end
     money, junk = GetMoney() or 0, JunkValue()
     local have = money + junk
     card.title:SetText(db.label ~= "" and db.label or L("Goal"))
@@ -124,7 +126,7 @@ local evMoney = W.On("PLAYER_MONEY", Queue, nil, true)
 local evBags = W.On("BAG_UPDATE_DELAYED", Queue, nil, true)
 
 local function Apply()
-    local on = db.enabled and true or false
+    local on = Active() and true or false
     W.Activate(evMoney, on); W.Activate(evBags, on)
     Refresh()
 end

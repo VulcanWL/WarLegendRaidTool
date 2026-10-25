@@ -30,7 +30,7 @@ f:SetScript("OnEvent", function(self, event, arg1)
     self:UnregisterAllEvents() -- later on-demand loads are not login cost
     local list = marks
     marks = nil -- nothing kept in memory when switched off
-    if not (db and db.enabled) then return end
+    if not (db and db.enabled) or W.IsOff("LoadTimes") then return end -- own frame: Settings > Modules checked here
     db.history = type(db.history) == "table" and db.history or {}
     table.insert(db.history, 1, { at = date("%Y-%m-%d %H:%M"), total = t - start, marks = list })
     while #db.history > 5 do table.remove(db.history) end
