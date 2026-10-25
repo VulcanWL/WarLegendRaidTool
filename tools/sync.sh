@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WarLegend RaidTool - copy the repo's addon folders to the game's AddOns folder(s) (not shipped).
 # Usage: bash tools/sync.sh [--force]
-# Without WLRT_GAME it copies to the _forever_ client (the Classic beta is no longer used); WLRT_GAME (an AddOns
+# Without WLRT_GAME it copies to the _forever_ and _retail_ clients (the Classic beta is no longer used); WLRT_GAME (an AddOns
 # folder) copies to that one instead.
 # A game file is overwritten only when it is missing or is a version git already knows (some past commit or the
 # index): a file changed ONLY in the game folder is skipped and listed, so no work is lost (see 1.27.1).
@@ -16,7 +16,7 @@ FORCE=0
 if [ -z "${WLRT_GAME:-}" ]; then
     WOW="/c/Program Files (x86)/World of Warcraft"
     rc=0; n=0
-    for flavor in _forever_; do
+    for flavor in _forever_ _retail_; do
         [ -d "$WOW/$flavor/Interface/AddOns" ] || continue
         echo "== $flavor"
         WLRT_GAME="$WOW/$flavor/Interface/AddOns" WLRT_STATE="wlrt-synced${flavor}" bash "$0" "$@" || rc=1
