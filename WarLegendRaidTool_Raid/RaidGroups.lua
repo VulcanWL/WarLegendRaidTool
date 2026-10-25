@@ -818,10 +818,8 @@ W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     if not buf.parts[i] then buf.parts[i] = payload; buf.n = buf.n + 1 end
     if buf.n < total then return end
     incoming[key] = nil
-    local EU = C_EncodingUtil
-    if not EU then return end
-    local ok, plain = pcall(function() return EU.DecompressString(EU.DecodeBase64(table.concat(buf.parts, "", 1, total))) end)
-    if not ok or type(plain) ~= "string" or #plain > MAX_PLAIN then return end
+    local plain = W.Inflate(table.concat(buf.parts, "", 1, total), MAX_PLAIN) -- sized before it is opened
+    if not plain then return end
     local name, preset = RG.Deserialize(plain)
     if not name then return end
     local count = 0

@@ -808,13 +808,32 @@ C_ChatInfo.GetNumActiveChannels = function() return 0 end
 function JoinTemporaryChannel() M.Sensitive("JoinTemporaryChannel"); return 0 end
 function LeaveChannelByName() end
 function InviteUnit(n) M.Sensitive("InviteUnit " .. tostring(n)) end
--- C_EncodingUtil: real Base64, "compression" = a marker (round trip only; garbage in raises an error like the game)
+-- C_EncodingUtil: real Base64; "compression" = valid raw deflate made of stored blocks (no size gain, but
+-- W.InflatedSize reads it like the game's output; garbage in raises an error like the game)
 C_EncodingUtil = C_EncodingUtil or {}
 local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-C_EncodingUtil.CompressString = function(s) return "~" .. s end
+C_EncodingUtil.CompressString = function(s)
+    local out, i = {}, 1
+    repeat
+        local part = s:sub(i, i + 65534)
+        i = i + #part
+        local n = #part
+        out[#out + 1] = string.char(i > #s and 1 or 0, n % 256, math.floor(n / 256), (65535 - n) % 256, math.floor((65535 - n) / 256)) .. part
+    until i > #s
+    return table.concat(out)
+end
 C_EncodingUtil.DecompressString = function(s)
-    if s:sub(1, 1) ~= "~" then error("invalid compressed data") end
-    return s:sub(2)
+    local out, pos = {}, 1
+    while true do
+        local head, a, b, c, d = s:byte(pos, pos + 4)
+        if not d or (head ~= 0 and head ~= 1) or a + b * 256 + c + d * 256 ~= 65535 then error("invalid compressed data") end
+        local n = a + b * 256
+        if pos + 4 + n > #s then error("invalid compressed data") end
+        out[#out + 1] = s:sub(pos + 5, pos + 4 + n)
+        pos = pos + 5 + n
+        if head == 1 then break end
+    end
+    return table.concat(out)
 end
 C_EncodingUtil.EncodeBase64 = function(s)
     local out = {}

@@ -100,6 +100,199 @@ function W.Debounce(delay, fn)
     end
 end
 
+---------------------------------------------------------------------------
+-- Size a compressed string opens to, read from its deflate codes without building the text:
+-- a few KB that open to many MB (a "zip bomb") are refused before DecompressString allocates them.
+-- Accepts raw deflate, zlib (2-byte header) and gzip (10-byte header). nil = damaged or above max.
+---------------------------------------------------------------------------
+do
+    local byte = string.byte
+    local POW = {}
+    for i = 0, 32 do POW[i] = 2 ^ i end
+    local LEN_BASE = { 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258 }
+    local LEN_EXTRA = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0 }
+    local DIST_EXTRA = { 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13 }
+    local ORDER = { 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15 }
+    local src, pos, buf, cnt
+
+    local function Bits(n)
+        while cnt < n do
+            local b = byte(src, pos)
+            if not b then return nil end
+            pos = pos + 1
+            buf = buf + b * POW[cnt]
+            cnt = cnt + 8
+        end
+        local v = buf % POW[n]
+        buf = (buf - v) / POW[n]
+        cnt = cnt - n
+        return v
+    end
+
+    -- canonical Huffman table from lengths[first .. first+n-1]; false when over-subscribed
+    local function Build(h, lengths, first, n)
+        local count, symbol, offs = {}, {}, {}
+        for len = 0, 15 do count[len] = 0 end
+        for i = first, first + n - 1 do count[lengths[i]] = count[lengths[i]] + 1 end
+        h.count, h.symbol = count, symbol
+        if count[0] == n then return true end
+        local left = 1
+        for len = 1, 15 do
+            left = left * 2 - count[len]
+            if left < 0 then return false end
+        end
+        offs[1] = 0
+        for len = 1, 14 do offs[len + 1] = offs[len] + count[len] end
+        for i = first, first + n - 1 do
+            local len = lengths[i]
+            if len ~= 0 then symbol[offs[len]] = i - first; offs[len] = offs[len] + 1 end
+        end
+        return true
+    end
+
+    local function Symbol(h)
+        local count, code, first, index = h.count, 0, 0, 0
+        for len = 1, 15 do
+            local b = Bits(1)
+            if not b then return nil end
+            code = code + b
+            local c = count[len]
+            if code - c < first then return h.symbol[index + code - first] end
+            index = index + c
+            first = (first + c) * 2
+            code = code * 2
+        end
+    end
+
+    local fixedLit, fixedDist = {}, {}
+    do
+        local l = {}
+        for i = 0, 143 do l[i] = 8 end
+        for i = 144, 255 do l[i] = 9 end
+        for i = 256, 279 do l[i] = 7 end
+        for i = 280, 287 do l[i] = 8 end
+        Build(fixedLit, l, 0, 288)
+        for i = 0, 29 do l[i] = 5 end
+        Build(fixedDist, l, 0, 30)
+    end
+
+    local function Codes(lit, dist, size, max)
+        while true do
+            local s = Symbol(lit)
+            if not s then return nil end
+            if s < 256 then
+                size = size + 1
+            elseif s == 256 then
+                return size
+            else
+                s = s - 256
+                if s > 29 then return nil end
+                local extra = Bits(LEN_EXTRA[s])
+                local d = extra and Symbol(dist)
+                if not d or d > 29 or not Bits(DIST_EXTRA[d + 1]) then return nil end
+                size = size + LEN_BASE[s] + extra
+            end
+            if size > max then return nil end
+        end
+    end
+
+    local function Dynamic(size, max)
+        local nlen, ndist, ncode = Bits(5), Bits(5), Bits(4)
+        if not ncode then return nil end
+        nlen, ndist, ncode = nlen + 257, ndist + 1, ncode + 4
+        if nlen > 286 or ndist > 30 then return nil end
+        local lengths, lenCode = {}, {}
+        for i = 0, 18 do lengths[i] = 0 end
+        for i = 1, ncode do
+            local v = Bits(3)
+            if not v then return nil end
+            lengths[ORDER[i]] = v
+        end
+        if not Build(lenCode, lengths, 0, 19) then return nil end
+        local index, total = 0, nlen + ndist
+        while index < total do
+            local s = Symbol(lenCode)
+            if not s then return nil end
+            if s < 16 then
+                lengths[index] = s; index = index + 1
+            else
+                local rep, value
+                if s == 16 then
+                    if index == 0 then return nil end
+                    rep, value = Bits(2), lengths[index - 1]
+                    rep = rep and rep + 3
+                elseif s == 17 then
+                    rep, value = Bits(3), 0
+                    rep = rep and rep + 3
+                else
+                    rep, value = Bits(7), 0
+                    rep = rep and rep + 11
+                end
+                if not rep or index + rep > total then return nil end
+                for _ = 1, rep do lengths[index] = value; index = index + 1 end
+            end
+        end
+        if lengths[256] == 0 then return nil end
+        local lit, dist = {}, {}
+        if not (Build(lit, lengths, 0, nlen) and Build(dist, lengths, nlen, ndist)) then return nil end
+        return Codes(lit, dist, size, max)
+    end
+
+    local function Stored(size, max)
+        buf, cnt = 0, 0 -- a stored block starts on a byte boundary
+        local a, b, c, d = byte(src, pos, pos + 3)
+        local len = d and a + b * 256
+        if not len or len + c + d * 256 ~= 65535 or pos + 3 + len > #src then return nil end
+        pos = pos + 4 + len
+        size = size + len
+        return size <= max and size or nil
+    end
+
+    local function Walk(data, start, max)
+        src, pos, buf, cnt = data, start, 0, 0
+        local size, last = 0, 0
+        while last == 0 and size do
+            last = Bits(1)
+            local kind = last and Bits(2)
+            if kind == 0 then size = Stored(size, max)
+            elseif kind == 1 then size = Codes(fixedLit, fixedDist, size, max)
+            elseif kind == 2 then size = Dynamic(size, max)
+            else size = nil end
+        end
+        src = nil
+        return size
+    end
+
+    function W.InflatedSize(data, max)
+        if type(data) ~= "string" or data == "" then return nil end
+        local b1, b2 = byte(data, 1, 2)
+        if b1 == 31 and b2 == 139 then -- gzip: only the plain 10-byte header
+            if byte(data, 4) ~= 0 then return nil end
+            local ok, size = pcall(Walk, data, 11, max)
+            return ok and size or nil
+        end
+        local ok, size = pcall(Walk, data, 1, max)
+        if ok and size then return size end
+        if b2 and b1 % 16 == 8 and (b1 * 256 + b2) % 31 == 0 then -- zlib header
+            ok, size = pcall(Walk, data, 3, max)
+            if ok then return size end
+        end
+        return nil
+    end
+end
+
+-- Base64 + compressed text opened within max bytes (sized first, see W.InflatedSize); nil when refused
+function W.Inflate(text, max)
+    local EU = C_EncodingUtil
+    if not EU or not EU.DecompressString or not EU.DecodeBase64 then return nil end
+    local ok, packed = pcall(EU.DecodeBase64, text)
+    if not ok or type(packed) ~= "string" or not W.InflatedSize(packed, max) then return nil end
+    local plain
+    ok, plain = pcall(EU.DecompressString, packed)
+    if not ok or type(plain) ~= "string" or #plain > max then return nil end
+    return plain
+end
+
 -- Long text: split into chunks "id:i:n:chunk", rebuilt by W.OnAddonLong
 local CHUNK = 220
 local COMPRESS_MIN = 300 -- below this, Base64 makes the text longer than compression saves
@@ -127,6 +320,8 @@ end
 
 local PARTS_TTL = 60 -- an incomplete message (lost chunk, sender left) is dropped after this
 local MAX_CHUNKS = 64 -- 14 KB: far above a raid note or a profession list, refuses absurd senders
+local MAX_OPEN_PER_SENDER = 4 -- messages one sender may have half-received at once (per prefix)
+local MAX_OPEN = 120 -- all senders together (per prefix): a 40-player raid sending 3 each
 function W.OnAddonLong(prefix, fn)
     local parts = {}
     W.OnAddon(prefix, function(msg, from, channel, full)
@@ -134,15 +329,24 @@ function W.OnAddonLong(prefix, fn)
         if not id then return end
         i, n = tonumber(i), tonumber(n)
         if not i or not n or n < 1 or n > MAX_CHUNKS or i < 1 or i > n then return end
-        local key = (full or from) .. id
+        local who = full or from
+        local key = who .. id
         if parts[key] and parts[key].n ~= n then return end -- chunks of one message all say the same count
         local p = parts[key]
         if not p then
             local now = GetTime()
+            local mine, total = 0, 0
             for k, old in pairs(parts) do
-                if now - old.at > PARTS_TTL then parts[k] = nil end
+                if now - old.at > PARTS_TTL then
+                    parts[k] = nil
+                else
+                    total = total + 1
+                    if old.who == who then mine = mine + 1 end
+                end
             end
-            p = { n = n, got = 0, at = now }
+            -- a sender opening many messages at once (never finished) cannot fill memory: his new ones are refused
+            if mine >= MAX_OPEN_PER_SENDER or total >= MAX_OPEN then return end
+            p = { n = n, got = 0, at = now, who = who }
             parts[key] = p
         end
         if not p[i] then p[i] = chunk; p.got = p.got + 1 end
@@ -150,10 +354,8 @@ function W.OnAddonLong(prefix, fn)
             parts[key] = nil
             local text = table.concat(p, "", 1, p.n)
             if id:sub(1, 1) == "z" then
-                local EU = C_EncodingUtil
-                if not EU or not EU.DecompressString then return end
-                local ok, plain = pcall(function() return EU.DecompressString(EU.DecodeBase64(text)) end)
-                if not ok or type(plain) ~= "string" or #plain > MAX_PLAIN then return end
+                local plain = W.Inflate(text, MAX_PLAIN)
+                if not plain then return end
                 text = plain
             else
                 text = text:gsub("~3", "|"):gsub("~2", "\n"):gsub("~1", "~")

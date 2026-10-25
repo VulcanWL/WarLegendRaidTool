@@ -8,6 +8,7 @@ W.AddFR({
 local L = W.L
 local VER, VERQ = "WLRT_VER", "WLRT_VERQ"
 local known, warned = {}, false
+local newerFrom, NEWER_QUORUM = {}, 2 -- full identity -> newer version it announced
 local lastBroadcast, lastRequest = 0, 0
 local UI = {}
 
@@ -73,9 +74,20 @@ W.OnAddon(VER, function(msg, from, _, full)
     -- a guild member out of my group is not listed (known), but his version still tells me about an update
     local unit = W.UnitByName(full or from)
     if unit and not W.UnitIsMe(unit) then known[W.UnitKey(unit)] = msg end
+    -- one player saying "99.0" proves nothing: the warning waits for two different players with a newer
+    -- version, and shows the lowest of theirs
     if Newer(msg, W.version) and not warned then
-        warned = true
-        W.Print(string.format(L("|cffffcc00A newer version (%s) is available (you have %s). Please update!|r"), msg, W.version))
+        newerFrom[W.Key(full or from)] = msg
+        local count, lowest = 0, nil
+        for _, v in pairs(newerFrom) do
+            count = count + 1
+            if not lowest or Newer(lowest, v) then lowest = v end
+        end
+        if count >= NEWER_QUORUM then
+            warned = true
+            wipe(newerFrom)
+            W.Print(string.format(L("|cffffcc00A newer version (%s) is available (you have %s). Please update!|r"), lowest, W.version))
+        end
     end
     if W.IsShown("VersionCheck") then RefreshList() end
 end)

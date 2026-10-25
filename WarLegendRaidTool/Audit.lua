@@ -78,7 +78,7 @@ local function Rate(prefix)
 end
 
 -- Called by Core.lua (Dispatch). kind: "ok" (handler called), "time" (handler done, ms in len),
--- or a refusal reason ("stranger", "bad-channel", "bad-sender", "module-off", "waiting").
+-- or a refusal reason ("stranger", "bad-channel", "bad-sender", "module-off", "waiting", "flood").
 function W.AuditNote(kind, prefix, channel, who, len, ms)
     if not (cfg and cfg.on and cur) then return end
     prefix, channel = Clean(prefix), Clean(channel)

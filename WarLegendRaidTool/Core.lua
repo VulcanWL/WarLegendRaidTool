@@ -376,7 +376,7 @@ function W.LoadRaid()
     end
     local msgs = pendingMsgs
     pendingMsgs = {}
-    for _, m in ipairs(msgs) do Dispatch(m[1], m[2], m[3], m[4]) end
+    for _, m in ipairs(msgs) do Dispatch(m[1], m[2], m[3], m[4], true) end -- counted by Flooding when they came
     return true
 end
 
@@ -402,7 +402,35 @@ W.On("PLAYER_ENTERING_WORLD", function() W.MaybeLoadRaid() end)
 W.On("PLAYER_REGEN_ENABLED", function() if waitCombat then waitCombat = false; W.MaybeLoadRaid() end end)
 W.OnRoster(function() W.MaybeLoadRaid() end)
 
-function Dispatch(prefix, msg, channel, sender)
+-- Per-sender cap on what reaches the handlers: our own queue sends 4 messages a second at most, so a
+-- sender above twice that is a flood (a modified client) and the rest of his window is dropped.
+-- Old windows are removed by age, never all at once (a spammer must not reset the others' counts).
+local FLOOD_WINDOW, FLOOD_MAX, FLOOD_KEEP = 5, 40, 300
+local floodBy, floodN = {}, 0
+local function Flooding(who)
+    local now = GetTime()
+    local f = floodBy[who]
+    if f and now - f[1] < FLOOD_WINDOW then
+        f[2] = f[2] + 1
+        return f[2] > FLOOD_MAX
+    end
+    if not f then
+        if floodN >= FLOOD_KEEP then
+            floodN = 0
+            for k, old in pairs(floodBy) do
+                if now - old[1] >= FLOOD_WINDOW then floodBy[k] = nil else floodN = floodN + 1 end
+            end
+            if floodN >= FLOOD_KEEP then return true end -- 300 senders in 5 s: refuse the newcomers
+        end
+        floodN = floodN + 1
+        floodBy[who] = { now, 1 }
+    else
+        f[1], f[2] = now, 1
+    end
+    return false
+end
+
+function Dispatch(prefix, msg, channel, sender, replay)
     local fn = addonHandlers[prefix]
     if not fn then
         -- a message for a raid module that is not loaded yet: load it, then deliver the message.
@@ -415,6 +443,7 @@ function Dispatch(prefix, msg, channel, sender)
                 local full = W.FullName(who)
                 if not (W.UnitByName(full) or W.GuildMember(full)) then return end
             end
+            if Flooding(W.FullName(who)) then return end
             if #pendingMsgs < 50 then pendingMsgs[#pendingMsgs + 1] = { prefix, msg, channel, sender } end
             if InCombatLockdown() then waitCombat = true; return end -- loaded after the fight, messages kept
             W.LoadRaid()
@@ -441,6 +470,10 @@ function Dispatch(prefix, msg, channel, sender)
             if audit then audit("stranger", prefix, channel, full, #msg) end
             return
         end
+    end
+    if not replay and Flooding(full) then
+        if audit then audit("flood", prefix, channel, full, #msg) end
+        return
     end
     if not audit then return fn(msg, W.BaseName(sender), channel, full) end
     audit("ok", prefix, channel, full, #msg)
