@@ -654,7 +654,7 @@ Receive.Q = function(t, from, full)
     if recent >= 3 then return end
     answeredTo[key] = now
     local to = W.UnitFullName(u)
-    Whisper(to, "S", S.sid, S.n, S.timeout)
+    Whisper(to, "S", S.sid, S.n, S.timeout, S.test and "t" or "")
     for i = 1, S.n do
         local item = S.items[i]
         if item then Whisper(to, "I", S.sid, i, item.str) end
@@ -1331,7 +1331,8 @@ local lootEv = W.On("CHAT_MSG_LOOT", function(msg)
     -- already recorded by a council award?
     for i = 1, math.min(10, #hist) do
         local h = hist[i]
-        if h.item == str and h.winner == who and time() - h.t < 300 then return end
+        -- the award keeps the surname ("First Surname" on Forever), the loot line only the first name
+        if h.item == str and W.BaseName(h.winner) == who and time() - h.t < 300 then return end
     end
     local _, class = W.UnitByName(who)
     Record({ t = time(), item = str, winner = who, class = class, resp = "", zone = ZoneName(), src = "loot" })

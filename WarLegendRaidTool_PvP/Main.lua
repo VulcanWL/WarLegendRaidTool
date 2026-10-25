@@ -1153,7 +1153,9 @@ do
 	--Triggered immediately before PLAYER_ENTERING_WORLD on login and UI Reload, but NOT when entering/leaving instances.
 	function WarLegendPvP:PLAYER_LOGIN()
 		self.UserDetails = {
-			PlayerName = UnitName("player"),
+			-- full name ("First Surname" on Forever), as the other allies are keyed (GetReadableUnitName)
+			PlayerName = self:GetReadableUnitName("player") or UnitName("player"),
+			FirstName = UnitName("player"),
 			PlayerClass = select(2, UnitClass("player")),
 			isGroupLeader = UnitIsGroupLeader("player"),
 			isGroupAssistant = UnitIsGroupAssistant("player"),
@@ -1282,7 +1284,7 @@ end
 function WarLegendPvP:IsUserName(name)
 	local normalized = normalizeName(name)
 	if not normalized then return false end
-	if normalized == normalizeName(self.UserDetails.PlayerName) then return true end
+	if normalized == normalizeName(self.UserDetails.PlayerName) or normalized == normalizeName(self.UserDetails.FirstName) then return true end
 	local fullName = self:GetReadableUnitName("player")
 	return fullName and normalized == normalizeName(fullName) or false
 end

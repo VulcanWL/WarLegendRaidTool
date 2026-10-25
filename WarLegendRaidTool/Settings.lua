@@ -102,7 +102,7 @@ local function Read(s, i, depth)
         return (raw:gsub("%^(.)", UNESC)), j + 1
     end
     if c == "{" then
-        if depth > 8 then error("depth") end
+        if depth > 12 then error("depth") end
         local t = {}
         i = i + 1
         while s:sub(i, i) ~= "}" do
@@ -156,7 +156,7 @@ end
 
 local function Copy(v, depth)
     if type(v) ~= "table" then return SCALAR[type(v)] and v or nil end
-    if depth > 6 then return nil end
+    if depth > 10 then return nil end -- the PvP options go 8 deep (Enemies...ButtonModules.X.Points[1])
     local out = {}
     for k, x in pairs(v) do
         if type(k) == "string" or type(k) == "number" then out[k] = Copy(x, depth + 1) end
@@ -227,10 +227,16 @@ local function Apply(data)
     end
     if type(data.pvp) == "table" and W.LoadPvP and W.LoadPvP() and type(WarLegendRaidTool_PvPDB) == "table" then
         -- merged key by key (a key of another type than ours is ignored), the saved file is never replaced whole
-        local dest = WarLegendRaidTool_PvPDB
-        for k, v in pairs(data.pvp) do
-            if (type(k) == "string" or type(k) == "number") and (dest[k] == nil or type(dest[k]) == type(v)) then dest[k] = v end
+        -- and deep: a table merges into ours, so a field the profile lacks keeps its value (an older, cut profile
+        -- must not wipe the anchors / texts the PvP addon needs)
+        local function Merge(dest, src, depth)
+            for k, v in pairs(src) do
+                if (type(k) == "string" or type(k) == "number") and (dest[k] == nil or type(dest[k]) == type(v)) then
+                    if type(v) == "table" and type(dest[k]) == "table" and depth < 12 then Merge(dest[k], v, depth + 1) else dest[k] = v end
+                end
+            end
         end
+        Merge(WarLegendRaidTool_PvPDB, data.pvp, 1)
     end
 end
 
@@ -245,14 +251,14 @@ for c in ("target targetexact tar tarexact cleartarget targetlasttarget targeten
     .. " startattack stopmacro stopspelltarget petattack petfollow petpassive petdefensive petstay cancelaura"
     .. " cancelform dismount equip equipslot tm targetmarker"):gmatch("%S+") do MACRO_CMDS[c] = true end
 local function StripMacros(t, depth)
-    if depth > 8 then return 0 end
+    if depth > 12 then return 0 end -- as deep as Read accepts: no macro line left unread
     local removed = 0
     for k, v in pairs(t) do
         local click = type(k) == "string" and k:match("^%a+ButtonValue$")
         if type(v) == "string" and (click or v:find("/", 1, true)) then
             local kept, cut = {}, 0
             for line in (v .. "\n"):gmatch("(.-)\n") do
-                local cmd = line:match("^%s*/(%S+)")
+                local cmd = line:match("^%s*/([%a_]+)") -- "/cast[@mouseover] X" is "cast"
                 local keep
                 if cmd then
                     keep = MACRO_CMDS[cmd:lower()]
