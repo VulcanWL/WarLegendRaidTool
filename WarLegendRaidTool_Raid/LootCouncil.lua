@@ -33,6 +33,8 @@ W.AddFR({
     ["Unvote"] = "Retirer",
     ["Award %s to %s?"] = "Donner %s à %s ?",
     ["This item is already awarded."] = "Cet objet est déjà attribué.",
+    ["Loot session closed: the master looter left the group."] = "Session de loot fermée : le maître du butin a quitté le groupe.",
+    ["Loot session restored after the reload."] = "Session de loot restaurée après le rechargement.",
     ["Award"] = "Donner",
     ["Awarded to "] = "Donné à ",
     ["End session"] = "Fin de session",
@@ -296,6 +298,8 @@ end
 -- Session state (same on every client)
 ---------------------------------------------------------------------------
 local S -- { sid, ml, n, timeout, started, items = {}, council = {}, acks = {}, roster = {} }
+local ended = {} -- [sid] = true: sessions closed here, never opened again by an old "S"
+local CloseSession
 local UI = {}
 
 -- Identities: every candidate, council member and voter is keyed by its full identity
@@ -321,6 +325,13 @@ local function NewCandidates()
         end
     end
     return list
+end
+
+-- a council name as the voters' key (W.UnitKey of the group unit): a name typed without the surname or
+-- with another separator ("First-Surname", "first surname") still finds its player. Out of the group: W.Key.
+local function CouncilKey(n)
+    local u = W.UnitByName(n)
+    return (u and W.UnitKey(u)) or W.Key(n)
 end
 
 local function IsCouncil(key)
@@ -443,6 +454,9 @@ Receive.S = function(t, from, full)
     if not db.enabled or not MayStart(full) then return end
     -- a session driven by someone else is not reset by another leader (10 min: one whose end never came)
     if S and not SameName(S.mlFull, full) and GetTime() - S.started < 600 then return end
+    -- the session I already have (a resync answer for someone else, a repeat): kept as it is
+    if S and S.sid == t[2] then return end
+    if t[2] and ended[t[2]] then return end -- a session that ended does not open again (old message)
     local n = W.Int(t[3]) or 0
     if n < 1 or n > MAX_ITEMS or not t[2] or #t[2] > 12 then return end
     local timeout = W.Finite(t[4], 10, 300) or 60
@@ -506,9 +520,10 @@ Receive.C = function(t, from, full)
     S.ncouncil = S.ncouncil or 0
     for n in (t[3] or ""):gmatch("[^,]+") do
         if S.ncouncil >= MAX_COUNCIL then break end
-        if #n <= 60 and not S.council[W.Key(n)] then S.council[W.Key(n)] = true; S.ncouncil = S.ncouncil + 1 end
+        local key = #n <= 60 and CouncilKey(n)
+        if key and not S.council[key] then S.council[key] = true; S.ncouncil = S.ncouncil + 1 end
     end
-    S.council[W.Key(S.mlFull)] = true
+    S.council[CouncilKey(S.mlFull)] = true
     if IsCouncil() then LC.ShowVote() end
 end
 
@@ -593,18 +608,127 @@ end
 
 Receive.E = function(t, from, full)
     if not S or S.sid ~= t[2] or not FromML(full) then return end
+    CloseSession()
+    W.Print(L("Loot session ended."))
+end
+
+-- my session ends here (an "E", the master looter gone): an old message of it cannot open it again
+CloseSession = function()
+    if not S then return end
+    ended[S.sid] = true
     S = nil
+    if db then db.session = nil end
     if UI.loot then UI.loot:Hide() end
     if UI.vote then UI.vote:Hide() end
-    W.Print(L("Loot session ended."))
     LC.RefreshSession()
 end
 
--- loot messages only travel in the group (or come back to me when I am alone)
+---------------------------------------------------------------------------
+-- Resync: a player who reloads or joins during a session asks ("Q"); the master looter whispers him the
+-- session, its items, its council and the winners so far (not the others' answers and votes).
+---------------------------------------------------------------------------
+local askedAt, answeredTo = 0, {}
+-- tries: asked again 35 s later while no session came (the master looter answers 3 players per 30 s)
+local function AskSession(tries)
+    if S or not db or not db.enabled or not W.InGroup() or W.InPvP() then return end
+    if GetTime() - askedAt < 30 then return end
+    askedAt = GetTime()
+    Send("Q")
+    tries = tonumber(tries) or 1
+    if tries < 4 then W.After(35, function() AskSession(tries + 1) end) end
+end
+
+local function Whisper(to, ...) W.Queue(PREFIX, W.Pack(...), "WHISPER", to) end
+Receive.Q = function(t, from, full)
+    if not S or not FromML(W.UnitFullName("player")) or W.IsMe(full or from) then return end
+    local u = W.UnitByName(full or from)
+    if not u then return end -- group members only
+    local key = W.UnitKey(u)
+    if GetTime() - (answeredTo[key] or -1000) < 30 then return end -- one resync per player every 30 s
+    -- and 3 players per 30 s in all: a whole raid reloading must not fill my send queue for minutes
+    -- (my own awards wait behind it); the others ask again 35 s later (AskSession tries)
+    local now, recent = GetTime(), 0
+    for _, at in pairs(answeredTo) do if now - at < 30 then recent = recent + 1 end end
+    if recent >= 3 then return end
+    answeredTo[key] = now
+    local to = W.UnitFullName(u)
+    Whisper(to, "S", S.sid, S.n, S.timeout)
+    for i = 1, S.n do
+        local item = S.items[i]
+        if item then Whisper(to, "I", S.sid, i, item.str) end
+    end
+    local part = {}
+    for key2 in pairs(S.council) do
+        if #part > 0 and #table.concat(part, ",") + #key2 > 180 then Whisper(to, "C", S.sid, table.concat(part, ",")); part = {} end
+        part[#part + 1] = key2
+    end
+    if #part > 0 then Whisper(to, "C", S.sid, table.concat(part, ",")) end
+    for i = 1, S.n do
+        local item = S.items[i]
+        if item and item.winner then Whisper(to, "A", S.sid, i, item.winner, item.winResp or "") end
+    end
+end
+
+-- Master looter gone (left the group): the session is closed here, no one could award or end it
+local function CheckMaster()
+    if not S or not W.InGroup() then
+        if S and not FromML(W.UnitFullName("player")) then CloseSession(); W.Print(L("Loot session ended.")) end
+        return
+    end
+    if not W.UnitByName(S.mlFull) then
+        CloseSession()
+        W.Print(L("Loot session closed: the master looter left the group."))
+    end
+end
+local wasInGroup = false
+W.OnRoster(function()
+    CheckMaster()
+    local inGroup = W.InGroup()
+    if inGroup and not wasInGroup then W.After(3, AskSession) end -- just joined: a session may be running
+    wasInGroup = inGroup
+end)
+
+-- The master looter's own session survives a /reload (10 min): saved at logout, back at the next login
+local RESTORE_SECONDS = 600
+W.On("PLAYER_LOGOUT", function()
+    if not db then return end
+    if S and FromML(W.UnitFullName("player")) then
+        S.savedAt, S.age = time(), GetTime() - S.started
+        db.session = S
+    else
+        db.session = nil
+    end
+end)
+-- this file loads on demand: the first PLAYER_ENTERING_WORLD seen here is the login / reload
+local firstEnter = true
+W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload)
+    local fresh = isLogin or isReload or firstEnter
+    firstEnter = false
+    wasInGroup = W.InGroup()
+    if not fresh or not db then return end
+    local saved = db.session
+    db.session = nil
+    if not S and type(saved) == "table" and type(saved.items) == "table" and time() - (saved.savedAt or 0) <= RESTORE_SECONDS
+            and W.InGroup() and SameName(saved.mlFull, W.UnitFullName("player")) then
+        saved.started = GetTime() - (tonumber(saved.age) or 0)
+        saved.savedAt, saved.age = nil, nil
+        S = saved
+        -- the "no addon" marking was a timer: lost with the reload if it had not run yet
+        if not saved.marked then W.After(8, function() LC.MarkNoAddon(saved.sid) end) end
+        W.Print(L("Loot session restored after the reload."))
+        LC.RefreshSession()
+    elseif not S then
+        W.After(5, AskSession)
+    end
+end)
+
+-- loot messages travel in the group (or come back to me when I am alone); a resync comes whispered
 local LOOT_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, LOCAL = true }
+local WHISPERED = { S = true, I = true, C = true, A = true }
 W.OnAddon(PREFIX, function(msg, from, channel, full)
-    if not LOOT_CHANNELS[channel] or #msg > 255 then return end
+    if #msg > 255 then return end
     local t = W.Unpack(msg)
+    if not LOOT_CHANNELS[channel] and not (channel == "WHISPER" and WHISPERED[t[1]]) then return end
     local fn = Receive[t[1]]
     if fn then fn(t, from, full or W.FullName(from)) end
 end)
