@@ -383,7 +383,7 @@ end
 local SESSION_MAX = 30 -- the receivers refuse more (MAX_ITEMS): never announce a session they drop
 W.AddFR({ ["Only the first %d items are put in the session."] = "Seuls les %d premiers objets sont mis dans la session." })
 
-function LC.StartSession(items)
+function LC.StartSession(items, test)
     if not LC.CanRun() then W.Print(L("You must be master looter or raid leader/assist.")); return end
     if #items == 0 then return end
     if #items > SESSION_MAX then
@@ -393,7 +393,7 @@ function LC.StartSession(items)
         W.Print(string.format(L("Only the first %d items are put in the session."), SESSION_MAX))
     end
     local sid = tostring(time() % 100000) .. math.random(10, 99)
-    Send("S", sid, #items, db.timeout)
+    Send("S", sid, #items, db.timeout, test and "t" or "")
     for i, str in ipairs(items) do Send("I", sid, i, str) end
     -- the council in several "C" messages: 15 "First Surname" names already pass the 255 bytes of one
     -- message (refused by the client, then nobody could vote); each one adds to the list
@@ -462,6 +462,8 @@ Receive.S = function(t, from, full)
     local timeout = W.Finite(t[4], 10, 300) or 60
     S = { sid = t[2], ml = from, mlFull = full, n = n, timeout = timeout, started = GetTime(),
         items = {}, council = {}, acks = {}, answered = {} }
+    -- a test (Test button, or a session alone): its awards are shown but never saved in the loot log
+    S.test = t[5] == "t" or not W.InGroup()
     S.cands = NewCandidates()
     Send("K", S.sid)
     -- safety net: if the item list never completes, still mark the silent players after 30 s
@@ -598,7 +600,7 @@ Receive.A = function(t, from, full)
     item.winner, item.winnerName, item.winResp = t[4], winner, resp
     local votes = 0
     if c then for _ in pairs(c.votes) do votes = votes + 1 end end
-    Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes })
+    Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes, test = S.test or nil })
     if FromML(W.UnitFullName("player")) and db.announce and W.Channel() then
         W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), winner,
             (RESP_BY[t[5]] and RESP_BY[t[5]].text) or t[5]), W.Channel())
@@ -692,7 +694,8 @@ end)
 local RESTORE_SECONDS = 600
 W.On("PLAYER_LOGOUT", function()
     if not db then return end
-    if S and FromML(W.UnitFullName("player")) then
+    for i = #hist, 1, -1 do if hist[i].test then table.remove(hist, i) end end -- tests are gone after a reload
+    if S and not S.test and FromML(W.UnitFullName("player")) then
         S.savedAt, S.age = time(), GetTime() - S.started
         db.session = S
     else
@@ -866,7 +869,7 @@ local function LootCounts()
     countsCache = counts
     for _, h in ipairs(hist) do
         if (h.t or 0) < since then break end -- newest first
-        if h.g ~= false and h.winner then
+        if h.g ~= false and h.winner and not h.test then
             local k = CountKey(h.winner)
             if k then counts[k] = (counts[k] or 0) + 1 end
         end
@@ -1538,7 +1541,7 @@ local function HistoryRows()
         if filter == "" or text:find(filter, 1, true) then
             rows[#rows + 1] = { index = i, cells = {
                 date("%d/%m %H:%M", h.t), link, W.ColorName(h.winner, h.class),
-                h.resp ~= "" and RespText(h.resp) or "-", h.zone or "", h.src == "council" and L("Council") or L("Looted") } }
+                h.resp ~= "" and RespText(h.resp) or "-", h.zone or "", h.test and L("Test") or h.src == "council" and L("Council") or L("Looted") } }
         end
     end
     return rows
@@ -1556,11 +1559,11 @@ local function BuildHistory(p)
     UI.filter:SetScript("OnTextChanged", LC.RefreshHistory)
     W.Button(p, L("Export CSV"), 110, 22, function()
         local out = { "date,item,itemID,winner,response,zone,source" }
-        for _, h in ipairs(hist) do
+        for _, h in ipairs(hist) do if not h.test then
             local name = W.GetItemInfo(h.item) or ""
             out[#out + 1] = W.CSV(date("%Y-%m-%d %H:%M", h.t), name, W.ItemID(h.item) or "",
                 h.winner, h.resp or "", h.zone or "", h.src or "")
-        end
+        end end -- test lines are not exported
         W.TextPopup(L("History"), table.concat(out, "\n"), { hint = "Ctrl+C" })
     end):SetPoint("TOPRIGHT", -130, -6)
     W.Button(p, L("Clear"), 100, 22, function()
@@ -1694,7 +1697,7 @@ function LC.Test()
         if str and #items < 3 then items[#items + 1] = str end
     end
     if #items == 0 then items = { "item:19019" } end
-    LC.StartSession(items)
+    LC.StartSession(items, true)
 end
 -- "Test all": alone only (in a group the test session would go to the whole raid)
 W.RegisterTest("Loot Council", function() return db and db.enabled and not W.InGroup() end,
