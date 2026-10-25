@@ -3,7 +3,7 @@
 ## Notes: Battleground enemy and ally frames of WaR LegenD RaidTool (based on BattleGroundEnemies by Bullsei, cleaned up for WoW Forever). Loaded on demand by WarLegendRaidTool.
 ## Notes-frFR: Cadres des ennemis et des alliés en champ de bataille de WaR LegenD RaidTool (basé sur BattleGroundEnemies de Bullsei, nettoyé pour WoW Forever). Chargé à la demande par WarLegendRaidTool.
 ## Author: WarLegend, Bullsei (BattleGroundEnemies)
-## Version: 1.40.1
+## Version: 1.40.2
 ## X-BattleGroundEnemies-Version: 11.2.0.6
 ## Dependencies: WarLegendRaidTool
 ## LoadOnDemand: 1
