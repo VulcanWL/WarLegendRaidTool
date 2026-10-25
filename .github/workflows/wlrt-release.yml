@@ -46,6 +46,8 @@ jobs:
           ZIP="WarLegendRaidTool-${VERSION}-forever.zip"
           zip -r -q "$ZIP" WarLegendRaidTool WarLegendRaidTool_Raid WarLegendRaidTool_PvP WarLegendRaidTool_Skyborne \
             -x "*/AGENTS.md" "*/STATUS.md" "*/.git*" "*/Libs/LibStub/tests/*"
+          # WarLegendRaidTool_Dev (/wl verify) is for internal testing only: never shipped to the players
+          if unzip -Z1 "$ZIP" | grep -q '^WarLegendRaidTool_Dev/'; then echo "WarLegendRaidTool_Dev must not be in the zip"; exit 1; fi
           INTERFACE="$(grep -m1 '^## Interface:' WarLegendRaidTool/WarLegendRaidTool.toc | sed 's/^## Interface:[[:space:]]*//' | tr -d '\r')"
           cat > release.json <<EOF
           {"releases":[{"name":"WarLegendRaidTool","version":"${VERSION}","filename":"${ZIP}","nolib":false,"metadata":[{"flavor":"forever","interface":${INTERFACE}}]}]}

@@ -54,6 +54,15 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - Releases are made by pushing a tag `v1.x.x` (GitHub workflow builds the zip that WowUp-CF installs). A push to `main`
   without a tag does not update the players. Guild members use WowUp-CF: **batch changes**, do not bump `## Version:`
   or propose a tag after every fix; release only when the user asks.
+- **Release gate (since 24/10)**: no tag before the first in-game session on Forever (planned 5 November) has run
+  `/wl verify` and its results were read (`node tools/verify-live.js`, `--follow` while the game runs, `--saved` after a
+  `/reload`) and every `LOOK` line was fixed or accepted by the user. Gated items: audit M1 (master loot candidates
+  without surname, `LootCouncil.lua` `IsCandidate`), slot 18, compression on the client's own deflate, and the module
+  tests with 0 new Lua error. Until then, a release request: say this gate is open and ask before tagging.
+- **`WarLegendRaidTool_Dev`** (`/wl verify`, `Verify.lua`, saved in `WarLegendRaidTool_DevDB`) is for **internal testing
+  only**: `sync.sh` copies it to the developer's game, the release zip never holds it (the workflow refuses a zip that
+  does), its `/wl` commands are not in HELP / README and the shipped addons never depend on it. Never add it to the zip,
+  never move its code into the shipped addons.
 
 ## Module pattern (copy this)
 Every file starts with:

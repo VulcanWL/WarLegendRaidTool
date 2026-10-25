@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: |cffffffffWaR|r |cffce1918LegenD|r RaidTool - Dev
+## Notes: Internal testing only (never in the release zip): /wl verify checks the client and runs every module test.
+## Author: WarLegend
+## Version: dev
+## Dependencies: WarLegendRaidTool
+## SavedVariables: WarLegendRaidTool_DevDB
+
+Verify.lua

@@ -14,7 +14,7 @@ const luaparse = require("luaparse");
 const TOOLS = __dirname;
 const REPO = path.join(TOOLS, "..");
 const CACHE = path.join(TOOLS, ".cache");
-const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne"];
+const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Dev"];
 const WUS_URL = "https://github.com/Gethe/wow-ui-source.git";
 const WUS_BRANCH = process.env.WLRT_WUS_BRANCH || "forever";
 

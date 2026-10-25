@@ -98,6 +98,7 @@ legacy (guarded) IsRaidLeader
 legacy (guarded) IsRaidOfficer
 legacy (guarded) LibStub
 legacy (guarded) LoggingCombat
+legacy (guarded) LoggingChat
 legacy (guarded) QuestGetAutoAccept
 legacy (guarded) RegisterAddonMessagePrefix
 legacy (guarded) RepairAllItems

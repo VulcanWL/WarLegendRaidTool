@@ -12,7 +12,8 @@ const path = require("path");
 const luaparse = require("luaparse");
 
 const root = path.resolve(process.argv[2] || path.join(__dirname, ".."));
-const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne"];
+const ADDONS = ["WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne", "WarLegendRaidTool_Dev"];
+const DEV = "WarLegendRaidTool_Dev"; // internal testing addon, never in the release zip: no ## Version, its /wl commands not in HELP / README
 
 // Globals the addon may create (anything else written at global scope is an accident).
 // ClickCastFrames: Clique's shared table (PvP frames register there).
@@ -170,8 +171,8 @@ function crossChecks() {
         walk(ast, (n) => {
             const f = wField(n);
             if (f) { if (targets.has(n)) assigned.add(f); else used.push([f, file, n]); }
-            if (n.type === "MemberExpression" && targets.has(n) && wField(n.base) === "slash") slash.set(n.identifier.name, at(file, n));
-            if (n.type === "IndexExpression" && targets.has(n) && wField(n.base) === "slash" && luaStr(n.index) !== undefined) {
+            if (addon !== DEV && n.type === "MemberExpression" && targets.has(n) && wField(n.base) === "slash") slash.set(n.identifier.name, at(file, n));
+            if (addon !== DEV && n.type === "IndexExpression" && targets.has(n) && wField(n.base) === "slash" && luaStr(n.index) !== undefined) {
                 slash.set(luaStr(n.index), at(file, n));
             }
             const c = callee(n);
@@ -265,7 +266,7 @@ for (const addon of ADDONS) {
     const dir = path.join(root, addon);
     if (!fs.existsSync(dir)) { problems.push(addon + ": folder not found under " + root); continue; }
     const toc = path.join(dir, addon + ".toc");
-    try { // the three .toc files carry the same ## Version (the release workflow refuses the tag otherwise)
+    if (addon !== DEV) try { // the three .toc files carry the same ## Version (the release workflow refuses the tag otherwise)
         const v = (fs.readFileSync(toc, "utf8").match(/^## Version:\s*(\S+)/m) || [])[1];
         if (!v) problems.push(path.relative(root, toc) + ": no ## Version line");
         else if (versions.size && !versions.has(v)) problems.push(path.relative(root, toc) + ": ## Version " + v + " differs from " + [...versions][0]);
