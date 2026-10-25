@@ -32,6 +32,7 @@ W.AddFR({
     ["Vote"] = "Voter",
     ["Unvote"] = "Retirer",
     ["Award %s to %s?"] = "Donner %s à %s ?",
+    ["This item is already awarded."] = "Cet objet est déjà attribué.",
     ["Award"] = "Donner",
     ["Awarded to "] = "Donné à ",
     ["End session"] = "Fin de session",
@@ -383,7 +384,14 @@ function LC.StartSession(items)
     local sid = tostring(time() % 100000) .. math.random(10, 99)
     Send("S", sid, #items, db.timeout)
     for i, str in ipairs(items) do Send("I", sid, i, str) end
-    Send("C", sid, table.concat(CouncilList(), ","))
+    -- the council in several "C" messages: 15 "First Surname" names already pass the 255 bytes of one
+    -- message (refused by the client, then nobody could vote); each one adds to the list
+    local part = {}
+    for _, n in ipairs(CouncilList()) do
+        if #part > 0 and #table.concat(part, ",") + #n > 180 then Send("C", sid, table.concat(part, ",")); part = {} end
+        part[#part + 1] = n
+    end
+    if #part > 0 then Send("C", sid, table.concat(part, ",")) end
     W.Print(string.format(L("Loot session started (%d items)."), #items))
 end
 
@@ -396,6 +404,9 @@ local Receive = {}
 -- Protocol safety: only the master looter or the group leader / an assistant may start a session,
 -- then only that player (full "Name-Realm" name) drives it. Every value is bounded.
 local MAX_ITEMS, MAX_COUNCIL, MAX_NOTE = 30, 40, 100
+
+-- 40 answers (and as many notes, votes) arrive in a few seconds: the voting window is rebuilt once per 0.2 s
+local RefreshVoteSoon = W.Coalesce(0.2, function() LC.RefreshVote() end)
 
 local function MasterLooterUnit()
     local method, partyIdx, raidIdx
@@ -454,7 +465,7 @@ function LC.MarkNoAddon(sid)
             if c.resp == "wait" and not S.acks[key] then c.resp = "noaddon" end
         end
     end
-    LC.RefreshVote()
+    RefreshVoteSoon()
 end
 
 Receive.K = function(t, from, full)
@@ -476,6 +487,7 @@ Receive.I = function(t, from, full)
     local idx = tonumber(t[3])
     if not idx or idx < 1 or idx > S.n or idx ~= math.floor(idx) then return end
     if not t[4] or #t[4] > 120 or not t[4]:match("^item:[%-%d:]+$") then return end
+    if S.items[idx] then return end -- sent once: a repeat must not wipe the answers, votes and winner
     S.items[idx] = NewItem(t[4])
     W.ItemLink(t[4]) -- asks the client to cache it
     local count = 0
@@ -490,11 +502,11 @@ end
 
 Receive.C = function(t, from, full)
     if not S or S.sid ~= t[2] or not FromML(full) then return end
-    local count = 0
+    -- the list comes in several messages: the cap counts them all
+    S.ncouncil = S.ncouncil or 0
     for n in (t[3] or ""):gmatch("[^,]+") do
-        count = count + 1
-        if count > MAX_COUNCIL then break end
-        if #n <= 60 then S.council[W.Key(n)] = true end
+        if S.ncouncil >= MAX_COUNCIL then break end
+        if #n <= 60 and not S.council[W.Key(n)] then S.council[W.Key(n)] = true; S.ncouncil = S.ncouncil + 1 end
     end
     S.council[W.Key(S.mlFull)] = true
     if IsCouncil() then LC.ShowVote() end
@@ -518,20 +530,28 @@ end
 
 local function Gear(s) return (s and s ~= "" and #s <= 120 and s:match("^item:[%-%d:]+$")) and s or nil end
 
+-- what a candidate may answer: the buttons, or the automatic timeout / autopass (never "wait" / "noaddon")
+local ANSWERABLE = { timeout = true, autopass = true }
+for _, r in ipairs(RESP) do ANSWERABLE[r.key] = true end
+-- an answer is final: once given (or once the item is awarded) a later one is ignored. "noaddon" can
+-- still be replaced: a slow answer from a player marked too early
+local function Open(c, item) return not item.winner and (c.resp == "wait" or c.resp == "noaddon") end
+
 Receive.R = function(t, from, full)
-    local c = Cand(t, from, full)
-    if not c then return end
-    c.resp = RESP_BY[t[4]] and t[4] or "pass"
+    local c, item = Cand(t, from, full)
+    if not c or not Open(c, item) then return end
+    c.resp = ANSWERABLE[t[4]] and t[4] or "pass"
     c.g1, c.g2 = Gear(t[5]), Gear(t[6])
     local ilvl = tonumber(t[7])
     c.ilvl = (ilvl and ilvl >= 0 and ilvl < 1000) and ilvl or nil
     S.acks[c.key] = true
-    LC.RefreshVote()
+    RefreshVoteSoon()
 end
 
 Receive.N = function(t, from, full)
-    local c = Cand(t, from, full)
-    if c then c.note = W.Plain(t[4], MAX_NOTE); LC.RefreshVote() end
+    local c, item = Cand(t, from, full)
+    -- one note, sent right after the answer, before the award
+    if c and not item.winner and not c.note then c.note = W.Plain(t[4], MAX_NOTE); RefreshVoteSoon() end
 end
 
 -- votes: voter and candidate are full identities (t[4] = the candidate's key)
@@ -540,7 +560,7 @@ Receive.V = function(t, from, full)
     local voter = SenderKey(from, full)
     if not voter or not IsCouncil(voter) then return end
     local item = S.items[tonumber(t[3]) or 0]
-    if not item then return end
+    if not item or item.winner then return end -- votes close with the award (the count is saved in the history)
     local target = item.cands[t[4]]
     if not target then return end
     if t[5] == "1" then
@@ -549,13 +569,13 @@ Receive.V = function(t, from, full)
     else
         target.votes[voter] = nil
     end
-    LC.RefreshVote()
+    RefreshVoteSoon()
 end
 
 Receive.A = function(t, from, full)
     if not S or S.sid ~= t[2] or not FromML(full) then return end
     local item = S.items[tonumber(t[3]) or 0]
-    if not item then return end
+    if not item or item.winner then return end -- awarded once: a repeat would give a second history line
     local c = item.cands[t[4]]
     local winner = c and c.name or W.Plain(W.BaseName(t[4] or "?"), 40)
     local resp = (t[5] == "" or RESP_BY[t[5]]) and t[5] or "pass" -- a known answer only (it is saved in the history)
@@ -568,7 +588,7 @@ Receive.A = function(t, from, full)
         W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), winner,
             (RESP_BY[t[5]] and RESP_BY[t[5]].text) or t[5]), W.Channel())
     end
-    LC.RefreshVote()
+    RefreshVoteSoon()
 end
 
 Receive.E = function(t, from, full)
@@ -712,8 +732,14 @@ local function CountKey(name)
     return g and g.full:lower() or W.BaseName(name):lower()
 end
 
+-- read again only when the history changed (newest line, size) or the hour turned: not on every redraw
+local countsCache, countsNewest, countsSize, countsHour
 local function LootCounts()
+    local hour = math.floor(time() / 3600)
+    if countsCache and countsNewest == hist[1] and countsSize == #hist and countsHour == hour then return countsCache end
+    countsNewest, countsSize, countsHour = hist[1], #hist, hour
     local counts, since = {}, time() - LOOT_DAYS * 86400
+    countsCache = counts
     for _, h in ipairs(hist) do
         if (h.t or 0) < since then break end -- newest first
         if h.g ~= false and h.winner then
@@ -727,7 +753,13 @@ end
 local function SortedCands(item)
     local list = {}
     for _, c in pairs(item.cands) do list[#list + 1] = c end
-    local function votes(c) local n = 0; for _ in pairs(c.votes) do n = n + 1 end; return n end
+    -- votes counted once per candidate, not on every comparison of the sort
+    for _, c in ipairs(list) do
+        local n = 0
+        for _ in pairs(c.votes) do n = n + 1 end
+        c.nv = n
+    end
+    local function votes(c) return c.nv or 0 end
     table.sort(list, function(a, b)
         local oa, ob = (RESP_BY[a.resp] or SPECIAL.wait).order, (RESP_BY[b.resp] or SPECIAL.wait).order
         if oa ~= ob then return oa < ob end
@@ -1071,10 +1103,15 @@ function LC.AskAward(idx, key)
     if not S or not FromML(W.UnitFullName("player")) then return end
     local item = S.items[idx]
     if not item then return end
+    if item.winner or item.awarding then W.Print(L("This item is already awarded.")); return end
     local c = item.cands[key]
     local name = c and c.name or W.BaseName(key)
     W.Confirm(string.format(L("Award %s to %s?"), W.ItemLink(item.str), name), function()
         if not S or S.items[idx] ~= item then return end -- the session ended while the window was open
+        -- two confirm windows (double click): the second one does nothing
+        if item.winner or item.awarding then W.Print(L("This item is already awarded.")); return end
+        item.awarding = true
+        W.After(10, function() item.awarding = nil end) -- the "A" never came back (send refused): award again possible
         local given, found = GiveLoot(item.str, key, name)
         if not given then
             if found then
