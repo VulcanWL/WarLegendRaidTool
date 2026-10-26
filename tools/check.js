@@ -206,7 +206,12 @@ function crossChecks() {
                 }
             } else if (n.type === "LocalStatement" && n.variables[0].name === "CATEGORIES") {
                 walk(n.init[0], (k) => {
-                    if (k.type === "TableKeyString" && k.key.name === "items") for (const i of k.value.fields) cats.set(luaStr(i.value), i.loc.start.line);
+                    if (k.type === "TableKeyString" && k.key.name === "items") for (const i of k.value.fields) {
+                        // a merged entry: { "A", "B", label = ..., split = ... } lists its modules as plain values
+                        const keys = i.value.type === "TableConstructorExpression"
+                            ? i.value.fields.filter((x) => x.type === "TableValue").map((x) => x.value) : [i.value];
+                        for (const v of keys) cats.set(luaStr(v), v.loc.start.line);
+                    }
                 });
             } else if (n.type === "ForGenericStatement" && n.body.some((st) => st.type === "AssignmentStatement" &&
                     st.variables[0].type === "IndexExpression" && st.variables[0].base.name === "lodPrefix")) {

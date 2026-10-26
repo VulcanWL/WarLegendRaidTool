@@ -1633,12 +1633,12 @@ end
 local CATEGORIES = {
     { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
-        { key = "prep", title = "Preparation", items = { "ReadyCheck", "Checklist", "RaidBuffs", "Readiness", "RaidInspect", "TalentReminder" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "DoesItDie" } },
+        { key = "prep", title = "Preparation", items = { { "ReadyCheck", "TalentReminder", label = "Ready check & talents", split = { 145 } }, "Checklist", "RaidBuffs", "Readiness", "RaidInspect" } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", { "DoesItDie", "AutoLog", label = "Kill time & combat log", split = { 215 } } } },
         { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
     } },
     { key = "pvp", title = "PvP", pvp = true, sections = {
-        { key = "bg", title = "Battlegrounds", items = { "PvPFrames", "CapTimers", "GYTimer", "BGStats" } },
+        { key = "bg", title = "Battlegrounds", items = { "PvPFrames", { "CapTimers", "GYTimer", label = "Battleground timers", split = { 305 } }, "BGStats" } },
         { key = "world", title = "Open world", items = { "DangerAlert", "DuelTimer", "Layers" } },
     } },
     { key = "me", title = "Guild", sections = {
@@ -1648,7 +1648,10 @@ local CATEGORIES = {
     { key = "options", title = "Options", sections = {
         { key = "addon", title = "Addon", items = { "Settings", "VersionCheck", "Bugs", "LoadTimes" } },
         { key = "ui", title = "Interface", items = { "MoveFrames", "InterfaceOptions", "ItemLevels", "MapTools" } },
-        { key = "auto", title = "Small automations", items = { "QualityOfLife", "Focus", "CooldownText", "LootSparkles", "AutoLog", "CCAlert", "CombatTimer", "Myslot", "LootTriage", "Upgrades", "MoneyGoal" } },
+        { key = "auto", title = "Small automations", items = { "QualityOfLife", { "Focus", "CCAlert", label = "Focus & crowd control", split = { 140 } },
+            { "CombatTimer", "CooldownText", label = "Timers", split = { 265 } },
+            { "LootSparkles", "Upgrades", label = "Loot & upgrades", split = { 180 } },
+            { "LootTriage", "MoneyGoal", label = "Gold & bag space", split = { 280 } }, "Myslot" } },
     } },
 }
 
@@ -1675,6 +1678,12 @@ W.AddFR({
     ["Raid Inspect"] = "Inspection",
     ["Auto Promote"] = "Promotion auto",
     ["Marks Bar"] = "Barre de marques",
+    ["Ready check & talents"] = "Appel et talents",
+    ["Kill time & combat log"] = "Temps de mort et journal",
+    ["Focus & crowd control"] = "Focus et contrôles",
+    ["Timers"] = "Minuteurs",
+    ["Loot & upgrades"] = "Butin et améliorations",
+    ["Gold & bag space"] = "Or et place dans les sacs",
 })
 
 -- saved key of the open section of a tab (Raid keeps the key it always had)
@@ -1725,10 +1734,47 @@ function W.EnsurePanel(m)
     return m.panel
 end
 
+-- Menu entries that show several small modules on one page, one under the other (CATEGORIES: a table of
+-- keys instead of a key; split = where each next module starts, in pixels). Each module keeps its own key, panel,
+-- on / off switch and refresh; selecting one of them selects the entry. Not in W.modules (Settings > Modules).
+W.menuGroups = {}
+local function MakeGroup(def)
+    local g = { key = table.concat(def, "+"), label = def.label, parts = {} }
+    for _, k in ipairs(def) do
+        local m = byKey[k]
+        if m then g.parts[#g.parts + 1] = m; m.group = g end
+    end
+    if #g.parts == 0 then return nil end
+    if #g.parts == 1 then g.parts[1].group = nil; return g.parts[1] end
+    g.build = function() end
+    -- each time it is shown: the parts are (re)built (a part switched on / off is built again) and placed
+    g.refresh = function(p)
+        local y = 0
+        for i, m in ipairs(g.parts) do
+            W.EnsurePanel(m)
+            m.panel:SetParent(p)
+            m.panel:ClearAllPoints()
+            m.panel:SetPoint("TOPLEFT", 0, -y)
+            m.panel:SetPoint("BOTTOMRIGHT")
+            m.panel:Show()
+            if m.refresh then m.refresh(m.panel) end
+            y = y + (def.split and def.split[i] or 0)
+        end
+    end
+    byKey[g.key] = g
+    W.menuGroups[#W.menuGroups + 1] = g
+    return g
+end
+
 -- fromSection / fromCategory: where the clicked entry is (keeps it open)
 function W.Select(key, fromSection, fromCategory)
     local m = byKey[key] or W.modules[1]
     if not m then return end
+    if m.group then m = m.group end -- a module shown with others in one menu entry
+    for _, g in ipairs(W.menuGroups) do
+        if g.panel then g.panel:Hide() end
+        for _, b in ipairs(g.buttons or {}) do b.sel:Hide(); W.MenuTextColor(b, g) end
+    end
     for _, other in ipairs(W.modules) do
         if other.panel then other.panel:Hide() end
         for _, b in ipairs(other.buttons or {}) do b.sel:Hide(); W.MenuTextColor(b, other) end
@@ -1960,7 +2006,11 @@ function W.BuildMain()
         for _, s in ipairs(c.sections) do
             local list = {}
             for _, key in ipairs(s.items) do
-                if byKey[key] then list[#list + 1] = byKey[key]; placed[key] = true end
+                if type(key) == "table" then
+                    local g = MakeGroup(key)
+                    if g then list[#list + 1] = g end
+                    for _, k in ipairs(key) do placed[k] = true end
+                elseif byKey[key] then list[#list + 1] = byKey[key]; placed[key] = true end
             end
             cat.sections[#cat.sections + 1] = { key = s.key, title = s.title, list = list, buttons = {} }
         end
