@@ -138,6 +138,9 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
   (licences CC BY-NC 3.0 / CC0 / SIL OFL, détail dans `Media/Sounds/Countdown/README.txt` et `Media/Fonts/Noto_license.txt`).
 - Scintillements du butin (Options > Interface) : idée de ForeverLootSparkles (Ashtar Senior, GPL-3.0) ; seules les variables de console sont reprises, aucun code.
 - Cadres de champ de bataille : basés sur BattleGroundEnemies (Bullsei).
+- Améliorations dans les sacs, mode « poids des caractéristiques » (Options > Petits automatismes, éteint par défaut : le niveau d'objet
+  reste la règle) : poids par classe et arbre de talents, noms des caractéristiques et valeurs des armes repris de **Wowdee** 0.35.11
+  (Wowdee, licence MIT, avis de copyright et de licence gardés en tête de la partie concernée de `Upgrades.lua`).
 - Carte de guilde : idée et messages de GuildMap (Portalz, Devetik) ; librairie HereBeDragons (Nevcairiel, BSD), détail dans `Libs/README.txt`. Transports : idée et données de routes de NauticusClassicResurrected (psynct, licence MIT).
 - **Layers**, **Minotaure**, **Classes**, l'historique d'ennemis de l'alerte danger et les styles **WL v3** (palette, accents, logos
   `Media/WLLogo*.tga`) : repris de l'addon **WarLegend v3** de **Sashoof** (réécrits dans l'architecture de cet addon).
