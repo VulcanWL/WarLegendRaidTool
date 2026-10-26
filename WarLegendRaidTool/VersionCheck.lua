@@ -116,7 +116,8 @@ W.RegisterModule("VersionCheck", "Version", function(p)
     W.Label(p, L("Your version: ") .. W.version, "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
     W.Button(p, L("Refresh"), 110, 22, function()
         if not W.InGroup() then W.Print(L("Nothing to broadcast: you are not in a party or raid.")) end
-        Broadcast(); Request(); RefreshList()
+        if GetTime() - lastBroadcast >= 10 then Broadcast() end
+        Request(); RefreshList()
     end):SetPoint("TOPLEFT", 14, -60)
     UI.count = W.Label(p, "", "GameFontHighlightSmall")
     UI.count:SetPoint("TOPLEFT", 140, -64)
@@ -134,5 +135,7 @@ W.RegisterModule("VersionCheck", "Version", function(p)
     end)
     UI.list.sf:SetPoint("TOPLEFT", 6, -8)
 end, function()
-    RefreshList(); Broadcast(); Request()
+    RefreshList()
+    if GetTime() - lastBroadcast >= 10 then Broadcast() end -- opening the tab again and again sends nothing more
+    Request()
 end)

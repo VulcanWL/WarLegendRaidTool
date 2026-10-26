@@ -18,7 +18,7 @@ W.WHITE = "Interface\\Buttons\\WHITE8X8"
 W.LOGO = "|cffffffffWaR|r |cffce1918LegenD|r"
 W.FONT = STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 W.ICON = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
-W.ICON_NAMES = { L("Star"), L("Circle"), L("Diamond"), "Triangle", L("Moon"), L("Square"), L("Cross"), L("Skull") }
+-- W.ICON_NAMES (translated names of the raid marks) is set at ADDON_LOADED, once the language is known
 W.BAR_TEXTURE = "Interface\\TargetingFrame\\UI-StatusBar"
 
 -- A font string given a font file with SetFont shows squares for letters that file lacks (Cyrillic names
@@ -781,7 +781,7 @@ end
 local lockNoticeAt = 0
 function W.Announce(text, channel)
     if W.SendChat(text, channel) then return true end
-    if GetTime() - lockNoticeAt > 10 then
+    if W.ChatLocked() and GetTime() - lockNoticeAt > 10 then
         lockNoticeAt = GetTime()
         W.Print(L("Group chat is locked during boss fights: message shown only to you."))
     end
@@ -1725,6 +1725,7 @@ function W.EnsurePanel(m)
     -- their saved values there). Built while shown, a tab opened its first time after a /reload
     -- with every box unchecked and every text field empty.
     m.panel:Hide()
+    m.index = nil -- a rebuilt panel (module switched off / on): the old widgets leave the search
     W.building = m
     local build = m.build
     if W.IsOff(m.key) then build = function(p) BuildOff(m, p) end end

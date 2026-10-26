@@ -86,7 +86,7 @@ if EventRegistry and EventRegistry.RegisterCallback then
     -- pcall: an error raised here would be caught by BugGrabber, reported here again, and loop
     EventRegistry:RegisterCallback("BugGrabber.BugGrabbed", function(_, errorID)
         if not (BugGrabber and BugGrabber.GetErrorByID) then return end
-        pcall(Remember, BugGrabber:GetErrorByID(errorID))
+        pcall(function() Remember(BugGrabber:GetErrorByID(errorID)) end)
         if refresh then pcall(refresh) end
     end, {})
 end

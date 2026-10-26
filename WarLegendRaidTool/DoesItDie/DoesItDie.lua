@@ -1215,13 +1215,16 @@ frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
 frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         if ... ~= ADDON_NAME then return end
-        -- WLRT: off by default (Raid > Combat > DoesItDie): nothing runs until it is switched on, then /reload
+        -- WLRT: off by default (Raid > Combat > Kill time & combat log): nothing runs until it is switched on, then
+        -- /reload; also off while the module is switched off in Settings > Modules
         local wl = WarLegendRaidToolDB and WarLegendRaidToolDB.doesItDie
-        if not (type(wl) == "table" and wl.enabled) then
+        local ui = WarLegendRaidToolDB and WarLegendRaidToolDB.ui
+        local moduleOff = type(ui) == "table" and type(ui.off) == "table" and ui.off.DoesItDie
+        if not (type(wl) == "table" and wl.enabled) or moduleOff then
             self:UnregisterAllEvents()
             self:SetScript("OnUpdate", nil)
             for _, f in ipairs(ns.offFrames or {}) do f:SetScript("OnUpdate", nil); f:Hide() end
-            SlashCmdList.DOESITDIE = function() WLRT.Print(WLRT.L("DoesItDie is off: switch it on in Raid > Combat > DoesItDie, then /reload.")) end
+            SlashCmdList.DOESITDIE = function() WLRT.Print(WLRT.L("DoesItDie is off: switch it on in Raid > Combat > Kill time & combat log > DoesItDie, then /reload.")) end
             return
         end
         DoesItDieDB = DoesItDieDB or {}

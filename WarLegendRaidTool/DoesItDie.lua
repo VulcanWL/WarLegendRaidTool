@@ -18,10 +18,10 @@ W.AddFR({
     ["Switching it on or off takes effect after a /reload."] = "L'allumer ou l'éteindre prend effet après un /reload.",
     ["If the original DoesItDie addon is installed, disable it: it uses the same saved file."] =
         "Si l'addon DoesItDie d'origine est installé, désactive-le : il utilise le même fichier de données.",
-    ["DoesItDie: marks of the DoTs on the target and the nameplates (off by default)"] =
-        "DoesItDie : marques des DoT sur la cible et les barres de nom (éteint par défaut)",
-    ["DoesItDie is off: switch it on in Raid > Combat > DoesItDie, then /reload."] =
-        "DoesItDie est éteint : allume-le dans Raid > Combat > DoesItDie, puis /reload.",
+    ["DoesItDie: marks of the DoTs on the target and the nameplates (on demand, off by default)"] =
+        "DoesItDie : marques des DoT sur la cible et les barres de nom (à la demande, éteint par défaut)",
+    ["DoesItDie is off: switch it on in Raid > Combat > Kill time & combat log > DoesItDie, then /reload."] =
+        "DoesItDie est éteint : allume-le dans Raid > Combat > Temps de mort et journal > DoesItDie, puis /reload.",
 })
 
 W.OnReady(function()

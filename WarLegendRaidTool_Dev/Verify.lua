@@ -135,14 +135,13 @@ Probe("memory", function()
     Out("INFO", "memory", table.concat(parts, ", "))
 end)
 
--- our errors of this session in BugGrabber (same test as Bugs.lua: the message names one of our addon folders)
+-- our errors of this session in BugGrabber (same test as Bugs.lua: the message or the stack names one of our addon folders)
 local function Errors()
     if not (BugGrabber and BugGrabber.GetDB and BugGrabber.GetSessionId) then return nil end
     local session, n = BugGrabber:GetSessionId(), 0
     for _, err in ipairs(BugGrabber:GetDB() or {}) do
-        if err.session == session and type(err.message) == "string" and err.message:find("WarLegendRaidTool", 1, true) then
-            n = n + 1
-        end
+        local text = tostring(err.message or "") .. tostring(err.stack or "")
+        if err.session == session and text:find("WarLegendRaidTool", 1, true) then n = n + 1 end
     end
     return n
 end

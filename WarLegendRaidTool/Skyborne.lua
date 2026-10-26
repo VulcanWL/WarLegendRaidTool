@@ -31,11 +31,12 @@ function W.LoadSkyborne()
         W.Print(L("The Skyborne module is missing or disabled: install the folder WarLegendRaidTool_Skyborne next to WarLegendRaidTool."))
         return false
     end
-    loaded = true
-    if not (_G.WLRTSkyborne and _G.WLRTSkyborne.Start) then
+    if not (_G.WLRTSkyborne and _G.WLRTSkyborne.Start and _G.WLRTSkyborne.Command) then
+        loadFailed = true -- the next /wl sk must not call a missing function
         W.Print(L("The Skyborne module had an error while loading: see BugSack (/bugsack)."))
         return false
     end
+    loaded = true
     return true
 end
 
