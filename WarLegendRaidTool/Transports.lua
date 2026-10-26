@@ -255,7 +255,7 @@ local COLORS = { Horde = { 1, 0.45, 0.4 }, Alliance = { 0.5, 0.7, 1 }, Neutral =
 local pinsOf = {} -- [id] = { world = frame, mini = frame }
 
 local function Plain(s)
-    if not W.IS_FR or L("Transports") == "Transports" then return s end
+    if W.LANG ~= "fr" then return s end
     return (string.gsub(s, "[^,<>]+", function(piece)
         local key = strtrim(piece)
         local fr = W.TransportNamesFR and W.TransportNamesFR[key]

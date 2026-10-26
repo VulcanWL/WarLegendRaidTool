@@ -374,9 +374,12 @@ local function ToggleTest(onlyStart)
     pvp.ToggleTestmode()
     testRun = testRun + 1
     local run = testRun
-    W.After(30, function()
-        if run == testRun and pvp.states.testmodeActive and not InCombatLockdown() then pvp.ToggleTestmode() end
-    end)
+    -- in combat at that moment: tried again every 5 s until the combat is over
+    local function Stop()
+        if run ~= testRun or not pvp.states.testmodeActive then return end
+        if InCombatLockdown() then W.After(5, Stop) else pvp.ToggleTestmode() end
+    end
+    W.After(30, Stop)
 end
 W.RegisterTest("Battleground frames", function() return db and db.enabled and not InCombatLockdown() end,
     function() if W.LoadPvP() then ToggleTest(true) end end,

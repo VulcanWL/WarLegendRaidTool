@@ -342,6 +342,12 @@ local function Snapshot()
 end
 
 local function POIsUpdated()
+    -- the map was not known yet at the loading screen: read now, the icons seen first are only remembered
+    if not mapID then
+        mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
+        if mapID then Snapshot() end
+        return
+    end
     for _, p in ipairs(POIs()) do
         local key = p.icon or p.atlas
         if p.name and key and lastIcon[p.name] ~= key then

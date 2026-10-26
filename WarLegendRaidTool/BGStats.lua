@@ -291,7 +291,13 @@ local function BuildGames(p)
         local g = db.games[d.index]
         if not g then return end
         if btn == "RightButton" then
-            W.Confirm(L("Delete this game?"), function() table.remove(db.games, d.index); BG.Refresh() end)
+            -- by the game, not its index: a game stored while the question is open moves the list
+            W.Confirm(L("Delete this game?"), function()
+                for i, x in ipairs(db.games) do
+                    if x == g then table.remove(db.games, i); break end
+                end
+                BG.Refresh()
+            end)
         else
             W.TextPopup(MapName(g), date("%d/%m/%Y %H:%M", g.e or 0) .. "  " .. ResultText(g) .. "  " .. Clock(g.d) .. "\n\n"
                 .. table.concat(SplitNames(g.p), "\n"), { hint = "Ctrl+C" })
