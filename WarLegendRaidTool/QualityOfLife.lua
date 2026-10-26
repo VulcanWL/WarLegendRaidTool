@@ -224,21 +224,22 @@ W.On("DELETE_ITEM_CONFIRM", function()
     end)
 end)
 
+-- English here, translated when the tab is built (L() at load time does not know the language yet)
 local SECTIONS = {
-    { L("Group"), { { "acceptInvites", L("Accept invites from friends and guild") },
-        { "acceptResurrect", L("Accept resurrections out of combat") } } },
-    { L("Loot and vendors"), { { "fastLoot", L("Instant loot (with auto loot)") },
-        { "sellJunk", L("Sell junk at vendors") },
-        { "autoRepair", L("Repair gear at vendors") },
-        { "repairGuild", L("  Use guild bank funds when possible") } } },
-    { L("Quests"), { { "questAccept", L("Accept quests") },
-        { "questTurnIn", L("Turn in completed quests (unless a reward choice)") } } },
-    { L("Misc"), { { "declineDuels", L("Decline duels (except friends)") },
-        { "skipCinematics", L("Skip cinematics") },
-        { "deleteConfirm", L("Pre-fill the word to delete an item") } } },
+    { "Group", { { "acceptInvites", "Accept invites from friends and guild" },
+        { "acceptResurrect", "Accept resurrections out of combat" } } },
+    { "Loot and vendors", { { "fastLoot", "Instant loot (with auto loot)" },
+        { "sellJunk", "Sell junk at vendors" },
+        { "autoRepair", "Repair gear at vendors" },
+        { "repairGuild", "  Use guild bank funds when possible" } } },
+    { "Quests", { { "questAccept", "Accept quests" },
+        { "questTurnIn", "Turn in completed quests (unless a reward choice)" } } },
+    { "Misc", { { "declineDuels", "Decline duels (except friends)" },
+        { "skipCinematics", "Skip cinematics" },
+        { "deleteConfirm", "Pre-fill the word to delete an item" } } },
 }
 
-W.RegisterModule("QualityOfLife", L("Quality of Life"), function(p)
+W.RegisterModule("QualityOfLife", "Quality of Life", function(p)
     W.Title(p, L("Quality of Life"))
     local y = -38
     for _, section in ipairs(SECTIONS) do

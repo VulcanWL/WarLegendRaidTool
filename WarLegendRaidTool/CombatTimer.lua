@@ -99,7 +99,7 @@ W.On("ENCOUNTER_START", function() Start(true) end)
 W.On("PLAYER_REGEN_ENABLED", function() Stop(false) end)
 W.On("ENCOUNTER_END", function() Stop(true) end)
 
-W.RegisterModule("CombatTimer", L("Combat Timer"), function(p)
+W.RegisterModule("CombatTimer", "Combat Timer", function(p)
     W.Title(p, L("Combat Timer"))
     local function opt(key, text, y)
         W.Check(p, text, function() return db[key] end, function(v) db[key] = v; ApplyVisibility() end):SetPoint("TOPLEFT", 12, y)

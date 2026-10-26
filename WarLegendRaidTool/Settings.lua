@@ -128,6 +128,7 @@ local SKIP_FIELDS = {
     ui = { lastModule = true, category = true, openSection = true, openSection_me = true, openSection_options = true, openSection_pvp = true, point = true, relPoint = true, x = true, y = true, lang = true },
     guild = { last = true, sel = true, profFilter = true, profMin = true, profMax = true, profSort = true, profSortDesc = true, profOnline = true },
     cooldownText = { previous = true },
+    autoLog = { owned = true },
     roster = { remindDay = true },
     bgStats = { recordMap = true },
     inviteTool = { offByDefault = true },
@@ -152,6 +153,12 @@ local TABLE_FIELDS = {
 }
 -- these save "point" as an anchor name (a string), the others as a table
 local STRING_POINT = { marksBar = true, moneyGoal = true, upgrades = true, combatTimer = true }
+-- fields named by a prefix: the player's own game options, kept to give them back (LootSparkles "o_<CVar>")
+local SKIP_PREFIX = { lootSparkles = "o_" }
+local function Prefixed(key, field)
+    local pre = SKIP_PREFIX[key]
+    return pre and field:sub(1, #pre) == pre or false
+end
 local function IsTableOption(key, field)
     if field == "point" then return not STRING_POINT[key] end
     return field == "emphPoint" or (TABLE_FIELDS[key] and TABLE_FIELDS[key][field]) or false
@@ -173,7 +180,7 @@ local function Collect()
         if type(key) == "string" and type(t) == "table" and not SKIP[key] then
             local skip, out, any = SKIP_FIELDS[key] or {}, {}, false
             for f, v in pairs(t) do
-                if type(f) == "string" and not skip[f] then
+                if type(f) == "string" and not skip[f] and not Prefixed(key, f) then
                     if SCALAR[type(v)] then
                         out[f], any = v, true
                     elseif type(v) == "table" and IsTableOption(key, f) then
@@ -218,10 +225,10 @@ local function Apply(data)
             if type(dest) ~= "table" then dest = {}; W.db[key] = dest end
             local skip = SKIP_FIELDS[key] or {}
             for f, v in pairs(fields) do
-                if type(f) == "string" and #f <= 40 and not skip[f] then
+                if type(f) == "string" and #f <= 40 and not skip[f] and not Prefixed(key, f) then
                     if type(v) == "table" then
                         if IsTableOption(key, f) then dest[f] = v end
-                    elseif dest[f] == nil or type(dest[f]) == type(v) then
+                    elseif not IsTableOption(key, f) and (dest[f] == nil or type(dest[f]) == type(v)) then
                         dest[f] = v
                     end
                 end

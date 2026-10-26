@@ -290,7 +290,7 @@ local function Best()
         local l = GetInventoryItemLink("player", s)
         wornLinks[s] = l
         if w then wornValues[s] = l and Score(l, w, s) or (not l and 0) or nil
-        else wornValues[s] = l and W.ItemLevel(l) or 0 end
+        else wornValues[s] = l and W.ItemLevel(l) or (not l and 0) or nil end -- not read yet: slot skipped
     end
     local twoHand = wornLinks[16] and select(4, W.GetItemInfoInstant(wornLinks[16])) == "INVTYPE_2HWEAPON"
     local top
@@ -311,7 +311,7 @@ local function Best()
                         if w and s == 16 and equipLoc == "INVTYPE_2HWEAPON" and v then
                             v = wornValues[17] and v + wornValues[17] or nil -- a two-hander replaces both hands
                         end
-                        if w and s == 17 and twoHand then v = nil end -- no off hand with a two-hander
+                        if s == 17 and twoHand then v = nil end -- no off hand with a two-hander
                         if v and (not slotId or v < worn) then slotId, worn, wornLink = s, v, wornLinks[s] end
                     end
                     local sameType = slotId and true

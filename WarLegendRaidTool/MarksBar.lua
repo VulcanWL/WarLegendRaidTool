@@ -106,6 +106,12 @@ local function CreateBar()
     ApplyDisplay()
 end
 
+-- switched on in Settings > Modules after the login: the bar is made when its tab needs it
+local function EnsureBar()
+    if not bar and db and not InCombatLockdown() and not W.IsOff("MarksBar") then CreateBar() end
+    return bar
+end
+
 W.OnReady(function()
     db = W.DB("marksBar", { enabled = false, locked = false, mouseover = false, orientation = "HORIZONTAL", scale = 1 })
     -- secure buttons: a /reload in combat makes it after; switched off in the module list: not made at all
@@ -121,17 +127,17 @@ end)
 W.RegisterModule("MarksBar", "Marks Bar", function(p)
     W.Title(p, L("Marks Bar"))
     W.Check(p, L("Show the bar"), function() return db.enabled end,
-        function(v) db.enabled = v; ApplyDisplay() end):SetPoint("TOPLEFT", 12, -40)
+        function(v) db.enabled = v; EnsureBar(); ApplyDisplay() end):SetPoint("TOPLEFT", 12, -40)
     W.Check(p, L("Lock position"), function() return db.locked end,
         function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -66)
     W.Check(p, L("Only visible on mouseover"), function() return db.mouseover end,
-        function(v) db.mouseover = v; ApplyDisplay() end):SetPoint("TOPLEFT", 12, -92)
-    W.Button(p, "Horizontal", 100, 22, function() db.orientation = "HORIZONTAL"; Layout() end):SetPoint("TOPLEFT", 16, -126)
-    W.Button(p, "Vertical", 100, 22, function() db.orientation = "VERTICAL"; Layout() end):SetPoint("TOPLEFT", 122, -126)
+        function(v) db.mouseover = v; EnsureBar(); ApplyDisplay() end):SetPoint("TOPLEFT", 12, -92)
+    W.Button(p, L("Horizontal"), 100, 22, function() db.orientation = "HORIZONTAL"; Layout() end):SetPoint("TOPLEFT", 16, -126)
+    W.Button(p, L("Vertical"), 100, 22, function() db.orientation = "VERTICAL"; Layout() end):SetPoint("TOPLEFT", 122, -126)
     W.Button(p, L("Size -"), 80, 22, function() db.scale = math.max(0.6, (db.scale or 1) - 0.1); Layout() end):SetPoint("TOPLEFT", 16, -154)
     W.Button(p, L("Size +"), 80, 22, function() db.scale = math.min(2, (db.scale or 1) + 0.1); Layout() end):SetPoint("TOPLEFT", 102, -154)
     W.Button(p, L("Recenter the bar"), 150, 22, function()
-        if InCombatLockdown() then return end
+        if InCombatLockdown() or not EnsureBar() then return end
         db.point, db.relPoint, db.x, db.y = "CENTER", "CENTER", 0, -180
         bar:ClearAllPoints()
         bar:SetPoint("CENTER", UIParent, "CENTER", 0, -180)

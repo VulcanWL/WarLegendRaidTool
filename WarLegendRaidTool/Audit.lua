@@ -23,7 +23,7 @@ local MAX_KEYS, MAX_RECENT, MAX_FIELD = 300, 150, 40
 local function Clean(v)
     v = W.Safe(v)
     if type(v) ~= "string" then return "?" end
-    return v:sub(1, MAX_FIELD)
+    return W.CutUTF8(v, MAX_FIELD)
 end
 
 local function NewSession()

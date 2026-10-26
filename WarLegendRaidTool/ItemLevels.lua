@@ -203,14 +203,14 @@ local function CharacterAverage()
         charAvg = parent:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
         charAvg:SetPoint("BOTTOM", 0, 8)
     end
-    if not On("average") then charAvg:Hide(); return end
+    if not On("average") or not On("character") then charAvg:Hide(); return end
     local equipped = GetAverageItemLevel and select(2, GetAverageItemLevel())
     AverageText(charAvg, W.Safe(equipped))
 end
 
 if hooksecurefunc and type(PaperDollItemSlotButton_Update) == "function" then
     hooksecurefunc("PaperDollItemSlotButton_Update", W.Timed("hook character sheet", function(button)
-        if not On("character") then Clean(button); return end
+        if not On("character") then Clean(button); if charAvg then charAvg:Hide() end; return end
         local slot = button:GetID()
         if slot and slot >= 1 and slot <= 19 and slot ~= 4 and slot ~= 19 then -- not the shirt and the tabard
             Mark(button, GetInventoryItemLink("player", slot), "character")
@@ -229,7 +229,7 @@ local function InspectAverage(unit)
         inspectAvg = parent:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
         inspectAvg:SetPoint("BOTTOM", 0, 24)
     end
-    if not On("average") then inspectAvg:Hide(); return end
+    if not On("average") or not On("inspect") then inspectAvg:Hide(); return end
     local api = C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel
     local value = api and W.Safe(api(unit))
     if not value or value <= 0 then

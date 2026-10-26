@@ -37,7 +37,7 @@ end
 
 -- status: OK (as expected), LOOK (to read: a format or value the code depends on), SKIP (could not run here), INFO
 local function Out(status, id, text)
-    local line = (status .. " " .. id .. ": " .. tostring(text)):sub(1, MAX_LEN)
+    local line = W.CutUTF8(status .. " " .. id .. ": " .. tostring(text), MAX_LEN)
     W.Print(TAG .. line)
     if run and #run.lines < MAX_LINES then run.lines[#run.lines + 1] = line end
     if counts and counts[status] then counts[status] = counts[status] + 1 end
@@ -129,7 +129,7 @@ Probe("memory", function()
     if not (UpdateAddOnMemoryUsage and GetAddOnMemoryUsage) then Out("SKIP", "memory", "no memory API"); return end
     UpdateAddOnMemoryUsage()
     local parts = {}
-    for _, a in ipairs({ "WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP" }) do
+    for _, a in ipairs({ "WarLegendRaidTool", "WarLegendRaidTool_Raid", "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do
         parts[#parts + 1] = string.format("%s %.0f KB", a, GetAddOnMemoryUsage(a) or 0)
     end
     Out("INFO", "memory", table.concat(parts, ", "))

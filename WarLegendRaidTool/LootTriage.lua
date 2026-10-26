@@ -85,7 +85,7 @@ end
 local function Protected(link)
     local _, _, quality = W.GetItemInfo(link)
     local _, _, _, _, _, classID = W.GetItemInfoInstant(link)
-    return classID == CLASS_QUEST or (quality or 0) >= 4
+    return quality == nil or classID == CLASS_QUEST or quality >= 4 -- quality not read yet: never offered
 end
 
 ---------------------------------------------------------------------------
@@ -203,6 +203,7 @@ local function Apply()
     local on = db and db.enabled and not W.IsOff("LootTriage") and true or false
     W.Activate(evBags, on); W.Activate(evLoot, on)
     if on then Rebuild() else wipe(rank); cheapest = nil; bagsFull = false end -- switched off: no bag scan
+    if not (on and On("bags")) then for _, fs in pairs(marks) do fs:Hide() end end -- numbers already on the bags
 end
 W.OnReady(function() W.After(1, Apply) end)
 
