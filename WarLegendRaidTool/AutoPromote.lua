@@ -32,24 +32,36 @@ local function RefreshRanks()
     table.sort(ranks, function(a, b) return a.index < b.index end)
 end
 
+-- the list as typed, looked up whatever the case ("jean dupont" is "Jean Dupont")
+local function Listed(name)
+    if not name then return false end
+    if db.names[name] then return true end
+    local low = name:lower()
+    for n in pairs(db.names) do
+        if n:lower() == low or W.FullName(n):lower() == low then return true end
+    end
+    return false
+end
+
 local function ShouldPromote(name)
     local full = W.FullName(name)
-    if W.HasFullPart(full) and (db.names[name] or db.names[full]) then return true end
+    if W.HasFullPart(full) and (Listed(name) or Listed(full)) then return true end
     -- a short name of the list or a rank: only the guild member with that name, never a stranger with the same
     -- first name (Forever), and not when two guild members share it (a known surname still tells them apart for a rank)
     local m = W.GuildMember(name)
     local short = W.BaseName(name)
     local shared = rankByName[short] == false
     if not m or (shared and not W.HasFullPart(full)) then return false end
-    if db.names[short] and not shared then return true end
+    if Listed(short) and not shared then return true end
     return m.rank and db.ranks[m.rank] or false
 end
 
+-- name: the full name, exact match (as Blizzard's own unit menu): never another player with the same first name
 local function Promote(name)
     if C_PartyInfo and C_PartyInfo.PromoteToAssistant then
-        C_PartyInfo.PromoteToAssistant(name)
+        C_PartyInfo.PromoteToAssistant(name, true)
     elseif PromoteToAssistant then
-        PromoteToAssistant(name)
+        PromoteToAssistant(name, true)
     end
 end
 
@@ -60,11 +72,13 @@ local function Check()
     for i = 1, W.NumRaid() do
         local name, rank = GetRaidRosterInfo(i)
         name, rank = W.Safe(name), W.Safe(rank)
-        if name and rank == 0 and now - (promotedAt[name] or 0) > 5
-                and ShouldPromote(W.UnitFullName("raid" .. i) or name) then
-            promotedAt[name] = now
-            Promote(name)
-            W.Print(name .. L(" promoted to assistant."))
+        if name and rank == 0 then
+            name = W.UnitFullName("raid" .. i) or name
+            if now - (promotedAt[name] or 0) > 5 and ShouldPromote(name) then
+                promotedAt[name] = now
+                Promote(name)
+                W.Print(name .. L(" promoted to assistant."))
+            end
         end
     end
 end
@@ -102,7 +116,9 @@ end
 
 local function Build(p)
     W.Title(p, L("Auto Promote"))
-    W.Label(p, L("Add players (separated by comma or space):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
+    -- Forever: a full name holds a space, so only commas separate there (W.NameList)
+    W.Label(p, W.FOREVER and L("Add players (separated by comma):") or L("Add players (separated by comma or space):"), "GameFontHighlightSmall")
+        :SetPoint("TOPLEFT", 16, -40)
     local box = W.EditBox(p, 260, 400)
     box:SetPoint("TOPLEFT", 20, -58)
     local function add()

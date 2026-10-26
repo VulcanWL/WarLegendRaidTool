@@ -190,7 +190,7 @@ function AssignClickers()
         local c = list[i]
         clicks[c.key] = (clicks[c.key] or 0) + 1
         names[i] = c.name
-        local target = W.Safe(GetUnitName and GetUnitName(c.unit, true) or UnitName(c.unit))
+        local target = W.UnitFullName(c.unit) -- "First Surname" on Forever: never another player with that first name
         if target then W.SendChat(WhisperText(), "WHISPER", target) end
         W.Print(L("Whisper sent to the clickers:") .. " " .. W.ColorName(c.name, c.class))
     end

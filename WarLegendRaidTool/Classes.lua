@@ -141,7 +141,8 @@ local function CardTooltip(card)
         end
         local right = table.concat(parts, " · ")
         local leader = db.leaders[card.class] == m.full and (" |cffffd100" .. L("Leader") .. "|r") or ""
-        GameTooltip:AddDoubleLine(m.name .. " (" .. tostring(m.level or "?") .. ")" .. leader, right,
+        -- "First Surname" on Forever: two members may share a first name
+        GameTooltip:AddDoubleLine((W.FOREVER and m.full or m.name) .. " (" .. tostring(m.level or "?") .. ")" .. leader, right,
             m.online and 0.4 or 0.6, m.online and 1 or 0.6, m.online and 0.4 or 0.6, 0.85, 0.85, 0.85)
     end
     GameTooltip:Show()
@@ -196,11 +197,11 @@ function Refresh()
             if m.online then online = online + 1 end
             local p = Profile(m)
             if p and ROLES[p.r] then roles[p.r] = roles[p.r] + 1 end
-            c.values[#c.values + 1] = { m.full, m.name }
+            c.values[#c.values + 1] = { m.full, W.FOREVER and m.full or m.name }
             if m.full == leader then leaderFound = true end
         end
         -- a leader who left the guild stays chosen, shown by name
-        if leader and not leaderFound then c.values[#c.values + 1] = { leader, W.BaseName(leader) } end
+        if leader and not leaderFound then c.values[#c.values + 1] = { leader, W.FOREVER and leader or W.BaseName(leader) } end
         c.count:SetText(string.format(L("%d members, %d online"), #list, online))
         local parts = {}
         for _, r in ipairs({ "Tank", "Heal", "DPS" }) do
@@ -236,8 +237,8 @@ W.RegisterModule("Classes", L("Classes"), function(p)
     W.Tooltip(avail, L("Availability:"), { L("e.g. evenings, weekends") })
     local function Save()
         local p2 = me()
-        local s = (spec:GetText() or ""):gsub("[|%c]", ""):sub(1, 30)
-        local a = (avail:GetText() or ""):gsub("[|%c]", ""):sub(1, 60)
+        local s = W.CutUTF8((spec:GetText() or ""):gsub("[|%c]", ""), 30)
+        local a = W.CutUTF8((avail:GetText() or ""):gsub("[|%c]", ""), 60)
         if s == p2.s and a == p2.a then return end
         p2.s, p2.a = s, a
         Send(true)

@@ -19,6 +19,7 @@ W.AddFR({
     ["Online guild members of these ranks:"] = "Membres de guilde en ligne de ces rangs :",
     ["Invite these ranks"] = "Inviter ces rangs",
     ["Names to invite (comma, space or one per line):"] = "Noms à inviter (virgule, espace ou un par ligne) :",
+    ["Names to invite (comma or one per line):"] = "Noms à inviter (virgule ou un par ligne) :",
     ["Invite the list"] = "Inviter la liste",
     ["Disband the raid"] = "Dissoudre le raid",
     ["Disband (keep guild)"] = "Dissoudre (garder la guilde)",
@@ -227,8 +228,9 @@ local function Disband(keepGuild)
     W.Confirm(keepGuild and L("Remove every member who is not in the guild?") or L("Remove every member from the group?"), function()
         for _, u in ipairs(W.GroupUnits()) do
             if not W.UnitIsMe(u) then
-                local name = W.Safe(GetUnitName and GetUnitName(u, true) or UnitName(u))
-                if name and not (keepGuild and W.GuildMember(name)) then W.Uninvite(name) end
+                -- full name ("First Surname" on Forever): a first name two guild members share is no guild member
+                local name = W.UnitFullName(u)
+                if name and not (keepGuild and W.GuildMember(name)) then W.Uninvite(name, true) end
             end
         end
     end)
@@ -294,7 +296,9 @@ W.RegisterModule("InviteTool", "Invite Tool", function(p)
     end
     W.Button(p, L("Invite these ranks"), 170, 22, InviteRanks):SetPoint("TOPLEFT", 400, -250)
 
-    W.Label(p, L("Names to invite (comma, space or one per line):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -366)
+    -- Forever: a full name holds a space, so a space separates nothing there (W.NameList)
+    W.Label(p, W.FOREVER and L("Names to invite (comma or one per line):") or L("Names to invite (comma, space or one per line):"),
+        "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -366)
     local listBg, listBox = W.MultiEdit(p, 370, 70, 2000)
     listBg:SetPoint("TOPLEFT", 16, -382)
     listBox:SetScript("OnShow", function(self) self:SetText(db.list or "") end)

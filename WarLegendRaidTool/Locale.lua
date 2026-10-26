@@ -99,6 +99,7 @@ local FR = {
     ["Accept shared presets"] = "Accepter les presets partagés",
     ["Add"] = "Ajouter",
     ["Add players (separated by comma or space):"] = "Ajouter des joueurs (séparés par virgule ou espace) :",
+    ["Add players (separated by comma):"] = "Ajouter des joueurs (séparés par une virgule) :",
     ["Adds the typed name, or your target if the field is empty."] = "Ajoute le nom tapé, ou ta cible si le champ est vide.",
     ["Alternating (1,3,5)"] = "Alterné (1,3,5)",
     ["Announce"] = "Annoncer",

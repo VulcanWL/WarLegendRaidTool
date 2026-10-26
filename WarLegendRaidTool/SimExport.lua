@@ -50,10 +50,12 @@ local PROF_EN = { [164] = "blacksmithing", [165] = "leatherworking", [171] = "al
 local function Professions()
     local out = {}
     if not (GetProfessions and GetProfessionInfo) then return out end
-    local p1, p2 = GetProfessions()
-    for _, idx in ipairs({ p1, p2 }) do
-        local name, _, rank, _, _, _, skillLine = GetProfessionInfo(idx)
-        if name and PROF_EN[skillLine] then out[#out + 1] = { name = PROF_EN[skillLine], rank = rank or 0 } end
+    local idx = { GetProfessions() }
+    for i = 1, 2 do -- not ipairs: the first slot is empty when only the second profession is learned
+        if idx[i] then
+            local name, _, rank, _, _, _, skillLine = GetProfessionInfo(idx[i])
+            if name and PROF_EN[skillLine] then out[#out + 1] = { name = PROF_EN[skillLine], rank = rank or 0 } end
+        end
     end
     return out
 end

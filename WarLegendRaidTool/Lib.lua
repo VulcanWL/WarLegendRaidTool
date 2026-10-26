@@ -396,6 +396,14 @@ function W.Plain(s, max)
     return s
 end
 
+-- At most max bytes, never half a letter: a French accent takes 2 bytes, and a cut one breaks the line
+function W.CutUTF8(s, max)
+    if type(s) ~= "string" or #s <= max then return s end
+    local i = max
+    while i > 0 and s:byte(i + 1) >= 128 and s:byte(i + 1) < 192 do i = i - 1 end -- byte i+1 continues a letter
+    return s:sub(1, i)
+end
+
 -- The sender of a received prompt, as shown to me: plain name, flagged when not in my guild
 function W.Sender(from, full)
     local name = W.Plain(from, 40)
@@ -527,10 +535,11 @@ function W.SameUnit(a, b)
 end
 function W.UnitIsMe(unit) return unit == "player" or W.SameUnit(unit, "player") end
 
--- Forever keeps these in C_PartyInfo; the old globals only exist through Blizzard's deprecation shims
-function W.Uninvite(name)
-    if C_PartyInfo and C_PartyInfo.UninviteUnit then C_PartyInfo.UninviteUnit(name)
-    elseif UninviteUnit then UninviteUnit(name) end
+-- Forever keeps these in C_PartyInfo; the old globals only exist through Blizzard's deprecation shims.
+-- exact = true: that exact full name only (as Blizzard's own unit menu does with "First Surname")
+function W.Uninvite(name, exact)
+    if C_PartyInfo and C_PartyInfo.UninviteUnit then C_PartyInfo.UninviteUnit(name, nil, exact)
+    elseif UninviteUnit then UninviteUnit(name, nil, exact) end
 end
 
 function W.GuildInfo(name) return W.GuildMember(name) end

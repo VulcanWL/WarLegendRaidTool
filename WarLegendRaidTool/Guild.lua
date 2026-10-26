@@ -696,7 +696,7 @@ function G.Post()
     local chan = db.channel or ""
     local id = tonumber(chan) or (GetChannelName and GetChannelName(chan))
     if not id or id == 0 then W.Print(L("Channel not found: ") .. chan); return end
-    if not W.SendChat(msg:sub(1, 255), "CHANNEL", id) then
+    if not W.SendChat(W.CutUTF8(msg, 255), "CHANNEL", id) then
         W.Print(L("Channel not found: ") .. chan)
         return
     end
@@ -1165,7 +1165,10 @@ local function ShowMemberLinks(member, onlyProf)
     linkMenu:ClearAllPoints()
     linkMenu:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / s, y / s)
     linkMenu:Show()
-    W.After(8, function() if linkMenu then linkMenu:Hide() end end)
+    -- only the timer of the last opening hides it: a menu opened again a moment later stays its 8 s
+    linkMenu.shown = (linkMenu.shown or 0) + 1
+    local shown = linkMenu.shown
+    W.After(8, function() if linkMenu and linkMenu.shown == shown then linkMenu:Hide() end end)
 end
 
 local function BuildProfs(p)
@@ -1334,7 +1337,9 @@ local function BuildRecruit(p)
     count:SetPoint("TOPRIGHT", bg, "BOTTOMRIGHT", 0, -4)
     box:SetScript("OnTextChanged", function(self)
         db.msgs[db.sel] = self:GetText()
-        count:SetText(#Fill(self:GetText()) .. "/255")
+        -- bytes, as the chat counts them (an accent takes 2): red when the end will be cut off
+        local n = #Fill(self:GetText())
+        count:SetText((n > 255 and "|cffff5555" or "") .. n .. "/255" .. (n > 255 and "|r" or ""))
     end)
     local help = W.Label(p, L("{guild} = guild name, {me} = your name. 255 characters max."), "GameFontDisableSmall")
     help:SetPoint("TOPLEFT", bg, "BOTTOMLEFT", 0, -4)

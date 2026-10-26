@@ -182,7 +182,7 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
     if IsInInstance() then return end
     myName = myName or W.UnitFullName("player")
     if not full or full == myName then return end
-    local name, _, level, class, _, x, y, mapID = strsplit(",", msg)
+    local _, _, level, class, _, x, y, mapID = strsplit(",", msg)
     if class == "STEALTH" then Forget(full); return end
     x, y, mapID, level = W.Finite(x), W.Finite(y), W.Int(mapID, 0, 100000), W.Int(level, 0, 100)
     if not (x and y and mapID) or x <= 0 or x > 1 or y <= 0 or y > 1 or mapID <= 0 then Forget(full); return end
@@ -196,7 +196,8 @@ W.OnAddon(PREFIX, function(msg, _, channel, full)
         members[full] = m
         count = count + 1
     end
-    m.name = (type(name) == "string" and name ~= "" and #name <= 60) and W.Plain(name, 60) or full
+    -- the sender as the server names it: the name field of the message is whatever the sender wrote
+    m.name = W.Plain(full, 60)
     m.level = level or 0
     m.class = type(class) == "string" and class:upper() or "WARRIOR"
     m.mapID, m.x, m.y, m.t = mapID, x, y, now
