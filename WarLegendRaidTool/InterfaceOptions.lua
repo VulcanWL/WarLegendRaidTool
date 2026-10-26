@@ -43,7 +43,7 @@ W.AddFR({
     ["Direction of the combat text"] = "Sens du texte de combat",
     ["Up"] = "Défilement vers le haut",
     ["Down"] = "Défilement vers le bas",
-    ["Arc"] = "Arc-en-ciel",
+    ["Arc"] = "Arc",
     ["Size of the damage numbers"] = "Taille des chiffres de dégâts",
     ["Guild names of players"] = "Nom de guilde des joueurs",
     ["PvP titles of players"] = "Titres JcJ des joueurs",
@@ -305,7 +305,7 @@ local function BuildBrowser(p)
         sel:SetText(d.cvar)
         value:SetText(Get(d.cvar) or "")
     end
-    search:SetScript("OnTextChanged", Refresh)
+    search:SetScript("OnTextChanged", W.Debounce(0.25, Refresh)) -- every CVar read again: once typing pauses
     W.Button(p, L("Set"), 110, 22, function()
         if not selected then return end
         if Set(selected, value:GetText() or "", true) then Refresh() end

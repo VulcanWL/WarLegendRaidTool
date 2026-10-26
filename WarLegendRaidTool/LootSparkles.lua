@@ -70,6 +70,13 @@ local function Restore(list, fallback)
     end
 end
 
+-- switched off in Settings > Modules: its handlers no longer run, so the game's own values are put back here
+W.OnReady(function()
+    W.After(1, function()
+        if W.IsOff("LootSparkles") and not InCombatLockdown() then Restore(QUEST); Restore(SOFT) end
+    end)
+end)
+
 local pending = false
 local function Refresh()
     if not db then return end

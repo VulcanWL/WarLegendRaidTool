@@ -81,8 +81,13 @@ targetEv = W.On("PLAYER_TARGET_CHANGED", function()
     end
 end, nil, true) -- off until WatchTargets turns it on
 W.On("PLAYER_REGEN_DISABLED", function() if worldBoss then fought = true end end)
+-- only the check of the latest end of combat counts (an older one could fire during a later short break)
+local overRun = 0
 W.On("PLAYER_REGEN_ENABLED", function()
-    if worldBoss then W.After(30, WorldBossOver) end
+    if not worldBoss then return end
+    overRun = overRun + 1
+    local run = overRun
+    W.After(30, function() if run == overRun then WorldBossOver() end end)
 end)
 
 W.slash.logdebug = function()

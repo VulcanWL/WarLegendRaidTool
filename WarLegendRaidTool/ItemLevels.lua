@@ -79,6 +79,11 @@ end
 local function IsUpgrade(link, level)
     local _, _, _, equipLoc, _, classID, subclass = GetInfoInstant(link)
     if classID ~= CLASS_ARMOR or not SLOTS1[equipLoc] or not Appropriate(subclass, equipLoc) then return false end
+    -- a two-hander worn: the empty off-hand does not make every shield / off-hand an upgrade
+    if SLOTS1[equipLoc] == 17 then
+        local main = GetInventoryItemLink("player", 16)
+        if main and select(4, GetInfoInstant(main)) == "INVTYPE_2HWEAPON" then return false end
+    end
     for _, slot in ipairs({ SLOTS1[equipLoc], SLOTS2[equipLoc] }) do
         local worn = GetInventoryItemLink("player", slot)
         if not worn then return true end

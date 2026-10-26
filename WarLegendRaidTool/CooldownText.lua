@@ -42,6 +42,15 @@ local function Apply()
     end
 end
 W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload) if isLogin or isReload then Apply() end end)
+-- switched off in Settings > Modules: the handler above no longer runs, so the player's value is put back here
+W.OnReady(function()
+    W.After(1, function()
+        if W.IsOff("CooldownText") and db.previous ~= "" and not InCombatLockdown() then
+            SetCV(CVAR, db.previous)
+            db.previous = ""
+        end
+    end)
+end)
 
 W.RegisterModule("CooldownText", "Cooldown text", function(p)
     W.Title(p, L("Cooldown text"))
