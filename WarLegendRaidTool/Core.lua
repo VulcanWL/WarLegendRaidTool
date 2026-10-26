@@ -230,7 +230,8 @@ end
 local function RosterSettled()
     rosterPending = false
     if W.access ~= true then return end
-    for _, fn in ipairs(rosterFns) do
+    for i = 1, #rosterFns do -- counted once: the handlers W.LoadRaid adds are run by it
+        local fn = rosterFns[i]
         if not offFiles[rosterFiles[fn]] then
             local ok, err = W.Measure(rosterLabels[fn] or "roster", fn)
             if not ok then geterrorhandler()(err) end
@@ -397,19 +398,19 @@ function W.LoadRaid()
     end
     W.raidLoaded = true
     for _, fn in ipairs(got.ready) do
-        local good, err = pcall(fn)
+        local good, err = pcall(fn) -- already timed by W.OnReady
         if not good then geterrorhandler()(err) end
     end
     if W.access == true then
         for _, h in ipairs(got.handlers) do
             if h.active and not h.always and not offFiles[h.file] and (h.event == "PLAYER_ENTERING_WORLD" or h.event == "PLAYER_LOGIN") then
-                local good, err = pcall(h.fn, false, false)
+                local good, err = W.Measure(h.label, h.fn, false, false)
                 if not good then geterrorhandler()(err) end
             end
         end
         for _, fn in ipairs(got.roster) do
             if not offFiles[rosterFiles[fn]] then
-                local good, err = pcall(fn)
+                local good, err = W.Measure(rosterLabels[fn] or "roster", fn)
                 if not good then geterrorhandler()(err) end
             end
         end
@@ -423,6 +424,7 @@ end
 -- Should the raid modules be in memory now? (in a group, a dungeon / raid, or with Aura Tracking on)
 local function WantRaid()
     if W.access ~= true or W.raidLoaded or loadFailed then return false end
+    if #pendingMsgs > 0 then return true end -- messages kept during a fight (Dispatch)
     local auras = W.db and W.db.auras
     if auras and auras.enabled and not OffKey("AuraTracker") then return true end -- Aura Tracking works everywhere, PvP included
     if W.InGroup() then return true end -- a battleground raid too (Raid Groups, marks)
@@ -721,8 +723,9 @@ function W.IsLeader()
 end
 
 function W.CanLead()
-    if not W.InRaid() then return true end
+    if not W.InGroup() then return true end -- solo: tests / own use
     if W.IsLeader() then return true end
+    if not W.InRaid() then return false end -- a party has no assistants: the leader only
     if UnitIsGroupAssistant then return UnitIsGroupAssistant("player") and true or false end
     return IsRaidOfficer and IsRaidOfficer() and true or false
 end
@@ -931,7 +934,7 @@ end
 -- (nodes ~600 apart inside a tree, ~4000 between trees), so the node columns are split at the two widest gaps.
 -- names = the groups' names when there are 3 of them. Same result as W.ReadTalentConfig, or nil.
 function W.ReadTalentColumns(configID, treeID, names)
-    if not (C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then return nil end
+    if not (C_Traits and C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then return nil end
     local nodes = C_Traits.GetTreeNodes(treeID)
     if not nodes or #nodes == 0 then return nil end
     local xs, ranks = {}, {}
@@ -1758,7 +1761,7 @@ local function MakeGroup(def)
             m.panel:SetPoint("TOPLEFT", 0, -y)
             m.panel:SetPoint("BOTTOMRIGHT")
             m.panel:Show()
-            if m.refresh then m.refresh(m.panel) end
+            if m.refresh and not W.IsOff(m.key) then m.refresh(m.panel) end
             y = y + (def.split and def.split[i] or 0)
         end
     end
@@ -1795,12 +1798,18 @@ function W.Select(key, fromSection, fromCategory)
         end
     end
     if main.LayoutMenu then main.LayoutMenu() end
-    if m.refresh then m.refresh(m.panel) end
+    if main.searchGlow then main.searchGlow:Hide() end -- a flash of the tab left behind
+    if m.refresh and not W.IsOff(m.key) then m.refresh(m.panel) end -- off: the page only says so
 end
 
 -- a switched off module is grey in the menu
 function W.MenuTextColor(b, m)
-    if W.IsOff(m.key) then b.text:SetTextColor(0.45, 0.45, 0.45) else b.text:SetTextColor(unpack(main.textColor)) end
+    local off = W.IsOff(m.key)
+    if m.parts then -- a grouped entry is grey when all its modules are off
+        off = true
+        for _, part in ipairs(m.parts) do if not W.IsOff(part.key) then off = false end end
+    end
+    if off then b.text:SetTextColor(0.45, 0.45, 0.45) else b.text:SetTextColor(unpack(main.textColor)) end
 end
 
 -- on = false: the module stops getting events, messages and tests (what it already shows stays until /reload)
@@ -1815,9 +1824,12 @@ function W.SetModuleOn(key, on)
         local shown = m.panel:IsShown()
         m.panel:Hide()
         m.panel = nil
+        m.index = nil -- its old widgets leave the search
         if shown then W.Select(key) end
     end
-    for _, b in ipairs(m.buttons or {}) do W.MenuTextColor(b, m) end
+    if W.ReindexTab then W.ReindexTab(m) end
+    local entry = m.group or m
+    for _, b in ipairs(entry.buttons or {}) do W.MenuTextColor(b, entry) end
 end
 
 -- Window size: the whole window is scaled (text, buttons and layouts together), so every module stays
@@ -2237,7 +2249,8 @@ W.AddFR({
 })
 local ACCENTS = { ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e", ["à"] = "a", ["â"] = "a", ["ä"] = "a",
     ["î"] = "i", ["ï"] = "i", ["ô"] = "o", ["ö"] = "o", ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["ç"] = "c",
-    ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["À"] = "a", ["Â"] = "a", ["Î"] = "i", ["Ô"] = "o", ["Û"] = "u", ["Ç"] = "c" }
+    ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["À"] = "a", ["Â"] = "a", ["Î"] = "i", ["Ô"] = "o", ["Û"] = "u", ["Ç"] = "c",
+    ["Ë"] = "e", ["Ï"] = "i", ["Ù"] = "u", ["Ü"] = "u" }
 local function Plain(s)
     s = (s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "")
     return s
@@ -2271,6 +2284,11 @@ function W.IndexTabsSlowly()
         W.After(0.1, step)
     end
     W.After(1, step)
+end
+
+-- a tab rebuilt (module switched on / off) is indexed again by the next search
+function W.ReindexTab(m)
+    if not m.panel and not NOT_BUILT[m.key] then allIndexed = false end
 end
 
 function W.SearchOptions(query, max)
@@ -2325,7 +2343,9 @@ function W.Reveal(m, widget)
     glow:SetPoint("BOTTOMRIGHT", widget.label or widget, "BOTTOMRIGHT", 4, -4)
     glow:SetBackdropBorderColor(W.R, W.G, W.B, 1)
     glow:Show()
-    W.After(2.5, function() glow:Hide() end)
+    local n = (glow.n or 0) + 1
+    glow.n = n
+    W.After(2.5, function() if glow.n == n then glow:Hide() end end)
 end
 
 function W.Toggle(key)
@@ -2642,15 +2662,17 @@ local function Slash(msg)
     end
 end
 SLASH_WARLEGENDRT1 = "/wl"
-SLASH_WARLEGENDRT2 = "/wlrt"
-SLASH_WARLEGENDRT3 = "/warlegend"
 SlashCmdList["WARLEGENDRT"] = Slash
+-- their own entry: /wl can be shared (ClaimSlash), these two always reach Slash
+SLASH_WARLEGENDRTDIRECT1 = "/wlrt"
+SLASH_WARLEGENDRTDIRECT2 = "/warlegend"
+SlashCmdList["WARLEGENDRTDIRECT"] = Slash
 
 -- Another addon that also answers "/wl" (WoWHead Looter: /wl loc, /wl id, /wl reset): the game gives "/wl" to one
 -- of the two handlers, not the one we choose. So once every addon is loaded, both entries of SlashCmdList get the
 -- same dispatcher: our commands go to Slash, everything else (and everything, for a player outside the guild) to
 -- the other addon's own handler, left untouched. /wl reset <name> is ours only when <name> is one of our saved
--- data keys; a bare /wl reset is the other addon's.
+-- data keys or there is no <name> (the list of our data); /wl reset <other> is the other addon's.
 W.AddFR({
     ["/wl is shared with another addon (%s): both keep working, |cffffffff/wlrt|r always opens WaR LegenD."] =
         "/wl est partagé avec un autre addon (%s) : les deux fonctionnent, |cffffffff/wlrt|r ouvre toujours WaR LegenD.",
@@ -2658,7 +2680,7 @@ W.AddFR({
 local function ClaimSlash()
     local others = {}
     for key, fn in pairs(SlashCmdList) do
-        if key ~= "WARLEGENDRT" and type(fn) == "function" then
+        if key ~= "WARLEGENDRT" and key ~= "WARLEGENDRTDIRECT" and type(fn) == "function" then
             for i = 1, 20 do
                 local c = _G["SLASH_" .. key .. i]
                 if type(c) ~= "string" then break end
@@ -2682,7 +2704,7 @@ local function ClaimSlash()
         local mine = cmd == "" or cmd == "minimap" or known[cmd] or W.slash[cmd] or false
         if mine and cmd == "reset" then
             local key = (rest or ""):match("^(%S+)")
-            mine = key ~= nil and type(W.db[key]) == "table"
+            mine = key == nil or type(W.db[key]) == "table"
         end
         if not mine or not W.Allowed() then return other(msg) end
         if not noticed then

@@ -31,7 +31,12 @@ W.AddFR({
 -- Delivers a message to ourselves when we are alone (tests / solo), like the game does in a group
 local function Loopback(prefix, msg)
     local fn = W.AddonHandler(prefix)
-    if fn and not W.AddonOff(prefix) then W.After(0, function() fn(msg, UnitName("player"), "LOCAL") end) end
+    if fn and not W.AddonOff(prefix) then
+        W.After(0, function()
+            local full = W.UnitFullName("player") -- same arguments as Dispatch: short name, channel, full name
+            fn(msg, W.BaseName(full), "LOCAL", full)
+        end)
+    end
 end
 
 local warnedAt = 0
@@ -271,13 +276,14 @@ do
             local ok, size = pcall(Walk, data, 11, max)
             return ok and size or nil
         end
-        local ok, size = pcall(Walk, data, 1, max)
-        if ok and size then return size end
-        if b2 and b1 % 16 == 8 and (b1 * 256 + b2) % 31 == 0 then -- zlib header
-            ok, size = pcall(Walk, data, 3, max)
-            if ok then return size end
+        -- zlib header first: read as raw deflate, it is a stored block that would skip the real data
+        -- (a raw stream never starts like this: a stored block pads bits 3-7 with zeros)
+        if b2 and b1 % 16 == 8 and (b1 * 256 + b2) % 31 == 0 then
+            local ok, size = pcall(Walk, data, 3, max)
+            return ok and size or nil
         end
-        return nil
+        local ok, size = pcall(Walk, data, 1, max)
+        return ok and size or nil
     end
 end
 
@@ -391,7 +397,7 @@ end
 -- works), control characters go, length is cut. Use it on every received string that is displayed or saved.
 function W.Plain(s, max)
     if type(s) ~= "string" then return "" end
-    if max and #s > max then s = s:sub(1, max) end -- cut first: a cut after doubling could leave one "|"
+    if max and #s > max then s = W.CutUTF8(s, max) end -- cut first: a cut after doubling could leave one "|"
     s = s:gsub("[%z\1-\31]", " "):gsub("|", "||")
     return s
 end
@@ -455,6 +461,7 @@ function W.ItemIcon(str)
 end
 
 function W.ItemQuality(str)
+    if not str then return nil end
     local _, _, q = W.GetItemInfo(str)
     if q then return q end
     if C_Item and C_Item.GetItemQualityByID then return C_Item.GetItemQualityByID(str) end
@@ -526,7 +533,8 @@ function W.IsMe(name)
     if not name or name == "" then return false end
     local f = W.FullName(name) -- "First-Surname" and "First Surname" alike
     if W.HasFullPart(f) then return f:lower() == W.UnitKey("player") end
-    return name == W.Safe(UnitName("player"))
+    local me = W.Safe(UnitName("player"))
+    return me ~= nil and name:lower() == me:lower()
 end
 
 -- UnitIsUnit can answer a hidden (secret) boolean in restricted instances: never test it as is

@@ -384,7 +384,8 @@ function RG.ApplyMarkers(preset)
         return
     end
     if not W.InGroup() then W.Print(L("You are not in a group.")); return end
-    if not W.CanLead() then W.Print(L("|cffff5555You must be leader or assistant to set marks.|r")); return end
+    -- in a party anyone can set marks; in a raid the leader or an assistant
+    if W.InRaid() and not W.CanLead() then W.Print(L("|cffff5555You must be leader or assistant to set marks.|r")); return end
     local map = RG.MemberMap()
     local wanted, missing, count = {}, {}, 0
     for _, p in ipairs(preset.players) do
