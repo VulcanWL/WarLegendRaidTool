@@ -247,7 +247,7 @@ local function RebuildMembers()
 end
 
 local function WindowWanted()
-    return db and db.window and W.Allowed() and W.InGroup() and (W.InRaid() or not db.raidOnly) and not W.InPvP()
+    return db and db.window and W.Allowed() and not W.IsOff("RaidCooldowns") and W.InGroup() and (W.InRaid() or not db.raidOnly) and not W.InPvP()
 end
 
 local function UpdateWindow()
@@ -295,7 +295,7 @@ end
 local castFrame = CreateFrame("Frame")
 local listening = false
 local function Listen()
-    local want = db and db.share and W.Allowed() and W.InGroup() and not W.InPvP()
+    local want = db and db.share and W.Allowed() and not W.IsOff("RaidCooldowns") and W.InGroup() and not W.InPvP()
     if want == listening then return end
     listening = want
     if want then castFrame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
@@ -388,7 +388,7 @@ W.OnReady(function()
     BuildWindow()
 end)
 
-W.On("PLAYER_LOGIN", function()
+W.OnReady(function() -- also with the module off: it can be switched on later
     for _, e in ipairs(SPELLS) do
         e.name = W.SpellName(e.ids[#e.ids]) or e.key
         e.icon = GetTex and GetTex(e.ids[#e.ids]) or nil
@@ -398,7 +398,7 @@ end)
 ---------------------------------------------------------------------------
 -- Panel
 ---------------------------------------------------------------------------
-W.RegisterModule("RaidCooldowns", L("Raid Cooldowns"), function(p)
+W.RegisterModule("RaidCooldowns", "Raid Cooldowns", function(p)
     W.Title(p, L("Raid Cooldowns"))
     local function opt(key, text, y)
         W.Check(p, text, function() return db[key] end, function(v)

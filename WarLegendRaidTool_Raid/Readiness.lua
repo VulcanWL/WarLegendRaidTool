@@ -120,7 +120,10 @@ end
 
 local function StandingName(n) return _G["FACTION_STANDING_LABEL" .. tostring(n)] or tostring(n) end
 local function SchoolName(i) return _G["SPELL_SCHOOL" .. i .. "_CAP"] or tostring(i) end
-local function ZoneName(id) return (GetRealZoneText and GetRealZoneText(id)) or ("#" .. tostring(id)) end
+local function ZoneName(id)
+    local z = GetRealZoneText and W.Safe(GetRealZoneText(id))
+    return (z and z ~= "") and z or ("#" .. tostring(id))
+end
 
 local function SavedTo(instanceID)
     if not (GetNumSavedInstances and GetSavedInstanceInfo) then return nil end
@@ -135,12 +138,22 @@ end
 
 local function MissingEnchants()
     local missing = 0
+    local nf = _G.NaowhForever
+    local naowhEnchants = nf and nf.BiS and nf.BiS.Enchants
     for _, slot in ipairs(ENCHANT_SLOTS) do
         local link = W.Safe(GetInventoryItemLink("player", slot))
         if link then
-            local loc = W.GetItemInfoInstant and select(4, W.GetItemInfoInstant(link))
-            local can = not (slot == 17 and (loc == "INVTYPE_HOLDABLE" or loc == nil))
-            if can and (tonumber(link:match("item:%d+:(%d*)") or "") or 0) == 0 then missing = missing + 1 end
+            local can, current
+            if naowhEnchants and naowhEnchants.Enchantable then -- same rule as Raid Inspect
+                local ok, c, cur = pcall(naowhEnchants.Enchantable, link)
+                if ok then can, current = c, cur end
+            end
+            if can == nil then
+                local loc = W.GetItemInfoInstant and select(4, W.GetItemInfoInstant(link))
+                can = not (slot == 17 and (loc == "INVTYPE_HOLDABLE" or loc == nil))
+                current = tonumber(link:match("item:%d+:(%d*)") or "") or 0
+            end
+            if can and not (current and current > 0) then missing = missing + 1 end
         end
     end
     return missing
@@ -364,7 +377,7 @@ W.OnReady(function()
     db = W.DB("readiness", { text = "level 60\nenchants\ngold 50", answerFrom = "guild" })
 end)
 
-W.RegisterModule("Readiness", L("Raider Readiness"), function(p)
+W.RegisterModule("Readiness", "Raider Readiness", function(p)
     W.Title(p, L("Raider Readiness"))
     W.Label(p, L("Requirements (one per line):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -40)
     local bg, box = W.MultiEdit(p, 380, 150, 2000)

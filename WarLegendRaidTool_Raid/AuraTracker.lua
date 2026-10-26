@@ -409,7 +409,7 @@ end
 
 local function RowLabel(row)
     if row.isMe then return L("Me") end
-    local name = row.unit and W.Safe(UnitName(row.unit))
+    local name = row.unit and W.UnitDisplayName(row.unit)
     return name or string.format(L("Co-tank %d"), row.index - 1)
 end
 
@@ -448,7 +448,7 @@ local UI = {}
 local function UpdateStatus()
     if not UI.status then return end
     local names = {}
-    for _, u in ipairs(tanks) do names[#names + 1] = W.Safe(UnitName(u)) or "?" end
+    for _, u in ipairs(tanks) do names[#names + 1] = W.UnitDisplayName(u) or "?" end
     UI.status:SetText(string.format(L("Co-tanks: %s"), #names > 0 and table.concat(names, ", ") or L("none found")))
 end
 
@@ -512,8 +512,8 @@ W.OnReady(function()
     for i = 1, ROWS do NewRow(i) end
 end)
 
-W.On("PLAYER_LOGIN", function()
-    -- spell names are read once the game data is loaded
+W.OnReady(function()
+    -- spell names: the raid addon is loaded after the login (game data there), even with the module off
     FillSet(IMMUNITY_SPELLS, immById, immByName)
     FillSet(EXTERNAL_SPELLS, extById, extByName)
     ParseCustom()
@@ -534,7 +534,7 @@ local function Option(p, key, text, y)
     W.Check(p, text, function() return db[key] end, function(v) db[key] = v; Apply(); Rescan() end):SetPoint("TOPLEFT", 12, y)
 end
 
-W.RegisterModule("AuraTracker", L("Aura Tracking"), function(p)
+W.RegisterModule("AuraTracker", "Aura Tracking", function(p)
     W.Title(p, L("Aura Tracking"))
     Option(p, "enabled", L("Enable aura tracking"), -40)
     Option(p, "myDebuffs", L("My debuffs"), -70)

@@ -154,11 +154,15 @@ end
 ---------------------------------------------------------------------------
 -- Events (raid instances only)
 ---------------------------------------------------------------------------
+local function RaidBoss()
+    local _, kind = IsInInstance()
+    return W.InRaid() and kind ~= "party" and kind ~= "pvp" and kind ~= "arena"
+end
 W.On("ENCOUNTER_START", function(_, name)
-    if db and db.onBoss and W.InRaid() then Record(W.Safe(name) or "?"); AT.Refresh() end
+    if db and db.onBoss and RaidBoss() then Record(W.Safe(name) or "?"); AT.Refresh() end
 end)
 W.On("ENCOUNTER_END", function(_, name, _, _, success)
-    if not db or not W.InRaid() or W.Safe(success) ~= 1 then return end
+    if not db or not RaidBoss() or W.Safe(success) ~= 1 then return end
     local n = Night(false)
     name = W.Safe(name) or "?"
     if not n then return end
@@ -321,7 +325,7 @@ local function AddBench(text)
     AT.Refresh()
 end
 
-W.RegisterModule("Attendance", L("Attendance"), function(p)
+W.RegisterModule("Attendance", "Attendance", function(p)
     W.Title(p, L("Attendance"))
     W.Button(p, L("Snapshot now"), 130, 22, function() AT.Snapshot() end):SetPoint("TOPLEFT", 12, -34)
     W.Cycle(p, 120, { { 5, string.format(L("Last %d raids"), 5) }, { 10, string.format(L("Last %d raids"), 10) },

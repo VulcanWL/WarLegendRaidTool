@@ -121,8 +121,8 @@ local function Collect()
     local totals = { members = 0, miss = 0, nights = 0, tracked = 0 }
     totals.members = #W.GuildMembers()
     local now = time()
-    for _, g in pairs(db.gear) do
-        if IsMember(g.name) then
+    for key, g in pairs(db.gear) do
+        if IsMember(key) then -- the full identity: two members can share a short name
             totals.tracked = totals.tracked + 1
             local days = math.floor((now - (g.t or now)) / 86400)
             local short = W.FOREVER and g.name or W.BaseName(g.name) -- Forever: "First Surname", two "Jean" stay apart
@@ -248,7 +248,7 @@ local function Refresh()
     Fill(UI.week, out.week)
 end
 
-W.RegisterModule("Dashboard", L("Dashboard"), function(p)
+W.RegisterModule("Dashboard", "Dashboard", function(p)
     W.Title(p, L("Dashboard"))
     W.Button(p, L("Refresh"), 90, 22, function() W.RequestGuildRoster(); Refresh() end):SetPoint("TOPLEFT", 200, -14)
     local note = W.Label(p, L("Raid data is kept for the players you inspected; only guild members are listed."), "GameFontDisableSmall")

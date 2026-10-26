@@ -171,7 +171,7 @@ function WP.Refresh()
     UI.list:SetData(rows)
 end
 
-W.RegisterModule("WhoPulled", L("Who Pulled"), function(p)
+W.RegisterModule("WhoPulled", "Who Pulled", function(p)
     W.Title(p, L("Who Pulled"))
     W.Check(p, L("Print in my chat"), function() return db.print end, function(v) db.print = v end):SetPoint("TOPLEFT", 12, -34)
     W.Check(p, L("Announce the puller in raid chat"), function() return db.announce end, function(v) db.announce = v end)

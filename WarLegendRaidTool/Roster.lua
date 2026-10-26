@@ -122,7 +122,7 @@ function RefreshTrials()
     UI.trials:SetData(rows)
 end
 
-W.RegisterModule("Roster", L("Trials"), function(p)
+W.RegisterModule("Roster", "Trials", function(p)
     W.Title(p, L("Trials"))
     local lbl = W.Label(p, L("Trial rank:"), "GameFontHighlightSmall")
     lbl:SetPoint("TOPLEFT", 14, -44)

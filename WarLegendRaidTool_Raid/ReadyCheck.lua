@@ -286,6 +286,8 @@ SlashCmdList["WLRTREADYCHECK"] = function()
     local doCheck = (C_PartyInfo and C_PartyInfo.DoReadyCheck) or DoReadyCheck
     if W.InGroup() and W.CanLead() and doCheck then
         doCheck()
+    elseif W.IsOff("ReadyCheck") then
+        W.Print(L("This module is switched off: it gets no events and does nothing."))
     else
         W.slash.rc()
     end

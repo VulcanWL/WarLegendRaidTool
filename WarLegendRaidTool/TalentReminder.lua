@@ -85,7 +85,8 @@ local function HookBigWigs()
     if not BigWigsLoader or not BigWigsLoader.RegisterMessage then return end
     local listener = {}
     BigWigsLoader.RegisterMessage(listener, "BigWigs_StartBreak", function(_, _, seconds)
-        if db.onBreak then ShowBreak(seconds) end
+        -- BigWigs calls us outside our event table: the module switch is checked here
+        if db and db.onBreak and W.Allowed() and not W.IsOff("TalentReminder") then ShowBreak(seconds) end
     end)
     BigWigsLoader.RegisterMessage(listener, "BigWigs_StopBreak", HideBreak)
 end
@@ -105,7 +106,7 @@ W.On("READY_CHECK", function()
     if db.enabled and db.onReadyCheck then ShowReminder() end
 end)
 
-W.RegisterModule("TalentReminder", L("Talent Reminder"), function(p)
+W.RegisterModule("TalentReminder", "Talent Reminder", function(p)
     W.Title(p, L("Talent Reminder"))
     W.Check(p, L("Enable talent reminder"), function() return db.enabled end,
         function(v) db.enabled = v end):SetPoint("TOPLEFT", 12, -40)

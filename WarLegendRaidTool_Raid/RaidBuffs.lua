@@ -250,6 +250,8 @@ local function TooFar(unit)
     return false
 end
 
+local function AuraSpellId(a) return a.spellId end
+
 -- Who misses which buff (spell IDs, every rank)
 function RB.Missing()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then return nil end
@@ -260,35 +262,39 @@ function RB.Missing()
     for _, m in ipairs(members) do present[m.name] = true end
     local activeBless = {}
     for p, key in pairs(db.bless) do if present[p] then activeBless[key] = p end end
+    local checked, skipped = 0, 0 -- skipped: a player with an aura the game hides from addons
     for _, m in ipairs(members) do
         local ok, far = pcall(TooFar, m.unit)
         if UnitExists(m.unit) and not (ok and far) and (not UnitIsConnected or UnitIsConnected(m.unit)) and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(m.unit)) then
-            local has = {}
+            local has, hidden = {}, false
             for i = 1, 40 do
                 local a = W.AuraByIndex(m.unit, i, "HELPFUL") -- false: secret, refused to addons
                 if a == nil then break end
-                if a then
-                    local ok, id = pcall(function() return a.spellId end)
-                    id = ok and W.Safe(id)
-                    if id and SPELL_TO[id] then has[SPELL_TO[id]] = true end
-                end
+                local ok, id = false, nil
+                if a then ok, id = pcall(AuraSpellId, a) end
+                id = ok and W.Safe(id)
+                if not id then hidden = true -- an aura we cannot read could be the buff
+                elseif SPELL_TO[id] then has[SPELL_TO[id]] = true end
             end
+            checked = checked + 1
+            if hidden then skipped = skipped + 1 end
             -- a buff the player does not need (Wisdom on a warrior, Might on a mage, Salvation on a tank)
             local function Needs(b) return not (b.skip and b.skip[m.class]) and not (b.noTank and m.tank) end
-            for _, b in ipairs(BUFFS) do
+            for _, b in ipairs(hidden and {} or BUFFS) do
                 local caster
                 for c, set in pairs(Assign(b.key)) do if set[m.group] and present[c] then caster = c end end
                 if caster and not has[b.key] and Needs(b) then
                     miss[#miss + 1] = { buff = b.text, name = m.name, group = m.group, caster = caster }
                 end
             end
-            for key, p in pairs(activeBless) do
+            for key, p in pairs(hidden and {} or activeBless) do
                 if not has[key] and BLESS_BY[key] and Needs(BLESS_BY[key]) then
                     miss[#miss + 1] = { buff = BLESS_BY[key].text, name = m.name, group = m.group, caster = p }
                 end
             end
         end
     end
+    if checked > 0 and skipped == checked then return nil end -- every aura hidden: "hidden by the game"
     return miss
 end
 
@@ -406,7 +412,7 @@ function RB.Refresh()
     UI.list:Finish(i)
 end
 
-W.RegisterModule("RaidBuffs", L("Raid Buffs"), function(p)
+W.RegisterModule("RaidBuffs", "Raid Buffs", function(p)
     W.Title(p, L("Raid Buffs"))
     W.Button(p, L("Auto assign"), 120, 22, RB.AutoAssign):SetPoint("TOPLEFT", 12, -34)
     W.Button(p, L("Send assignments"), 150, 22, RB.Send):SetPoint("TOPLEFT", 136, -34)
