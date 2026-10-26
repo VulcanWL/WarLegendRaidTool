@@ -30,6 +30,7 @@ local CL = {}
 W.Checklist = CL
 local PREFIX = "WLRT_CON"
 local lastAnswer = 0
+local askedAt = -1000 -- my last raid check: answers are only kept for a minute after it
 local db
 
 W.OnReady(function()
@@ -102,7 +103,7 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
             for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end
             W.SendLong(PREFIX, W.Pack("A", table.concat(ans, ",")))
         end, "checklist answer")
-    elseif t[1] == "A" and unit then
+    elseif t[1] == "A" and unit and GetTime() - askedAt < 60 then -- someone else's check: not saved here
         -- answers keyed by full identity: two "Arthur" in the raid stay two rows
         local r = { name = W.UnitDisplayName(unit) or from, class = class, counts = {} }
         local nCounts = 0
@@ -203,6 +204,7 @@ W.RegisterModule("Checklist", L("Checklist"), function(p)
     end):SetPoint("TOPLEFT", 460, -66)
     W.Button(p, L("Raid check"), 130, 22, function()
         wipe(db.raid)
+        askedAt = GetTime()
         W.SendLong(PREFIX, W.Pack("Q", Encode(db.items)))
         W.Print(L("Asking the raid..."))
         CL.RefreshRaid()

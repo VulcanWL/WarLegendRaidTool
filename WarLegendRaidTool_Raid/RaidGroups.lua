@@ -155,7 +155,8 @@ function RG.UniqueName(base)
     base = W.SanitizeName(base)
     if base == "" then base = "Preset" end
     local name, n = base, 2
-    while db.presets[name] do name = base .. " (" .. n .. ")"; n = n + 1 end
+    -- "Current raid" is the live preset's name: a saved preset under it would be overwritten by the roster
+    while db.presets[name] or name == RG.LIVE do name = base .. " (" .. n .. ")"; n = n + 1 end
     return name
 end
 
@@ -846,7 +847,8 @@ function RG.Import()
     W.TextPopup(L("Import a preset"), "", {
         showName = true, hint = L("Paste a WaR LegenD (or RaidPresets) string."),
         onConfirm = function(text, wanted)
-            text = (text or ""):gsub("%s+", "")
+            -- line breaks of the paste only: Forever names ("First Surname") and preset names keep their spaces
+            text = (text or ""):gsub("[\r\n\t]", ""):gsub("^%s+", ""):gsub("%s+$", "")
             if text:sub(1, #EXPORT_TAG) == EXPORT_TAG then text = text:sub(#EXPORT_TAG + 1) end
             local name, preset = RG.Deserialize(text)
             if not name or #preset.players == 0 then return L("Invalid or unreadable string.") end
@@ -925,9 +927,12 @@ local function DropOnSlot(info, slot)
         end
     elseif info.member then
         local m = info.member
-        if RG.FindPlayer(preset, m.name) then return end
-        local p = RG.AddPlayer(preset, m.full or m.name, m.class, slot.group, m.unit and W.GetMarker(m.unit) or 0)
-        if p and target then
+        -- a guild member's name is the first name only: the preset holds the full one
+        local pname = PName(m.full or m.name)
+        if not pname or RG.FindPlayer(preset, pname) then return end
+        local before = #players
+        local p = RG.AddPlayer(preset, pname, m.class, slot.group, m.unit and W.GetMarker(m.unit) or 0)
+        if p and target and #players > before then
             local _, ib = RG.FindPlayer(preset, target.name)
             table.remove(players, #players)
             players[ib] = p -- the replaced player goes back to "not in preset"
@@ -1003,7 +1008,7 @@ local function BuildPresetPanel(parent)
         if not preset then return end
         local new = boxText()
         if new == "" or new == cur then return end
-        if db.presets[new] then W.Print(L("A preset with this name already exists.")); return end
+        if db.presets[new] or new == RG.LIVE then W.Print(L("A preset with this name already exists.")); return end
         db.presets[new], db.presets[cur] = preset, nil
         preset.live, preset.dirty = nil, nil
         db.selected = new
@@ -1398,7 +1403,7 @@ local function BuildFreePanel(parent)
         end
         if name == "" then W.Print(L("Type a name or target a player.")); return end
         local m = RG.MemberMap()[name:lower()] or RG.GuildMap()[name:lower()]
-        if m then class, name = m.class, m.name end
+        if m then class, name = m.class, m.full or m.name end -- a guild member: full name, not the first name
         local counts = { 0, 0, 0, 0, 0, 0, 0, 0 }
         for _, pl in ipairs(preset.players) do counts[pl.group or 1] = counts[pl.group or 1] + 1 end
         local g = 1
@@ -1438,7 +1443,7 @@ function UI.RefreshFree()
 
     local query = W.SanitizeName(UI.filterBox:GetText()):lower()
     local function keep(m)
-        if preset and RG.FindPlayer(preset, m.name) then return false end
+        if preset and RG.FindPlayer(preset, PName(m.full or m.name) or m.name) then return false end
         if query ~= "" and not m.name:lower():find(query, 1, true) then return false end
         return true
     end

@@ -474,6 +474,7 @@ Receive.S = function(t, from, full, channel)
     -- a test (Test button, or a session alone): its awards are shown but never saved in the loot log
     S.test = t[5] == "t" or not W.InGroup()
     S.cands = NewCandidates()
+    if UI.vote then UI.vote.sel = 1 end -- the tab chosen in the last session may not exist in this one
     Send("K", S.sid)
     -- safety net: if the item list never completes, still mark the silent players after 30 s
     local sid = S.sid
@@ -598,7 +599,7 @@ Receive.V = function(t, from, full)
     RefreshVoteSoon()
 end
 
-Receive.A = function(t, from, full)
+Receive.A = function(t, from, full, channel)
     if not S or S.sid ~= t[2] or not FromML(full) then return end
     local item = S.items[tonumber(t[3]) or 0]
     if not item or item.winner then return end -- awarded once: a repeat would give a second history line
@@ -609,8 +610,17 @@ Receive.A = function(t, from, full)
     item.winner, item.winnerName, item.winResp = t[4], winner, resp
     local votes = 0
     if c then for _ in pairs(c.votes) do votes = votes + 1 end end
-    Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes, test = S.test or nil })
-    if FromML(W.UnitFullName("player")) and db.announce and W.Channel() then
+    -- a resync after my /reload sends the awards again: one already in my history is not saved twice
+    local seen = false
+    for i = 1, channel == "WHISPER" and math.min(40, #hist) or 0 do
+        local h = hist[i]
+        if h.src == "council" and h.item == item.str and h.winner == winner and time() - (h.t or 0) < 900 then seen = true; break end
+    end
+    if not seen then
+        Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes, test = S.test or nil })
+    end
+    -- a test session (even in a raid) is never announced
+    if not S.test and FromML(W.UnitFullName("player")) and db.announce and W.Channel() then
         W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), winner,
             (RESP_BY[t[5]] and RESP_BY[t[5]].text) or t[5]), W.Channel())
     end
@@ -1251,8 +1261,11 @@ function LC.AskAward(idx, key)
         local given, found = GiveLoot(item.str, key, name)
         if not given then
             if found then
+                -- still on the corpse: not awarded, it can be given again (in range) or to someone else
                 W.Print(string.format(L("Could not give %s to %s (out of range or not eligible?)."), W.ItemLink(item.str), name))
-            elseif key ~= MyKey() then
+                item.awarding = nil
+                return
+            elseif key ~= MyKey() and not S.test then -- a test item (my own gear) is never owed
                 W.Print(string.format(L("Trade %s to %s (item not in the loot window)."), W.ItemLink(item.str), name))
                 Owe(item.str, key, name) -- put in the trade window when that player opens a trade with me
             end
@@ -1420,7 +1433,10 @@ local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
         Reply(sender, string.format(L("You already have %d soft-res: %s"), #mine, list()))
         return
     end
-    if not LC.AddSR(name, id) then return end
+    if not LC.AddSR(name, id) then -- already reserved by this player, or the list is full: say what is saved
+        Reply(sender, #mine > 0 and string.format(L("Your soft-res: %s"), list()) or L("No soft-res. Whisper \"!sr [item link]\"."))
+        return
+    end
     Reply(sender, string.format(L("Soft-res saved: %s (%d/%d)."), ItemText(id), #mine + 1, db.srMax or 1))
     W.Print(string.format(L("%s soft-reserved %s."), name, ItemText(id)))
     LC.RefreshSR()
@@ -1590,7 +1606,12 @@ local function BuildHistory(p)
     end
     UI.history.onClick = function(d, btn)
         if btn == "RightButton" then
-            W.Confirm(L("Delete this entry?"), function() table.remove(hist, d.index); LC.RefreshHistory() end)
+            -- the line itself, not its index: a loot recorded while the question is open shifts the indexes
+            local entry = hist[d.index]
+            W.Confirm(L("Delete this entry?"), function()
+                for i = 1, #hist do if hist[i] == entry then table.remove(hist, i); break end end
+                LC.RefreshHistory()
+            end)
         end
     end
     p:SetScript("OnShow", LC.RefreshHistory)
