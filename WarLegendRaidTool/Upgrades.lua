@@ -199,7 +199,8 @@ end
 local function TreeName(def, i)
     if i == 4 then return L("Feral (cat)") elseif i == 5 then return L("Feral (bear)") end
     local t = W.OwnTalents()
-    return t and t.names and t.names[i] or def[i]
+    local name = t and t.names and t.names[i]
+    return (name and not name:find("^#")) and name or def[i] -- "#2": the talent columns, without the game's names
 end
 
 -- item stats as short names, nil while the item data is not there (not kept then); a link's stats never change
