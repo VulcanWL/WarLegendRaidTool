@@ -346,7 +346,14 @@ W.RegisterModule("Attendance", L("Attendance"), function(p)
     UI.raids:SetPoint("TOPLEFT", 470, -96)
     UI.raids.onClick = function(d, btn)
         if btn == "RightButton" then
-            W.Confirm(L("Delete this raid?"), function() table.remove(db.nights, d.index); AT.Refresh() end)
+            -- the night itself, not its place: a new night can be added at the top while the question is open
+            local night = db.nights[d.index]
+            W.Confirm(L("Delete this raid?"), function()
+                for i, n in ipairs(db.nights) do
+                    if n == night then table.remove(db.nights, i); break end
+                end
+                AT.Refresh()
+            end)
         else
             local night = db.nights[d.index]
             if night then Detail(night) end

@@ -125,7 +125,7 @@ local function Collect()
         if IsMember(g.name) then
             totals.tracked = totals.tracked + 1
             local days = math.floor((now - (g.t or now)) / 86400)
-            local short = W.BaseName(g.name)
+            local short = W.FOREVER and g.name or W.BaseName(g.name) -- Forever: "First Surname", two "Jean" stay apart
             out.ilvl[#out.ilvl + 1] = { name = short, class = g.class, text = tostring(g.ilvl), sort = g.ilvl,
                 tip = { g.name, string.format(L("Item level read %d day(s) ago"), days) } }
             local gems, miss = g.gems or 0, g.miss or 0
@@ -144,7 +144,7 @@ local function Collect()
     totals.nights = nights
     for _, c in pairs(counts) do
         if IsMember(c.name) then
-            out.week[#out.week + 1] = { name = W.BaseName(c.name), class = c.class, text = tostring(c.n), sort = c.n,
+            out.week[#out.week + 1] = { name = W.FOREVER and c.name or W.BaseName(c.name), class = c.class, text = tostring(c.n), sort = c.n,
                 tip = { c.name, string.format(L("%d raid(s) this week"), c.n) } }
         end
     end

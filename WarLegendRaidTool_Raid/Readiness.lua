@@ -25,6 +25,7 @@ W.AddFR({
     ["%d/%d ready, %d without the addon"] = "%d/%d prêts, %d sans l'addon",
     ["You must be in a group."] = "Tu dois être en groupe.",
     ["You must be leader or assistant."] = "Tu dois être chef ou assistant.",
+    ["Wait a few seconds before checking again."] = "Attends quelques secondes avant de vérifier à nouveau.",
     ["Readiness check from %s: you are missing %s"] = "Vérification de %s : il te manque %s",
     ["Readiness check from %s: you are ready."] = "Vérification de %s : tu es prêt.",
     ["Level %d"] = "Niveau %d",
@@ -282,7 +283,7 @@ local lastCheck = 0
 local function CheckRaid()
     if not W.InGroup() then W.Print(L("You must be in a group.")); return end
     if not W.CanLead() then W.Print(L("You must be leader or assistant.")); return end
-    if GetTime() - lastCheck < 5 then return end
+    if GetTime() - lastCheck < 5 then W.Print(L("Wait a few seconds before checking again.")); return end
     lastCheck = GetTime()
     if RequestRaidInfo then RequestRaidInfo() end
     wipe(results)
@@ -290,7 +291,7 @@ local function CheckRaid()
     askId = tostring(math.random(100000, 999999))
     results[W.UnitKey("player") or "?"] = MyResults(Parse(db.text))
     W.SendLong(PREFIX_ASK, askId .. "\n" .. (db.text or ""))
-    UI.status:SetText(string.format(L("Asked %d player(s), answers arrive in a few seconds."), #GroupNames()))
+    UI.status:SetText(string.format(L("Asked %d player(s), answers arrive in a few seconds."), math.max(0, #GroupNames() - 1))) -- not me
     RefreshTable()
 end
 
@@ -311,20 +312,23 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
     lastAnswered = GetTime()
     local id, list = text:match("^(%d+)\n(.*)$")
     if not id then return end
-    local reqs = Parse(list)
-    local res = MyResults(reqs, true)
-    local parts, missing = {}, {}
-    for i, r in ipairs(res) do
-        parts[i] = r[1] .. "," .. r[2]
-        if r[1] == "0" then missing[#missing + 1] = W.Plain(Label(reqs[i]), 60) end -- the label comes from the asker
-    end
-    local answer = id .. "#" .. table.concat(parts, ";")
-    W.After(math.random() * 2, function() W.Queue(PREFIX_ANS, answer, "WHISPER", full or from) end)
-    if #missing > 0 then
-        W.Print(string.format(L("Readiness check from %s: you are missing %s"), W.Sender(from, full), table.concat(missing, ", ")))
-    else
-        W.Print(string.format(L("Readiness check from %s: you are ready."), W.Sender(from, full)))
-    end
+    -- "free": my saved instances are asked for first, the answer is read once they had time to arrive
+    if RequestRaidInfo then RequestRaidInfo() end
+    W.After(1 + math.random() * 2, function()
+        local reqs = Parse(list)
+        local res = MyResults(reqs, true)
+        local parts, missing = {}, {}
+        for i, r in ipairs(res) do
+            parts[i] = r[1] .. "," .. r[2]
+            if r[1] == "0" then missing[#missing + 1] = W.Plain(Label(reqs[i]), 60) end -- the label comes from the asker
+        end
+        W.Queue(PREFIX_ANS, id .. "#" .. table.concat(parts, ";"), "WHISPER", full or from)
+        if #missing > 0 then
+            W.Print(string.format(L("Readiness check from %s: you are missing %s"), W.Sender(from, full), table.concat(missing, ", ")))
+        else
+            W.Print(string.format(L("Readiness check from %s: you are ready."), W.Sender(from, full)))
+        end
+    end)
 end)
 
 W.OnAddon(PREFIX_ANS, function(msg, from, _, full)

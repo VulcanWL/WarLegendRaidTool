@@ -255,8 +255,11 @@ function RB.Missing()
     if C_Secrets and C_Secrets.ShouldAurasBeSecret and C_Secrets.ShouldAurasBeSecret() then return nil end
     local members = Members()
     local miss = {}
+    -- saved assignments outlive the raid: a caster who is not here tonight is not expected to buff
+    local present = {}
+    for _, m in ipairs(members) do present[m.name] = true end
     local activeBless = {}
-    for p, key in pairs(db.bless) do activeBless[key] = p end
+    for p, key in pairs(db.bless) do if present[p] then activeBless[key] = p end end
     for _, m in ipairs(members) do
         local ok, far = pcall(TooFar, m.unit)
         if UnitExists(m.unit) and not (ok and far) and (not UnitIsConnected or UnitIsConnected(m.unit)) and not (UnitIsDeadOrGhost and UnitIsDeadOrGhost(m.unit)) then
@@ -274,7 +277,7 @@ function RB.Missing()
             local function Needs(b) return not (b.skip and b.skip[m.class]) and not (b.noTank and m.tank) end
             for _, b in ipairs(BUFFS) do
                 local caster
-                for c, set in pairs(Assign(b.key)) do if set[m.group] then caster = c end end
+                for c, set in pairs(Assign(b.key)) do if set[m.group] and present[c] then caster = c end end
                 if caster and not has[b.key] and Needs(b) then
                     miss[#miss + 1] = { buff = b.text, name = m.name, group = m.group, caster = caster }
                 end
