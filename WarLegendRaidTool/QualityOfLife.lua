@@ -6,6 +6,10 @@ local L = W.L
 local db
 local inCombat = false
 
+W.AddFR({
+    ["Not enough money to repair your gear."] = "Pas assez d'argent pour réparer ton équipement.",
+})
+
 W.OnReady(function()
     db = W.DB("qol", { acceptInvites = false, acceptResurrect = false, fastLoot = false, sellJunk = false,
         autoRepair = false, repairGuild = false, questAccept = false, questTurnIn = false,
@@ -91,6 +95,16 @@ W.On("LOOT_OPENED", FastLoot)
 
 -- Vendor: junk + repair
 local function Money(c) return GetCoinTextureString and GetCoinTextureString(c) or tostring(c) end
+-- what the guild lets me take for a repair, read like the game's merchant frame: my withdraw limit (-1 = guild
+-- master, no limit), never more than the bank holds. Too little: my own money pays (the game would refuse).
+local function GuildCanRepair(cost)
+    if not (CanGuildBankRepair and CanGuildBankRepair()) then return false end
+    if not (GetGuildBankWithdrawMoney and GetGuildBankMoney) then return true end -- unknown: the game decides
+    local limit, bank = W.Safe(GetGuildBankWithdrawMoney()), W.Safe(GetGuildBankMoney())
+    if type(limit) ~= "number" or type(bank) ~= "number" then return true end
+    local amount = limit == -1 and bank or math.min(limit, bank)
+    return amount >= cost
+end
 W.On("MERCHANT_SHOW", function()
     if Shift() then return end
     if W.FeatureOn(db, "sellJunk") then
@@ -115,12 +129,14 @@ W.On("MERCHANT_SHOW", function()
     if W.FeatureOn(db, "autoRepair") and CanMerchantRepair() then
         local cost, can = GetRepairAllCost()
         if not can or not cost or cost == 0 then return end
-        if db.repairGuild and CanGuildBankRepair and CanGuildBankRepair() then
+        if db.repairGuild and GuildCanRepair(cost) then
             RepairAllItems(true)
             W.Print(L("Gear repaired for ") .. Money(cost) .. L(" (guild bank)."))
-        else
+        elseif (GetMoney() or 0) >= cost then
             RepairAllItems()
             W.Print(L("Gear repaired for ") .. Money(cost) .. ".")
+        else
+            W.Print(L("Not enough money to repair your gear."))
         end
     end
 end)

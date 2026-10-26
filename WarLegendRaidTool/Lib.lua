@@ -697,7 +697,7 @@ function W.Cycle(parent, w, values, get, set, tip)
 end
 
 -- Yes / No popup
-local confirm
+local confirm, remoteWaiting
 function W.Confirm(text, onYes, yesText)
     if not confirm then
         confirm = W.Window("WLRTConfirm", 360, 130, "WaR LegenD")
@@ -711,6 +711,13 @@ function W.Confirm(text, onYes, yesText)
         confirm.no = W.Button(confirm, L("No"), 110, 22, function() confirm:Hide() end)
         confirm.no:SetPoint("BOTTOMLEFT", confirm, "BOTTOM", 6, 14)
         tinsert(UISpecialFrames, "WLRTConfirm")
+        -- a prompt from another player kept waiting (W.ConfirmRemote) shows once this one is closed
+        confirm:HookScript("OnHide", function()
+            local w = remoteWaiting
+            if not w then return end
+            remoteWaiting = nil
+            W.After(0, function() W.ConfirmRemote(w[1], w[2], w[3]) end)
+        end)
     end
     confirm.text:SetText(text)
     confirm:SetHeight(math.max(130, (confirm.text:GetStringHeight() or 0) + 96)) -- a long text (profile import) stays inside
@@ -718,6 +725,16 @@ function W.Confirm(text, onYes, yesText)
     confirm.yes:SetScript("OnClick", function() confirm:Hide(); onYes() end)
     confirm:Show()
     return confirm
+end
+
+-- A prompt sent by another player (shared list, preset): it never replaces the question that is open (its Yes would
+-- then run the other player's action, and mine would be lost). It waits, only the newest one, until that one closes.
+function W.ConfirmRemote(text, onYes, yesText)
+    if confirm and confirm:IsShown() then
+        remoteWaiting = { text, onYes, yesText }
+        return
+    end
+    return W.Confirm(text, onYes, yesText)
 end
 
 -- Reload confirmation. The WoW: Forever client blocks ReloadUI() from addon code, even on a click,

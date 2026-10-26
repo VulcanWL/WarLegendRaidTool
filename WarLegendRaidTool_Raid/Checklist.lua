@@ -88,7 +88,7 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
     if t[1] == "L" and not isMe and W.IsGroupLead(full or from, channel) then
         local items = Decode(t[2])
         local who = unit and W.UnitDisplayName(unit) or from
-        W.Confirm(string.format(L("%s shares a consumables list (%d items). Replace your list?"), who, #items), function()
+        W.ConfirmRemote(string.format(L("%s shares a consumables list (%d items). Replace your list?"), who, #items), function()
             db.items = items
             CL.Refresh()
         end, L("Replace"))

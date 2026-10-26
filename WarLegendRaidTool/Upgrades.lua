@@ -179,6 +179,18 @@ end
 
 local GetStats = (C_Item and C_Item.GetItemStats) or _G.GetItemStats
 
+-- the game's talent trees -> their index in WEIGHTS: by name when the client gives the English names (the game
+-- may list its trees in another order), else the vanilla order (a translated client, or "#2" talent columns)
+local function TreeOrder(def, t)
+    local order = {}
+    for n = 1, 3 do
+        local name = t and t.names and t.names[n]
+        for j = 1, 3 do if def[j] == name then order[n] = j end end
+    end
+    if order[1] and order[2] and order[3] then return order end
+    return { 1, 2, 3 }
+end
+
 -- my weights: the chosen tree, else the one with the most talent points (the first with none); and its index
 local function Weights()
     local _, class = UnitClass("player")
@@ -188,8 +200,10 @@ local function Weights()
     if not def[i] then
         i = 1
         local t, most = W.OwnTalents(), 0
+        local order = TreeOrder(def, t)
         for n, pts in ipairs(t and t.spent or {}) do
-            if type(pts) == "number" and pts > most and def[n] then i, most = n, pts end
+            local j = order[n]
+            if type(pts) == "number" and pts > most and j and def[j] then i, most = j, pts end
         end
     end
     return def[def[i]], i, def
@@ -199,7 +213,8 @@ end
 local function TreeName(def, i)
     if i == 4 then return L("Feral (cat)") elseif i == 5 then return L("Feral (bear)") end
     local t = W.OwnTalents()
-    local name = t and t.names and t.names[i]
+    local order, name = TreeOrder(def, t), nil
+    for n = 1, 3 do if order[n] == i then name = t and t.names and t.names[n] end end
     return (name and not name:find("^#")) and name or def[i] -- "#2": the talent columns, without the game's names
 end
 

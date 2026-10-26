@@ -826,7 +826,7 @@ W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     local count = 0
     for _ in pairs(db.presets) do count = count + 1 end
     if count >= MAX_PRESETS then W.Print(L("Too many presets saved: delete some to receive new ones.")); return end
-    W.Confirm(string.format(L("%s shares the preset \"%s\". Save it?"), from, name), function()
+    W.ConfirmRemote(string.format(L("%s shares the preset \"%s\". Save it?"), from, name), function()
         local newName = RG.UniqueName(name .. " (" .. from .. ")")
         preset.received = from
         db.presets[newName] = preset

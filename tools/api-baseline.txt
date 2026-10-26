@@ -43,6 +43,8 @@ legacy (guarded) GetChatWindowChannels
 legacy (guarded) GetCoinTextureString
 legacy (guarded) GetContainerItemInfo
 legacy (guarded) GetFactionInfoByID
+legacy (guarded) GetGuildBankMoney
+legacy (guarded) GetGuildBankWithdrawMoney
 legacy (guarded) GetGuildInfo
 legacy (guarded) GetGuildRosterLastOnline
 legacy (guarded) GetGuildRosterShowOffline
@@ -101,7 +103,6 @@ legacy (guarded) LoggingCombat
 legacy (guarded) LoggingChat
 legacy (guarded) QuestGetAutoAccept
 legacy (guarded) RegisterAddonMessagePrefix
-legacy (guarded) RepairAllItems
 legacy (guarded) RequestRaidInfo
 legacy (guarded) RespondToInviteConfirmation
 legacy (guarded) SendAddonMessage
