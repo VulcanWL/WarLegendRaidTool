@@ -293,12 +293,15 @@ local inspectHooked = false
 W.On("ADDON_LOADED", function(name)
     if name == "Blizzard_InspectUI" and not inspectHooked then inspectHooked = true; HookInspect() end
 end)
-W.On("PLAYER_LOGIN", function()
+-- the inspect window already loaded: also when the module is switched on later (its ADDON_LOADED was missed)
+local function HookLoadedInspect()
     if not inspectHooked and C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Blizzard_InspectUI") then
         inspectHooked = true
         HookInspect()
     end
-end)
+end
+W.On("PLAYER_LOGIN", HookLoadedInspect)
+W.On("PLAYER_ENTERING_WORLD", HookLoadedInspect)
 
 ---------------------------------------------------------------------------
 -- Bags and bank (old ContainerFrame_Update, or the newer frames with UpdateItems)
@@ -399,6 +402,7 @@ end
 ---------------------------------------------------------------------------
 W.RegisterModule("ItemLevels", "Item levels", function(p)
     W.Title(p, L("Item levels"))
+    HookLoadedInspect()
     if standalone then
         W.Label(p, L("The SimpleItemLevel addon is loaded: disable it, this module replaces it."), "GameFontHighlight")
             :SetPoint("TOPLEFT", 16, -40)

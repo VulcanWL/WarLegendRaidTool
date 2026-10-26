@@ -219,7 +219,13 @@ local OnTooltipItem = W.Timed("hook loot triage tooltip", function(tooltip)
     if price then tooltip:AddLine(string.format(L("Loot triage: %s (%s)"), Money(price), src), 0.8, 0.8, 0.8) end
     local owner = tooltip.GetOwner and tooltip:GetOwner()
     if bagsFull and owner and owner.GetID and owner.GetParent then
-        local bag = owner.GetBagID and owner:GetBagID() or (owner:GetParent() and owner:GetParent():GetID())
+        -- a bag slot only: other item buttons (character sheet...) have no bag, their parent's id is not one
+        local bag = owner.GetBagID and owner:GetBagID()
+        if type(bag) ~= "number" then
+            local parent = owner:GetParent()
+            local pname = parent and parent.GetName and parent:GetName()
+            bag = pname and pname:match("^ContainerFrame%d+$") and parent:GetID() or nil
+        end
         local n = bag and rank[bag .. ":" .. owner:GetID()]
         if n then tooltip:AddLine(string.format(L("Loot triage: throw away n°%d"), n), 1, 0.4, 0.4) end
     end

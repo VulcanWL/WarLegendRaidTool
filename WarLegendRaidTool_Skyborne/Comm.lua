@@ -208,10 +208,19 @@ local function Refresh(p, mapID)
     end
 end
 
+-- Maps holding sightings (or "not there"s): capped too, so strangers can't spread 200 entries over every zone map
+local MAX_MAPS = 100
+local function Room(all, mapID)
+    if all[mapID] then return true end
+    local n = 0
+    for _ in pairs(all) do n = n + 1 end
+    return n < MAX_MAPS
+end
+
 -- A sighting. For a node and phase the newest report wins, sighting or "not there".
 local function Add(p, mapID, x, y, t, mine)
     mapID, x, y = Valid(mapID, x, y, t)
-    if not mapID then return end
+    if not mapID or not (mine or Room(reports, mapID)) then return end
     ns.LearnShared(mapID, x, y) -- a location we don't have yet is kept, whatever the phase
 
     local gi, g = Find(gone[mapID], p, mapID, x, y)
@@ -236,7 +245,7 @@ end
 -- A "not there" (XM / XS): ends an older sighting of that node in that phase. Never teaches a location.
 local function AddGone(p, mapID, x, y, t)
     mapID, x, y = Valid(mapID, x, y, t)
-    if not mapID then return end
+    if not mapID or not Room(gone, mapID) then return end
     local ri, r = Find(reports[mapID], p, mapID, x, y)
     if r then
         if r.t >= t then return end -- seen since
