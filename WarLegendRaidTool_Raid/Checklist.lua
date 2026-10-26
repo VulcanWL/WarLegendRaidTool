@@ -157,7 +157,7 @@ local bagEv = W.On("BAG_UPDATE_DELAYED", function() CL.Refresh() end, nil, true)
 local itemEv = W.On("GET_ITEM_INFO_RECEIVED", function() CL.Refresh() end, nil, true)
 local function Watch(on) W.Activate(bagEv, on); W.Activate(itemEv, on) end
 
-W.RegisterModule("Checklist", L("Checklist"), function(p)
+W.RegisterModule("Checklist", "Checklist", function(p)
     W.Title(p, L("Consumables"))
     local lbl = W.Label(p, L("Item (ID, name or shift-click):"), "GameFontHighlightSmall")
     lbl:SetPoint("TOPLEFT", 14, -40)
@@ -173,9 +173,9 @@ W.RegisterModule("Checklist", L("Checklist"), function(p)
     local function add()
         local id = W.ParseItem(box:GetText())
         if not id then W.Print(L("Unknown item.")); return end
-        local n = tonumber(qty:GetText()) or 1
+        local n = W.Int(qty:GetText(), 1, 9999) or 1
         for _, e in ipairs(db.items) do if e[1] == id then e[2] = n; id = nil; break end end
-        if id then table.insert(db.items, { id, n }) end
+        if id and #db.items < MAX_ITEMS then table.insert(db.items, { id, n }) end
         box:SetText("")
         CL.Refresh()
     end

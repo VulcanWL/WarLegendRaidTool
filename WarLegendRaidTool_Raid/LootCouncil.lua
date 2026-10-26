@@ -5,6 +5,7 @@
 -- Also: loot log of every item looted in raid, soft-res (softres.it import + "!sr" whispers).
 local W = WLRT
 W.AddFR({
+    ["click"] = "clic",
     ["Loot Council"] = "Loot Council",
     ["Need (BiS)"] = "Besoin (BiS)",
     ["Upgrade"] = "Amélioration",
@@ -296,6 +297,14 @@ local function SRMatch(a, b)
     return W.BaseName(a):lower() == W.BaseName(b):lower()
 end
 
+-- a council / voter key (lowercase full name) as the group shows it, or the key itself
+local function KeyName(key)
+    for _, u in ipairs(W.GroupUnits()) do
+        if W.UnitKey(u) == key then return W.UnitDisplayName(u) or key end
+    end
+    return key
+end
+
 local function HasSR(str, name)
     local list = LC.SRFor(str)
     if not list then return false end
@@ -413,6 +422,7 @@ function LC.StartSession(items, test)
     end
     if #part > 0 then Send("C", sid, table.concat(part, ",")) end
     W.Print(string.format(L("Loot session started (%d items)."), #items))
+    return true
 end
 
 function LC.EndSession()
@@ -807,6 +817,17 @@ local function LootRow(i)
     return r
 end
 
+-- an item not in the cache yet has no name, icon or class line (autopass): the frames are drawn again a bit later
+local lootRetries = 0
+local function RetryLoot()
+    if lootRetries >= 10 then return end
+    lootRetries = lootRetries + 1
+    W.After(1, function()
+        if S and UI.loot and UI.loot:IsShown() then LC.ShowLootFrame() end
+        RefreshVoteSoon()
+    end)
+end
+
 function LC.ShowLootFrame()
     if not S then return end
     if not UI.loot then
@@ -833,10 +854,22 @@ function LC.ShowLootFrame()
     end
     local f = UI.loot
     local myClass = W.UnitClassToken("player")
-    local n = 0
+    local n, missing = 0, false
     for idx = 1, S.n do
         local item = S.items[idx]
-        if item and not S.answered[idx] then
+        if item and not S.answered[idx] and not W.GetItemInfo(item.str) then
+            missing = true -- not judged yet: no autopass on an item whose class line is unknown
+            n = n + 1
+            local r = LootRow(n)
+            r.idx, r.str = idx, item.str
+            r.tex:SetTexture(W.ItemIcon(item.str))
+            r.name:SetText(W.ItemLink(item.str))
+            r.info:SetText("")
+            r.note:SetText("")
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", 0, -32 - (n - 1) * ROW_H)
+            r:Show()
+        elseif item and not S.answered[idx] then
             if db.autopass and not LC.CanUse(item.str, myClass) then
                 Answer(idx, "autopass")
                 W.Print(string.format(L("Autopassed %s (cannot use)."), W.ItemLink(item.str)))
@@ -857,6 +890,7 @@ function LC.ShowLootFrame()
         end
     end
     for i = n + 1, #f.rows do f.rows[i]:Hide() end
+    if missing then RetryLoot() else lootRetries = 0 end
     if n == 0 then f:Hide(); return end
     f:SetHeight(36 + n * ROW_H + 34)
     f:Show()
@@ -980,7 +1014,7 @@ local function VoteRow(content)
         if c.note then GameTooltip:AddLine(c.note, 1, 1, 1, true) end
         GameTooltip:AddLine(L("Loots: items received in guild raids, last 30 days."), 0.7, 0.7, 0.7, true)
         local voters = {}
-        for v in pairs(c.votes) do voters[#voters + 1] = v end
+        for v in pairs(c.votes) do voters[#voters + 1] = KeyName(v) end
         if #voters > 0 then GameTooltip:AddLine(L("Votes") .. ": " .. table.concat(voters, ", "), 0.7, 0.7, 0.7, true) end
         GameTooltip:Show()
     end)
@@ -1107,7 +1141,7 @@ function LC.RefreshVote()
         if c.resp ~= "wait" then answered = answered + 1 end
     end
     f.status:SetText(string.format(L("Session by %s: %d item(s)."), S.ml, S.n) .. "   " .. answered .. "/" .. total
-        .. (isML and ("   |cff888888" .. L("Award") .. ": clic|r") or ""))
+        .. (isML and ("   |cff888888" .. L("Award") .. ": " .. L("click") .. "|r") or ""))
 end
 
 ---------------------------------------------------------------------------
@@ -1483,7 +1517,9 @@ function LC.ImportSR(text)
                     if tonumber(v) then id = id or W.Int(v, 1, 9999999) elseif v ~= "" then name = name or v end
                 end
             end
-            name = name and W.BaseName(W.SanitizeName(name)):sub(1, 40)
+            -- the surname kept on Forever (two raiders can share a first name), the realm dropped elsewhere
+            name = name and W.SanitizeName(name)
+            name = name and W.CutUTF8(W.FOREVER and W.FullName(name) or W.BaseName(name), 40)
             if id and name and name ~= "" and LC.AddSR(name, id) then count = count + 1 end
         end
     end
@@ -1512,7 +1548,7 @@ function LC.RefreshSession()
             end
         end
         local council = {}
-        for n in pairs(S.council) do council[#council + 1] = n end
+        for n in pairs(S.council) do council[#council + 1] = KeyName(n) end
         table.sort(council)
         lines[#lines + 1] = "|cff888888" .. L("Council members: ") .. table.concat(council, ", ") .. "|r"
     else
@@ -1547,7 +1583,7 @@ local function BuildSession(p)
     W.Button(p, L("Add item"), 110, 22, add):SetPoint("LEFT", box, "RIGHT", 8, 0)
     W.Button(p, L("Start session"), 120, 22, function()
         if #db.pending == 0 then return end
-        LC.StartSession(db.pending)
+        if not LC.StartSession(db.pending) then return end -- refused: the list is kept
         db.pending = {}
         LC.RefreshSession()
     end):SetPoint("LEFT", box, "RIGHT", 124, 0)
@@ -1748,4 +1784,4 @@ W.slash.loot = function(rest)
 end
 W.slash.sr = function() W.Toggle("LootCouncil"); if UI.tabs then UI.tabs:Select(3) end end
 
-W.RegisterModule("LootCouncil", L("Loot Council"), Build, function() LC.RefreshSession() end)
+W.RegisterModule("LootCouncil", "Loot Council", Build, function() LC.RefreshSession() end)

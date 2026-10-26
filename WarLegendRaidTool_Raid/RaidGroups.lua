@@ -54,6 +54,8 @@ local function PName(name)
     return W.FOREVER and W.FullName(name) or W.BaseName(name)
 end
 RG.PName = PName
+-- a member of the Members list as shown: "First Surname" on Forever (two guild members can share a first name)
+function RG.MemberLabel(m) return PName(m.full or m.name) or m.name end
 
 local function UnitPName(unit, fallback)
     if W.FOREVER then return W.UnitFullName(unit) or fallback end
@@ -256,7 +258,8 @@ function RG.AutoSort(preset)
     local map = RG.MemberMap()
     local noRole = 0
     for _, p in ipairs(preset.players) do
-        if db.sortGroups[p.group or 1] then
+        local g = (p.group and p.group >= 1 and p.group <= 8) and p.group or 1
+        if db.sortGroups[g] then
             local m = map[p.name:lower()]
             local role = m and UnitGroupRolesAssigned and W.Safe(UnitGroupRolesAssigned(m.unit))
             -- Classic raids rarely set roles: the raid's main tanks (and the combat role) count too
@@ -273,7 +276,7 @@ function RG.AutoSort(preset)
             table.insert(buckets[role], p)
             p.group = nil
         else
-            counts[p.group] = counts[p.group] + 1
+            counts[g] = counts[g] + 1
         end
     end
     for _, list in pairs(buckets) do table.sort(list, function(a, b) return a.name < b.name end) end
@@ -431,16 +434,21 @@ local function GroupStep(preset)
     for _, p in ipairs(preset.players) do
         if p.group then desired[p.name:lower()] = p.group end
     end
-    local roster, counts = {}, { 0, 0, 0, 0, 0, 0, 0, 0 }
+    local roster, counts, bases = {}, { 0, 0, 0, 0, 0, 0, 0, 0 }, {}
     for i = 1, W.NumRaid() do
         local name, _, sub = GetRaidRosterInfo(i)
         name, sub = W.Safe(name), W.Safe(sub)
         if name and sub then
-            -- exact preset name first, then the first name (presets saved with first names)
             local key = UnitPName(W.RAID_UNITS[i], name):lower()
-            roster[#roster + 1] = { index = i, group = sub, want = desired[key] or desired[W.BaseName(key)] }
+            local base = W.BaseName(key)
+            bases[base] = (bases[base] or 0) + 1
+            roster[#roster + 1] = { index = i, group = sub, key = key, base = base }
             counts[sub] = counts[sub] + 1
         end
+    end
+    -- exact preset name first, then the first name (presets saved with first names) when one raider only has it
+    for _, r in ipairs(roster) do
+        r.want = desired[r.key] or (bases[r.base] == 1 and desired[r.base]) or nil
     end
     local blocked = false
     for _, r in ipairs(roster) do
@@ -715,7 +723,7 @@ function RG.Deserialize(str)
     local name, preset = nil, { players = {} }
     for chunk in string.gmatch(str or "", "[^;]+") do
         if not name then
-            name = chunk:gsub("[%c|]", ""):sub(1, 40)
+            name = W.CutUTF8((chunk:gsub("[%c|]", "")), 40)
             if name:match("^%s*$") then name = "Preset" end
         elseif #preset.players < 40 then
             local n, c, g, i, ma = strsplit(",", chunk)
@@ -814,9 +822,9 @@ W.OnAddon(SHARE_PREFIX, function(msg, from, channel, full)
     for k, old in pairs(incoming) do
         if now - (old.at or now) > TRANSFER_TTL then incoming[k] = nil end
     end
-    local key = (full or from) .. id
+    local key = full or from -- one transfer per sender: a new id replaces the one in progress
     local buf = incoming[key]
-    if not buf then buf = { n = 0, parts = {}, total = total, at = now }; incoming[key] = buf end
+    if not buf or buf.id ~= id then buf = { id = id, n = 0, parts = {}, total = total, at = now }; incoming[key] = buf end
     if buf.total ~= total then return end
     if not buf.parts[i] then buf.parts[i] = payload; buf.n = buf.n + 1 end
     if buf.n < total then return end
@@ -1372,14 +1380,14 @@ local function BuildFreePanel(parent)
         r.text:SetPoint("RIGHT", -2, 0)
         r:RegisterForDrag("LeftButton")
         r:SetScript("OnDragStart", function(self)
-            if self.member then StartDrag({ member = self.member }, self.member.name, self.member.class) end
+            if self.member then StartDrag({ member = self.member }, RG.MemberLabel(self.member), self.member.class) end
         end)
         r:SetScript("OnDragStop", StopDrag)
         r:SetScript("OnEnter", function(self)
             local m = self.member
             if not m then return end
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-            GameTooltip:AddLine(m.name, W.ClassColor(m.class))
+            GameTooltip:AddLine(RG.MemberLabel(m), W.ClassColor(m.class))
             if m.rank then GameTooltip:AddLine(m.rank .. (m.level and (L("  -  lvl ") .. m.level) or ""), 0.8, 0.8, 0.8) end
             if m.group then GameTooltip:AddLine(L("Group ") .. m.group, 0.8, 0.8, 0.8) end
             if m.online == false then GameTooltip:AddLine(L("Offline"), 0.5, 0.5, 0.5) end
@@ -1445,7 +1453,7 @@ function UI.RefreshFree()
     local query = W.SanitizeName(UI.filterBox:GetText()):lower()
     local function keep(m)
         if preset and RG.FindPlayer(preset, PName(m.full or m.name) or m.name) then return false end
-        if query ~= "" and not m.name:lower():find(query, 1, true) then return false end
+        if query ~= "" and not RG.MemberLabel(m):lower():find(query, 1, true) then return false end
         return true
     end
 
@@ -1466,7 +1474,7 @@ function UI.RefreshFree()
             end
             table.sort(list, function(a, b)
                 if a.online ~= b.online then return a.online end
-                return a.name < b.name
+                return RG.MemberLabel(a) < RG.MemberLabel(b)
             end)
             if total == 0 then hint = L("Loading guild roster...")
             elseif #list == 0 then hint = L("Everyone is already in the preset.") end
@@ -1489,10 +1497,10 @@ function UI.RefreshFree()
         r.member = m
         local r1, g1, b1 = W.ClassColor(m.class)
         if m.online == false then
-            r.text:SetText(m.name .. L(" |cff666666offline|r"))
+            r.text:SetText(RG.MemberLabel(m) .. L(" |cff666666offline|r"))
             r.text:SetTextColor(r1 * 0.55, g1 * 0.55, b1 * 0.55)
         else
-            r.text:SetText(m.name .. (m.group and (" |cff888888G" .. m.group .. "|r") or ""))
+            r.text:SetText(RG.MemberLabel(m) .. (m.group and (" |cff888888G" .. m.group .. "|r") or ""))
             r.text:SetTextColor(r1, g1, b1)
         end
     end
@@ -1687,7 +1695,11 @@ W.On("GUILD_ROSTER_UPDATE", function()
     if UI.slots and UI.root:IsVisible() and db.poolSource == "guild" then UI.RefreshFree() end
 end)
 
+local function Off()
+    if not db or W.IsOff("RaidGroups") then W.Print(L("This module is switched off: it gets no events and does nothing.")); return true end
+end
 local function PresetArg(rest)
+    if Off() then return nil end
     local name = (rest and rest ~= "") and rest or db.selected
     local preset = name and db.presets[name]
     if not preset then W.Print(L("Preset not found: ") .. tostring(name)) end
@@ -1696,9 +1708,9 @@ end
 W.slash.apply = function(rest) local p, n = PresetArg(rest); if p then RG.ApplyAll(p, n) end end
 W.slash.marks = function(rest) local p = PresetArg(rest); if p then RG.ApplyMarkers(p) end end
 W.slash.groups = function(rest) local p = PresetArg(rest); if p then RG.ApplyGroups(p) end end
-W.slash.clear = function() RG.ClearMarkers() end
+W.slash.clear = function() if not Off() then RG.ClearMarkers() end end
 W.slash.assist = function(rest)
     local p = PresetArg(rest)
     if p then RG.CreateMyAssistMacro(p) end
 end
-W.slash.list = function() for _, n in ipairs(RG.SortedNames()) do W.Print(" - " .. (n == RG.LIVE and L(n) or n)) end end
+W.slash.list = function() if Off() then return end for _, n in ipairs(RG.SortedNames()) do W.Print(" - " .. (n == RG.LIVE and L(n) or n)) end end
