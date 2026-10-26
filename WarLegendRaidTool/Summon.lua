@@ -153,7 +153,11 @@ local function Watch()
     if watching or #queue == 0 then return end
     watching = true
     local function step()
-        if #queue == 0 or not db.enabled or not W.InGroup() then watching = false; return end
+        if #queue == 0 or not db.enabled or not W.InGroup() or W.IsOff("Summon") then
+            watching = false
+            if W.IsOff("Summon") and win then win:Hide() end
+            return
+        end
         Prune()
         W.After(3, step)
     end

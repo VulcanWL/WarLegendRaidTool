@@ -241,6 +241,7 @@ end
 ---------------------------------------------------------------------------
 local MAX_RANKS = 10
 
+local syncRanks -- the rank boxes of the tab, filled again when the roster arrives
 W.RegisterModule("InviteTool", "Invite Tool", function(p)
     W.Title(p, L("Invite Tool"))
     W.Check(p, L("Invite on keyword whisper"), function() return db.enabled end,
@@ -285,7 +286,7 @@ W.RegisterModule("InviteTool", "Invite Tool", function(p)
     end
     local noGuild = W.Label(p, L("No guild, or ranks still loading..."), "GameFontDisableSmall")
     noGuild:SetPoint("TOPLEFT", 16, -252)
-    local function syncRanks()
+    syncRanks = function()
         local n = (W.IsInGuild() and GuildControlGetNumRanks and GuildControlGetNumRanks()) or 0
         for i, c in ipairs(rankChecks) do
             local name = i <= n and GuildControlGetRankName(i)
@@ -311,3 +312,8 @@ W.RegisterModule("InviteTool", "Invite Tool", function(p)
     p:HookScript("OnShow", function() W.RequestGuildRoster(); syncRanks() end)
     syncRanks()
 end)
+
+-- opened while the ranks were still loading: they show once the roster arrives
+W.On("GUILD_ROSTER_UPDATE", W.Coalesce(1, function()
+    if syncRanks and W.IsShown("InviteTool") then syncRanks() end
+end))

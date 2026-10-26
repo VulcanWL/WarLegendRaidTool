@@ -706,7 +706,7 @@ end
 -- the reminder timer only runs while the reminder is on
 local ticking = false
 local function Tick()
-    if not db or not db.remind or not W.IsInGuild() then ticking = false; return end
+    if not db or not db.remind or not W.IsInGuild() or W.IsOff("Guild") or not W.Allowed() then ticking = false; return end
     W.After(30, Tick)
     if time() - (db.last or 0) >= (db.interval or 15) * 60 and not (InCombatLockdown and InCombatLockdown()) then
         db.last = time() -- one reminder per interval, even if ignored
@@ -928,9 +928,10 @@ function G.FindCrafters(search, filter, f)
     if filter and filter ~= "" then f.prof = filter end
     local d = Data()
     local by = {}
+    local rosterKnown = #W.GuildMembers() > 0
     for key, e in pairs(d) do
         local name = EntryName(key, e)
-        if PassName(name, f) and (not f.online or Online(name)) then
+        if PassName(name, f) and (not f.online or Online(name)) and InGuild(name, rosterKnown) then
             for prof, list in pairs(e.rec or {}) do
                 local pk = ProfKey(prof)
                 if (f.prof == "" or pk == f.prof) and PassSkill(SkillOf(e, pk), f) then
@@ -1356,7 +1357,7 @@ local function BuildRecruit(p)
     p:SetScript("OnShow", sync)
 end
 
-W.RegisterModule("Guild", L("Guild"), function(p)
+W.RegisterModule("Guild", "Guild", function(p)
     W.Title(p, L("Guild"))
     -- the professions first (what the tab is opened for), the officer tools at the end
     UI.tabs = W.SubTabs(p, { L("Professions"), L("Recruitment"), L("Inactive") })

@@ -80,12 +80,16 @@ local function Ask()
 end
 
 local Refresh
+local answering = false
 W.OnAddon(PREFIX, function(msg, name, channel, full)
     if channel ~= "GUILD" or not db or #msg > 200 then return end
     if full == W.UnitFullName("player") then return end
     if msg == "?" then
         local p = Mine()
-        if p.r ~= "" or p.s ~= "" or p.a ~= "" then Send(false) end
+        if (p.r ~= "" or p.s ~= "" or p.a ~= "") and not answering then
+            answering = true -- the whole guild hears "?": the answers are spread over a few seconds
+            W.After(1 + math.random() * 8, function() answering = false; Send(false) end)
+        end
         return
     end
     local f = W.Unpack(msg)
@@ -215,7 +219,7 @@ function Refresh()
     UI.offline:SetText(onlineOnly and L("Online members only: tick \"Show offline members\" in the guild window.") or "")
 end
 
-W.RegisterModule("Classes", L("Classes"), function(p)
+W.RegisterModule("Classes", "Classes", function(p)
     UI.panel = p
     W.Title(p, L("Classes"))
     local me = Mine

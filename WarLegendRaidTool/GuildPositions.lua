@@ -227,7 +227,9 @@ local function StopSharing()
     if IsInGuild() then W.Send(PREFIX, Line(0, 0, 0, true), "GUILD") end
 end
 
+local Start
 local function Tick()
+    if W.IsOff("GuildPositions") or not W.Allowed() then Start(); return end -- switched off: the ticker stops
     local now = GetTime()
     -- the members not heard for a while are taken off the map
     for full, m in pairs(members) do
@@ -247,8 +249,19 @@ local function Tick()
     end
 end
 
+-- the map libraries, read once (also when the module is switched on after the login)
+local function Libs()
+    if HBD and Pins then return end
+    standalone = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GuildMap") and true or false
+    if LibStub then
+        HBD = LibStub("HereBeDragons-2.0-gm", true)
+        Pins = LibStub("HereBeDragons-Pins-2.0-gm", true)
+    end
+end
+
 local ticker
-local function Start()
+function Start()
+    Libs()
     local want = db and not standalone and HBD and Pins and W.Allowed() and not W.IsOff("GuildPositions")
     if want and not ticker and C_Timer and C_Timer.NewTicker then
         ticker = C_Timer.NewTicker(SEND_MOVING, function()
@@ -263,13 +276,7 @@ local function Start()
     end
 end
 
-W.On("PLAYER_LOGIN", function()
-    standalone = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GuildMap") and true or false
-    if LibStub then
-        HBD = LibStub("HereBeDragons-2.0-gm", true)
-        Pins = LibStub("HereBeDragons-Pins-2.0-gm", true)
-    end
-end)
+W.On("PLAYER_LOGIN", Libs)
 W.On("PLAYER_ENTERING_WORLD", function() Start(); W.After(2, Tick) end)
 W.On("PLAYER_LOGOUT", StopSharing)
 
@@ -278,6 +285,7 @@ W.RegisterModule("GuildPositions", "Guild map", function(p)
     local tabs = W.SubTabs(p, { L("Members"), L("Transports") })
     if W.TransportsPanel then W.TransportsPanel(tabs.frames[2]) end
     p = tabs.frames[1]
+    Start() -- switched on in Settings > Modules: the libraries are read and the ticker starts here
     local y = -8
     if standalone then
         local warn = W.Label(p, L("The GuildMap addon is loaded: disable it, this module replaces it (members with GuildMap are still seen)."), "GameFontHighlight")

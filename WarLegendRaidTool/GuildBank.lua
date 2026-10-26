@@ -98,7 +98,7 @@ W.On("GET_ITEM_INFO_RECEIVED", function(_, success)
     W.After(0.5, function() itemPending = false; Refresh() end)
 end)
 
-W.RegisterModule("GuildBank", L("Guild bank"), function(p)
+W.RegisterModule("GuildBank", "Guild bank", function(p)
     W.Title(p, L("Guild bank"))
     local lbl = W.Label(p, L("Search an item:"), "GameFontHighlightSmall")
     lbl:SetPoint("TOPLEFT", 14, -44)
@@ -126,7 +126,7 @@ W.RegisterModule("GuildBank", L("Guild bank"), function(p)
     end
     local hint = W.Label(p, L("Bags are read at login, the bank and the mailbox when you open them on each bank character."), "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 8)
-    p:SetScript("OnShow", function()
+    UI.syncRanks = function()
         wipe(rankValues)
         rankValues[1] = { "", L("Auto (bank / banque)") }
         local seen, ranks = {}, {}
@@ -137,7 +137,13 @@ W.RegisterModule("GuildBank", L("Guild bank"), function(p)
         for _, m in ipairs(ranks) do rankValues[#rankValues + 1] = { m.rank, m.rank } end
         rankCycle.Sync()
         Refresh()
-    end)
-end, function() Refresh() end)
+    end
+    p:SetScript("OnShow", function() W.RequestGuildRoster(); UI.syncRanks() end)
+end)
+
+-- opened before the roster was known: the ranks and bank characters come with it
+W.On("GUILD_ROSTER_UPDATE", W.Coalesce(1, function()
+    if UI.syncRanks and W.IsShown("GuildBank") then UI.syncRanks() end
+end))
 
 W.slash.bank = function() W.Toggle("GuildBank") end

@@ -380,7 +380,8 @@ local function RefreshItems()
             for _, where in ipairs({ "bags", "bank", "mail" }) do
                 for id in pairs(c[where] or {}) do
                     if not found[id] then
-                        local name = db.names[id]
+                        local name = db.names[id] or W.GetItemInfo(id) -- not in the cache at scan time: asked again
+                        if name and not db.names[id] then db.names[id] = W.Safe(name) end
                         if (wantId and id == wantId) or (query and name and name:lower():find(query, 1, true)) then found[id] = true end
                     end
                 end
@@ -418,6 +419,9 @@ local function BuildItems(p)
     p:SetScript("OnShow", function() ScanBags(); RefreshItems() end)
 end
 
+-- item names arrive from the server a moment after they are asked: the search is run again once
+W.On("GET_ITEM_INFO_RECEIVED", W.Coalesce(0.5, function() if W.IsShown("Alts") then RefreshItems() end end))
+
 local function RefreshLockouts()
     if not UI.lockouts or not UI.lockouts:IsVisible() then return end
     local rows, now = {}, time()
@@ -444,7 +448,7 @@ W.On("UPDATE_INSTANCE_INFO", function() if W.IsShown("Alts") then RefreshLockout
 -- Every character of the account (read by the guild bank module)
 function W.AccountChars() return db and db.chars or {} end
 
-W.RegisterModule("Alts", L("My characters"), function(p)
+W.RegisterModule("Alts", "My characters", function(p)
     W.Title(p, L("My characters"))
     UI.tabs = W.SubTabs(p, { L("Overview"), L("Items"), L("Lockouts") })
     BuildOverview(UI.tabs.frames[1])

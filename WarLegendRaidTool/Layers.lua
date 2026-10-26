@@ -141,7 +141,7 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
         -- one answer a minute whoever asks: a flood of "?" must not make the whole guild send
         if current and GetServerTime() - current.at < FRESH and GetTime() - lastAnswer >= 60 then
             lastAnswer = GetTime()
-            Share(true)
+            W.After(1 + math.random() * 8, function() Share(true) end) -- the whole guild hears "?": answers spread out
         end
         return
     end
@@ -316,7 +316,7 @@ function Refresh()
     end
 end
 
-W.RegisterModule("Layers", L("Layers"), function(p)
+W.RegisterModule("Layers", "Layers", function(p)
     UI.panel = p
     W.Title(p, L("Layers"))
     W.Check(p, L("Detect my layer (open world)"), function() return db.on end,
@@ -353,7 +353,7 @@ W.RegisterModule("Layers", L("Layers"), function(p)
     local credit = W.Label(p, L("Method from Sashoof's WarLegend v3 addon."), "GameFontDisableSmall")
     credit:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -6)
     local acc = 0
-    p:SetScript("OnShow", function() acc = 0; Ask(); Refresh() end)
+    p:SetScript("OnShow", function() acc = 0; W.RequestGuildRoster(); Ask(); Refresh() end)
     p:SetScript("OnUpdate", function(_, el)
         acc = acc + el
         if acc >= 5 then acc = 0; Refresh() end

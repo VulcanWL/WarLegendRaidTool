@@ -176,10 +176,17 @@ local function Int(v, max)
     return v
 end
 
+local answering = false
 W.OnAddon(PREFIX, function(msg, name, channel, full)
     if channel ~= "GUILD" or not db or not db.on or #msg > 200 then return end
     if full == W.UnitFullName("player") then return end
-    if msg == "?" then Share(); return end
+    if msg == "?" then
+        if not answering then
+            answering = true -- the whole guild hears "?": the answers are spread over a few seconds
+            W.After(1 + math.random() * 8, function() answering = false; Share() end)
+        end
+        return
+    end
     local f = W.Unpack(msg)
     if f[1] ~= "1" then return end
     local start = Int(f[2], 4102444800)
@@ -412,7 +419,7 @@ function Refresh()
     end
 end
 
-W.RegisterModule("Minotaure", L("Minotaure"), function(p)
+W.RegisterModule("Minotaure", "Minotaure", function(p)
     UI.panel = p
     W.Title(p, L("Minotaure"))
     UI.season = W.Label(p, "", "GameFontHighlightSmall")
@@ -457,7 +464,7 @@ W.RegisterModule("Minotaure", L("Minotaure"), function(p)
     W.Label(f4, L("Your seasons (this character). The ranking of the guild is kept for the season in progress only."), "GameFontDisableSmall")
         :SetPoint("TOPLEFT", 16, -376)
 
-    p:SetScript("OnShow", function() Ask(); Refresh() end)
+    p:SetScript("OnShow", function() W.RequestGuildRoster(); Ask(); Refresh() end)
     UI.tabs:Select(1)
 end, function()
     if UI.tabs then UI.tabs:Select(UI.tabs.current or 1) end
