@@ -927,6 +927,50 @@ function W.ItemLevel(link)
     return (lvl and lvl > 0) and lvl or nil
 end
 
+-- Fallback when the trait groups give nothing: Forever lays the 3 trees side by side in one trait tree
+-- (nodes ~600 apart inside a tree, ~4000 between trees), so the node columns are split at the two widest gaps.
+-- names = the groups' names when there are 3 of them. Same result as W.ReadTalentConfig, or nil.
+function W.ReadTalentColumns(configID, treeID, names)
+    if not (C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then return nil end
+    local nodes = C_Traits.GetTreeNodes(treeID)
+    if not nodes or #nodes == 0 then return nil end
+    local xs, ranks = {}, {}
+    for _, nodeID in ipairs(nodes) do
+        local info = C_Traits.GetNodeInfo(configID, nodeID)
+        local x = info and W.Safe(info.posX)
+        if type(x) == "number" then
+            local r = W.Safe(info.ranksPurchased) or W.Safe(info.activeRank) or 0
+            xs[#xs + 1] = x
+            ranks[#ranks + 1] = { x = x, r = type(r) == "number" and r or 0 }
+        end
+    end
+    if #xs < 3 then return nil end
+    table.sort(xs)
+    -- the two widest gaps between neighbour columns: their middles are the tree borders
+    local g1, g2 = 0, 0
+    local c1, c2
+    for i = 2, #xs do
+        local gap = xs[i] - xs[i - 1]
+        local mid = (xs[i] + xs[i - 1]) / 2
+        if gap > g1 then g2, c2, g1, c1 = g1, c1, gap, mid
+        elseif gap > g2 then g2, c2 = gap, mid end
+    end
+    if not (c1 and c2) then return nil end
+    if c2 < c1 then c1, c2 = c2, c1 end
+    local t = { spent = { 0, 0, 0 }, names = {}, total = 0 }
+    for _, n in ipairs(ranks) do
+        local i = n.x < c1 and 1 or (n.x < c2 and 2 or 3)
+        t.spent[i] = t.spent[i] + n.r
+        t.total = t.total + n.r
+    end
+    local most = 0
+    for i = 1, 3 do
+        t.names[i] = (names and names[i]) or ("#" .. i)
+        if t.spent[i] > most then t.best, most = t.names[i], t.spent[i] end
+    end
+    return t
+end
+
 -- Talents: Forever stores the 3 vanilla trees as trait groups (C_Traits), like Naowh Forever reads them.
 -- Returns { spent = {21, 9, 0}, names = {...}, total, best } or nil
 function W.ReadTalentConfig(configID)
@@ -935,7 +979,7 @@ function W.ReadTalentConfig(configID)
     local treeID = config and config.treeIDs and config.treeIDs[1]
     if not treeID then return nil end
     local groups = C_Traits.GetGroupDisplayInfoByTreeID(treeID)
-    if not groups or #groups == 0 then return nil end
+    if not groups or #groups == 0 then return W.ReadTalentColumns(configID, treeID) end
     local ids = {}
     for i, g in ipairs(groups) do ids[i] = g.groupID end
     local infos = (C_Traits.GetGroupCurrencyInfo and C_Traits.GetGroupCurrencyInfo(configID, ids)) or {}
@@ -950,6 +994,11 @@ function W.ReadTalentConfig(configID)
         t.spent[i], t.names[i] = spent, g.displayName or ("#" .. i)
         t.total = t.total + spent
         if spent > most then t.best, most = t.names[i], spent end
+    end
+    if t.total == 0 then
+        -- groups without spent points: the node ranks may still hold them
+        local c = W.ReadTalentColumns(configID, treeID, #groups == 3 and t.names or nil)
+        if c and c.total > 0 then return c end
     end
     return t
 end
