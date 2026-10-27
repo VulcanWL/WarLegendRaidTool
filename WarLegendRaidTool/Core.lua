@@ -1793,6 +1793,7 @@ function W.Select(key, fromSection, fromCategory)
     local cat, sec = Locate(m, fromCategory or ui.category, fromSection or ui[OpenKey(fromCategory or ui.category)])
     if cat then
         ui.category = cat
+        ui["tabModule_" .. cat] = m.key -- what a click on this tab opens next time
         for _, c in ipairs(main.categories or {}) do
             if c.key == cat and c.accordion then ui[OpenKey(cat)] = sec end
         end
@@ -1829,18 +1830,23 @@ function W.SetModuleOn(key, on)
     end
     if W.ReindexTab then W.ReindexTab(m) end
     local entry = m.group or m
-    for _, b in ipairs(entry.buttons or {}) do W.MenuTextColor(b, entry) end
+    for _, b in ipairs(entry.buttons or {}) do
+        if not b.sel:IsShown() then W.MenuTextColor(b, entry) end -- the selected one stays white
+    end
 end
 
 -- Window size: the whole window is scaled (text, buttons and layouts together), so every module stays
 -- readable and nothing overlaps. Saved as ui.scale; the grip at the bottom right and Settings > General set it.
 local MIN_SCALE, MAX_SCALE = 0.8, 1.6
+-- the scale kept between the limits and small enough for the window to fit on the screen
+local function FitScale(s)
+    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 1000)
+    return math.max(MIN_SCALE, math.min(tonumber(s) or 1, fit))
+end
 function W.SetWindowScale(s, keepCorner)
     if not main then return end
     local ui = W.DB("ui")
-    local fit = math.min(MAX_SCALE, (UIParent:GetHeight() - 20) / 640, (UIParent:GetWidth() - 20) / 1000)
-    s = math.max(MIN_SCALE, math.min(tonumber(s) or 1, fit))
-    s = math.floor(s * 100 + 0.5) / 100
+    s = math.floor(FitScale(s) * 100 + 0.5) / 100
     local old = main:GetScale()
     local left, top = main:GetLeft(), main:GetTop()
     main:SetScale(s)
@@ -1867,7 +1873,7 @@ function W.BuildMain()
         main:SetPoint("CENTER")
     end
     main:SetFrameStrata("HIGH")
-    main:SetScale(math.max(MIN_SCALE, math.min(ui.scale or 1, MAX_SCALE)))
+    main:SetScale(FitScale(ui.scale)) -- a size saved on a bigger screen: smaller here, ui.scale kept
     main:SetMovable(true)
     main:EnableMouse(true)
     main:SetClampedToScreen(true)
@@ -2114,9 +2120,25 @@ function W.BuildMain()
         t.text:SetFont(W.FONT, 10, "OUTLINE")
         t.text:SetPoint("CENTER")
         t.text:SetText(W.Upper(L(cat.short or cat.title)))
+        -- the widths come from the letter count: a label still too wide shrinks to fit
+        local size = 10
+        while t.text:GetStringWidth() > (tabW[i] or 40) - 4 and size > 7 do
+            size = size - 1
+            t.text:SetFont(W.FONT, size, "OUTLINE")
+        end
         if cat.short then W.Tooltip(t, L(cat.title)) end
+        -- opens the tool last shown in this tab, else its first entry (not the page of the tab left)
         t:SetScript("OnClick", function()
-            W.DB("ui").category = cat.key
+            local ui = W.DB("ui")
+            local last = byKey[ui["tabModule_" .. cat.key]]
+            if last and Locate(last.group or last, cat.key) == cat.key then
+                W.Select(last.key, nil, cat.key)
+                return
+            end
+            for _, sec in ipairs(cat.sections) do
+                if sec.list[1] then W.Select(sec.list[1].key, sec.key, cat.key); return end
+            end
+            ui.category = cat.key
             LayoutMenu()
         end)
         cat.tab = t
