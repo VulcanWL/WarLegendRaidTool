@@ -202,10 +202,15 @@ local function Find(list, p, mapID, x, y)
     end
 end
 
+-- one redraw of the open map per 0.5 s, however many sightings arrive meanwhile
+local refreshQueued = false
 local function Refresh(p, mapID)
-    if p == phase and WorldMapFrame:IsShown() and WorldMapFrame:GetMapID() == mapID then
-        ns.Provider:RefreshAllData()
-    end
+    if refreshQueued or p ~= phase or not WorldMapFrame:IsShown() or WorldMapFrame:GetMapID() ~= mapID then return end
+    refreshQueued = true
+    C_Timer.After(0.5, function()
+        refreshQueued = false
+        if WorldMapFrame:IsShown() then ns.Provider:RefreshAllData() end
+    end)
 end
 
 -- Maps holding sightings (or "not there"s): capped too, so strangers can't spread 200 entries over every zone map
@@ -661,6 +666,27 @@ events:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
 events:RegisterEvent("PLAYER_TARGET_CHANGED")
 events:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+-- per sender, at most 20 messages in 10 s (our own queue sends one per 1.25 s): a stranger on the public
+-- channel gets no further; at most 500 senders followed at once
+local SENDER_MAX, SENDER_WINDOW, MAX_SENDERS = 20, 10, 500
+local heard = {} -- heard[sender] = { window start, count }
+local function TooMany(sender)
+    local now, h = GetTime(), heard[sender]
+    if h and now - h[1] <= SENDER_WINDOW then
+        h[2] = h[2] + 1
+        return h[2] > SENDER_MAX
+    end
+    if not h then
+        local n = 0
+        for k, v in pairs(heard) do
+            if now - v[1] > SENDER_WINDOW then heard[k] = nil else n = n + 1 end
+        end
+        if n >= MAX_SENDERS then return true end
+    end
+    heard[sender] = { now, 1 }
+    return false
+end
+
 events:SetScript("OnEvent", function(_, event, ...)
     if not started then return end
     if event == "CHAT_MSG_ADDON" then
@@ -668,6 +694,7 @@ events:SetScript("OnEvent", function(_, event, ...)
         prefix, text, sender = Clean(prefix), Clean(text), Clean(sender)
         if prefix ~= PREFIX or type(text) ~= "string" or type(sender) ~= "string" or not Enabled() then return end
         sender = Ambiguate(sender, "none")
+        if not me[sender] and TooMany(sender) then return end
         -- the server echoes our own back
         if not me[sender] then OnMessage(text, sender) end
     elseif event == "CHANNEL_UI_UPDATE" then -- a channel joined or left (our own swaps fire it too)

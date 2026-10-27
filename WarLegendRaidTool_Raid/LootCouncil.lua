@@ -828,6 +828,7 @@ local function RetryLoot()
     end)
 end
 
+local timedSid -- the session whose timeout timer is set
 function LC.ShowLootFrame()
     if not S then return end
     if not UI.loot then
@@ -851,6 +852,15 @@ function LC.ShowLootFrame()
             end
         end)
         UI.loot = f
+    end
+    -- the timeout also runs with the window closed (its OnUpdate stops then): unanswered items still go out
+    if timedSid ~= S.sid then
+        timedSid = S.sid
+        local sid = S.sid
+        W.After(math.max(0, S.started + S.timeout - GetTime()) + 0.5, function()
+            if not S or S.sid ~= sid then return end
+            for idx in pairs(S.items) do if not S.answered[idx] then Answer(idx, "timeout") end end
+        end)
     end
     local f = UI.loot
     local myClass = W.UnitClassToken("player")

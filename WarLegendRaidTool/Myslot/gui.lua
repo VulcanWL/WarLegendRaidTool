@@ -589,6 +589,37 @@ do
     local clearOpt  = {}
     local forceImport = false
 
+    -- WLRT: a profile pasted by someone else can hold a /run macro put on a bar or a key: its macros that run Lua
+    -- code and its key bindings that click a button or run a macro are listed before the import
+    local RUN = { ["/run"] = true, ["/script"] = true, ["/dump"] = true }
+    local function Names(list)
+        local shown = {}
+        for i = 1, math.min(5, #list) do shown[i] = WLRT.Plain(list[i], 40) end
+        return table.concat(shown, ", ") .. (#list > 5 and ", ..." or "")
+    end
+    local function RiskyText(msg)
+        local macros, binds = {}, {}
+        for _, m in pairs(msg.macro or {}) do
+            for line in (type(m.body) == "string" and m.body or ""):gmatch("[^\n]+") do
+                local cmd = line:match("^%s*(/%a+)")
+                if cmd and RUN[cmd:lower()] then macros[#macros + 1] = tostring(m.name or "?"); break end
+            end
+        end
+        for _, bind in pairs(msg.bind or {}) do
+            local cmd = bind.id == 0xFFFF and type(bind.command) == "string" and bind.command or "" -- 0xFFFF: free command
+            if cmd:match("^CLICK ") or cmd:match("^MACRO ") then binds[#binds + 1] = cmd end
+        end
+        local out = {}
+        if #macros > 0 then
+            out[#out + 1] = string.format(WLRT.L("Macros that run Lua code (%d): %s"), #macros, Names(macros))
+        end
+        if #binds > 0 then
+            out[#out + 1] = string.format(WLRT.L("Key bindings that click a button or run a macro (%d): %s"), #binds, Names(binds))
+        end
+        if #out == 0 then return nil end
+        return table.concat(out, "\n") .. "\n" .. WLRT.L("Import only a profile you trust.")
+    end
+
     local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
     b:SetWidth(125)
     b:SetHeight(25)
@@ -625,9 +656,15 @@ do
             RefreshTalentBar()
         end
 
-        StaticPopupDialogs["MYSLOT_MSGBOX"].text = warning
-            and (L["Are you SURE to import ?"] .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(warning))
-            or L["Are you SURE to import ?"]
+        local text = L["Are you SURE to import ?"]
+        if warning then text = text .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(warning) end
+        -- WLRT: what the profile would run as code, said before the import (also printed in full)
+        local risk = RiskyText(msg)
+        if risk then
+            MySlot:Print(risk)
+            text = text .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(risk)
+        end
+        StaticPopupDialogs["MYSLOT_MSGBOX"].text = text
 
         StaticPopupDialogs["MYSLOT_MSGBOX"].OnAccept = function()
             StaticPopup_Hide("MYSLOT_MSGBOX")

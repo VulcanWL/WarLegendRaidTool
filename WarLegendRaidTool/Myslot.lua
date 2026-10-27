@@ -15,6 +15,11 @@ W.AddFR({
         "Importer remplace tes barres d'action et tes macros : refusé en combat. La confirmation d'origine de Myslot s'applique.",
     ["If the original Myslot addon is installed, disable it: it uses the same saved file."] =
         "Si l'addon Myslot d'origine est installé, désactive-le : il utilise le même fichier de données.",
+    -- said by the import confirmation of Myslot/gui.lua
+    ["Macros that run Lua code (%d): %s"] = "Macros qui lancent du code Lua (%d) : %s",
+    ["Key bindings that click a button or run a macro (%d): %s"] =
+        "Raccourcis qui cliquent un bouton ou lancent une macro (%d) : %s",
+    ["Import only a profile you trust."] = "N'importe qu'un profil de confiance.",
 })
 
 -- /wl myslot [load name | ...] : the arguments go to Myslot's own /myslot command

@@ -100,6 +100,7 @@ local function Restore(f, name)
     end
 end
 
+local wheeled = {} -- [name] = window whose wheel script is ours
 local function HookWindow(name)
     local f = _G[name]
     if hooked[name] or type(f) ~= "table" or type(f.StartMoving) ~= "function" or type(f.HookScript) ~= "function" then return end
@@ -138,7 +139,9 @@ local function HookWindow(name)
     -- the game places a window when it opens: ours goes after it
     f:HookScript("OnShow", function(self) W.After(0, function() Restore(self, name) end) end)
     -- Ctrl + mouse wheel: its size (only on a window that has no wheel script of its own)
+    -- the wheel is caught (no camera zoom over the window) only while the option is on, see SetWheels
     if not f:GetScript("OnMouseWheel") then
+        wheeled[name] = f
         f:EnableMouseWheel(true)
         f:SetScript("OnMouseWheel", function(self, delta)
             if not IsControlKeyDown() or not Use("windows") or InCombatLockdown() then return end
@@ -150,6 +153,10 @@ local function HookWindow(name)
             elseif mode == "session" then sessScale[name] = (s ~= 1) and s or nil end
         end)
     end
+end
+
+local function SetWheels(on)
+    for _, f in pairs(wheeled) do f:EnableMouseWheel(on) end
 end
 
 local pendingHook = false
@@ -402,7 +409,7 @@ W.RegisterTest("Move frames", function() return Use("elements") or Use("fps") or
 W.RegisterModule("MoveFrames", "Move frames", function(p)
     W.Title(p, L("Move frames"))
     W.Check(p, L("Move Blizzard windows with the mouse (out of combat)"), function() return db.windows end,
-        function(v) db.windows = v; if v then HookAll() end end):SetPoint("TOPLEFT", 12, -40)
+        function(v) db.windows = v; SetWheels(v and true or false); if v then HookAll() end end):SetPoint("TOPLEFT", 12, -40)
     W.Label(p, L("Remember their place and size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -68)
     W.Cycle(p, 150, { { "never", L("Never") }, { "session", L("Until /reload") }, { "always", L("Always") } },
         function() return Memory() end,

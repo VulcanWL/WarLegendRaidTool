@@ -235,7 +235,8 @@ end
 
 local function ProfLabel(key)
     local p = profById[tonumber(key) or 0]
-    return p and L(p.en) or key
+    -- an unknown one came from another member: no colour / link codes shown (older saved data too)
+    return p and L(p.en) or (tostring(key):gsub("[%z\1-\31|]", ""))
 end
 
 local function OwnProfessions()
@@ -527,12 +528,14 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
         for prof, list in (t[3] or ""):gmatch("([^=;]+)=([%d,]+)") do
             count = count + 1
             if count > 80 then break end
-            if #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
+            prof = prof:gsub("[%z\1-\31|]", "") -- a name, never colour / link codes
+            if prof ~= "" and #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
         end
         for prof, link in (t[4] or ""):gmatch("([^\30\31]+)\31([^\30]+)") do
             count = count + 1
             if count > 120 then break end
-            if #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
+            prof = prof:gsub("[%z\1-\31|]", "")
+            if prof ~= "" and #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
         end
         local key, name = W.Key(who), W.FullName(who)
         -- nothing readable sent (their client gave no skill yet): what we already have from them stays
