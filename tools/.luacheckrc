@@ -18,7 +18,8 @@ globals = {
     "WLRT", "WarLegendRaidToolDB", "WarLegendRaidTool_PvPDB", "WarLegendRaidTool_SkyborneDB",
     "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne", "MyslotExports", "MyslotSettings", "DoesItDieDB",
     "SlashCmdList", "StaticPopupDialogs", "BINDING_HEADER_WARLEGENDRAIDTOOL",
-    "SLASH_WARLEGENDRT1", "SLASH_WARLEGENDRT2", "SLASH_WARLEGENDRT3", "SLASH_WLRTREADYCHECK1",
+    "SLASH_WARLEGENDRT1", "SLASH_WARLEGENDRT2", "SLASH_WARLEGENDRT3", "SLASH_WARLEGENDRTDIRECT1", "SLASH_WARLEGENDRTDIRECT2",
+    "SLASH_WLRTREADYCHECK1",
 }
 -- the battleground frames are BattleGroundEnemies (Bullsei) cleaned up: its unused locals and empty branches are
 -- kept as upstream so a later update stays easy to compare

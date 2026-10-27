@@ -527,7 +527,7 @@ W.On("CHAT_MSG_ADDON", function(prefix, msg, channel, sender) Dispatch(prefix, m
 
 -- Character names. WoW: Forever (interface 1.60+) has no realms: a character is "First Surname"
 -- (only the full name is unique, many share a first name) and UnitName returns the surname where
--- retail returns the realm. The full identity is "First Surname" there, "Name-Realm" elsewhere;
+-- other WoW versions return the realm. The full identity is "First Surname" there, "Name-Realm" elsewhere;
 -- the short name (display, per-player state) is the first name, like UnitName's first value.
 local iface = tonumber((select(4, GetBuildInfo()))) or 0
 W.FOREVER = (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT) or (iface >= 16000 and iface < 20000)

@@ -550,7 +550,7 @@ W.On("PLAYER_ENTERING_WORLD", function(isLogin)
 end)
 
 ---------------------------------------------------------------------------
--- The guild roster of the game server, as Retail's guild list reads it: C_Club member info has
+-- The guild roster of the game server, as the modern guild list reads it: C_Club member info has
 -- profession1ID / profession1Rank / profession1Name and the same for profession2 (ClubDocumentation of the
 -- Forever client). Main professions only, no maximum skill, and the server may leave them empty: only what
 -- it really gives is saved (.srv of the member).
@@ -1309,7 +1309,7 @@ local function BuildProfs(p)
             MergeSkills(mine, me.profs)
             if SkillText(mine) ~= SkillText(me.profs) then me.profs, me.t = mine, me.t or time() end
         end
-        -- the server's roster (as Retail's guild list), listened to only while this tab is open
+        -- the server's roster (as the modern guild list), listened to only while this tab is open
         ListenRoster(true)
         G.ReadRoster()
         G.Consolidate() -- one entry per player (old keys merged), before anything is shown

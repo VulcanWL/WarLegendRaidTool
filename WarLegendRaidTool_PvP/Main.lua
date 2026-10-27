@@ -43,7 +43,6 @@ local UnitName = UnitName
 local UnitRace = UnitRace
 local UnitRealmRelationship = UnitRealmRelationship
 
-local IsRetail = WOW_PROJECT_ID == WOW_PROJECT_MAINLINE
 local IsClassic = WOW_PROJECT_ID == WOW_PROJECT_CLASSIC
 local IsTBCC = WOW_PROJECT_ID == WOW_PROJECT_BURNING_CRUSADE_CLASSIC
 local IsWrath = WOW_PROJECT_ID == WOW_PROJECT_WRATH_CLASSIC
