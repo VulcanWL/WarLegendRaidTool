@@ -7,15 +7,15 @@
 
 deprecated shim (guarded) ChatEdit_InsertLink
 deprecated shim (guarded) ChatFrame_SendTell
-deprecated shim (guarded) GetTalentInfo
-deprecated shim (guarded) GetTalentTabInfo
+legacy (guarded) GetTalentInfo
+legacy (guarded) GetTalentTabInfo
 deprecated shim (guarded) IsEncounterInProgress
 deprecated shim (guarded) IsPlayerSpell
 deprecated shim (guarded) IsSpellKnown
 deprecated shim (guarded) PromoteToAssistant
 deprecated shim (guarded) UninviteUnit
-deprecated shim (guarded) UnitAura
-deprecated shim (guarded) UnitBuff
+legacy (guarded) UnitAura
+legacy (guarded) UnitBuff
 deprecated shim (local alias) GetBattlefieldScore
 deprecated shim (no guard) CombatLogGetCurrentEventInfo
 legacy (guarded) AcceptQuest
@@ -159,9 +159,9 @@ undocumented Enum.SendChatMessageResult
 # Myslot (WarLegendRaidTool/Myslot, 22/10/2026): bar / macro / binding functions of the base Classic API that Myslot calls as upstream;
 # the specialization ones do not exist on this client, its loops are empty on this client (GetNumSpecializations is nil).
 deprecated shim (guarded) FindBaseSpellByID
-deprecated shim (guarded) GetSpecialization
-deprecated shim (guarded) GetSpecializationInfo
-deprecated shim (no guard) GetSpecializationInfo
+legacy (guarded) GetSpecialization
+legacy (guarded) GetSpecializationInfo
+legacy (no guard) GetSpecializationInfo
 legacy (guarded) CreateMacro
 legacy (guarded) GetActionInfo
 legacy (guarded) GetNumMacros
@@ -195,3 +195,13 @@ deprecated shim (guarded) ChatFrame_OpenChat
 legacy (guarded) GetMouseFocus
 legacy (local alias) EllesmereNameplates_NS
 legacy (guarded) GetTradePlayerItemLink
+
+# 27/10/2026: only the files Forever loads (its .toc rules: camelot / mainline) count now. The 7 lines above moved from
+# "deprecated shim" to "legacy": their shim is in Blizzard_Deprecated\Classic, never loaded on Forever (all guarded;
+# Myslot's GetSpecializationInfo is in a loop over GetNumSpecializations, 0 turns without it).
+# Hooks on functions Forever does not have (guarded: no error, the hook never runs; to look at in game on 5/11).
+hook on a deprecated shim (guarded) ChatEdit_InsertLink
+hook on a missing function (guarded) BankFrameItemButton_Update
+hook on a missing function (guarded) ContainerFrame_Update
+hook on a missing function (guarded) InspectPaperDollFrame_UpdateButtons
+hook on a missing function (guarded) LootFrame_UpdateButton

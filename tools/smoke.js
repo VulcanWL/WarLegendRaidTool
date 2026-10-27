@@ -163,8 +163,11 @@ function run(options, savedIn) {
     const version = (fs.readFileSync(path.join(REPO, ADDONS[0], ADDONS[0] + ".toc"), "utf8").match(/^## Version:\s*(\S+)/m) || [])[1] || "?";
     const optsLua = "{locale=" + luaStr(options.locale) + ",race=" + luaStr(options.race || "Human") + ",fuzz=" + Number(options.fuzz) + ",version=" + luaStr(version) + "}";
     for (const s of [apiModel(), path.join(TOOLS, "smoke", "wow.lua"), path.join(TOOLS, "smoke", options.scenario || "scenario.lua"), REPO]) lua.lua_pushstring(L, to_luastring(s));
-    for (const s of ["{" + tocs.join(",") + "}", savedLua, optsLua]) {
-        if (lauxlib.luaL_dostring(L, to_luastring("return " + s)) !== lua.LUA_OK) throw new Error(lua.lua_tojsstring(L, -1));
+    // the saved data came back from the first run as one character per byte (J in the glue): pushed back byte for byte
+    // (latin1), not re-encoded as UTF-8 (to_luastring), so "é" stays the two bytes the addon saved
+    for (const [s, bytes] of [["{" + tocs.join(",") + "}", to_luastring], [savedLua, (x) => new Uint8Array(Buffer.from(x, "latin1"))], [optsLua, to_luastring]]) {
+        if (lauxlib.luaL_loadbuffer(L, bytes("return " + s), null, to_luastring("=smoke-args")) !== lua.LUA_OK ||
+            lua.lua_pcall(L, 0, 1, 0) !== lua.LUA_OK) throw new Error(lua.lua_tojsstring(L, -1));
     }
     if (lua.lua_pcall(L, 7, 2, 0) !== lua.LUA_OK) throw new Error("smoke glue: " + lua.lua_tojsstring(L, -1));
     const out = JSON.parse(lua.lua_tojsstring(L, -2));

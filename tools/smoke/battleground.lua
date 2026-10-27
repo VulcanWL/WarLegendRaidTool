@@ -84,6 +84,9 @@ local function FramesLine(label)
     return s
 end
 local function Blocked() return #M.blocked end
+-- the key M.costs gives a frame's handler / OnUpdate ("EVENT File.lua:line" of its CreateFrame): found from the frame, so
+-- it follows the code when lines move
+local function CostKey(what, f) return f and (what .. " " .. tostring(f.__where or f:GetName() or "?")) or what .. " ?" end
 
 ---------------------------------------------------------------------------
 -- the battleground: 40 allies (39 + me), 40 enemies, scoreboard
@@ -347,7 +350,7 @@ local function Flood(n, fn)
 end
 local tRoster, cRoster = Flood(200, function(i) M.Fire("GROUP_ROSTER_UPDATE"); if i % 3 == 0 then M.Advance(0.05) end end)
 M.Advance(1)
-Line("GROUP_ROSTER_UPDATE x200 (bursts of 3 a frame): %.0f ms, of which the PvP addon %.0f ms", tRoster, cRoster["GROUP_ROSTER_UPDATE Main.lua:86"] or 0)
+Line("GROUP_ROSTER_UPDATE x200 (bursts of 3 a frame): %.0f ms, of which the PvP addon %.0f ms", tRoster, cRoster[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0)
 local tScore = Flood(50, function() M.Fire("UPDATE_BATTLEFIELD_SCORE") end)
 Line("UPDATE_BATTLEFIELD_SCORE x50 (80 on the scoreboard): %.0f ms (%.2f ms each)", tScore, tScore / 50)
 local tHealth = Flood(2000, function(i) M.Fire("UNIT_HEALTH", "raid" .. ((i % 40) + 1)) end)
@@ -367,9 +370,9 @@ local aOut = Buttons("Allies")
 Line("PvP frames shown: allies %d", aOut.shown)
 Check("PvP frames hidden outside the battleground", aOut.shown == 0, aOut.shown)
 local tOut, cOut = Flood(200, function() M.Fire("GROUP_ROSTER_UPDATE") end)
-Line("GROUP_ROSTER_UPDATE x200: %.0f ms, of which the PvP addon %.0f ms (%.2f ms per event)", tOut, cOut["GROUP_ROSTER_UPDATE Main.lua:86"] or 0,
-    (cOut["GROUP_ROSTER_UPDATE Main.lua:86"] or 0) / 200)
-report.rosterOut = (cOut["GROUP_ROSTER_UPDATE Main.lua:86"] or 0) / 200
+Line("GROUP_ROSTER_UPDATE x200: %.0f ms, of which the PvP addon %.0f ms (%.2f ms per event)", tOut, cOut[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0,
+    (cOut[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0) / 200)
+report.rosterOut = (cOut[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0) / 200
 TestMode("after a battleground, raid of 40")
 -- the next battleground: entering it shows the raid again (the PvP addon scans the roster at the loading screen)
 M.instance, M.instanceName, M.instanceID, M.bgStart = "pvp", "Alterac Valley", 30, M.now

@@ -67,6 +67,14 @@ local function CostsLines(n)
     return byKey
 end
 local function Blocked() return #M.blocked end
+-- the key M.costs gives a frame's handler / OnUpdate ("EVENT File.lua:line" of its CreateFrame): found from the frame, so
+-- it follows the code when lines move
+local function CostKey(what, f) return f and (what .. " " .. tostring(f.__where or f:GetName() or "?")) or what .. " ?" end
+local function FrameOf(file, event)
+    for _, f in ipairs(M.frames) do
+        if f.__events and f.__events[event] and tostring(f.__where):match("^([^:]+)") == file then return f end
+    end
+end
 
 -- the options of the open world on (the danger alert and its frames are off by default), applied at a loading screen
 local da = W.db.dangerAlert
@@ -161,11 +169,11 @@ local function MapRun(label, seconds)
     local ms = Clock(function() M.Advance(seconds) end)
     local costs = CostsLines(0)
     local n = received - r0
-    local recv = costs["CHAT_MSG_ADDON Core.lua:127"] or 0
+    local recv = costs[CostKey("CHAT_MSG_ADDON", FrameOf("Core.lua", "CHAT_MSG_ADDON"))] or 0
     local s = MapState()
     LineMap(label, s)
     Line("  %d s: %d lines received, %.1f ms in all (%.3f ms per line received), map library OnUpdate %.1f ms, guild map ticker %.1f ms",
-        seconds, n, ms, n > 0 and recv / n or 0, costs["OnUpdate HereBeDragons-Pins-2.0.lua:13"] or 0, (function()
+        seconds, n, ms, n > 0 and recv / n or 0, costs[CostKey("OnUpdate", Pins and Pins.updateFrame)] or 0, (function()
             local t = 0
             for _, w in ipairs(W.BusiestWork(1000)) do if w[1] == "guild map" then t = w[4] - ((b0["guild map"] or { 0, 0 })[2]) end end
             return t
@@ -291,7 +299,7 @@ M.Fire("PLAYER_ENTERING_WORLD", false, false)
 M.Advance(3)
 report.pvpLoaded = C_AddOns.IsAddOnLoaded("WarLegendRaidTool_PvP")
 Line("PvP addon loaded (as after a battleground), back in the open world:")
-local p10, p40 = Compare("GROUP_ROSTER_UPDATE x200", 200, function() M.Fire("GROUP_ROSTER_UPDATE") end, "GROUP_ROSTER_UPDATE Main.lua:86")
+local p10, p40 = Compare("GROUP_ROSTER_UPDATE x200", 200, function() M.Fire("GROUP_ROSTER_UPDATE") end, CostKey("GROUP_ROSTER_UPDATE", rawget(_G, "WarLegendPvP")))
 Line("  -> the PvP addon recomputes every ally on each roster event outside battlegrounds: %.1f ms per event with 40 (fengari)", p40 / 200)
 local _ = p10
 

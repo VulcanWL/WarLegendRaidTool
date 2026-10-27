@@ -98,6 +98,45 @@ function spec(returns, enums, structs) {
     }).join("");
 }
 
+// The UI source holds the files of every client of the family (Vanilla, Wrath, Mainline...); the .toc files say which
+// ones a client loads. Forever is the game type "camelot", part of "mainline" (Blizzard's .toc lines exclude camelot from
+// mainline ones): [Game] = Camelot\, [Family] = Mainline\. "standard" (the main game mode of mainline) is kept too.
+const GAME_TYPES = new Set(["camelot", "mainline", "standard"]);
+function typesOk(text) {
+    const list = (re) => { const m = text.match(re); return m ? m[1].split(/[\s,]+/).filter(Boolean).map((s) => s.toLowerCase()) : null; };
+    const allow = list(/AllowLoadGameType:?\s*([^\]\r\n]*)/i), deny = list(/ExcludeLoadGameType:?\s*([^\]\r\n]*)/i);
+    if (allow && !allow.some((t) => GAME_TYPES.has(t))) return false;
+    return !(deny && deny.some((t) => GAME_TYPES.has(t)));
+}
+// The .lua / .xml files Forever loads in game (glue-screen addons and lines left out), XML includes followed
+function loadedFiles(wus) {
+    const out = new Set();
+    const add = (p) => {
+        if (out.has(p) || !fs.existsSync(p)) return;
+        out.add(p);
+        if (!p.endsWith(".xml")) return;
+        const src = fs.readFileSync(p, "latin1").replace(/<!--[\s\S]*?-->/g, "");
+        for (const x of src.matchAll(/<(?:Script|Include)\s+file="([^"]+)"/gi)) add(path.join(path.dirname(p), x[1].replace(/\\/g, "/")));
+    };
+    const root = path.join(wus, "Interface", "AddOns");
+    for (const d of fs.readdirSync(root, { withFileTypes: true })) {
+        if (!d.isDirectory()) continue;
+        for (const t of fs.readdirSync(path.join(root, d.name)).filter((n) => n.endsWith(".toc"))) {
+            const lines = fs.readFileSync(path.join(root, d.name, t), "latin1").split(/\r?\n/);
+            const head = lines.filter((l) => l.startsWith("##")).join("\n");
+            if (!typesOk(head) || /^##\s*AllowLoad:\s*glue\b/im.test(head)) continue;
+            for (const l of lines) {
+                const s = l.trim();
+                if (!s || s.startsWith("#") || !typesOk(s) || /\[AllowLoad\s+glue\]/i.test(s)) continue;
+                const rel = s.replace(/\s*\[[^\]]*\]/g, (m, i) => (i === 0 ? m : "")).trim()
+                    .replace(/^\[Game\]/i, "Camelot").replace(/^\[Family\]/i, "Mainline").replace(/\\/g, "/");
+                if (/\.(lua|xml)$/i.test(rel)) add(path.join(root, d.name, rel));
+            }
+        }
+    }
+    return out;
+}
+
 // The model: fn["C_X.Y" or "Global"] = return spec, widget[method] = spec, enums, consts, frameXML global names
 function model(wus) {
     const doc = path.join(wus, "Interface", "AddOns", "Blizzard_APIDocumentationGenerated");
@@ -129,10 +168,12 @@ function model(wus) {
         }
         void i;
     });
-    // names the game's own Lua / XML defines (FrameXML): functions, tables, named frames, mixins.
-    // Blizzard_Deprecated* apart: those shims load only while the CVar loadDeprecationFallbacks is on.
+    // names the game's own Lua / XML defines (FrameXML): functions, tables, named frames, mixins; only the files
+    // Forever loads (loadedFiles). Blizzard_Deprecated* apart: those shims load only while the CVar
+    // loadDeprecationFallbacks is on.
     const frameXML = new Set(), deprecated = new Set();
-    for (const f of files(path.join(wus, "Interface"), [], (p) => /\.(lua|xml)$/.test(p) && !p.includes("Blizzard_APIDocumentation"))) {
+    for (const f of loadedFiles(wus)) {
+        if (f.includes("Blizzard_APIDocumentation")) continue;
         const src = fs.readFileSync(f, "latin1");
         if (f.endsWith(".lua")) {
             const into = /[\\/]Blizzard_Deprecated[^\\/]*[\\/]/.test(f) ? deprecated : frameXML;
@@ -225,6 +266,16 @@ function check(m) {
                 if (/^C_/.test(b) && !(b + "." + id in m.fn) && !m.frameXML.has(b)) add("undocumented " + b + "." + id, where);
                 if (b === "Enum" && !(id in m.enums)) add("undocumented Enum." + id, where);
                 if (b === "Constants" && !(id in m.consts)) add("undocumented Constants." + id, where);
+            }
+            // hooksecurefunc("Name", fn): the game raises an error when Name is not a function, a guarded hook on a
+            // missing one never runs (the feature it feeds is dead on Forever)
+            if (n.type === "CallExpression" && n.base.type === "Identifier" && n.base.name === "hooksecurefunc" &&
+                    n.arguments[0] && n.arguments[0].type === "StringLiteral") {
+                const name = n.arguments[0].raw.slice(1, -1);
+                if (!(name in m.fn) && !m.frameXML.has(name) && !own.has(name)) {
+                    const kind = m.deprecated.has(name) ? "hook on a deprecated shim" : "hook on a missing function";
+                    add(kind + (guarded(name, parents, n.loc.start.line) ? " (guarded) " : " (no guard) ") + name, where);
+                }
             }
             if (n.type === "CallExpression" && n.base.type === "Identifier" && n.base.isLocal === false) {
                 const name = n.base.name;

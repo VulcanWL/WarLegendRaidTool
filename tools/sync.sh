@@ -3,8 +3,9 @@
 # Usage: bash tools/sync.sh [--force]
 # Without WLRT_GAME it copies to the _forever_ client (the Classic beta is no longer used); WLRT_GAME (an AddOns
 # folder) copies to that one instead.
-# A game file is overwritten only when it is missing or is a version git already knows (some past commit or the
-# index): a file changed ONLY in the game folder is skipped and listed, so no work is lost (see 1.27.1).
+# A game file is overwritten only when it is missing, is a version of this branch's history (or the index) or is our
+# last copy: a file changed ONLY in the game folder, or copied there from another branch / worktree, is skipped and
+# listed, so no work is lost and no newer code is replaced by older (see 1.27.1, 26/10).
 # --force overwrites those too. Nothing is ever deleted in the game folder. Prints only what it did.
 # Only files git tracks (committed or "git add"-ed) are copied: untracked files are listed, ignored ones never seen.
 # Symbolic links are never followed, in the repo or in the game folder (skipped and listed).
@@ -62,12 +63,23 @@ while IFS= read -r -d '' entry; do
             skipped=$((skipped + 1))
             continue
         fi
+        # a version git knows but this branch never had (copied from another branch / worktree, maybe newer): replacing
+        # it would put older code in the game (26/10, Core.lua); only one of this branch's history or index is replaced
+        if [ "$blob" != "${synced[$f]:-}" ] && [ "$blob" != "$(git rev-parse -q --verify ":$f" 2>/dev/null)" ] &&
+            ! git log --format= --raw --no-abbrev HEAD -- "$f" | grep -q -- "$blob"; then
+            echo "SKIP (game file is from another branch or worktree, maybe newer; --force to replace): $f"
+            skipped=$((skipped + 1))
+            continue
+        fi
     fi
     mkdir -p "$(dirname "$dst")"
     if cp "$f" "$dst"; then
         echo "copied: $f"
         copied=$((copied + 1))
         synced["$f"]="$(git hash-object --path="$f" "$dst")"
+    else
+        echo "FAILED to copy: $f"
+        skipped=$((skipped + 1))
     fi
 done < <(git ls-files -z -s -- "${ADDONS[@]}")
 

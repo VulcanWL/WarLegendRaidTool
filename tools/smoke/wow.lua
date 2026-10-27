@@ -306,6 +306,12 @@ function Widget:HookScript(name, fn)
     local old = self.__scripts[name]
     self.__scripts[name] = old and function(...) old(...); fn(...) end or fn
 end
+-- a frame is in byEvent[ev] once at most: registered again after an unregister, it still gets the event once
+local function Unlist(ev, f)
+    local l = byEvent[ev]
+    if not l then return end
+    for i = #l, 1, -1 do if l[i] == f then table.remove(l, i) end end
+end
 function Widget:RegisterEvent(ev)
     self.__events = self.__events or {}
     if not self.__events[ev] then
@@ -317,10 +323,19 @@ function Widget:RegisterEvent(ev)
     return true
 end
 function Widget:RegisterUnitEvent(ev) return Widget.RegisterEvent(self, ev) end
-function Widget:UnregisterEvent(ev) if self.__events then self.__events[ev] = nil end end
-function Widget:UnregisterAllEvents() self.__events = {} end
+function Widget:UnregisterEvent(ev) if self.__events and self.__events[ev] then self.__events[ev] = nil; Unlist(ev, self) end end
+function Widget:UnregisterAllEvents()
+    for ev in pairs(self.__events or {}) do Unlist(ev, self) end
+    self.__events = {}
+    if self.__allEvents then self.__allEvents = nil; Unlist("*", self) end
+end
 function Widget:IsEventRegistered(ev) return self.__events and self.__events[ev] or false end
-function Widget:RegisterAllEvents() self.__allEvents = true; byEvent["*"] = byEvent["*"] or {}; table.insert(byEvent["*"], self) end
+function Widget:RegisterAllEvents()
+    if self.__allEvents then return end
+    self.__allEvents = true
+    byEvent["*"] = byEvent["*"] or {}
+    table.insert(byEvent["*"], self)
+end
 function Widget:SetAttribute(k, v) self.__attr[k] = v end
 function Widget:GetAttribute(k) return self.__attr[k] end
 function Widget:SetText(t) self.__text = t ~= nil and tostring(t) or nil end
@@ -1007,10 +1022,12 @@ local fireDepth = 0
 function M.Fire(event, ...)
     local t0 = M.frameStats and not M.inStep and fireDepth == 0 and os.clock()
     fireDepth = fireDepth + 1
+    local got = {} -- a frame registered for this event and for all events gets it once, as in the game
     for _, list in ipairs({ byEvent[event] or {}, byEvent["*"] or {} }) do
         local copy = { table.unpack(list) }
         for _, f in ipairs(copy) do
-            if f.__events and (f.__events[event] or f.__allEvents) then
+            if not got[f] and f.__events and (f.__events[event] or f.__allEvents) then
+                got[f] = true
                 local fn = f.__scripts.OnEvent
                 if fn then
                     if M.costs then
@@ -1187,8 +1204,11 @@ function Item:CreateFromItemLink()
         GetItemID = function() return 0 end, GetItemName = function() return nil end, GetItemLink = function() return nil end, GetItemIcon = function() return nil end }
 end
 function Item:CreateFromItemID() return Item:CreateFromItemLink() end
+-- old functions the game may have, answering nothing. Never a FrameXML function Forever does not load
+-- (BankFrameItemButton_Update, ContainerFrame_Update, LootFrame_UpdateButton, InspectPaperDollFrame_UpdateButtons: nil
+-- here as in the game, so a hook on them is skipped as there; tools/wow-api.js check lists those hooks)
 for _, n in ipairs({ "SetItemRef", "ChatFrame_RemoveChannel", "ChatFrame_AddMessageEventFilter",
-    "ChatFrame_RemoveMessageEventFilter", "PaperDollItemSlotButton_Update", "InspectPaperDollItemSlotButton_Update", "BankFrameItemButton_Update",
+    "ChatFrame_RemoveMessageEventFilter", "PaperDollItemSlotButton_Update", "InspectPaperDollItemSlotButton_Update",
     "UpdateUIPanelPositions", "SecureHandlerWrapScript", "SetRaidTargetIconTexture", "StopCinematic", "ShowUIPanel", "HideUIPanel",
     "ToggleFrame", "CloseDropDownMenus", "PlaceRaidMarker", "ClearCursor", "FocusUnit", "GetTexCoordsForRoleSmallCircle",
     "ConsoleGetAllCommands", "CursorHasItem", "GetClassAtlas", "GetSpecializationInfoForClassID",
@@ -1206,8 +1226,7 @@ for _, n in ipairs({ "SetItemRef", "ChatFrame_RemoveChannel", "ChatFrame_AddMess
     "GetInboxItem", "ClickTradeButton", "GetChatWindowChannels", "GetNumDisplayChannels", "GetChannelDisplayInfo", "BNGetNumFriends",
     "SetPartyAssignment", "ConvertToRaid", "IsRaidLeader", "IsRaidOfficer", "GetNumPartyMembers", "GetNumRaidMembers", "GetPOITextureCoords",
     "IsItemInRange", "GameMovieFinished", "UnitResistance", "UnitHealthMissing", "UnitHealthPercent",
-    "UnitCastingDuration", "UnitChannelDuration", "ContainerFrame_Update", "LootFrame_UpdateButton",
-    "InspectPaperDollFrame_UpdateButtons", "GetBattlefieldEstimatedWaitTime", "GetBattlefieldPortExpiration", "GetBattlefieldTimeWaited",
+    "UnitCastingDuration", "UnitChannelDuration", "GetBattlefieldEstimatedWaitTime", "GetBattlefieldPortExpiration", "GetBattlefieldTimeWaited",
     "GetNumClasses_", "GetAddOnInfo", "RegisterAddonMessagePrefix", "SendAddonMessage" }) do
     if _G[n] == nil then _G[n] = Stub(n, "") end
 end

@@ -290,7 +290,8 @@ for (const addon of ADDONS) {
             });
         }
     };
-    fs.readFileSync(toc, "utf8").split("\n").forEach((l, i) => {
+    if (!fs.existsSync(toc)) problems.push(path.relative(root, toc) + ": not found (WoW will not load " + addon + ")");
+    else fs.readFileSync(toc, "utf8").split("\n").forEach((l, i) => {
         const s = l.trim();
         if (s && !s.startsWith("#")) addEntry(dir, s, toc, i + 1);
     });
