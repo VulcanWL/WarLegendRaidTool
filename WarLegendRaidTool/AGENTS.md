@@ -19,6 +19,52 @@ The user is French but asked (23/10) for **answers in English** (fewer tokens). 
 - Secure frames / protected actions cannot change in combat: check `InCombatLockdown()` first.
 - There are no automated tests. The user tests in game with `/reload`. Say what to test.
 
+## Blizzard ToS check (every change, every changed line)
+Sources, read in full on 27/10/2026: **Policy** = UI Add-On Development Policy (8 clauses,
+us.forums.blizzard.com/en/wow/t/ui-add-on-development-policy/24534, also in `tools/watch.json`); **EULA** = Blizzard End
+User License Agreement, revised 21/03/2024, section "License Limitations" (Policy 7 sends add-ons to it);
+**client** = enforced by the game (protected functions), not written in either text. Walk each changed line through
+this list; a line that fails it is a blocker, whatever the user asked (explain instead of coding it).
+1. **Free** (Policy 1). No paid or "premium" version, no feature behind payment, no charge for a service tied to the
+   addon.
+2. **Code visible** (Policy 2). No hidden, obfuscated or minified code; ported libraries keep their readable source
+   and licence.
+3. **No harm to realms or other players** (Policy 3). Its examples: excessive use of the chat system, unnecessary
+   loading from the hard disk, slow frame rates. So: public announces off by default or sent on click, automatic
+   whispers / replies rate-limited, nothing posted in public channels at login; addon messages through `W.Send`
+   (queue, throttle), bounded per sender, replies spread; `RequestRaidInfo`, inspect, guild-roster requests throttled;
+   no heavy `OnUpdate` / scans (`smoke.js` cost, `W.Timed`); SavedVariables kept bounded.
+4. **No advertising** (Policy 4; EULA "Prohibited Commercial Uses" iv: no commercial advertisement, solicitation or
+   offer through the game, also in chat lines the addon sends). Guild recruitment text is not commercial: fine.
+5. **No donation request in the game** (Policy 5). Credits and links to a donation page only on the download site,
+   never in the UI, chat or tooltips.
+6. **Nothing offensive** (Policy 6: rated "T"). Applies to texts, presets, default messages, images.
+7. **No automation, no bot** (EULA "Cheating": bots = code "that allows the automated control of a Game"; client:
+   protected actions need a hardware event). A protected action (cast / use, target, invite / uninvite / convert /
+   promote, raid marks, master loot give, equip, AH, guild rank / removal, macro or binding change) and a chat line on
+   SAY / YELL / a channel outside an instance run only in the call chain of a click or key press: `OnClick`, a secure
+   button, a `W.Confirm` button. Never from `OnUpdate`, `W.After`, a ticker, an event handler or an addon-message
+   handler. One click = one action the player chose (a secure macro run by that same click is fine); nothing goes on
+   acting after it.
+8. **Remote input acts on nothing** (follows from 7 and EULA "Disruption / Harassment"). A received addon message,
+   whisper or chat line never casts, invites, marks, gives loot or sends a public line by itself: it shows
+   information, or a question the local player must click (`W.ConfirmRemote`). A hostile sender must not be able to
+   make us spam or grief others.
+9. **No cheat, no exploit, no hack** (EULA "Cheating": cheats = unauthorised methods incl. "exploits of any in-game
+   bugs" giving an advantage; hacks = modifying the game software; client: secret values, taint). No reading secret
+   values around `issecretvalue`, no taint tricks to reach a protected function (insecure call into Blizzard secure
+   code, overwriting Blizzard functions: use `hooksecurefunc`), no moving protected frames (`MoveFrames.lua` rule), no
+   use of a known game bug for an advantage, no file outside the AddOns folder touched.
+10. **No data leaving the game** (EULA "Data Mining": add-ons are allowed only as Blizzard-permitted user interfaces).
+    Nothing collected beyond what the game shows; addon messages only to GROUP / RAID / GUILD / a whisper target
+    (Skyborne's documented public channel is the one exception); no player data in links or strings meant for
+    outside sites.
+11. **No commercial use of the game** (EULA "Prohibited Commercial Uses" ii, iii, v). No tool for gold / item selling
+    outside the game, paid boosts or wagering (no betting on rolls, duels or boss kills).
+12. **Blizzard may switch anything off** (Policy 8). An API that Blizzard removes or protects is not a bug to work
+    around: guard it and degrade (`if X then ... end`), never try to get the old behaviour back by another path.
+If a rule cannot be checked from the code alone (API behaviour on Forever), write `UNVERIFIED ToS: <what>` in the report.
+
 ## Load order and files
 `WarLegendRaidTool.toc` lists the files in load order: `Locale.lua`, `Core.lua`, `Lib.lua`, then one file
 per module, `VersionCheck.lua` last. **A new file must be added to the .toc** (before `VersionCheck.lua`)
