@@ -303,6 +303,6 @@ W.RegisterModule("ReadyCheck", "Ready Check", function(p)
         .. L("flask, Arcane Intellect, Fortitude, Mark of the Wild.\nThe window closes by itself when the ready check ends."),
         "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -110)
-    info:SetWidth(600)
+    info:SetWidth(780) -- one line per sentence, French too: Talent Reminder starts 145 px down on the same page
     info:SetTextColor(0.7, 0.7, 0.7)
 end)

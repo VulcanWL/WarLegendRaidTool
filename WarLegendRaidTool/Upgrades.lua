@@ -8,8 +8,8 @@ local db
 
 W.AddFR({
     ["Bag upgrades"] = "Améliorations dans les sacs",
-    ["A button shows the best item of the bags that beats the one worn in its slot (same armor type, usable by me), by item level or by stat weights. Click to equip it, right-click to ignore it. Nothing is equipped by itself."] =
-        "Un bouton montre le meilleur objet des sacs qui bat celui porté à sa place (même type d'armure, utilisable par moi), au niveau d'objet ou aux poids de caractéristiques. Clic pour l'équiper, clic droit pour l'ignorer. Rien n'est équipé tout seul.",
+    ["A button shows the best item of the bags that beats the one worn in its slot (same armor type, usable by me), by item level or by stat weights. Nothing is equipped by itself."] =
+        "Un bouton montre le meilleur objet des sacs qui bat celui porté à sa place (même type d'armure, utilisable par moi), au niveau d'objet ou aux poids de caractéristiques. Rien n'est équipé tout seul.",
     ["Compare: item level"] = "Comparer : niveau d'objet",
     ["Compare: stat weights (class + talent tree)"] = "Comparer : poids des caractéristiques (classe + arbre de talents)",
     ["Minimum gain: %d%% (stat weights)"] = "Gain minimum : %d %% (poids des caractéristiques)",
@@ -439,7 +439,7 @@ end)
 ---------------------------------------------------------------------------
 W.RegisterModule("Upgrades", "Bag upgrades", function(p)
     W.Title(p, L("Bag upgrades"))
-    local intro = W.Label(p, L("A button shows the best item of the bags that beats the one worn in its slot (same armor type, usable by me), by item level or by stat weights. Click to equip it, right-click to ignore it. Nothing is equipped by itself."), "GameFontHighlight")
+    local intro = W.Label(p, L("A button shows the best item of the bags that beats the one worn in its slot (same armor type, usable by me), by item level or by stat weights. Nothing is equipped by itself."), "GameFontHighlight")
     intro:SetPoint("TOPLEFT", 16, -40); intro:SetWidth(560); intro:SetJustifyH("LEFT")
     W.Check(p, L("Show bag upgrades"), function() return db.enabled end, function(v) db.enabled = v; Apply() end)
         :SetPoint("TOPLEFT", 16, -90)

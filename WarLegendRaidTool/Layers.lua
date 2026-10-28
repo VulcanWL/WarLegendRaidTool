@@ -35,8 +35,9 @@ W.AddFR({
     ["[WaR LegenD] We are on different layers: I am inviting you to my group, accept to join my layer."] =
         "[WaR LegenD] Nous sommes sur des layers différents : je t'invite dans mon groupe, accepte pour rejoindre mon layer.",
     ["Invitation sent to %s."] = "Invitation envoyée à %s.",
-    ["Click: select. Right click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
-        "Clic : sélectionner. Clic droit : chuchoter. Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
+    ["Click: select. Right click: whisper."] = "Clic : sélectionner. Clic droit : chuchoter.",
+    ["Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
+        "Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
     ["Method from Sashoof's WarLegend v3 addon."] = "Méthode reprise de l'addon WarLegend v3 de Sashoof.",
 })
 local L = W.L
@@ -330,6 +331,12 @@ W.RegisterModule("Layers", "Layers", function(p)
     UI.table = W.Table(p, { { L("Player"), 220 }, { L("Zone"), 220 }, { L("Layer"), 90, "CENTER" },
         { "", 110, "CENTER" }, { L("Seen"), 80, "CENTER" } }, 360)
     UI.table:SetPoint("TOPLEFT", 10, -124)
+    UI.table.onEnter = function(d, row)
+        if d.me then return end
+        GameTooltip:SetOwner(row, "ANCHOR_CURSOR")
+        GameTooltip:AddLine(L("Click: select. Right click: whisper."), 1, 1, 1)
+        GameTooltip:Show()
+    end
     UI.table.onClick = function(d, btn)
         if d.me then return end
         if btn == "RightButton" then
@@ -345,7 +352,7 @@ W.RegisterModule("Layers", "Layers", function(p)
     UI.sel:SetPoint("LEFT", UI.invite, "RIGHT", 10, 0)
     UI.sel:SetWidth(600)
     UI.sel:SetJustifyH("LEFT")
-    local hint = W.Label(p, L("Click: select. Right click: whisper. Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."),
+    local hint = W.Label(p, L("Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."),
         "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", 16, -522)
     hint:SetWidth(780)

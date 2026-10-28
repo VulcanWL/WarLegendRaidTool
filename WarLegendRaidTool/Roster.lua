@@ -16,8 +16,9 @@ W.AddFR({
     ["Status"] = "État",
     ["To review"] = "À évaluer",
     ["%d day(s) left"] = "%d jour(s) restant(s)",
-    ["Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."] =
-        "Choisis le rang d'essai. La date est la première fois que tu as vu le membre à ce rang. Raids = soirées de raid dans tes présences depuis.",
+    ["The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."] =
+        "La date est la première fois que tu as vu le membre à ce rang. Raids = soirées de raid dans tes présences depuis.",
+    ["The guild rank your trial members have."] = "Le rang de guilde de tes recrues.",
     ["Trials to review: %s"] = "Recrues à évaluer : %s",
     ["No trial member."] = "Aucune recrue.",
 })
@@ -129,7 +130,8 @@ W.RegisterModule("Roster", "Trials", function(p)
     lbl:SetPoint("TOPLEFT", 14, -44)
     local rankValues = {}
     local rankCycle = W.Cycle(p, 160, rankValues, function() return db.trialRank end,
-        function(v) db.trialRank = v; lastScan = 0; ScanTrials(); RefreshTrials() end)
+        function(v) db.trialRank = v; lastScan = 0; ScanTrials(); RefreshTrials() end,
+        { L("The guild rank your trial members have.") })
     rankCycle:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
     local lbl2 = W.Label(p, L("Trial length:"), "GameFontHighlightSmall")
     lbl2:SetPoint("LEFT", rankCycle, "RIGHT", 20, 0)
@@ -141,7 +143,7 @@ W.RegisterModule("Roster", "Trials", function(p)
         { L("Days"), 60, "RIGHT" }, { L("Raids"), 60, "RIGHT" }, { L("Status"), 180 } }, 440)
     UI.trials:SetPoint("TOPLEFT", 10, -74)
     UI.trials:SetEmptyText(L("No trial member."))
-    local hint = W.Label(p, L("Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."),
+    local hint = W.Label(p, L("The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."),
         "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 8)
     hint:SetWidth(800)

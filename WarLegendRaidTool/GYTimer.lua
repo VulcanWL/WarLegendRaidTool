@@ -8,12 +8,13 @@ W.AddFR({
     ["Graveyard timer"] = "Chrono cimetière",
     ["Show the graveyard timer in battlegrounds"] = "Afficher le chrono de cimetière en champ de bataille",
     ["Lock the bar"] = "Verrouiller la barre",
+    ["Unlocked: drag the bar to move it."] = "Déverrouillée : fais glisser la barre pour la déplacer.",
     ["Test (fake waves)"] = "Test (fausses vagues)",
     ["Reset position"] = "Réinitialiser la position",
     ["Die once to sync"] = "Meurs une fois pour synchro",
     ["GY rez"] = "Rez cimetière",
-    ["Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting. Drag the bar to move it (when unlocked)."] =
-        "Les vagues du guérisseur d'âmes arrivent toutes les 30 secondes. Meurs une fois dans le champ de bataille pour synchroniser la barre avec le jeu, elle continue ensuite de compter. Déplace la barre en la faisant glisser (si elle n'est pas verrouillée).",
+    ["Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting."] =
+        "Les vagues du guérisseur d'âmes arrivent toutes les 30 secondes. Meurs une fois dans le champ de bataille pour synchroniser la barre avec le jeu, elle continue ensuite de compter.",
     ["The separate GYTimer addon is loaded: disable it, this module replaces it."] =
         "L'addon GYTimer séparé est chargé : désactive-le, ce module le remplace.",
 })
@@ -170,14 +171,15 @@ W.RegisterModule("GYTimer", "Graveyard timer", function(p)
     end
     W.Check(p, L("Show the graveyard timer in battlegrounds"), function() return db.enabled end,
         function(v) db.enabled = v; Refresh() end):SetPoint("TOPLEFT", 12, -70)
-    W.Check(p, L("Lock the bar"), function() return db.locked end, function(v) db.locked = v end)
+    W.Check(p, L("Lock the bar"), function() return db.locked end, function(v) db.locked = v end,
+        { L("Unlocked: drag the bar to move it.") })
         :SetPoint("TOPLEFT", 12, -96)
     W.Button(p, L("Test (fake waves)"), 170, 22, function() W.slash.gy() end):SetPoint("TOPLEFT", 16, -130)
     W.Button(p, L("Reset position"), 162, 22, function()
         db.point = { "TOP", "TOP", 0, -120 }
         if frame then Place() end
     end):SetPoint("TOPLEFT", 196, -130)
-    local info = W.Label(p, L("Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting. Drag the bar to move it (when unlocked)."),
+    local info = W.Label(p, L("Spirit healer waves come every 30 seconds. Die once in the battleground to synchronise the bar with the game, it then keeps counting."),
         "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -170)
     info:SetWidth(700)
