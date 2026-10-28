@@ -102,6 +102,7 @@ W.AddFR({
         "Sources : liste de guilde (serveur), WaR LegenD RaidTool du membre, liens de métier (Maj-clic sur un lien pendant que cet onglet est ouvert).",
     ["The game server gives no profession in the guild roster yet, and no member has shared theirs."] =
         "Le serveur du jeu ne donne encore aucun métier dans la liste de guilde, et aucun membre n'a partagé les siens.",
+    ["No member matches."] = "Aucun membre ne correspond.",
 })
 local L = W.L
 
@@ -757,6 +758,7 @@ local function BuildInactive(p)
     UI.inactive = W.Table(p, { { L("Name"), 130 }, { L("Rank"), 110 }, { L("Level"), 50, "CENTER" }, { L("Offline since"), 90, "CENTER" },
         { L("Public note"), 260 } }, 460)
     UI.inactive:SetPoint("TOPLEFT", 10, -40)
+    UI.inactive:SetEmptyText(L("No member matches."))
     p:SetScript("OnShow", function() W.RequestGuildRoster(); G.RefreshInactive() end)
 end
 

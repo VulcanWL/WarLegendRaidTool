@@ -31,6 +31,7 @@ W.AddFR({
         "Tes victoires en premade les plus rapides. Le temps part de l'ouverture des portes.",
     ["Delete this game?"] = "Supprimer cette partie ?",
     ["Premade recorded: %s, %s (%s)."] = "Premade enregistré : %s, %s (%s).",
+    ["No battleground recorded yet."] = "Aucun champ de bataille enregistré pour l'instant.",
 })
 local L = W.L
 
@@ -287,6 +288,7 @@ local function BuildGames(p)
     UI.games = W.Table(p, { { L("Date"), 110 }, { L("Battleground"), 220 }, { L("Result"), 110, "CENTER" },
         { L("Duration"), 90, "CENTER" }, { L("Guild"), 70, "CENTER" } }, 420)
     UI.games:SetPoint("TOPLEFT", 10, -40)
+    UI.games:SetEmptyText(L("No battleground recorded yet."))
     UI.games.onClick = function(d, btn)
         local g = db.games[d.index]
         if not g then return end

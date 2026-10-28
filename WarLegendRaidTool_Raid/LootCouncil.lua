@@ -99,6 +99,7 @@ W.AddFR({
     ["Awards"] = "Attributions",
     ["Loots"] = "Loots",
     ["Loots: items received in guild raids, last 30 days."] = "Loots : objets reçus en raid guilde, 30 derniers jours.",
+    ["No loot given yet."] = "Aucun objet attribué pour l'instant.",
 })
 local L = W.L
 
@@ -1646,6 +1647,7 @@ local function BuildHistory(p)
     UI.history = W.Table(p, { { L("Date"), 80 }, { L("Item"), 230 }, { L("Winner"), 110 }, { L("Response"), 110 },
         { L("Zone"), 130 }, { L("Source"), 70 } }, 470)
     UI.history:SetPoint("TOPLEFT", 10, -38)
+    UI.history:SetEmptyText(L("No loot given yet."))
     UI.history.onEnter = function(d, row)
         local h = hist[d.index]
         if h then GameTooltip:SetOwner(row, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink(h.item); GameTooltip:Show() end

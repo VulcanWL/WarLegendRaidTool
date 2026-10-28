@@ -17,6 +17,7 @@ W.AddFR({
     ["body pull"] = "body pull",
     ["Last pulls"] = "Derniers pulls",
     ["First target of %s: %s"] = "Première cible de %s : %s",
+    ["No pull recorded yet."] = "Aucun pull enregistré pour l'instant.",
 })
 local L = W.L
 
@@ -181,5 +182,6 @@ W.RegisterModule("WhoPulled", "Who Pulled", function(p)
     t:SetPoint("TOPLEFT", 14, -116)
     UI.list = W.Table(p, { { L("Time"), 90 }, { L("Puller"), 150 }, { L("Target"), 220 }, { L("How"), 200 } }, 360)
     UI.list:SetPoint("TOPLEFT", 10, -136)
+    UI.list:SetEmptyText(L("No pull recorded yet."))
     p:SetScript("OnShow", WP.Refresh)
 end, function() WP.Refresh() end)

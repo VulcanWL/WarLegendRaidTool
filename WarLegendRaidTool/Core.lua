@@ -1294,9 +1294,9 @@ function W.Label(parent, text, font)
     return fs
 end
 
--- Module title: UPPERCASE + accent bar underneath
+-- Module title: as written (sentence case) + accent bar underneath
 function W.Title(parent, text)
-    local fs = W.Label(parent, W.Upper(text), "GameFontNormalLarge")
+    local fs = W.Label(parent, text, "GameFontNormalLarge")
     fs:SetFont(W.FONT, 15, W.IsBlizzard() and "" or "OUTLINE")
     fs:SetPoint("TOPLEFT", 12, -8)
     if W.IsBlizzard() then fs:SetTextColor(1, 0.82, 0) else fs:SetTextColor(1, 1, 1) end
@@ -1423,7 +1423,7 @@ function W.Window(name, w, h, title)
         line:SetPoint("TOPLEFT", head, "BOTTOMLEFT")
         line:SetPoint("TOPRIGHT", head, "BOTTOMRIGHT")
     end
-    f.title = W.Label(f, W.Upper(title or ""), "GameFontNormal")
+    f.title = W.Label(f, title or "", "GameFontNormal")
     f.title:SetPoint("TOP", 0, W.IsBlizzard() and -14 or -8)
     if not W.IsBlizzard() then f.title:SetTextColor(1, 1, 1) end
     local close = W.CloseButton(f)
@@ -1491,7 +1491,7 @@ function W.TextPopup(title, text, opts)
         textPopup = f
     end
     local f = textPopup
-    f.title:SetText(W.Upper(title))
+    f.title:SetText(title or "")
     f.status:SetText(opts.hint or "")
     f.box:SetText(text or "")
     if opts.showName then
@@ -1891,10 +1891,7 @@ function W.BuildMain()
         head:SetPoint("TOPLEFT", IN, -IN)
         head:SetPoint("TOPRIGHT", -IN, -IN)
         head:SetHeight(34 - IN)
-        if head.SetGradient and CreateColor and not blizz then
-            head:SetColorTexture(1, 1, 1, 1)
-            head:SetGradient("VERTICAL", CreateColor(PAL.headTop[1], PAL.headTop[2], PAL.headTop[3], 1), CreateColor(PAL.headBottom[1], PAL.headBottom[2], PAL.headBottom[3], 1))
-        end
+        if not blizz then W.SetColor(head, PAL.headBottom[1], PAL.headBottom[2], PAL.headBottom[3], 1) end -- flat, no gradient
     end
     local line = main:CreateTexture(nil, "ARTWORK")
     W.SetColor(line, W.R, W.G, W.B, 1)
@@ -2048,16 +2045,12 @@ function W.BuildMain()
         local hl = b:CreateTexture(nil, "HIGHLIGHT")
         hl:SetAllPoints()
         W.SetColor(hl, 1, 1, 1, 0.07)
-        -- active tab: tinted background + accent bar on the left
+        -- active tab: flat tinted background + accent bar on the left
         b.sel = CreateFrame("Frame", nil, b)
         b.sel:SetAllPoints()
         local selBg = b.sel:CreateTexture(nil, "BACKGROUND")
         selBg:SetAllPoints()
         W.SetColor(selBg, W.R, W.G, W.B, 0.2)
-        if selBg.SetGradient and CreateColor then
-            selBg:SetColorTexture(1, 1, 1, 1)
-            selBg:SetGradient("HORIZONTAL", CreateColor(W.R, W.G, W.B, 0.35), CreateColor(W.R, W.G, W.B, 0))
-        end
         local selBar = b.sel:CreateTexture(nil, "ARTWORK")
         W.SetColor(selBar, W.R, W.G, W.B, 1)
         selBar:SetPoint("TOPLEFT"); selBar:SetPoint("BOTTOMLEFT"); selBar:SetWidth(3)
@@ -2065,7 +2058,7 @@ function W.BuildMain()
         b.text = b:CreateFontString(nil, "OVERLAY")
         b.text:SetFont(W.FONT, 11, "")
         b.text:SetPoint("LEFT", 12, 0) -- slightly indented under its caption
-        b.text:SetText(W.Upper(L(m.label))) -- labels were registered in English at load
+        b.text:SetText(L(m.label)) -- labels were registered in English at load
         -- a long label (French, a new module) shrinks to fit, then is cut: it never runs into the content
         local avail, size = BTN_W - 16, 11
         while b.text:GetStringWidth() > avail and size > 8 do
@@ -2083,10 +2076,10 @@ function W.BuildMain()
 
     local LayoutMenu
     -- the tabs on top (Raid / Guild / Options), 2 px apart, each as wide as its label is long: the menu column
-    -- is narrow and "OPTIONS" needs more room than "RAID"
+    -- is narrow and "Options" needs more room than "Raid"
     local weights, total = {}, 0
     for i, cat in ipairs(cats) do
-        weights[i] = math.max(3, #W.Upper(L(cat.short or cat.title)))
+        weights[i] = math.max(3, #L(cat.short or cat.title))
         total = total + weights[i]
     end
     local free = BTN_W - 2 * (#cats - 1)
@@ -2119,7 +2112,7 @@ function W.BuildMain()
         t.text = t:CreateFontString(nil, "OVERLAY")
         t.text:SetFont(W.FONT, 10, "OUTLINE")
         t.text:SetPoint("CENTER")
-        t.text:SetText(W.Upper(L(cat.short or cat.title)))
+        t.text:SetText(L(cat.short or cat.title))
         -- the widths come from the letter count: a label still too wide shrinks to fit
         local size = 10
         while t.text:GetStringWidth() > (tabW[i] or 40) - 4 and size > 7 do
@@ -2159,7 +2152,7 @@ function W.BuildMain()
                 h.text = h:CreateFontString(nil, "OVERLAY")
                 h.text:SetFont(W.FONT, 10, "OUTLINE")
                 h.text:SetPoint("LEFT", 4, 0)
-                h.text:SetText(W.Upper(L(sec.title)))
+                h.text:SetText(L(sec.title))
                 h.text:SetTextColor(W.R, W.G, W.B)
                 h.sign = h:CreateTexture(nil, "OVERLAY")
                 W.Size(h.sign, 12, 12)

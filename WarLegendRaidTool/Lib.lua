@@ -884,6 +884,7 @@ end
 
 W.AddFR({
     ["Click: sort by this column (again: the other way)."] = "Clic : trier par cette colonne (encore : dans l'autre sens).",
+    ["Nothing to show yet."] = "Rien à afficher pour l'instant.",
 })
 
 -- Simple column table built on W.ScrollList: cols = { {title, width, justify, sort = key} }
@@ -961,12 +962,6 @@ function W.Table(parent, cols, h, rowH)
             local r = list:Row(j)
             r:ClearAllPoints()
             r:SetPoint("TOPLEFT", list.content, "TOPLEFT", 0, -(idx - 1) * rowH)
-            if not r.stripe then
-                r.stripe = r:CreateTexture(nil, "BACKGROUND")
-                r.stripe:SetAllPoints()
-                W.SetColor(r.stripe, 1, 1, 1, 0.035)
-            end
-            r.stripe:SetShown(idx % 2 == 0) -- the stripes follow the lines, not the recycled rows
             r.data = d
             for k = 1, #cols do r.cells[k]:SetText(d.cells[k] or "") end
             shown = j
@@ -974,6 +969,13 @@ function W.Table(parent, cols, h, rowH)
         for j = shown + 1, #list.rows do list.rows[j]:Hide() end
     end
     list.sf:HookScript("OnVerticalScroll", Render)
+    -- an empty table keeps its frame and says so in one grey line (holder:SetEmptyText for a better sentence)
+    local empty = holder:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall") -- not W.Label: kept out of the search
+    empty:SetText(L("Nothing to show yet."))
+    empty:SetJustifyH("LEFT")
+    empty:SetPoint("TOPLEFT", holder, "TOPLEFT", 4, -22)
+    empty:SetWidth(math.max(width - 8, 100))
+    function holder:SetEmptyText(t) empty:SetText(t or "") end
     -- data = { {cells = {...}, ...}, ... }
     function holder:SetData(d)
         data = d or {}
@@ -981,6 +983,7 @@ function W.Table(parent, cols, h, rowH)
         -- a shorter list (a filter): never left scrolled below its end
         local maxScroll = math.max(0, #data * rowH - listH)
         if (list.sf:GetVerticalScroll() or 0) > maxScroll then list.sf:SetVerticalScroll(maxScroll) end
+        empty:SetShown(#data == 0)
         Render()
     end
     function holder:ScrollToTop() list.sf:SetVerticalScroll(0) end

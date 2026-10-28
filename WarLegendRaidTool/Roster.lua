@@ -19,6 +19,7 @@ W.AddFR({
     ["Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."] =
         "Choisis le rang d'essai. La date est la première fois que tu as vu le membre à ce rang. Raids = soirées de raid dans tes présences depuis.",
     ["Trials to review: %s"] = "Recrues à évaluer : %s",
+    ["No trial member."] = "Aucune recrue.",
 })
 local L = W.L
 
@@ -139,6 +140,7 @@ W.RegisterModule("Roster", "Trials", function(p)
     UI.trials = W.Table(p, { { L("Name"), 200 }, { L("Level"), 60, "CENTER" }, { L("Trial since"), 110, "CENTER" },
         { L("Days"), 60, "CENTER" }, { L("Raids"), 60, "CENTER" }, { L("Status"), 180 } }, 440)
     UI.trials:SetPoint("TOPLEFT", 10, -74)
+    UI.trials:SetEmptyText(L("No trial member."))
     local hint = W.Label(p, L("Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."),
         "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 8)

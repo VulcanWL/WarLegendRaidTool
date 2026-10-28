@@ -38,6 +38,7 @@ W.AddFR({
     ["absent: %s"] = "absents : %s",
     ["Arrived %s, left %s"] = "Arrivé %s, parti %s",
     ["benched"] = "sur le banc",
+    ["No raid night recorded yet."] = "Aucune soirée de raid enregistrée pour l'instant.",
 })
 local L = W.L
 
@@ -348,6 +349,7 @@ W.RegisterModule("Attendance", "Attendance", function(p)
     UI.players:SetPoint("TOPLEFT", 10, -96)
     UI.raids = W.Table(p, { { L("Date"), 72 }, { L("Zone"), 110 }, { L("Players"), 46, "CENTER" }, { L("Kills"), 46, "CENTER" } }, 440)
     UI.raids:SetPoint("TOPLEFT", 470, -96)
+    UI.raids:SetEmptyText(L("No raid night recorded yet."))
     UI.raids.onClick = function(d, btn)
         if btn == "RightButton" then
             -- the night itself, not its place: a new night can be added at the top while the question is open
