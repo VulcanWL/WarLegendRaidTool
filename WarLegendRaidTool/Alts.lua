@@ -350,8 +350,8 @@ local function BuildOverview(p)
         function() return db.sort end, function(v) db.sort = v; RefreshOverview() end):SetPoint("TOPLEFT", 220, -30)
     W.Button(p, L("Update played time"), 190, 22, function() if RequestTimePlayed then RequestTimePlayed() end end)
         :SetPoint("TOPLEFT", 370, -30)
-    UI.overview = W.Table(p, { { L("Character"), 175 }, { L("Lvl"), 55, "CENTER" }, { L("Ilvl"), 35, "CENTER" },
-        { L("Gold"), 90, "RIGHT" }, { L("Today"), 80, "RIGHT" }, { L("Rested"), 50, "CENTER" }, { L("Zone"), 110 },
+    UI.overview = W.Table(p, { { L("Character"), 175 }, { L("Lvl"), 55, "RIGHT" }, { L("Ilvl"), 35, "RIGHT" },
+        { L("Gold"), 90, "RIGHT" }, { L("Today"), 80, "RIGHT" }, { L("Rested"), 50, "RIGHT" }, { L("Zone"), 110 },
         { L("Professions"), 120 }, { L("Seen"), 40, "CENTER" } }, 430)
     UI.overview:SetPoint("TOPLEFT", 10, -60)
     UI.overview.onEnter = function(data, row) CharTooltip(data.char, row) end
@@ -411,8 +411,8 @@ local function BuildItems(p)
     UI.search:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
     UI.search:SetScript("OnTextChanged", RefreshItems)
     W.LinkTarget(UI.search)
-    UI.items = W.Table(p, { { L("Item"), 260 }, { L("Character"), 160 }, { L("Bags"), 70, "CENTER" }, { L("Bank"), 70, "CENTER" },
-        { L("Mail"), 70, "CENTER" }, { L("Total"), 70, "CENTER" } }, 440)
+    UI.items = W.Table(p, { { L("Item"), 260 }, { L("Character"), 160 }, { L("Bags"), 70, "RIGHT" }, { L("Bank"), 70, "RIGHT" },
+        { L("Mail"), 70, "RIGHT" }, { L("Total"), 70, "RIGHT" } }, 440)
     UI.items:SetPoint("TOPLEFT", 10, -40)
     local hint = W.Label(p, L("The bank and the mailbox are read when you open them on each character."), "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 8)
@@ -437,7 +437,7 @@ local function RefreshLockouts()
 end
 
 local function BuildLockouts(p)
-    UI.lockouts = W.Table(p, { { L("Character"), 180 }, { L("Instance"), 300 }, { L("Progress"), 90, "CENTER" },
+    UI.lockouts = W.Table(p, { { L("Character"), 180 }, { L("Instance"), 300 }, { L("Progress"), 90, "RIGHT" },
         { L("Resets in"), 140, "CENTER" } }, 480)
     UI.lockouts:SetPoint("TOPLEFT", 10, -10)
     p:SetScript("OnShow", function() if RequestRaidInfo then RequestRaidInfo() end; RefreshLockouts() end)

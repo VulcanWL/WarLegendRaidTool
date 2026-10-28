@@ -755,7 +755,7 @@ local function BuildInactive(p)
         for _, m in ipairs(G.Inactive()) do t[#t + 1] = W.CSV(m.name, m.rank or "", math.floor(m.days)) end
         W.TextPopup(L("Inactive"), table.concat(t, "\n"), { hint = "Ctrl+C" })
     end):SetPoint("TOPRIGHT", -16, -6)
-    UI.inactive = W.Table(p, { { L("Name"), 130 }, { L("Rank"), 110 }, { L("Level"), 50, "CENTER" }, { L("Offline since"), 90, "CENTER" },
+    UI.inactive = W.Table(p, { { L("Name"), 130 }, { L("Rank"), 110 }, { L("Level"), 50, "RIGHT" }, { L("Offline since"), 90, "CENTER" },
         { L("Public note"), 260 } }, 460)
     UI.inactive:SetPoint("TOPLEFT", 10, -40)
     UI.inactive:SetEmptyText(L("No member matches."))
@@ -1274,7 +1274,7 @@ local function BuildProfs(p)
     end
     -- one row per member and profession; the recipe search has its own columns
     UI.profs = W.Table(p, { { L("Name"), 210, sort = "name" }, { L("Profession"), 140, sort = "prof" },
-        { L("Skill"), 80, "CENTER", sort = "skill" }, { L("Recipes"), 70, "CENTER" }, { L("Source"), 70, "CENTER" },
+        { L("Skill"), 80, "CENTER", sort = "skill" }, { L("Recipes"), 70, "RIGHT" }, { L("Source"), 70, "CENTER" },
         { L("Updated"), 70, "CENTER" } }, 370)
     UI.profs:SetPoint("TOPLEFT", 10, -64)
     UI.profs.onClick, UI.profs.onEnter = OnClick, OnEnter

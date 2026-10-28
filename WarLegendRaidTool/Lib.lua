@@ -904,7 +904,7 @@ function W.Table(parent, cols, h, rowH)
     for _, c in ipairs(cols) do
         local fs = W.Label(holder, c[1], "GameFontNormalSmall")
         fs:SetPoint("TOPLEFT", x, 0)
-        fs:SetWidth(c[2])
+        fs:SetWidth(c[3] == "RIGHT" and c[2] - 6 or c[2]) -- a right-aligned header ends where its numbers end
         fs:SetJustifyH(c[3] or "LEFT")
         fs:SetTextColor(0.85, 0.85, 0.85)
         holder.heads[#holder.heads + 1] = fs

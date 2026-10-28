@@ -2153,7 +2153,7 @@ function W.BuildMain()
                 h.text:SetFont(W.FONT, 10, "OUTLINE")
                 h.text:SetPoint("LEFT", 4, 0)
                 h.text:SetText(L(sec.title))
-                h.text:SetTextColor(W.R, W.G, W.B)
+                h.text:SetTextColor(0.6, 0.6, 0.6) -- grey group label: the accent stays on the selection
                 h.sign = h:CreateTexture(nil, "OVERLAY")
                 W.Size(h.sign, 12, 12)
                 h.sign:SetPoint("RIGHT", -6, 0)

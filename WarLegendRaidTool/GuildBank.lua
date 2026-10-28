@@ -116,8 +116,8 @@ W.RegisterModule("GuildBank", "Guild bank", function(p)
     UI.banks:SetWidth(800)
     UI.banks:SetJustifyH("LEFT")
     UI.banks:SetWordWrap(false)
-    UI.stock = W.Table(p, { { L("Item"), 280 }, { L("Bank character"), 200 }, { L("Bags"), 60, "CENTER" }, { L("Bank"), 60, "CENTER" },
-        { L("Mail"), 60, "CENTER" }, { L("Total"), 60, "CENTER" }, { L("Seen"), 50, "CENTER" } }, 420)
+    UI.stock = W.Table(p, { { L("Item"), 280 }, { L("Bank character"), 200 }, { L("Bags"), 60, "RIGHT" }, { L("Bank"), 60, "RIGHT" },
+        { L("Mail"), 60, "RIGHT" }, { L("Total"), 60, "RIGHT" }, { L("Seen"), 50, "CENTER" } }, 420)
     UI.stock:SetPoint("TOPLEFT", 10, -90)
     UI.stock.onEnter = function(d, row)
         GameTooltip:SetOwner(row, "ANCHOR_RIGHT")

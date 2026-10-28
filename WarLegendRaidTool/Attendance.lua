@@ -344,10 +344,10 @@ W.RegisterModule("Attendance", "Attendance", function(p)
     bench:SetPoint("TOPLEFT", 360, -62)
     W.Button(p, L("Add to bench"), 120, 22, function() AddBench(bench:GetText()); bench:SetText("") end)
         :SetPoint("LEFT", bench, "RIGHT", 8, 0)
-    UI.players = W.Table(p, { { L("Name"), 110 }, { L("Nights"), 50, "CENTER" }, { "%", 42, "CENTER" }, { L("Pulls"), 42, "CENTER" },
-        { L("Late"), 46, "CENTER" }, { L("Left early"), 62, "CENTER" }, { L("Bench"), 40, "CENTER" }, { L("Last seen"), 46, "CENTER" } }, 440)
+    UI.players = W.Table(p, { { L("Name"), 110 }, { L("Nights"), 50, "RIGHT" }, { "%", 42, "RIGHT" }, { L("Pulls"), 42, "RIGHT" },
+        { L("Late"), 46, "RIGHT" }, { L("Left early"), 62, "RIGHT" }, { L("Bench"), 40, "RIGHT" }, { L("Last seen"), 46, "CENTER" } }, 440)
     UI.players:SetPoint("TOPLEFT", 10, -96)
-    UI.raids = W.Table(p, { { L("Date"), 72 }, { L("Zone"), 110 }, { L("Players"), 46, "CENTER" }, { L("Kills"), 46, "CENTER" } }, 440)
+    UI.raids = W.Table(p, { { L("Date"), 72 }, { L("Zone"), 110 }, { L("Players"), 46, "RIGHT" }, { L("Kills"), 46, "RIGHT" } }, 440)
     UI.raids:SetPoint("TOPLEFT", 470, -96)
     UI.raids:SetEmptyText(L("No raid night recorded yet."))
     UI.raids.onClick = function(d, btn)

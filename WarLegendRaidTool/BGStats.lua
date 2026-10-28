@@ -198,7 +198,7 @@ local function ColorFull(name)
 end
 
 local function ResultText(g)
-    return g.w == 1 and ("|cff33ff66" .. L("Victory") .. "|r") or ("|cffff5555" .. L("Defeat") .. "|r")
+    return g.w == 1 and ("|cff33ff66" .. L("Victory") .. "|r") or ("|cff999999" .. L("Defeat") .. "|r")
 end
 
 local function RefreshGames()
@@ -286,7 +286,7 @@ local function BuildGames(p)
     for _, n in ipairs({ 3, 5, 8, 10 }) do mins[#mins + 1] = { n, string.format(L("%d guild members"), n) } end
     W.Cycle(p, 170, mins, function() return db.minGuild end, function(v) db.minGuild = v end):SetPoint("LEFT", lbl, "RIGHT", 8, 0)
     UI.games = W.Table(p, { { L("Date"), 110 }, { L("Battleground"), 220 }, { L("Result"), 110, "CENTER" },
-        { L("Duration"), 90, "CENTER" }, { L("Guild"), 70, "CENTER" } }, 420)
+        { L("Duration"), 90, "RIGHT" }, { L("Guild"), 70, "CENTER" } }, 420)
     UI.games:SetPoint("TOPLEFT", 10, -40)
     UI.games:SetEmptyText(L("No battleground recorded yet."))
     UI.games.onClick = function(d, btn)
@@ -313,8 +313,8 @@ end
 
 local function BuildPlayers(p)
     RangeCycle(p):SetPoint("TOPLEFT", 12, -6)
-    UI.players = W.Table(p, { { L("Name"), 220 }, { L("Games"), 80, "CENTER" }, { L("Wins"), 80, "CENTER" },
-        { "%", 60, "CENTER" }, { L("Last"), 80, "CENTER" } }, 420)
+    UI.players = W.Table(p, { { L("Name"), 220 }, { L("Games"), 80, "RIGHT" }, { L("Wins"), 80, "RIGHT" },
+        { "%", 60, "RIGHT" }, { L("Last"), 80, "CENTER" } }, 420)
     UI.players:SetPoint("TOPLEFT", 10, -40)
     p:SetScript("OnShow", RefreshPlayers)
 end
@@ -322,7 +322,7 @@ end
 local function BuildRecords(p)
     local cycle = W.Cycle(p, 220, mapValues, function() return db.recordMap end, function(v) db.recordMap = v; RefreshRecords() end)
     cycle:SetPoint("TOPLEFT", 12, -6)
-    UI.records = W.Table(p, { { "", 40, "CENTER" }, { L("Win time"), 80, "CENTER" }, { L("Date"), 100, "CENTER" }, { L("Players"), 580 } }, 300)
+    UI.records = W.Table(p, { { "", 40, "CENTER" }, { L("Win time"), 80, "RIGHT" }, { L("Date"), 100, "CENTER" }, { L("Players"), 580 } }, 300)
     UI.records:SetPoint("TOPLEFT", 10, -40)
     UI.noRecord = W.Label(p, L("No record yet for this battleground."), "GameFontDisable")
     UI.noRecord:SetPoint("TOPLEFT", 16, -70)

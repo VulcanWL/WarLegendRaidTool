@@ -427,8 +427,8 @@ W.RegisterModule("Minotaure", "Minotaure", function(p)
     UI.tabs = W.SubTabs(p, { L("Ranking"), L("My season"), L("Challenges"), L("Seasons") }, function() Refresh() end)
     local f1, f2, f3, f4 = UI.tabs.frames[1], UI.tabs.frames[2], UI.tabs.frames[3], UI.tabs.frames[4]
 
-    UI.ranking = W.Table(f1, { { "#", 30, "CENTER" }, { L("Player"), 210 }, { L("Score"), 70, "CENTER" }, { L("World"), 70, "CENTER" },
-        { L("BG"), 70, "CENTER" }, { L("Wins"), 75, "CENTER" }, { L("Played"), 70, "CENTER" }, { L("Source"), 110, "CENTER" } }, 380)
+    UI.ranking = W.Table(f1, { { "#", 30, "CENTER" }, { L("Player"), 210 }, { L("Score"), 70, "RIGHT" }, { L("World"), 70, "RIGHT" },
+        { L("BG"), 70, "RIGHT" }, { L("Wins"), 75, "RIGHT" }, { L("Played"), 70, "RIGHT" }, { L("Source"), 110, "CENTER" } }, 380)
     UI.ranking:SetPoint("TOPLEFT", 10, -6)
     local n1 = W.Label(f1, L("The guild members' figures are sent by their addon: they are shown as declared, nothing can check them."), "GameFontDisableSmall")
     n1:SetPoint("TOPLEFT", 16, -396)
@@ -458,8 +458,8 @@ W.RegisterModule("Minotaure", "Minotaure", function(p)
     UI.challenges:SetJustifyH("LEFT")
     UI.challenges:SetSpacing(4)
 
-    UI.seasons = W.Table(f4, { { L("Season"), 140 }, { L("Score"), 80, "CENTER" }, { L("Points"), 80, "CENTER" }, { L("World"), 80, "CENTER" },
-        { L("BG"), 80, "CENTER" }, { L("Wins / played"), 120, "CENTER" } }, 360)
+    UI.seasons = W.Table(f4, { { L("Season"), 140 }, { L("Score"), 80, "RIGHT" }, { L("Points"), 80, "RIGHT" }, { L("World"), 80, "RIGHT" },
+        { L("BG"), 80, "RIGHT" }, { L("Wins / played"), 120, "CENTER" } }, 360)
     UI.seasons:SetPoint("TOPLEFT", 10, -6)
     W.Label(f4, L("Your seasons (this character). The ranking of the guild is kept for the season in progress only."), "GameFontDisableSmall")
         :SetPoint("TOPLEFT", 16, -376)

@@ -709,8 +709,8 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Button(p, L("Clear the list"), 130, 22, function()
         W.Confirm(L("Clear the list of the enemy players seen?"), function() wipe(db.seen); Fill() end)
     end):SetPoint("TOPLEFT", 560, -280)
-    list = W.Table(p, { { L("Enemy player"), 200 }, { L("Level"), 50, "CENTER" }, { L("Guild"), 160 }, { L("Zone"), 160 },
-        { L("Seen"), 70, "CENTER" }, { L("Times"), 50, "CENTER" } }, 230)
+    list = W.Table(p, { { L("Enemy player"), 200 }, { L("Level"), 50, "RIGHT" }, { L("Guild"), 160 }, { L("Zone"), 160 },
+        { L("Seen"), 70, "CENTER" }, { L("Times"), 50, "RIGHT" } }, 230)
     list:SetPoint("TOPLEFT", 10, -312)
     p:SetScript("OnShow", Fill)
 end)

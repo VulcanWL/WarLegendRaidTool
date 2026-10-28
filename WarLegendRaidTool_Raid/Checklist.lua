@@ -124,7 +124,7 @@ function CL.Refresh()
     local rows = {}
     for i, e in ipairs(db.items) do
         local have = W.ItemCount(e[1])
-        local col = have >= e[2] and "|cff33ff66" or (have > 0 and "|cffffcc33" or "|cffff5555")
+        local col = have >= e[2] and "|cffffffff" or (have > 0 and "|cffffcc33" or "|cffff5555")
         rows[#rows + 1] = { index = i, id = e[1], cells = { W.ItemLink("item:" .. e[1]), col .. have .. "|r", e[2] } }
     end
     UI.mine:SetData(rows)
@@ -190,7 +190,7 @@ W.RegisterModule("Checklist", "Checklist", function(p)
         :SetPoint("TOPLEFT", 222, -65)
     local t1 = W.Label(p, L("My list"), "GameFontNormal")
     t1:SetPoint("TOPLEFT", 14, -98)
-    UI.mine = W.Table(p, { { L("Item"), 230 }, { L("Have"), 50, "CENTER" }, { L("Want"), 50, "CENTER" } }, 380)
+    UI.mine = W.Table(p, { { L("Item"), 230 }, { L("Have"), 50, "RIGHT" }, { L("Want"), 50, "RIGHT" } }, 380)
     UI.mine:SetPoint("TOPLEFT", 10, -116)
     UI.mine.onEnter = function(d, row) GameTooltip:SetOwner(row, "ANCHOR_RIGHT"); GameTooltip:SetHyperlink("item:" .. d.id); GameTooltip:Show() end
     UI.mine.onClick = function(d, btn) if btn == "RightButton" then table.remove(db.items, d.index); CL.Refresh() end end

@@ -137,8 +137,8 @@ W.RegisterModule("Roster", "Trials", function(p)
     for _, d in ipairs({ 7, 14, 21, 28, 30, 45 }) do lengths[#lengths + 1] = { d, string.format(L("%d days"), d) } end
     W.Cycle(p, 100, lengths, function() return db.trialDays end, function(v) db.trialDays = v; RefreshTrials() end)
         :SetPoint("LEFT", lbl2, "RIGHT", 8, 0)
-    UI.trials = W.Table(p, { { L("Name"), 200 }, { L("Level"), 60, "CENTER" }, { L("Trial since"), 110, "CENTER" },
-        { L("Days"), 60, "CENTER" }, { L("Raids"), 60, "CENTER" }, { L("Status"), 180 } }, 440)
+    UI.trials = W.Table(p, { { L("Name"), 200 }, { L("Level"), 60, "RIGHT" }, { L("Trial since"), 110, "CENTER" },
+        { L("Days"), 60, "RIGHT" }, { L("Raids"), 60, "RIGHT" }, { L("Status"), 180 } }, 440)
     UI.trials:SetPoint("TOPLEFT", 10, -74)
     UI.trials:SetEmptyText(L("No trial member."))
     local hint = W.Label(p, L("Choose the trial rank. The date is the first time you saw the member at that rank. Raids = raid nights in your attendance since then."),

@@ -249,7 +249,7 @@ local function RefreshTable()
             if not res then
                 cells[i + 1] = "|cff999999?|r"
             elseif r and r[1] == "1" then
-                cells[i + 1] = "|cff33ff66OK|r" .. (r[2] ~= "" and (" |cff999999" .. r[2] .. "|r") or "")
+                cells[i + 1] = "|cffbbbbbbOK|r" .. (r[2] ~= "" and (" |cff999999" .. r[2] .. "|r") or "")
             elseif r and r[1] == "0" then
                 allOk = false
                 cells[i + 1] = "|cffff4444X|r" .. (r[2] ~= "" and (" " .. r[2]) or "")
@@ -284,7 +284,7 @@ local function RefreshMine()
         local r = reqs[i]
         if r then
             local ok, value = Evaluate(r)
-            local mark = ok == true and "|cff33ff66OK|r" or (ok == false and "|cffff4444X|r" or "|cff999999?|r")
+            local mark = ok == true and "|cffbbbbbbOK|r" or (ok == false and "|cffff4444X|r" or "|cff999999?|r")
             fs:SetText(mark .. "  " .. Label(r) .. (value ~= "" and ("  |cff999999(" .. value .. ")|r") or ""))
         else
             fs:SetText("")
