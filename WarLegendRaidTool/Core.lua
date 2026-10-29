@@ -918,9 +918,12 @@ end
 function W.GuildMember(name)
     if not name or not W.IsInGuild() then return nil end
     W.GuildMembers()
-    local m = guildByFull[W.FullName(name):lower()]
+    local full = W.FullName(name)
+    local m = guildByFull[full:lower()]
     if m then return m end
-    if W.HasFullPart(name) then
+    -- Forever: "First-Surname" (an event's name, the surname in the realm slot) is a full name too, never a bare
+    -- first name (a stranger sharing the first name of one guild member passed "guild only" checks)
+    if W.HasFullPart(name) or (W.FOREVER and W.HasFullPart(full)) then
         -- a full name that does not match: only accept it when the other side has no full part
         local s = guildByShort[W.BaseName(name):lower()]
         return (s and not W.HasFullPart(s.full)) and s or nil

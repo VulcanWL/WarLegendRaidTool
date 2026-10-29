@@ -517,7 +517,9 @@ end
 -- matches on the short name, and only if nobody else in the group has it.
 function W.UnitByName(name)
     if not name then return nil end
-    local wantFull = W.HasFullPart(name) and W.FullName(name):lower()
+    -- Forever: "First-Surname" (an event's name) is a full name too, never matched on its first name only
+    local full = W.FullName(name)
+    local wantFull = (W.HasFullPart(name) or (W.FOREVER and W.HasFullPart(full))) and full:lower()
     local low = W.BaseName(name):lower()
     local loose, looseCount = nil, 0
     local function check(u)

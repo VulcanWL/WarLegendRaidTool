@@ -53,15 +53,19 @@ local function IsFriend(name)
     return false
 end
 
-local function IsGuildMate(name)
+-- the inviter's GUID decides when the game gives one (a name alone can be a stranger's sharing a first name)
+local function IsGuildMate(name, guid)
+    if guid and IsGuildMember then return IsGuildMember(guid) and true or false end
     return W.GuildMember(name) ~= nil
 end
 
 -- Invites from friends / guild
-W.On("PARTY_INVITE_REQUEST", function(name)
+W.On("PARTY_INVITE_REQUEST", function(name, ...)
     name = W.Safe(name)
     if not db.acceptInvites or Shift() or W.InGroup() or not name then return end
-    if not (IsFriend(name) or IsGuildMate(name)) then return end
+    local guid = W.Safe((select(6, ...))) -- inviterGUID
+    local friend = guid and C_FriendList and C_FriendList.IsFriend and C_FriendList.IsFriend(guid)
+    if not (friend or IsFriend(name) or IsGuildMate(name, guid)) then return end
     W.After(0, function()
         if ClickPopup("PARTY_INVITE", 1) then W.Print(L("Invite from ") .. name .. L(" auto-accepted.")) end
     end)

@@ -131,7 +131,9 @@ local confirmEv = W.On("GROUP_INVITE_CONFIRMATION", function()
     if not id then return end
     local _, name, guid = GetInviteConfirmationInfo(id)
     name, guid = W.Safe(name), W.Safe(guid)
-    local guild = (guid and IsGuildMember and IsGuildMember(guid)) or (name and W.GuildMember(name) ~= nil)
+    -- the GUID decides when the game gives one (a name alone can be a stranger's sharing a guild member's first name)
+    local guild
+    if guid and IsGuildMember then guild = IsGuildMember(guid) else guild = name and W.GuildMember(name) ~= nil end
     local friend = guid and C_FriendList and C_FriendList.IsFriend and C_FriendList.IsFriend(guid)
     if not (guild or friend) then return end
     RespondToInviteConfirmation(id, true)
