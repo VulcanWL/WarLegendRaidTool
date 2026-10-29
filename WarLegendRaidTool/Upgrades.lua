@@ -312,6 +312,9 @@ local function Best()
                             v = wornValues[17] and v + wornValues[17] or nil -- a two-hander replaces both hands
                         end
                         if s == 17 and twoHand then v = nil end -- no off hand with a two-hander
+                        -- by item level, a one-hander is no upgrade for a worn two-hander: the off hand would stay empty
+                        -- (by score, the stats are compared, and a two-hander has more)
+                        if s == 16 and twoHand and not w and equipLoc ~= "INVTYPE_2HWEAPON" then v = nil end
                         if v and (not slotId or v < worn) then slotId, worn, wornLink = s, v, wornLinks[s] end
                     end
                     local sameType = slotId and true

@@ -223,7 +223,12 @@ local function describe(region)
 end
 
 local function createPickFrame()
-    pickFrame = CreateFrame("Frame", nil, UIParent)
+    -- WLRT: named and in UISpecialFrames, so Escape cancels the pick too (it never stopped on Escape)
+    pickFrame = CreateFrame("Frame", "WLRTDoesItDiePick", UIParent)
+    tinsert(UISpecialFrames, "WLRTDoesItDiePick")
+    pickFrame:SetScript("OnHide", function()
+        if picker then picker = nil; ns.print("Frame pick cancelled.") end
+    end)
     pickFrame:SetFrameStrata("TOOLTIP")
     pickFrame:Hide()
 

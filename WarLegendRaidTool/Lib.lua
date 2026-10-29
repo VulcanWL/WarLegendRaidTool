@@ -321,13 +321,16 @@ function W.SendLong(prefix, text, channel, target)
         text = text:gsub("~", "~1"):gsub("\n", "~2"):gsub("|", "~3") -- no raw newlines / pipes in addon messages
     end
     local n = math.max(1, math.ceil(#text / CHUNK))
+    -- more chunks than W.OnAddonLong accepts: every receiver would drop it, nothing is sent (false)
+    if n > 64 then return false end
     for i = 1, n do
         W.Queue(prefix, id .. ":" .. i .. ":" .. n .. ":" .. text:sub((i - 1) * CHUNK + 1, i * CHUNK), channel, target)
     end
+    return true
 end
 
 local PARTS_TTL = 60 -- an incomplete message (lost chunk, sender left) is dropped after this
-local MAX_CHUNKS = 64 -- 14 KB: far above a raid note or a profession list, refuses absurd senders
+local MAX_CHUNKS = 64 -- 14 KB: far above a raid note or a profession list, refuses absurd senders (W.SendLong too)
 local MAX_OPEN_PER_SENDER = 4 -- messages one sender may have half-received at once (per prefix)
 local MAX_OPEN = 120 -- all senders together (per prefix): a 40-player raid sending 3 each
 -- max: the longest text this prefix needs (default MAX_PLAIN). A longer one is dropped before fn reads it:

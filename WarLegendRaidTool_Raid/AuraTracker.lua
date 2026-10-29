@@ -315,18 +315,19 @@ local function OnAura(self, _, unit, info)
     if added then
         for i = 1, #added do
             local tracked, secret = Track(row, added[i])
-            if secret then QueueScan(row); return end
+            -- what changed before the hidden one is drawn too (no full read comes for a blind row)
+            if secret then QueueScan(row); Dirty(row); return end
             if tracked then changed = true end
         end
     end
     if updated then
         for i = 1, #updated do
             local iid = W.Safe(updated[i])
-            if not iid then QueueScan(row); return end
+            if not iid then QueueScan(row); Dirty(row); return end
             if row.auras[iid] then
                 row.auras[iid] = nil
                 local a = W.AuraByInstance(unit, iid)
-                if a == false then QueueScan(row); return end -- secret now: the full read sorts it out
+                if a == false then QueueScan(row); Dirty(row); return end -- secret now: the full read sorts it out
                 if a then Track(row, a) end
                 changed = true
             end
@@ -335,7 +336,7 @@ local function OnAura(self, _, unit, info)
     if removed then
         for i = 1, #removed do
             local iid = W.Safe(removed[i])
-            if not iid then QueueScan(row); return end
+            if not iid then QueueScan(row); Dirty(row); return end
             if row.auras[iid] then row.auras[iid] = nil; changed = true end
         end
     end

@@ -481,16 +481,27 @@ local function FinishGroups(msg)
     W.Print(msg)
 end
 
+W.AddFR({ ["|cffff5555The game refused the moves, stopped.|r"] = "|cffff5555Le jeu a refusé les déplacements, arrêté.|r" })
 mover:SetScript("OnUpdate", function(_, elapsed)
     state.timer = state.timer - elapsed
     if state.timer > 0 then return end
     if not W.InRaid() then FinishGroups(L("No longer in a raid, stopped.")); return end
     if InCombatLockdown() then FinishGroups(L("|cffff5555Cannot move players in combat.|r")); return end
+    if not W.CanLead() then FinishGroups(L("|cffff5555You must be leader or assistant to move players.|r")); return end
     if state.steps >= 120 then FinishGroups(L("|cffff5555Stopped: too many steps.|r")); return end
+    -- a move the game refused brings no roster update: 3 in a row and it stops (it went on every 1.5 s for 3 min)
+    if state.waiting and not state.rosterSeen then
+        state.stalls = state.stalls + 1
+        if state.stalls >= 3 then FinishGroups(L("|cffff5555The game refused the moves, stopped.|r")); return end
+    else
+        state.stalls = 0
+    end
+    state.waiting, state.rosterSeen = false, false
     state.steps = state.steps + 1
     local res = GroupStep(state.preset)
     if res == "moved" then
         state.moved = state.moved + 1
+        state.waiting = true
         state.timer = 1.5 -- max delay if the roster update never arrives
     elseif res == "done" then
         FinishGroups(state.moved .. L(" move(s), groups applied."))
@@ -504,12 +515,15 @@ function RG.ApplyGroups(preset)
     if not W.CanLead() then W.Print(L("|cffff5555You must be leader or assistant to move players.|r")); return end
     if InCombatLockdown() then W.Print(L("|cffff5555Not possible in combat.|r")); return end
     state.preset, state.steps, state.timer, state.moved = preset, 0, 0, 0
+    state.stalls, state.waiting, state.rosterSeen = 0, false, false
     mover:Show()
 end
 
 local function OnRoster()
     -- roster update arrived: continue sooner (without spamming the server)
-    if mover:IsShown() and state.timer > 0.4 then state.timer = 0.4 end
+    if not mover:IsShown() then return end
+    state.rosterSeen = true
+    if state.timer > 0.4 then state.timer = 0.4 end
 end
 
 ---------------------------------------------------------------------------
@@ -925,8 +939,12 @@ local function DropOnSlot(info, slot)
         local a = info.player
         if a == target then return end
         local _, ia = RG.FindPlayer(preset, a.name)
+        -- the roster changed during the drag (the live preset is rebuilt): that player is no longer here, nothing moves
+        -- (a missing index removed the last player of the list, or raised a Lua error)
+        if not ia then return end
         if target then
             local _, ib = RG.FindPlayer(preset, target.name)
+            if not ib then return end
             a.group, target.group = target.group, a.group
             players[ia], players[ib] = players[ib], players[ia]
         else
@@ -1511,11 +1529,14 @@ end
 -- click, then the rest (assists, groups, share) runs as plain addon code right after it. It lives on
 -- UIParent and only shows while the mouse is on the button (as NaowhForever does): a secure child
 -- would stop the /wl window from opening or closing in combat.
+-- marks: anyone in a party (it has no assistants), the leader or an assistant in a raid
+local function CanMark() return W.InGroup() and (not W.InRaid() or W.CanLead()) end
+
 local function PrepareMarks(self)
     if InCombatLockdown() then return end
     local preset = Current()
     local text, plan = "", nil
-    if preset and W.InGroup() and W.CanLead() then
+    if preset and CanMark() then
         local lines, count, missing = RG.MarkPlan(preset)
         text = table.concat(RG.AssistLines(preset, lines), "\n")
         plan = { count = count, missing = missing }
@@ -1567,7 +1588,7 @@ local function SecureApply(visible)
             W.Print(L("You are not in a group."))
         elseif InCombatLockdown() then
             W.Print(L("|cffffaa00Marks cannot be placed in combat: click again after the fight.|r"))
-        elseif not W.CanLead() then
+        elseif not CanMark() then
             W.Print(L("|cffff5555You must be leader or assistant to set marks.|r"))
         elseif self.plan then
             W.Print(self.plan.count .. L(" mark(s) applied."))
@@ -1682,11 +1703,15 @@ W.RegisterModule("RaidGroups", "Raid Groups", Build, OnShowModule)
 ---------------------------------------------------------------------------
 -- Events and commands
 ---------------------------------------------------------------------------
-local function RosterChanged()
-    OnRoster()
+-- the tab redrawn once per 0.2 s: three roster events come for one change, and each rebuilt the live preset
+local RefreshSoon = W.Coalesce(0.2, function()
     if UI.slots and UI.root:IsVisible() then
         if RG.RefreshLive() then RG.Refresh() else RG.RefreshPlayers() end
     end
+end)
+local function RosterChanged()
+    OnRoster()
+    if UI.slots and UI.root:IsVisible() then RefreshSoon() end
 end
 W.On("GROUP_ROSTER_UPDATE", RosterChanged)
 W.On("RAID_ROSTER_UPDATE", RosterChanged)

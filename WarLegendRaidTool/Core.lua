@@ -376,6 +376,7 @@ local pendingMsgs, loadFailed, waitCombat = {}, false, false
 local Dispatch
 
 W.AddFR({
+    ["The raid tools load after the fight: try again then."] = "Les outils de raid se chargent après le combat : réessaie à ce moment-là.",
     ["The raid modules are missing or disabled: install the folder WarLegendRaidTool_Raid next to WarLegendRaidTool."] =
         "Les modules de raid sont absents ou désactivés : installe le dossier WarLegendRaidTool_Raid à côté de WarLegendRaidTool.",
 })
@@ -417,7 +418,18 @@ function W.LoadRaid()
     end
     local msgs = pendingMsgs
     pendingMsgs = {}
-    for _, m in ipairs(msgs) do Dispatch(m[1], m[2], m[3], m[4], true) end -- counted by Flooding when they came
+    for _, m in ipairs(msgs) do -- counted by Flooding when they came
+        local good, err = pcall(Dispatch, m[1], m[2], m[3], m[4], true)
+        if not good then geterrorhandler()(err) end -- one bad message must not drop the ones after it
+    end
+    return true
+end
+
+-- the raid addon is not loaded in a fight (its secure buttons cannot be made then): a raid tool asked for in combat
+-- says so, it works after the fight
+local function RaidLater()
+    if W.raidLoaded or not InCombatLockdown() then return false end
+    W.Print(L("The raid tools load after the fight: try again then."))
     return true
 end
 
@@ -2365,7 +2377,8 @@ end
 
 function W.Toggle(key)
     if not W.Allowed() then W.Denied(); return end
-    W.LoadRaid() -- the menu is built once, with the raid tools in it
+    if not main and RaidLater() then return end -- the menu is built once: not without the raid tools
+    if not InCombatLockdown() then W.LoadRaid() end -- the menu is built once, with the raid tools in it
     if not main then
         local ok, err = W.Measure("build the /wl window", W.BuildMain)
         if not ok then geterrorhandler()(err) end
@@ -2663,7 +2676,10 @@ local function Slash(msg)
     msg = msg or ""
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
-    if cmd ~= "" and cmd ~= "minimap" and not W.slash[cmd] then W.LoadRaid() end -- a raid command
+    if cmd ~= "" and cmd ~= "minimap" and not W.slash[cmd] then -- a raid command
+        if RaidLater() then return end
+        W.LoadRaid()
+    end
     if cmd == "" then
         W.Toggle()
     elseif cmd == "minimap" then
@@ -2738,6 +2754,7 @@ SLASH_WLRTREADYCHECK1 = "/rc"
 local ReadyCheckStub
 function ReadyCheckStub()
     if not W.Allowed() then W.Denied(); return end
+    if RaidLater() then return end
     W.LoadRaid()
     local real = SlashCmdList["WLRTREADYCHECK"]
     if real and real ~= ReadyCheckStub then real() end

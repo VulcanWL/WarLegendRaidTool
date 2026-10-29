@@ -22,6 +22,8 @@ W.AddFR({
         "DoesItDie : marques des DoT sur la cible et les barres de nom (à la demande, éteint par défaut)",
     ["DoesItDie is off: switch it on in Raid > Combat > Kill time & combat log > DoesItDie, then /reload."] =
         "DoesItDie est éteint : allume-le dans Raid > Combat > Temps de mort et journal > DoesItDie, puis /reload.",
+    ["The original DoesItDie addon is enabled: the one of WaR LegenD stays off (disable one of them)."] =
+        "L'addon DoesItDie d'origine est activé : celui de WaR LegenD reste éteint (désactive l'un des deux).",
 })
 
 W.OnReady(function()
