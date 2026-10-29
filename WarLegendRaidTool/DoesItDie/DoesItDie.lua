@@ -1199,6 +1199,9 @@ end
 -- ours stays off (both would mark every nameplate, over the same saved table)
 local originalLoaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DoesItDie")
 local originalSlash = SlashCmdList and SlashCmdList.DOESITDIE
+-- WLRT: the original's live saved table, read before our saved variables replace the global DoesItDieDB (both
+-- addons save that global at logout: without giving it back, the original's changes were lost every session)
+local originalDB = originalLoaded and type(DoesItDieDB) == "table" and DoesItDieDB or nil
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
@@ -1230,6 +1233,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
             self:SetScript("OnUpdate", nil)
             for _, f in ipairs(ns.offFrames or {}) do f:SetScript("OnUpdate", nil); f:Hide() end
             if originalLoaded then
+                if originalDB then DoesItDieDB = originalDB end
                 SlashCmdList.DOESITDIE = originalSlash
                 if type(wl) == "table" and wl.enabled then
                     WLRT.Print(WLRT.L("The original DoesItDie addon is enabled: the one of WaR LegenD stays off (disable one of them)."))

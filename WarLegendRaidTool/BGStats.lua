@@ -118,6 +118,11 @@ local function Finish(winner)
     local now, dur = time(), 0
     if cur.startT then
         dur = now - cur.startT
+    elseif C_PvP and C_PvP.GetActiveMatchDuration then
+        -- Forever documents this one (GetBattlefieldInstanceRunTime is not in its docs: games without the
+        -- Preparation aura were stored with no duration and left out of Records)
+        local s = W.Safe(C_PvP.GetActiveMatchDuration())
+        if type(s) == "number" and s > 0 then dur = math.floor(s) end
     elseif GetBattlefieldInstanceRunTime then
         local ms = W.Safe(GetBattlefieldInstanceRunTime())
         if type(ms) == "number" and ms > 0 then dur = math.max(0, math.floor(ms / 1000) - PREP) end

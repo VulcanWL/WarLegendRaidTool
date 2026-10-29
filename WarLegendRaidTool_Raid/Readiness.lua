@@ -38,8 +38,8 @@ W.AddFR({
     ["saved"] = "verrouillé",
     ["Unknown line"] = "Ligne inconnue",
     ["Presets (examples, edit them):"] = "Modèles (exemples, à adapter) :",
-    ["level 60 | quest ID (or ID/ID) | item ID count | rep factionID 4-8 | resist fire|nature|frost|shadow|arcane N | enchants | gold N | free instanceID   (= label at the end of a line)"] =
-        "level 60 | quest ID (ou ID/ID) | item ID nombre | rep factionID 4-8 | resist fire|nature|frost|shadow|arcane N | enchants | gold N | free instanceID   (= libellé en fin de ligne)",
+    ["level 60 | quest ID (or ID/ID) | item ID count | rep factionID 4-8 | resist fire/nature/frost/shadow/arcane N | enchants | gold N | free instanceID   (= label at the end of a line)"] =
+        "level 60 | quest ID (ou ID/ID) | item ID nombre | rep factionID 4-8 | resist fire/nature/frost/shadow/arcane N | enchants | gold N | free instanceID   (= libellé en fin de ligne)",
     ["Player"] = "Joueur",
     ["Answer checks from: guild leaders"] = "Répondre aux vérifs : chefs de ma guilde",
     ["Answer checks from: any group leader"] = "Répondre aux vérifs : tout chef de groupe",
@@ -410,7 +410,7 @@ W.RegisterModule("Readiness", "Raider Readiness", function(p)
         end):SetPoint("TOPLEFT", x, -230)
         x = x + 108
     end
-    local help = W.Label(p, L("level 60 | quest ID (or ID/ID) | item ID count | rep factionID 4-8 | resist fire|nature|frost|shadow|arcane N | enchants | gold N | free instanceID   (= label at the end of a line)"),
+    local help = W.Label(p, L("level 60 | quest ID (or ID/ID) | item ID count | rep factionID 4-8 | resist fire/nature/frost/shadow/arcane N | enchants | gold N | free instanceID   (= label at the end of a line)"),
         "GameFontDisableSmall")
     help:SetPoint("TOPLEFT", 16, -256)
     help:SetWidth(380)

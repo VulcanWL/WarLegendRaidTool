@@ -688,8 +688,10 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
         if s < 86400 then return string.format(L("%d h"), math.floor(s / 3600)) end
         return string.format(L("%d d"), math.floor(s / 86400))
     end
+    -- IsVisible, not IsShown: a closed window leaves its last tab "shown", and the list (200 entries, a sort, ~1,200
+    -- strings) was rebuilt up to twice a second during world PvP with the window closed
     local function Fill()
-        if not list or not p:IsShown() then return end
+        if not list or not p:IsVisible() then return end
         local entries = {}
         for _, e in pairs(db.seen) do
             if db.logClass == "" or e.c == db.logClass then entries[#entries + 1] = e end
@@ -704,7 +706,7 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     end
     local pending = false
     LogChanged = function()
-        if pending or not p:IsShown() then return end
+        if pending or not p:IsVisible() then return end
         pending = true
         W.After(0.5, function() pending = false; Fill() end)
     end

@@ -315,6 +315,11 @@ local function Best()
                         -- by item level, a one-hander is no upgrade for a worn two-hander: the off hand would stay empty
                         -- (by score, the stats are compared, and a two-hander has more)
                         if s == 16 and twoHand and not w and equipLoc ~= "INVTYPE_2HWEAPON" then v = nil end
+                        -- and the reverse: a bag two-hander replaces the shield / off hand too, so it must beat both
+                        -- (the click took the shield off a tank for "+3 ilvl" over the main hand)
+                        if s == 16 and not w and equipLoc == "INVTYPE_2HWEAPON" and v and wornValues[17] then
+                            v = math.max(v, wornValues[17])
+                        end
                         if v and (not slotId or v < worn) then slotId, worn, wornLink = s, v, wornLinks[s] end
                     end
                     local sameType = slotId and true

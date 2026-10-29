@@ -145,8 +145,13 @@ local function KnownList()
             if id then
                 local s, d, hidden = SpellCD(id)
                 left = Left(s, d) or 0
-                -- hidden in a fight: the end seen at my cast, else nothing (never "ready" while it may run)
-                if hidden then left = (old and old[e.key] and old[e.key] > now) and (old[e.key] - now) or nil end
+                -- hidden in a fight: the state last seen (the end seen at my cast, or ready: 0), nothing if never seen.
+                -- Under the global cooldown isActive is true for a ready spell too: keeping only a running end dropped
+                -- the ready ones, and every raider's window lost my battle rez (my casts keep the state current)
+                if hidden then
+                    local o = old and old[e.key]
+                    left = o and math.max(0, o - now) or nil
+                end
             end
         end
         -- a spell that needs a reagent (Ankh) is not ready without it
