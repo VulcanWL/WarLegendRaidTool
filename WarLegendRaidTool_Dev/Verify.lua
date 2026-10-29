@@ -99,6 +99,66 @@ Probe("range", function()
         Kind(C_Item and C_Item.IsItemInRange)))
 end)
 
+-- Upgrades (stat weights) reads an item's hit / crit as ratings, 10 / 8 / 14 per 1 %; Forever's tooltips write them as
+-- percents (TOOLTIP_ITEM_STAT_HIT_PERCENT): values of 1 to 5 here are percents, then the weights are 10 to 14 times too weak
+Probe("itemstats", function()
+    local GetStats = (C_Item and C_Item.GetItemStats) or _G.GetItemStats
+    if not GetStats then Out("LOOK", "itemstats", "no GetItemStats"); return end
+    local seen, biggest, first = {}, 0, nil
+    for slot = 1, 19 do
+        local link = GetInventoryItemLink("player", slot)
+        local ok, stats = false, nil
+        if link then ok, stats = pcall(GetStats, link) end
+        if ok and type(stats) == "table" then
+            for k, v in pairs(stats) do
+                v = W.Safe(v)
+                if type(k) == "string" and type(v) == "number" and (k:find("HIT", 1, true) or k:find("CRIT", 1, true)) then
+                    local name = k:gsub("^ITEM_MOD_", ""):gsub("_SHORT$", "")
+                    seen[#seen + 1] = slot .. " " .. name .. "=" .. v
+                    if v > biggest then biggest = v end
+                    first = first or slot
+                end
+            end
+        end
+    end
+    if #seen == 0 then Out("SKIP", "itemstats", "nothing with hit / crit worn: put one on, then /wl verify quick"); return end
+    Out(biggest <= 5 and "LOOK" or "OK", "itemstats", (biggest <= 5 and "percents? " or "ratings: ") .. table.concat(seen, ", "))
+    -- that item's tooltip line with a "%" (a percent stat reads "... by 1%.")
+    local tip = C_TooltipInfo and C_TooltipInfo.GetInventoryItem and select(2, pcall(C_TooltipInfo.GetInventoryItem, "player", first))
+    if type(tip) == "table" and type(tip.lines) == "table" then
+        for _, line in ipairs(tip.lines) do
+            local text = W.Safe(line.leftText)
+            if type(text) == "string" and text:find("%", 1, true) then Out("INFO", "itemstats", "tooltip: " .. text); break end
+        end
+    end
+end)
+
+-- money text: Forever has only C_CurrencyInfo's (no global; LootTriage, MoneyGoal, QualityOfLife use it first)
+Probe("coins", function()
+    local fn = C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString
+    Out(fn and "OK" or "LOOK", "coins", string.format("C_CurrencyInfo.GetCoinTextureString %s, global %s", Kind(fn),
+        Kind(_G.GetCoinTextureString)))
+end)
+
+-- old globals that only Blizzard's deprecation addons define on this client (EllesmereUI: Forever loads none of them)
+Probe("oldglobals", function()
+    local missing, present = {}, {}
+    for _, name in ipairs({ "GetItemInfo", "GetItemInfoInstant", "GetItemCount", "GetItemIcon", "GetItemQualityColor",
+        "GetDetailedItemLevelInfo", "GetItemCooldown", "GetCoinTextureString", "GetTalentInfo", "GetSpecialization",
+        "GetSpecializationInfo", "GetSpecializationInfoByID", "IsItemInRange", "GetProfessions", "GetSkillLineInfo",
+        "GetMasterLootCandidate", "GiveMasterLoot", "PickupContainerItem", "SendChatMessage" }) do
+        local list = _G[name] == nil and missing or present
+        list[#list + 1] = name
+    end
+    Out("INFO", "oldglobals", "missing: " .. table.concat(missing, " "))
+    Out("INFO", "oldglobals", "present: " .. table.concat(present, " "))
+end)
+
+-- EllesmereUI calls Forever "realmless" (its per-character keys use the ruleset); ours use the realm name
+Probe("realm", function()
+    Out("INFO", "realm", "GetRealmName=" .. Str(GetRealmName and GetRealmName()))
+end)
+
 -- the size read in the deflate codes before inflating (W.InflatedSize) must work on the client's own deflate
 Probe("encoding", function()
     local EU = C_EncodingUtil

@@ -48,7 +48,8 @@ La fenêtre a quatre onglets, chacun avec toutes ses sections visibles.
 3. Connecte-toi (ou `/reload` en jeu), puis tape `/wl`.
 
 Avec **WowUp** : *Obtenir des addons → Installer depuis une URL* → `https://github.com/VulcanWL/WarLegendRaidTool`.
-WowUp propose ensuite chaque nouvelle version.
+WowUp propose ensuite chaque nouvelle version. Il faut WowUp (ou WowUp-CF) 2.24.0 ou plus récent pour trouver WoW Forever
+(2.24.1 conseillée).
 
 ## Commandes principales
 

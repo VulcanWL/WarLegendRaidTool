@@ -71,14 +71,20 @@ end
 ---------------------------------------------------------------------------
 -- My own spells
 ---------------------------------------------------------------------------
+-- start, duration; in a fight the game hides them (secret values: SecretWhenCooldownsRestricted in the Forever
+-- docs), then 0, 0 if isActive (never secret) says none runs, else 0, 0, true (hidden: not readable now)
 local function SpellCD(id)
     if C_Spell and C_Spell.GetSpellCooldown then
         local info = C_Spell.GetSpellCooldown(id)
         if not info then return 0, 0 end
-        return W.Safe(info.startTime) or 0, W.Safe(info.duration) or 0
+        local s, d = W.Safe(info.startTime), W.Safe(info.duration)
+        if s and d then return s, d end
+        if W.Safe(info.isActive) == false then return 0, 0 end
+        return 0, 0, true
     end
     if GetSpellCooldown then
         local s, d = GetSpellCooldown(id)
+        if (s ~= nil and W.Safe(s) == nil) or (d ~= nil and W.Safe(d) == nil) then return 0, 0, true end
         return W.Safe(s) or 0, W.Safe(d) or 0
     end
     return 0, 0
@@ -134,7 +140,12 @@ local function KnownList()
             end
         else
             local id = KnownRank(e)
-            if id then left = Left(SpellCD(id)) or 0 end
+            if id then
+                local s, d, hidden = SpellCD(id)
+                left = Left(s, d) or 0
+                -- hidden in a fight: the end seen at my cast, else nothing (never "ready" while it may run)
+                if hidden then left = (old and old[e.key] and old[e.key] > now) and (old[e.key] - now) or nil end
+            end
         end
         -- a spell that needs a reagent (Ankh) is not ready without it
         if left == 0 and e.reagent and HasItem({ e.reagent }) == false then left = nil end

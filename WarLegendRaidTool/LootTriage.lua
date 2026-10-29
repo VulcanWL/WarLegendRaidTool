@@ -76,8 +76,9 @@ local function UnitPrice(link)
     if v then return v, L("vendor") end
 end
 
+local CoinText = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString -- no global on Forever
 local function Money(c)
-    if GetCoinTextureString then return GetCoinTextureString(c) end
+    if CoinText then return CoinText(c) end
     return string.format("%.2fg", c / 10000)
 end
 

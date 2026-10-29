@@ -30,9 +30,10 @@ local NumSlots = C.GetContainerNumSlots or _G.GetContainerNumSlots
 local SlotInfo = C.GetContainerItemInfo
 local NUM_BAGS = NUM_BAG_SLOTS or 4
 
+local CoinText = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString -- no global on Forever
 local function Coins(c)
     c = math.max(0, math.floor(c + 0.5))
-    if GetCoinTextureString then return GetCoinTextureString(c) end
+    if CoinText then return CoinText(c) end
     return string.format("%.2fg", c / 10000)
 end
 
