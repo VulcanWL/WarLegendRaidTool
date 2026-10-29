@@ -6,6 +6,10 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Cadres de champ de bataille : la portée de secours (quand le jeu ne répond pas) est mise à jour pour WoW Forever
+  (LibRangeCheck 38 : sorts de Forever, plus d'ancienne fonction appelée à son chargement).
+
 ## 1.41.55 (29/10/2026)
 
 ### Modifié

@@ -10,8 +10,6 @@
 ## SavedVariables: WarLegendRaidTool_PvPDB
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 
-embeds.xml
-
 Locales.lua
 
 Helpers.lua

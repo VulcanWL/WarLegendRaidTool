@@ -537,6 +537,8 @@ local SLOTS = { HeadSlot = 1, NeckSlot = 2, ShoulderSlot = 3, ShirtSlot = 4, Che
     WristSlot = 9, HandsSlot = 10, Finger0Slot = 11, Finger1Slot = 12, Trinket0Slot = 13, Trinket1Slot = 14, BackSlot = 15,
     MainHandSlot = 16, SecondaryHandSlot = 17, RangedSlot = 18, TabardSlot = 19 }
 function GetInventorySlotInfo(name) local id = SLOTS[name]; if id then return id, "" end end
+-- the documented form (the global above is only in Blizzard's Deprecated_PaperDoll on Forever)
+C_PaperDollInfo = { GetInventorySlotInfo = GetInventorySlotInfo }
 function CreateFont(name) local f = New("Font", name); return f end
 function CreateFontFamily(name) return New("Font", name) end
 
@@ -1284,7 +1286,8 @@ MAX_PARTY_MEMBERS = 4
 MAX_RAID_MEMBERS = 40
 ATTACHMENTS_MAX_RECEIVE = 16
 LE_REALM_RELATION_VIRTUAL = 3
-WOW_PROJECT_MAINLINE, WOW_PROJECT_CLASSIC, WOW_PROJECT_BURNING_CRUSADE_CLASSIC, WOW_PROJECT_WRATH_CLASSIC, WOW_PROJECT_CAMELOT = 1, 2, 5, 11, 20
+-- WOW_PROJECT_CAMELOT: 18 in Forever's own Blizzard_ProjectConstants/Camelot/ProjectConstants.lua
+WOW_PROJECT_MAINLINE, WOW_PROJECT_CLASSIC, WOW_PROJECT_BURNING_CRUSADE_CLASSIC, WOW_PROJECT_WRATH_CLASSIC, WOW_PROJECT_CAMELOT = 1, 2, 5, 11, 18
 WOW_PROJECT_ID = WOW_PROJECT_CAMELOT
 STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 function Mixin(o, ...) for _, m in ipairs({ ... }) do for k, v in pairs(m) do o[k] = v end end return o end

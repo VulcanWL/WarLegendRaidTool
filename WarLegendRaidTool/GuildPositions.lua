@@ -254,8 +254,8 @@ local function Libs()
     if HBD and Pins then return end
     standalone = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("GuildMap") and true or false
     if LibStub then
-        HBD = LibStub("HereBeDragons-2.0-gm", true)
-        Pins = LibStub("HereBeDragons-Pins-2.0-gm", true)
+        HBD = LibStub("HereBeDragons-2.0", true)
+        Pins = LibStub("HereBeDragons-Pins-2.0", true)
     end
 end
 

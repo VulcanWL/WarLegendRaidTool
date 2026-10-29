@@ -14,6 +14,9 @@ Read only the part about the file you are changing. The rules that always apply 
   can dispel and give; `Modules/CrowdControl.lua`: the CC on the class icon. Both use `Modules/NativeAuras.lua`: Blizzard's
   `CreateFrame("AuraContainer")` (Forever 12.1 aura system) shows the auras itself, also the secret ones.
   Trinket / DR tracking is NOT possible in battlegrounds (the client hides that data there).
+  No `Libs/` of its own: LibStub, CallbackHandler and LibRangeCheck-3.0 (38, Forever spell lists) come from the main
+  addon's `Libs/` (one copy for the four addons, `Libs/README.txt`); a library added for any addon goes there, in the main
+  `.toc`. Range: the game's own checks first (`WarLegendPvP.GameRangeCheck`), LibRangeCheck when they give no answer.
   Work per frame (Alterac, 80 buttons): no OnUpdate per button. `WarLegendPvP.Spread(parent, period, getList, fn)` (`Main.lua`)
   runs fn for each item every `period` s from ONE OnUpdate that spreads the items over the frames (round robin): the range /
   `UpdateAll` of each side's buttons (`Mainframe.lua`, 0.2 s in combat, 0.4 s out of combat), the ally power read
@@ -69,7 +72,8 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
 - `GuildPositions.lua` (`/wl map`): guild members on the maps. It sends addon messages to the GUILD (the user asked for it),
   with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
-  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc). HereBeDragons-Pins takes a
+  HereBeDragons in `Libs/` (upstream, loaded first in the .toc; it has the Forever client since version 35, the GuildMap
+  addon keeps its own "-gm" copy under another name). HereBeDragons-Pins takes a
   new world map pin at each `AddWorldMapIcon*` and frees the old one only when the map refreshes: a moved icon is removed
   first (`RemoveWorldMapIcon`, as `Transports.lua` does), else pins pile up while the map is closed. A line that changes
   neither the place, the class nor the options (`PlaceKey`) places nothing again: each minimap add makes the library
