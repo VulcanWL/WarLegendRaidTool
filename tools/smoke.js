@@ -3,16 +3,46 @@
 // Runs the four addons in fengari (a Lua VM in JavaScript) on top of tools/smoke/wow.lua, a small fake client whose
 // API answers come from Blizzard's own API documentation of the current build (tools/wow-api.js, cached UI source).
 // Plays tools/smoke/scenario.lua twice: a fresh install (English client), then a /reload with the saved data (French).
-// Reports: Lua errors, protected actions in combat, messages sent by "Test all" or caused by hostile addon messages or
-// chat lines, escape codes of other players shown live, pasted texts (profile, Myslot, preset, soft-res), the cost of
-// event floods. The hostile messages come from --seed (default 12345): the same seed and --fuzz send the same ones, and
+// Reports: Lua errors (also those on the secret values the fake client gives in combat, as Forever does), protected
+// actions in combat, messages sent by "Test all" or caused by hostile addon messages or chat lines, escape codes of other
+// players shown live, pasted texts (profile, Myslot, preset, soft-res, valid exports cut short), the cost of event
+// floods. The hostile messages come from --seed (default 12345): the same seed and --fuzz send the same ones, and
 // the message behind the first Lua error of each prefix / event is printed. It is NOT the game: it shows that the code
 // runs with plausible answers, not that a feature does what it should in game (the user still tests with /reload).
 // --quiet prints only what fails, under one line per pass (counts, seconds): same problems counted, same exit code
 // (agents run it first, then --verbose on a failure). Exit code 1 when something is wrong.
 const fs = require("fs");
 const path = require("path");
+// Secret values (tools/smoke/wow.lua): where the game raises an error, fengari compares a table with a value of another
+// type, and uses a table as a key, without calling any metamethod. fengari's lvm.js is compiled with one line more (an
+// == looks at its two values first) and ltable.luaH_get (each table read / write of the VM) is wrapped.
+const secretMT = { table: null }; // the metatable of the secret values, given by wow.lua (SMOKE_SECRET)
+const Module = require("module");
+const compile = Module.prototype._compile;
+{
+    const file = require.resolve("fengari/src/lvm.js");
+    const anchor = "const luaV_equalobj = function(L, t1, t2) {";
+    Module.prototype._compile = function (src, filename) { // fengari's own load order (its modules require each other)
+        if (filename === file) {
+            if (!src.includes(anchor)) throw new Error("fengari changed, secret values cannot be modelled: no '" + anchor + "' in " + file);
+            src = src.replace(anchor, anchor + " if (L !== null && module.exports.smokeEqual) module.exports.smokeEqual(L, t1, t2);");
+        }
+        return compile.call(this, src, filename);
+    };
+}
 const { lua, lauxlib, lualib, to_luastring } = require("fengari");
+Module.prototype._compile = compile;
+{
+    const ldebug = require("fengari/src/ldebug.js"), ltable = require("fengari/src/ltable.js");
+    const isSecret = (o) => o.type === lua.LUA_TTABLE && secretMT.table !== null && o.value.metatable === secretMT.table;
+    const COMPARE = to_luastring("attempt to compare a secret value"), KEY = to_luastring("attempt to use a secret value as a table key");
+    // a secret may still be tested for nil (W.Safe: v ~= nil and issecretvalue(v))
+    require("fengari/src/lvm.js").smokeEqual = (L, a, b) => {
+        if ((isSecret(a) && !b.ttisnil()) || (isSecret(b) && !a.ttisnil())) ldebug.luaG_runerror(L, COMPARE);
+    };
+    const get = ltable.luaH_get;
+    ltable.luaH_get = (L, t, key) => { if (isSecret(key)) ldebug.luaG_runerror(L, KEY); return get(L, t, key); };
+}
 const api = require("./wow-api");
 
 const TOOLS = __dirname;
@@ -23,12 +53,12 @@ const opt = (name, def) => { const i = args.indexOf(name); return i >= 0 ? args[
 const verbose = args.includes("--verbose");
 const quiet = args.includes("--quiet");
 
-// the API model as Lua, rebuilt when the UI source changed
+// the API model as Lua, rebuilt when the UI source or tools/wow-api.js (what it writes) changed
 function apiModel() {
     const wus = api.source(false);
     const out = path.join(TOOLS, ".cache", "wow-api.lua");
-    let head = "";
-    try { head = require("child_process").execFileSync("git", ["rev-parse", "HEAD"], { cwd: wus }).toString().trim(); } catch (e) { /* no git */ }
+    let head = require("crypto").createHash("sha1").update(fs.readFileSync(path.join(TOOLS, "wow-api.js"))).digest("hex").slice(0, 12);
+    try { head += " " + require("child_process").execFileSync("git", ["rev-parse", "HEAD"], { cwd: wus }).toString().trim(); } catch (e) { /* no git */ }
     const stamp = out + ".stamp";
     if (!fs.existsSync(out) || !fs.existsSync(stamp) || fs.readFileSync(stamp, "utf8") !== head) {
         fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -105,7 +135,11 @@ function M.LoadAddOn(name)
 end
 local report = load(SMOKE_READ(scenarioPath), "@tools/smoke/scenario.lua")(M, OPTS)
 
+-- written out as the game does: a secret value is not saved (counted, with where it was)
+local type, IsSecret = M.rawtype, M.IsSecret
+local secretSaved, keys = {}, {}
 local function Ser(v, seen, depth)
+    if IsSecret(v) then secretSaved[#secretSaved + 1] = table.concat(keys, "."); return "nil" end
     local t = type(v)
     if t == "string" then return string.format("%q", v) end
     if t == "number" then
@@ -119,7 +153,9 @@ local function Ser(v, seen, depth)
     for k, x in pairs(v) do
         if type(k) == "string" or type(k) == "number" then
             local kk = type(k) == "string" and string.format("[%q]", k) or ("[" .. Ser(k, seen, depth + 1) .. "]")
+            keys[#keys + 1] = tostring(k)
             local vv = Ser(x, seen, depth + 1)
+            keys[#keys] = nil
             if vv ~= "nil" then parts[#parts + 1] = kk .. "=" .. vv end
         end
     end
@@ -127,7 +163,7 @@ local function Ser(v, seen, depth)
     return "{" .. table.concat(parts, ",") .. "}"
 end
 local saved = {}
-for _, toc in pairs(TOCS) do for _, sv in ipairs(toc.saved) do if rawget(_G, sv) ~= nil then saved[sv] = Ser(rawget(_G, sv), {}, 0) end end end
+for _, toc in pairs(TOCS) do for _, sv in ipairs(toc.saved) do if rawget(_G, sv) ~= nil then keys = { sv }; saved[sv] = Ser(rawget(_G, sv), {}, 0) end end end
 
 local function J(v, depth)
     depth = depth or 0
@@ -157,8 +193,11 @@ local chatByPhase = {}
 for _, c in ipairs(M.chat) do chatByPhase[#chatByPhase + 1] = { c.phase or "?", c.channel or "?", c.msg or "" } end
 local addonByPrefix = {}
 for _, a in ipairs(M.addon) do local k = (a.prefix or "?") .. " " .. (a.channel or "?"); addonByPrefix[k] = (addonByPrefix[k] or 0) + 1 end
+local made = {}
+for k, n in pairs(M.secretsMade) do made[#made + 1] = { k, n } end
+table.sort(made, function(a, b) return a[2] > b[2] end)
 return J({ report = report, errors = M.errors, blocked = M.blocked, sensitive = M.sensitive, chat = chatByPhase,
-    addon = addonByPrefix, popups = M.popups or 0, unknown = unknown }), J(saved)
+    addon = addonByPrefix, popups = M.popups or 0, unknown = unknown, secretsMade = made, secretSaved = secretSaved }), J(saved)
 `;
 
 function run(options, savedIn) {
@@ -170,6 +209,28 @@ function run(options, savedIn) {
         try { lua.lua_pushstring(Ls, new Uint8Array(fs.readFileSync(p))); return 1; } catch (e) { return 0; }
     });
     lua.lua_setglobal(L, to_luastring("SMOKE_READ"));
+    lua.lua_pushcfunction(L, (Ls) => { secretMT.table = lua.lua_topointer(Ls, 1); return 0; });
+    lua.lua_setglobal(L, to_luastring("SMOKE_SECRET"));
+    // SMOKE_WRAP(f, slow): a function giving f(...), or slow(f, ...) when one of the arguments is a secret value; in JS,
+    // as the addons call these all the time (type, tostring, string.format...)
+    const secretAt = (Ls, i) => {
+        if (lua.lua_type(Ls, i) !== lua.LUA_TTABLE || !lua.lua_getmetatable(Ls, i)) return false;
+        const s = lua.lua_topointer(Ls, -1) === secretMT.table;
+        lua.lua_pop(Ls, 1);
+        return s;
+    };
+    const wrapped = (Ls) => {
+        const n = lua.lua_gettop(Ls);
+        let slow = false;
+        for (let i = 1; i <= n && !slow; i++) slow = secretAt(Ls, i);
+        lua.lua_pushvalue(Ls, lua.lua_upvalueindex(1));
+        lua.lua_insert(Ls, 1);
+        if (slow) { lua.lua_pushvalue(Ls, lua.lua_upvalueindex(2)); lua.lua_insert(Ls, 1); }
+        lua.lua_call(Ls, slow ? n + 1 : n, lua.LUA_MULTRET);
+        return lua.lua_gettop(Ls);
+    };
+    lua.lua_pushcfunction(L, (Ls) => { lua.lua_settop(Ls, 2); lua.lua_pushcclosure(Ls, wrapped, 2); return 1; });
+    lua.lua_setglobal(L, to_luastring("SMOKE_WRAP"));
     if (lauxlib.luaL_loadbuffer(L, to_luastring(GLUE), null, to_luastring("@smoke-glue")) !== lua.LUA_OK) throw new Error(lua.lua_tojsstring(L, -1));
     const tocs = ADDONS.map((a) => {
         const t = tocFiles(a);
@@ -209,6 +270,18 @@ function Printer() {
     };
     return say;
 }
+// secret values (tools/smoke/wow.lua): what gave them, the Lua errors they raised (counted with the Lua errors), the
+// ones written in the saved variables (a problem: the game keeps no secret there)
+function showSecrets(say, out, errors) {
+    const made = list(out.secretsMade);
+    const raised = errors.filter((e) => /secret value/.test(e.msg)).length;
+    say("  secret values given in combat / an encounter: " + made.reduce((a, x) => a + x[1], 0) + " (" +
+        (made.slice(0, 6).map((x) => x[0] + " x" + x[1]).join(", ") || "none") + "); Lua errors on them: " + raised + " (with the Lua errors)", raised);
+    const saved = list(out.secretSaved);
+    say("  secret values written in the saved variables: " + saved.length, saved.length);
+    for (const p of saved.slice(0, 10)) say("    FAIL " + p, true);
+    return saved.length;
+}
 function show(title, { out, sec }) {
     const r = out.report || {};
     const say = Printer();
@@ -217,6 +290,8 @@ function show(title, { out, sec }) {
     const errors = list(out.errors);
     say("  Lua errors: " + errors.length, errors.length);
     for (const e of errors) { say("    [" + e.phase + "] x" + e.count + " " + e.msg, true); if (verbose) say(ourTrace(e.trace), true); }
+    bad += showSecrets(say, out, errors);
+    const secrets = list(out.secretsMade).reduce((a, x) => a + x[1], 0);
     const blocked = list(out.blocked);
     say("  protected actions in combat (the game blocks them): " + blocked.length, blocked.length);
     for (const b of blocked.slice(0, 10)) say("    " + b, true);
@@ -302,8 +377,8 @@ function show(title, { out, sec }) {
     bad += errors.length + blocked.length + (r.testChat || 0) + (r.testAddon || 0) + fuzzChat + fuzzSens + (r.access === true ? 0 : 1);
     const problems = bad - before;
     say.flush(title, (problems ? problems + " problem(s)" : "no problem") + " in " + sec.toFixed(0) + " s (" + errors.length + " Lua error(s), " +
-        blocked.length + " blocked, " + (fuzzSent + (sh.sent || 0)) + " hostile messages, " + (cl.sent || 0) + " chat lines, " + paste.length + " pastes, " +
-        esc.length + " escape codes, " + (list(r.checks).length - failedChecks.length) + " / " + list(r.checks).length + " trust checks)");
+        blocked.length + " blocked, " + secrets + " secret values, " + (fuzzSent + (sh.sent || 0)) + " hostile messages, " + (cl.sent || 0) + " chat lines, " +
+        paste.length + " pastes, " + esc.length + " escape codes, " + (list(r.checks).length - failedChecks.length) + " / " + list(r.checks).length + " trust checks)");
 }
 
 // --open-world: tools/smoke/openworld.lua instead (one pass, English client): a raid of 40 and a guild of 120 in the
@@ -319,6 +394,7 @@ function showOpenWorld({ out, sec }) {
     const errors = list(out.errors);
     say("  Lua errors: " + errors.length, errors.length);
     for (const e of errors) { say("    [" + e.phase + "] x" + e.count + " " + e.msg, true); if (verbose) say(ourTrace(e.trace), true); }
+    bad += showSecrets(say, out, errors);
     const blocked = list(out.blocked);
     say("  protected actions in combat (the game blocks them): " + blocked.length, blocked.length);
     for (const b of blocked.slice(0, 10)) say("    " + b, true);

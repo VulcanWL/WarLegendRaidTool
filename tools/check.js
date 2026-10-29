@@ -32,12 +32,75 @@ const OK_READ = new Set((
     "fastrandom date time difftime"
 ).split(" "));
 
-const problems = [];
+const problems = [], warnings = [];
 const seen = new Set();
-const report = (file, line, msg) => {
+const report = (file, line, msg, into) => {
     const s = path.relative(root, file).replace(/\\/g, "/") + ":" + line + "  " + msg;
-    if (!seen.has(s)) { seen.add(s); problems.push(s); }
+    if (!seen.has(s)) { seen.add(s); (into || problems).push(s); }
 };
+
+// Upvalues of each function, as Lua 5.1 counts them: the locals of enclosing functions it uses, also those only a
+// function inside it uses (they pass through it). Globals are free in 5.1. WoW refuses the whole file when one function
+// has more than 60 (LUAI_MAXUPVALUES); fengari (5.3, the smoke test) takes 255, so only this check sees it.
+const MAX_UPVALUES = 60, WARN_UPVALUES = 50;
+function upvalueCounts(ast) {
+    const out = [];
+    let fn = null; // { scopes: [Map name -> fn that declares it], up: Set of declarations, parent, name, line }
+    const declare = (name) => { const d = { fn }; fn.scopes[fn.scopes.length - 1].set(name, d); };
+    const use = (name) => {
+        for (let f = fn, path = []; f; path.push(f), f = f.parent) {
+            for (let i = f.scopes.length - 1; i >= 0; i--) {
+                const d = f.scopes[i].get(name);
+                if (d) { for (const p of path) p.up.add(d); return; }
+            }
+        }
+    };
+    const block = (body, before) => { fn.scopes.push(new Map()); if (before) before(); body.forEach(stat); fn.scopes.pop(); };
+    const func = (n, name) => {
+        fn = { scopes: [new Map()], up: new Set(), parent: fn, name, line: n.loc.start.line };
+        if (n.identifier && n.identifier.type === "MemberExpression" && n.identifier.indexer === ":") declare("self");
+        for (const p of n.parameters) if (p.type === "Identifier") declare(p.name);
+        n.body.forEach(stat);
+        out.push({ name: fn.name, line: fn.line, count: fn.up.size });
+        fn = fn.parent;
+    };
+    const fname = (id) => (!id ? "function" : id.type === "Identifier" ? id.name : fname(id.base) + id.indexer + id.identifier.name);
+    function expr(n) {
+        if (!n) return;
+        switch (n.type) {
+            case "Identifier": use(n.name); break;
+            case "MemberExpression": expr(n.base); break;
+            case "IndexExpression": expr(n.base); expr(n.index); break;
+            case "CallExpression": expr(n.base); n.arguments.forEach(expr); break;
+            case "StringCallExpression": expr(n.base); break;
+            case "TableCallExpression": expr(n.base); expr(n.arguments); break;
+            case "TableConstructorExpression": for (const f of n.fields) { if (f.type === "TableKey") expr(f.key); expr(f.value); } break;
+            case "BinaryExpression": case "LogicalExpression": expr(n.left); expr(n.right); break;
+            case "UnaryExpression": expr(n.argument); break;
+            case "FunctionDeclaration": func(n, "function"); break;
+        }
+    }
+    function stat(n) {
+        switch (n.type) {
+            case "LocalStatement": n.init.forEach(expr); n.variables.forEach((v) => declare(v.name)); break;
+            case "AssignmentStatement": n.init.forEach(expr); n.variables.forEach(expr); break;
+            case "CallStatement": expr(n.expression); break;
+            case "FunctionDeclaration":
+                if (n.isLocal) declare(n.identifier.name); else if (n.identifier) expr(n.identifier);
+                func(n, fname(n.identifier)); break;
+            case "ReturnStatement": n.arguments.forEach(expr); break;
+            case "DoStatement": block(n.body); break;
+            case "WhileStatement": expr(n.condition); block(n.body); break;
+            case "RepeatStatement": fn.scopes.push(new Map()); n.body.forEach(stat); expr(n.condition); fn.scopes.pop(); break;
+            case "IfStatement": for (const c of n.clauses) { expr(c.condition); block(c.body); } break;
+            case "ForNumericStatement": expr(n.start); expr(n.end); expr(n.step); block(n.body, () => declare(n.variable.name)); break;
+            case "ForGenericStatement": n.iterators.forEach(expr); block(n.body, () => n.variables.forEach((v) => declare(v.name))); break;
+        }
+    }
+    fn = { scopes: [new Map()], up: new Set(), parent: null, name: "main chunk", line: 1 };
+    ast.body.forEach(stat);
+    return out;
+}
 
 // Visits every node except field names (a.name, a:name(), { name = ... }), which are not variables.
 function walk(node, fn) {
@@ -93,6 +156,11 @@ function checkLua(file) {
             report(file, line, "unknown lowercase global '" + n.name + "'");
         }
     });
+    for (const f of upvalueCounts(ast)) {
+        const msg = f.name + " has " + f.count + " upvalues: WoW (Lua 5.1) refuses the whole file above " + MAX_UPVALUES;
+        if (f.count > MAX_UPVALUES) report(file, f.line, msg);
+        else if (f.count > WARN_UPVALUES) report(file, f.line, "warning: " + msg + " (use a table of locals)", warnings);
+    }
     return ast;
 }
 
@@ -324,5 +392,6 @@ if (!fs.existsSync(changelog)) {
 }
 
 for (const p of problems) console.log(p);
-console.log(count + " Lua files checked, " + problems.length + " problem(s).");
+for (const w of warnings) console.log(w);
+console.log(count + " Lua files checked, " + problems.length + " problem(s)." + (warnings.length ? " " + warnings.length + " warning(s)." : ""));
 process.exit(problems.length ? 1 : 0);

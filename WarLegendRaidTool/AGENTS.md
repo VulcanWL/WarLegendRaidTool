@@ -208,7 +208,8 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
    `bash tools/sync.sh` must show nothing skipped except `STATUS.md`; never tag with the game folder behind.
 4. Before saying the code is verified, and before every push: `node tools/check.js` (syntax Lua 5.1, BOM / CRLF, .toc,
    globals, names used above their `local` declaration; across the three addons: `W.X` never assigned, `/wl` commands
-   vs HELP / README, module keys vs `CATEGORIES`, addon prefixes sent vs received vs `lodPrefix`, `L()` without French).
+   vs HELP / README, module keys vs `CATEGORIES`, addon prefixes sent vs received vs `lodPrefix`, `L()` without French,
+   upvalues per function: WoW refuses a whole file with a function past 60, fengari / the smoke test does not).
    Read every line it prints. Never filter its output. No need to re-check those by hand. When Lua code changed, also
    `node tools/smoke.js` (simulated client, about 20 s; a new legacy API call may need a line in `tools/smoke/wow.lua`
    once you checked the function exists) and `node tools/wow-api.js check`; `--open-world` / `--bg` too when the change

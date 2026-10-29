@@ -95,12 +95,18 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
 
 ## Checks and watch (tools/, .github/: not shipped)
 - `tools/check.js` (offline, the project rules), `tools/.luacheckrc` (Luacheck: unused / lost values, `not x == y`,
-  shadowing; the warnings already looked at are listed per file, a new one fails the CI).
+  shadowing; the warnings already looked at are listed per file, a new one fails the CI). `check.js` also counts the
+  upvalues of each function as Lua 5.1 does (the locals of enclosing functions it uses, those its inner functions use
+  too): an error above 60 (WoW refuses the whole file; fengari takes 255, the smoke test never sees it), a warning above
+  50 (`Libs` not counted).
 - `tools/wow-api.js`: model of the game's API from Blizzard_APIDocumentationGenerated in Gethe/wow-ui-source, branch
   `forever` (cloned into `tools/.cache`, 50 MB). `check` lists the C_ functions / Enum / Constants the addon uses that
   the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
-  Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). Names already looked at are in
-  `tools/api-baseline.txt`; only new ones fail.
+  Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). `C_ form not tried first X (C_Y.X)`:
+  a global Blizzard's own loaded code no longer calls, with a documented replacement (`C_Y.X`, or the C_ function its
+  shim calls: `IsPlayerSpell` -> `C_SpellBook.IsSpellKnown`), called without trying the C_ form first (above it in the
+  same function, or as the fallback of an `if` testing `C_Y`): Forever loads no deprecation fallback, so likely nil there.
+  Names already looked at are in `tools/api-baseline.txt`; only new ones fail.
 - `tools/sync.sh` copies to the `_forever_` client only (the Classic beta is no longer used); `WLRT_GAME=<AddOns folder>` restricts it to one.
 - `tools/forever-report.js [--since DATE|all] [--all]` (read-only): what a game session left on disk - installed version vs the repo,
   our Lua errors from !BugGrabber (file:line, count) since the installed files, `auditLog` (refused, peaks, slowest work, CPU), `bgMessages`,
@@ -115,13 +121,25 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   lines of other players (whispers, Battle.net, group / guild / public chat, system, battleground, loot; junk and lines
   past 255 bytes; InviteTool, `!sr` and Summon off then on; the chat filters run on each line), pasted texts (profile,
   Myslot, Raid Groups preset, soft-res CSV: junk, huge, nested, NaN / inf, escape codes, separators, one long line, 1 / 16 /
-  256 KB), long texts, event floods. Verdicts: a chat line < 1 s, no chat line and no action but AGENTS.md's accepted
-  exceptions (keyword invite 1 per 30 s per sender, `!sr` answers 3 per 10 s); a paste < 1 s, refused or in the
-  confirmation with the saved data untouched (a preset / soft-res list: saved in a checked form); no escape code of
-  another player shown live: the hostile pieces carry a mark inside their codes and `M.Shown` (`wow.lua`) reads every
-  text shown (widget text, chat line, tooltip line, popup, print) for a live `|T`, `|A`, `|K`, `|H` other than an item
-  link or a line break of the pieces, with the line that showed it. Limits: values are never secret, frames draw nothing,
-  the server never answers: it proves the code runs, not that a feature works in game. The fake client follows FrameXML
+  256 KB, a valid export cut at 20 places), long texts, event floods. Verdicts: a chat line < 1 s, no chat line and no
+  action but AGENTS.md's accepted exceptions (keyword invite 1 per 30 s per sender, `!sr` answers 3 per 10 s); a paste
+  < 1 s, refused or in the confirmation with the saved data untouched (a preset / soft-res list: saved in a checked
+  form), stopped by a watchdog past 3e8 Lua instructions (`debug.sethook`: an endless loop fails its case instead of
+  hanging the run; the whole export must not be refused); no escape code of another player shown live: the hostile
+  pieces carry a mark inside their codes and `M.Shown` (`wow.lua`) reads every text shown (widget text, chat line,
+  tooltip line, popup, print) for a live `|T`, `|A`, `|K`, `|H` other than an item link or a line break of the pieces,
+  with the line that showed it. Secret values (`wow.lua`, end): in combat or an encounter, the functions / events the
+  Forever docs flag `SecretWhenCooldownsRestricted`, `SecretWhenAurasRestricted` or `SecretWhenInCombat`
+  (`tools/wow-api.js` puts their returns / payload and structures in the model) give secrets (not `NeverSecret` fields,
+  booleans, unit tokens): `issecretvalue` true, `type` the value's type, `W.Safe` nil, `tostring` / `tonumber` /
+  `string.format` / string and math functions give secrets (wrapped in JS: `SMOKE_WRAP`), comparing (`==` too),
+  arithmetic, concatenation (`table.concat` too), `#`, indexing or a table key raise a Lua error at the addon's line
+  (`smoke.js` adds `==` and table keys to fengari: one line compiled into its `lvm.js`, `ltable.luaH_get` wrapped), so
+  does a secret given to `SendAddonMessage` / `SendChatMessage` (the docs: NotAllowed / AllowedWhenUntainted, the addon
+  is tainted); a secret written in the saved variables is a problem; a self-test checks it all each run.
+  `M.spellCooldowns[id] = { start, duration }` models `C_Spell.GetSpellCooldown` (RaidCooldowns check: a cooldown cast
+  in combat is not answered ready). Limits: frames draw nothing, the server never answers, spells the game flags never
+  secret are secret here: it proves the code runs, not that a feature works in game. The fake client follows FrameXML
   where the addon depends on it: pools reuse their objects, the world map is a MapCanvas (no map before its first opening,
   pins from pools), a frame becomes protected when a secure frame is its child or is anchored to it. It follows Lua 5.1 /
   WoW where fengari differs: `unpack` / `strsplit` give 8000 results at most, `bit` returns unsigned 32-bit numbers, a hex

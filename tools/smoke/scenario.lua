@@ -7,6 +7,9 @@ M.report = report
 
 local function Phase(name) M.phase = name; report.phases[#report.phases + 1] = name end
 local function Count(list, phase) local n = 0; for _, e in ipairs(list) do if e.phase == phase then n = n + 1 end end return n end
+-- trust checks (security review, secret values...): name, passed, what was seen
+report.checks = {}
+local function Check(name, ok, detail) report.checks[#report.checks + 1] = { name = name, ok = ok and true or false, detail = detail } end
 
 -- login
 Phase("login")
@@ -84,29 +87,94 @@ M.Fire("READY_CHECK", "Smoketest", 30)
 M.Advance(2)
 M.Fire("READY_CHECK_CONFIRM", "raid2", true)
 M.Fire("READY_CHECK_FINISHED")
+
+-- the secret values of the fake client (tools/smoke/wow.lua) behave as the game's: what fails, by name
+local SHIELD_WALL = 871
+local function SecretSelfTest(inCombat)
+    local info = C_Spell.GetSpellCooldown(SHIELD_WALL)
+    local v, bad = info and info.startTime, {}
+    local function Want(what, ok) if not ok then bad[#bad + 1] = what end end
+    if not inCombat then Want("plain out of combat", v ~= nil and not issecretvalue(v)); return bad end
+    Want("issecretvalue", issecretvalue(v) == true)
+    Want("type", type(v) == "number")
+    Want("W.Safe", W.Safe(v) == nil)
+    Want("test for nil", pcall(function() return v ~= nil end))
+    for _, t in ipairs({ { "==", function() return v == 0 end }, { "<", function() return v < 1 end }, { "+", function() return v + 1 end },
+        { "..", function() return v .. "" end }, { "#", function() return #v end }, { "table key", function() local x = {}; x[v] = 1 end },
+        { "index", function() return v.x end }, { "table.concat", function() return table.concat({ v }) end } }) do
+        Want(t[1] .. " raises", not pcall(t[2]))
+    end
+    Want("tostring / string.format / math.floor give secrets", issecretvalue(tostring(v)) and issecretvalue(string.format("%d", v)) and issecretvalue(math.floor(v)))
+    return bad
+end
+-- RaidCooldowns (EllesmereUI review 28/10): Shield Wall cast in combat, then a group mate asks "Q". C_Spell.GetSpellCooldown
+-- is secret in combat: the "K" answer must not say the spell is ready ("shieldwall:0"). Asked again after the fight, it
+-- must list the spell with its end time, else the bench does not see the spell known and the check proves nothing. The
+-- spell functions answer "not known" in this client: Shield Wall is known for this fight only.
+local function CooldownAnswers(from) -- what the "K" answers sent since M.addon[from] say about Shield Wall (false: not listed)
+    local out = {}
+    for i = from + 1, #M.addon do
+        local a = M.addon[i]
+        if a.prefix == "WLRT_CD2" and tostring(a.msg):sub(1, 2) == "K^" then out[#out + 1] = tostring(a.msg):match("shieldwall:(%d+)") or false end
+    end
+    return out
+end
+local function AskCooldowns() M.Fire("CHAT_MSG_ADDON", "WLRT_CD2", "Q", "RAID", "Raider2-Forever", "Raider2-Forever", 0, 0, "", 0) end
+local knowsBefore = { IsPlayerSpell = rawget(_G, "IsPlayerSpell"), IsSpellKnown = rawget(_G, "IsSpellKnown"),
+    known = C_SpellBook and C_SpellBook.IsSpellKnown, inBook = C_SpellBook and C_SpellBook.IsSpellInSpellBook }
+local function Knows(id) return id == SHIELD_WALL end
+IsPlayerSpell, IsSpellKnown = Knows, Knows
+if C_SpellBook then C_SpellBook.IsSpellKnown, C_SpellBook.IsSpellInSpellBook = Knows, Knows end
+
 M.Fire("ENCOUNTER_START", 663, "Lucifron", 9, 10)
 -- PLAYER_REGEN_DISABLED comes just before the lockdown (secure frames can still change), _ENABLED just after it
 M.Fire("PLAYER_REGEN_DISABLED")
 M.combat = true
 Phase("combat")
+local selfTest = SecretSelfTest(true)
 for i = 1, 40 do
     M.Fire("UNIT_AURA", "raid" .. ((i % 10) + 1), { isFullUpdate = true })
     M.Fire("UNIT_HEALTH", "raid" .. ((i % 10) + 1))
 end
-M.Advance(10)
+-- auras that changed (secret in combat: SecretWhenAurasRestricted)
+for i = 1, 10 do
+    M.Fire("UNIT_AURA", i == 1 and "player" or "raid" .. i, { isFullUpdate = false, updatedAuraInstanceIDs = { 200 + i }, removedAuraInstanceIDs = { 300 + i },
+        addedAuras = { { auraInstanceID = 100 + i, spellId = 774, name = "Rejuvenation", icon = 136081, applications = 0, duration = 12,
+            expirationTime = M.now + 12, sourceUnit = "raid2", isHelpful = true, isHarmful = false, dispelName = "Magic" } } })
+end
+M.spellCooldowns[SHIELD_WALL] = { M.now, 300 }
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1-1-871-0000000001", SHIELD_WALL)
+M.Advance(6) -- the cooldown answers wait 5 s after the last one
+local inCombatFrom = #M.addon
+AskCooldowns()
+M.Advance(4)
+local inCombat = CooldownAnswers(inCombatFrom)
 M.Call(W.slash.rc or function() end, "")
 M.combat = false
 Phase("after combat")
 M.Fire("PLAYER_REGEN_ENABLED")
 M.Fire("ENCOUNTER_END", 663, "Lucifron", 9, 10, 1)
 M.Advance(5)
+for _, what in ipairs(SecretSelfTest(false)) do selfTest[#selfTest + 1] = what end
+Check("secret values of the bench behave as the game's in combat, plain after it", #selfTest == 0, table.concat(selfTest, ", "))
+local afterFrom = #M.addon
+AskCooldowns()
+M.Advance(4)
+local after = CooldownAnswers(afterFrom)
+local listed = false
+for _, v in ipairs(after) do if v and v ~= "0" then listed = true end end
+local said = {}
+for _, v in ipairs(inCombat) do said[#said + 1] = v and ("shieldwall:" .. v) or "not listed" end
+Check("RaidCooldowns: a cooldown hidden in combat (secret) is not answered as ready", listed and not tContains(inCombat, "0"),
+    listed and ("in combat: " .. (#said > 0 and table.concat(said, ", ") or "no answer")) or "after the fight: no answer listing shieldwall (the bench did not see it known)")
+M.spellCooldowns[SHIELD_WALL] = nil
+IsPlayerSpell, IsSpellKnown = knowsBefore.IsPlayerSpell, knowsBefore.IsSpellKnown
+if C_SpellBook then C_SpellBook.IsSpellKnown, C_SpellBook.IsSpellInSpellBook = knowsBefore.known, knowsBefore.inBook end
 AllTabs("raid window")
 report.raidCommands = Commands("raid commands")
 
 -- trust checks of the security review: a stranger is flagged on prompts, a burst of questions schedules one reply
 Phase("trust")
-report.checks = {}
-local function Check(name, ok, detail) report.checks[#report.checks + 1] = { name = name, ok = ok and true or false, detail = detail } end
 Check("guild member not flagged", W.Sender and not W.Sender("Guildie1-Forever"):find("|cff", 1, true))
 Check("stranger flagged as not in guild", W.Sender and W.Sender("Stranger-Other"):find("|cff", 1, true) ~= nil)
 M.Advance(10)
@@ -305,7 +373,7 @@ local function ClickCheck(label, on)
     local text = W.L(label)
     for _, f in ipairs(M.frames) do
         local l = rawget(f, "label")
-        if f.__type == "CheckButton" and type(l) == "table" and l.__text == text then
+        if f.__type == "CheckButton" and type(l) == "table" and rawequal(l.__text, text) then -- rawequal: a text may be secret
             if f:GetChecked() ~= on then f:SetChecked(on); M.Script(f, "OnClick", "LeftButton", true) end
             return true
         end
@@ -463,7 +531,8 @@ end
 -- is pasted in its box and imported by its button: it takes < 1 s and ends refused, or in the confirmation (profile,
 -- Myslot: never answered here) with the saved data untouched; a preset or a soft-res list (saved by the click itself)
 -- is saved in its checked form only (then removed). A growing case goes 1 KB, 16 KB, 256 KB while the last size took
--- < 40 ms (code quadratic at 256 KB would freeze the bench too).
+-- < 40 ms (code quadratic at 256 KB would freeze the bench too). A valid export is also cut at 20 places (a copy that
+-- lost its end), and a watchdog stops an import that never ends (Watched).
 Phase("paste")
 M.Call(W.Hide)
 local function Under(root, test)
@@ -476,11 +545,12 @@ local function Under(root, test)
 end
 local function Panel(key) for _, m in ipairs(W.modules) do if m.key == key then return m.panel end end end
 local function ButtonIn(root, text)
-    return root and Under(root, function(o) return o.__type == "Button" and o.__text == text and o.__scripts.OnClick ~= nil end)
+    return root and Under(root, function(o) return o.__type == "Button" and rawequal(o.__text, text) and o.__scripts.OnClick ~= nil end)
 end
 local function Click(b) M.Script(b, "OnClick", "LeftButton", false) end
 -- saved data as text (keys sorted), to see whether a paste changed it
 local function Dump(v, out, depth)
+    if M.IsSecret(v) then out[#out + 1] = "secret"; return end -- kept in combat by the addon (the glue reports it)
     if type(v) ~= "table" then out[#out + 1] = type(v) .. ":" .. tostring(v); return end
     if depth > 30 then out[#out + 1] = "{deep}"; return end
     local keys = {}
@@ -549,6 +619,48 @@ local function MyslotCrafted()
     if not ok then error(text, 0) end
     return text
 end
+-- valid exports, cut at 20 places below (a copy that lost its end): the addon's own profile export, a preset as
+-- RaidGroups writes it, a softres.it CSV (quoted fields, a comma in a note)
+local function ProfileExport()
+    local export = ButtonIn(Panel("Settings"), W.L("Export"))
+    local box = ProfileBox()
+    if not (export and box) then error("no Export button / text box", 0) end
+    box.__text = ""
+    local e0 = Errs()
+    Click(export)
+    if Errs() > e0 then error("Export raised " .. tostring(M.lastError), 0) end
+    return box.__text
+end
+local function PresetExport()
+    local players = {}
+    for i = 2, 10 do players[#players + 1] = { name = "Raider" .. i, class = CLASSES[(i % #CLASSES) + 1], group = 1 + i % 2, icon = i % 9, ma = i == 2 and 1 or 0 } end
+    players[#players + 1] = { name = "Jean Dupont", class = "PRIEST", group = 2, icon = 0, ma = 0 } -- a Forever name: first name and surname
+    return "WLRT1:" .. W.RaidGroups.Serialize("Raid night", { players = players })
+end
+local function SoftResExport()
+    return "Item,ItemId,From,Name,Class,Spec,Note,Plus,Date\n" ..
+        '"Band of Accuria",17063,Ragnaros,Raider2,Mage,Arcane,,0,"2026-10-28 20:01:02"\n' ..
+        '"Onslaught Girdle",19137,Ragnaros,Raider3,Warrior,Fury,"bis, please",1,"2026-10-28 20:02:10"\n' ..
+        '"Choker of the Fire Lord",18814,Ragnaros,Raider5,Mage,Fire,,0,"2026-10-28 20:03:44"\n' ..
+        '"Cloak of the Shrouded Mists",17102,Ragnaros,Jean Dupont,Priest,Holy,"",0,"2026-10-28 20:04:51"\n' ..
+        '"Perdition\'s Blade",18816,Ragnaros,Raider6,Rogue,Combat,,2,"2026-10-28 20:05:30"\n'
+end
+-- a parser that stops advancing (an endless loop) fails its case instead of hanging the run: past WATCH_LIMIT Lua
+-- instructions (some seconds here: a paste takes < 1 s), each count hook raises an error at the line it stopped (code
+-- inside a C function, a slow pattern, is not counted: the 1 s limit sees it)
+local WATCH_EVERY, WATCH_LIMIT = 10000, 3e8
+local function Watched(fn, ...)
+    local steps, done = 0, false
+    debug.sethook(function()
+        if done then return end
+        steps = steps + WATCH_EVERY
+        if steps > WATCH_LIMIT then error(string.format("watchdog: %d Lua instructions without returning", steps), 2) end
+    end, "", WATCH_EVERY)
+    fn(...)
+    done = true
+    debug.sethook()
+    return steps > WATCH_LIMIT
+end
 -- a preset / soft-res name as saved: no escape code, control character or separator of our strings, short
 local function BadName(n) return type(n) ~= "string" or n == "" or #n > 60 or n:find("[%c|;,:~]") ~= nil end
 local function Whole(v, a, b) return type(v) == "number" and v % 1 == 0 and v >= a and v <= b end
@@ -613,8 +725,10 @@ local IMPORTERS = {
         { "separators only", function(n) return HEADER .. string.rep("~^{}", math.floor(n / 4)) end, grow = true },
         { "one very long line", function(n) return HEADER .. "{smain~{sinviteTool~{skeyword~s" .. string.rep("a", n) .. "~}}}" end, grow = true },
         { "blanks", function(n) return HEADER .. "{smain~{sinviteTool~{skeyword~sa" .. string.rep(" ", n) .. "b~}}}" .. string.rep(" ", n) end, grow = true },
+        { "valid export cut", ProfileExport, cuts = true },
     } },
     { "Myslot", MyslotBox, saved = { "MyslotExports", "MyslotSettings" }, cases = {
+        { "valid export cut", MyslotCrafted, cuts = true },
         { "junk", function(n) return string.rep("A", n) end, grow = true },
         { "past the size limit", function() return string.rep("A", 600000) end },
         { "NaN / inf / 1e309", function() return "nan inf 1e309 -1e309 0x7fffffff" end },
@@ -631,6 +745,7 @@ local IMPORTERS = {
         { "commas in one player", function(n) return "P;" .. string.rep(",", n) end, grow = true },
         { "one very long line", function(n) return "P;a" .. string.rep("b", n) .. ",MAGE,1,0,0" end, grow = true },
         { "blanks", function(n) return "P;a" .. string.rep(" ", n) .. "b,MAGE,1,0,0" end, grow = true },
+        { "valid export cut", PresetExport, cuts = true },
     } },
     { "soft-res CSV", PopupBox("LootCouncil", "Import (softres.it CSV)"), before = SoftResBefore, after = SoftResAfter, cases = {
         { "junk", function(n) return string.rep("x", n) end, grow = true },
@@ -641,17 +756,32 @@ local IMPORTERS = {
         { "quotes", function(n) return '"' .. string.rep('""', math.floor(n / 2)) .. '",19019' end, grow = true },
         { "one very long line", function(n) return "Name,ItemID\n" .. string.rep("a", n) .. ",19019" end, grow = true },
         { "blanks", function(n) return "Name,ItemID\na" .. string.rep(" ", n) .. "b,19019" end, grow = true },
+        { "valid export cut", SoftResExport, cuts = true },
     } },
 }
 report.paste = {}
 local SIZES = { 1024, 16384, 262144 }
+-- a cut case: the export cut at 20 places, then whole (it must not be refused, else the cuts prove nothing)
+local function Cuts(case)
+    local ok, whole = pcall(case[2])
+    if not ok or type(whole) ~= "string" or #whole < 21 then return nil, "valid export not built: " .. tostring(whole) end
+    local texts = {}
+    for i = 1, 20 do texts[i] = whole:sub(1, math.floor(#whole * i / 21)) end
+    texts[21] = whole
+    return texts
+end
 for _, imp in ipairs(IMPORTERS) do
     for _, case in ipairs(imp.cases) do
         local r = { importer = imp[1], case = case[1], size = 0, ms = 0 }
         report.paste[#report.paste + 1] = r
         local fails = {}
-        for _, n in ipairs(case.grow and SIZES or { 0 }) do
-            local ok, text = pcall(case[2], n)
+        local inputs, err = SIZES, nil
+        M.phase = "paste " .. imp[1] .. ": " .. case[1]
+        if case.cuts then inputs, err = Cuts(case) elseif not case.grow then inputs = { 0 } end
+        if not inputs then r.fail, inputs = err, {} end
+        for _, n in ipairs(inputs) do
+            local ok, text = true, n
+            if not case.cuts then ok, text = pcall(case[2], n) end
             if not ok or type(text) ~= "string" then r.fail = "case not built: " .. tostring(text); break end
             if Confirming() then WLRTConfirm:Hide() end
             local box, button = imp[2]()
@@ -662,13 +792,14 @@ for _, imp in ipairs(IMPORTERS) do
             box.__text = text -- pasted by the player: not a text the addon shows
             M.phase = "paste " .. imp[1] .. ": " .. case[1]
             local t0 = os.clock()
-            Click(button)
+            local stuck = Watched(Click, button)
             local ms = (os.clock() - t0) * 1000
             r.size, r.ms = #text, ms
             local popup = rawget(_G, "WLRTTextPopup") -- left open with the reason when a preset / list is refused
             r.outcome = (Confirming() or (M.popups or 0) > popups) and "confirmation"
                 or (imp.after and not (popup and popup:IsShown()) and "imported") or "refused"
             local why = {}
+            if stuck then why[#why + 1] = "stopped by the watchdog (the import did not end)" end
             if Errs() > e0 then why[#why + 1] = "Lua error " .. tostring(M.lastError) end
             if ms >= 1000 then why[#why + 1] = string.format("%.0f ms", ms) end
             if #M.sensitive > sens then why[#why + 1] = "acted: " .. M.sensitive[#M.sensitive] end
@@ -676,8 +807,9 @@ for _, imp in ipairs(IMPORTERS) do
             if saved and Saved(imp.saved) ~= saved then why[#why + 1] = "saved data changed without an answer" end
             if imp.after then for _, b in ipairs(imp.after()) do why[#why + 1] = "saved " .. b end end
             if #why > 0 then fails[#fails + 1] = string.format("%d bytes: %s", #text, table.concat(why, "; ")) end
-            if ms > 40 then break end -- the next size could take minutes when this code grows faster than the text
+            if case.grow and ms > 40 then break end -- the next size could take minutes when this code grows faster than the text
         end
+        if case.cuts and #inputs > 0 and r.outcome == "refused" then fails[#fails + 1] = "the whole export was refused: its cuts prove nothing" end
         if #fails > 0 and not r.fail then r.fail = table.concat(fails, " | ") end
     end
 end

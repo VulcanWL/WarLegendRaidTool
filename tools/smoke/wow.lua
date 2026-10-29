@@ -5,6 +5,10 @@
 local API = ...
 local M = { errors = {}, chat = {}, addon = {}, prints = {}, blocked = {}, sensitive = {}, now = 1000, combat = false }
 SMOKE = M
+-- the addons get a type / tostring / tonumber that know the secret values (end of this file); this file's own code sees
+-- a secret as the table it is
+local type, tostring, tonumber = type, tostring, tonumber
+local IsSecret = function() return false end
 -- fengari has no garbage collector control (lua_gc): "count" answers a fixed size, the rest does nothing
 collectgarbage = function(opt) if opt == nil or opt == "count" then return 1024 end return 0 end
 
@@ -110,7 +114,6 @@ end
 function strsplittable(d, s, n) return { strsplit(d, s, n) } end
 function strlenutf8(s) local n = 0; for _ in tostring(s):gmatch("[^\128-\191]") do n = n + 1 end return n end
 function tostringall(...) local t = table.pack(...); for i = 1, t.n do t[i] = tostring(t[i]) end return table.unpack(t, 1, t.n) end
-function scrub(...) return ... end
 -- the game's bit library: 32-bit values, results unsigned (0 to 2^32 - 1). fengari's integers are signed 32-bit: a value
 -- goes in as one (2^31 and up as negative), the result comes back as a number of the game's range
 local function I(x)
@@ -154,11 +157,9 @@ function issecure() return false end
 function issecurevariable() return false, nil end
 function securecall(fn, ...) if type(fn) == "string" then fn = _G[fn] end return fn(...) end
 function securecallfunction(fn, ...) return fn(...) end
-function issecretvalue() return false end
+-- issecretvalue, canaccessvalue, hasanysecretvalues, scrub: with the secret values (end of this file)
 function issecrettable() return false end
-function canaccessvalue() return true end
 function canaccesstable() return true end
-function hasanysecretvalues() return false end
 function forceinsecure() end
 -- the hook runs after the original, its returns are dropped; the original must exist (the game raises an error)
 function hooksecurefunc(t, name, fn)
@@ -362,8 +363,9 @@ function Widget:RegisterAllEvents()
 end
 function Widget:SetAttribute(k, v) self.__attr[k] = v end
 function Widget:GetAttribute(k) return self.__attr[k] end
+-- a secret text is kept as it is (the game shows it): GetText gives it back, M.Shown skips it
 function Widget:SetText(t)
-    self.__text = t ~= nil and tostring(t) or nil
+    self.__text = IsSecret(t) and t or (t ~= nil and tostring(t) or nil)
     if M.mark then M.Shown(self.__text, self.__type, self.__type ~= "EditBox") end
 end
 function Widget:SetFormattedText(f, ...)
@@ -371,8 +373,8 @@ function Widget:SetFormattedText(f, ...)
     if M.mark then M.Shown(self.__text, self.__type, self.__type ~= "EditBox") end
 end
 function Widget:GetText() return self.__text end
-function Widget:GetStringWidth() return #(self.__text or "") * 6 end
-function Widget:GetUnboundedStringWidth() return #(self.__text or "") * 6 end
+function Widget:GetStringWidth() return #tostring(self.__text or "") * 6 end
+function Widget:GetUnboundedStringWidth() return #tostring(self.__text or "") * 6 end
 function Widget:GetStringHeight() return 12 end
 function Widget:GetNumLines() return 1 end
 function Widget:SetFont(f, s, fl) self.__font = { f, s, fl }; return true end
@@ -755,6 +757,15 @@ function ClearInspectPlayer() end
 function Ambiguate(name) return (tostring(name):gsub("%-.*$", "")) end
 function GetPlayerInfoByGUID() return nil end
 function GetAverageItemLevel() return 60, 60 end
+-- spell cooldowns the scenario starts: M.spellCooldowns[spellID] = { start (GetTime), duration } (secret in combat: end
+-- of this file); a secret argument is allowed, as the documentation says (SecretArguments = AllowedWhenTainted)
+M.spellCooldowns = {}
+C_Spell = C_Spell or {}
+C_Spell.GetSpellCooldown = function(id)
+    local cd = not IsSecret(id) and M.spellCooldowns[id]
+    if cd and M.now < cd[1] + cd[2] then return { startTime = cd[1], duration = cd[2], isEnabled = true, isActive = true, modRate = 1 } end
+    return { startTime = 0, duration = 0, isEnabled = true, isActive = false, modRate = 1 }
+end
 
 -- The open world, for tools/smoke/openworld.lua (M.SetupWorld before the addons load: HereBeDragons reads the maps
 -- then). Two continents, a few zones (a box on their continent); positions: M.world.player / a unit's map, x, y
@@ -1117,9 +1128,15 @@ end
 function M.PendingTimers() local n = 0; for _, t in ipairs(timers) do if not t.cancelled then n = n + 1 end end return n end
 
 -- an event to every frame that registered it (creation order). Fired by the scenario between two steps (M.frameStats
--- on), its cost goes to the next frame (M.frameCarry), as the game runs it in a frame
+-- on), its cost goes to the next frame (M.frameCarry), as the game runs it in a frame. ENCOUNTER_START / _END set
+-- M.encounter; the payload of an event the documentation flags secret is hidden while its predicate holds (end of file)
 local fireDepth = 0
+local HidePayload = function(_, ...) return ... end
 function M.Fire(event, ...)
+    if event == "ENCOUNTER_START" then M.encounter = true elseif event == "ENCOUNTER_END" then M.encounter = nil end
+    return M.Dispatch(event, HidePayload(event, ...))
+end
+function M.Dispatch(event, ...)
     local t0 = M.frameStats and not M.inStep and fireDepth == 0 and os.clock()
     fireDepth = fireDepth + 1
     local got = {} -- a frame registered for this event and for all events gets it once, as in the game
@@ -1383,6 +1400,149 @@ function GetNumPartyMembers() return 0 end
 function GetNumRaidMembers() return 0 end
 -- the deprecation shims (Blizzard_Deprecated*): off here, as the CVar allows; the chat one too (CVar loadDeprecationFallbacks = 0), so SendChatMessage does not exist, as the game can do
 SendChatMessage = nil
+
+---------------------------------------------------------------------------
+-- Secret values (Forever: SecretPredicatesDocumentation.lua). While one of the predicates below holds, what the
+-- documentation flags with it gives secret values: the returns of those functions (a structure filled with its fields
+-- first), the payload of those events; not the fields marked NeverSecret, booleans (a table is never false: they stay
+-- plain) or unit tokens. Like the game, the addon may keep a secret, pass it on (to a widget, tostring, tonumber,
+-- string.format, string / math functions: the result is secret too), test it for nil or with issecretvalue; comparing
+-- it (== too), arithmetic, concatenation (table.concat: fengari's "invalid value"), #, indexing it or using it as a table
+-- key raise an error at the addon's line. type() gives the type of the value, W.Safe nil, scrub drops it. tools/smoke.js
+-- adds == and table keys to fengari (no metamethod there). Not modelled: the spells the game flags never secret.
+---------------------------------------------------------------------------
+local ACTIVE = {
+    SecretWhenCooldownsRestricted = function() return M.combat or M.encounter end,
+    SecretWhenAurasRestricted = function() return M.combat or M.encounter end,
+    SecretWhenInCombat = function() return M.combat end,
+}
+M.secretsMade = {} -- what gave them: function / event -> count
+local SECRET, VALUE = {}, "\0value"
+SMOKE_SECRET(SECRET)
+IsSecret = function(v) return type(v) == "table" and getmetatable(v) == SECRET end
+M.IsSecret, M.rawtype = IsSecret, type
+local function Secret(v, from)
+    if type(v) ~= "number" and type(v) ~= "string" then return v end
+    if from then M.secretsMade[from] = (M.secretsMade[from] or 0) + 1 end
+    return setmetatable({ [VALUE] = v }, SECRET)
+end
+local function Reveal(v) if IsSecret(v) then return rawget(v, VALUE) end return v end
+local function Refuse(what) return function() error("attempt to " .. what .. " a secret value", 2) end end
+for _, k in ipairs({ "__add", "__sub", "__mul", "__div", "__mod", "__pow", "__unm", "__idiv", "__band", "__bor", "__bxor", "__shl", "__shr", "__bnot" }) do
+    SECRET[k] = Refuse("perform arithmetic on")
+end
+SECRET.__concat, SECRET.__len, SECRET.__call = Refuse("concatenate"), Refuse("get the length of"), Refuse("call")
+SECRET.__eq, SECRET.__lt, SECRET.__le = Refuse("compare"), Refuse("compare"), Refuse("compare")
+SECRET.__newindex, SECRET.__pairs = Refuse("index"), Refuse("iterate over")
+SECRET.__tostring = function() return "<secret>" end
+SECRET.__name = "secret value" -- fengari's argument errors: "(string expected, got secret value)"
+-- a secret string's methods: those of the string library that pass a secret on (below), the others refuse it
+SECRET.__index = function(s, k)
+    if type(rawget(s, VALUE)) == "string" and type(k) == "string" and string[k] then return string[k] end
+    error("attempt to index a secret value", 2)
+end
+local function AnySecret(...)
+    local n = select("#", ...)
+    if n == 0 then return false end
+    local a, b, c = ...
+    if IsSecret(a) or IsSecret(b) or IsSecret(c) then return true end
+    for i = 4, n do if IsSecret((select(i, ...))) then return true end end
+    return false
+end
+_G.issecretvalue = function(v) return IsSecret(v) end
+_G.canaccessvalue = function(v) return not IsSecret(v) end
+_G.hasanysecretvalues = AnySecret
+_G.scrub = function(...)
+    local a = table.pack(...)
+    for i = 1, a.n do if IsSecret(a[i]) then a[i] = nil end end
+    return table.unpack(a, 1, a.n)
+end
+-- SMOKE_WRAP (tools/smoke.js): f(...) at once, the second function only when an argument is a secret
+_G.type = SMOKE_WRAP(type, function(f, v) return f(rawget(v, VALUE)) end)
+-- functions of the game's Lua that take a secret and give secret results
+local function PassOn(f, ...)
+    local a = table.pack(...)
+    for i = 1, a.n do a[i] = Reveal(a[i]) end
+    local r = table.pack(f(table.unpack(a, 1, a.n)))
+    for i = 1, r.n do r[i] = Secret(r[i]) end
+    return table.unpack(r, 1, r.n)
+end
+local function Pass(f) return SMOKE_WRAP(f, PassOn) end
+for _, k in ipairs({ "format", "sub", "upper", "lower", "len", "rep", "reverse", "byte", "find", "match", "gsub" }) do string[k] = Pass(string[k]) end
+for _, k in ipairs({ "floor", "ceil", "abs", "max", "min", "fmod", "modf", "sqrt", "exp", "log", "mod" }) do if math[k] then math[k] = Pass(math[k]) end end
+_G.tostring, _G.tonumber = Pass(tostring), Pass(tonumber)
+format, strsub, strupper, strlower, strlen, strrep, strrev, strbyte, strfind, strmatch, gsub =
+    string.format, string.sub, string.upper, string.lower, string.len, string.rep, string.reverse, string.byte, string.find, string.match, string.gsub
+floor, ceil, abs, max, min, fmod, mod, sqrt = math.floor, math.ceil, math.abs, math.max, math.min, math.fmod, math.fmod, math.sqrt
+for _, k in ipairs({ "strsplit", "strtrim", "strjoin", "strconcat", "strlenutf8", "Ambiguate", "BreakUpLargeNumbers", "AbbreviateLargeNumbers", "AbbreviateNumbers" }) do
+    _G[k] = Pass(_G[k])
+end
+-- under the predicate: numbers and strings secret, a structure field by field (its NeverSecret ones plain), a list
+-- (InnerType) item by item, a table of no documented shape (AuraData) all through; copied, never the caller's table
+local ANY = {}
+local function Hide(v, f, from, depth)
+    if v == nil or f.never or f.unit or IsSecret(v) then return v end
+    if type(v) ~= "table" then return Secret(v, from) end
+    depth = (depth or 0) + 1
+    if depth > 10 then return v end
+    local out, fields = {}, f.struct and API.secretStructs[f.struct]
+    for k, x in pairs(v) do out[k] = x end
+    if fields then
+        for _, sub in ipairs(fields) do out[sub.name] = Hide(v[sub.name], sub, from, depth) end
+    else
+        local item = f.inner and API.secretStructs[f.inner] and { struct = f.inner } or ANY
+        for k, x in pairs(v) do out[k] = Hide(x, item, from, depth) end
+    end
+    return out
+end
+-- a structure the answer leaves empty gets its documented fields (typed neutral values): the same shape in combat
+local NEUTRAL = { n = 0, s = "", b = false }
+local function Fill(v, f)
+    local fields = f.struct and API.secretStructs[f.struct]
+    if type(v) ~= "table" or not fields or IsSecret(v) then return v end
+    for _, sub in ipairs(fields) do
+        if v[sub.name] == nil and not sub.nilable then
+            if sub.c == "t" then v[sub.name] = {} else v[sub.name] = NEUTRAL[sub.c] end
+        end
+    end
+    return v
+end
+-- a function / event: one of its predicates is modelled (ACTIVE), one of those holds now
+local function Holds(entry)
+    for _, p in ipairs(entry.flags) do if ACTIVE[p] and ACTIVE[p]() then return true end end
+    return false
+end
+local function Modelled(entry) for _, p in ipairs(entry.flags) do if ACTIVE[p] then return true end end end
+for name, entry in pairs(API.secret) do
+    local ns, key = name:match("^([%w_]+)%.([%w_]+)$")
+    local t = ns and rawget(_G, ns) or (not ns and _G) or nil
+    key = key or name
+    local orig = t and rawget(t, key)
+    if Modelled(entry) and type(orig) == "function" then
+        t[key] = function(...)
+            local r = table.pack(orig(...))
+            for i, f in ipairs(entry.values) do r[i] = Fill(r[i], f) end
+            if Holds(entry) then for i, f in ipairs(entry.values) do r[i] = Hide(r[i], f, name) end end
+            return table.unpack(r, 1, math.max(r.n, #entry.values))
+        end
+    end
+end
+HidePayload = function(event, ...)
+    local entry = API.secretEvents[event]
+    if not (entry and Modelled(entry) and Holds(entry)) then return ... end
+    local a = table.pack(...)
+    for i, f in ipairs(entry.values) do a[i] = Hide(a[i], f, event) end
+    return table.unpack(a, 1, a.n)
+end
+-- a secret never leaves in a message: SendAddonMessage refuses it (SecretArguments = NotAllowed), SendChatMessage
+-- takes it from Blizzard's code only (AllowedWhenUntainted; the addon is tainted)
+for _, k in ipairs({ "SendAddonMessage", "SendAddonMessageLogged", "SendChatMessage" }) do
+    local send = C_ChatInfo[k]
+    C_ChatInfo[k] = function(...)
+        if AnySecret(...) then error("bad argument to " .. k .. ": a secret value", 2) end
+        return send(...)
+    end
+end
 
 -- GlobalStrings (not in the UI source): unknown ALL_CAPS globals read as their own name, the rest is nil
 local NOT_STRINGS = { CUSTOM_CLASS_COLORS = true, HBD_PINS_WORLDMAP_SHOW_CONTINENT = true }

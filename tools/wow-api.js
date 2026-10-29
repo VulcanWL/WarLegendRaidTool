@@ -4,8 +4,11 @@
 // The UI source is the community mirror of the game's own interface files, Gethe/wow-ui-source, branch "forever"
 // (cloned once into tools/.cache/wow-ui-source, about 50 MB; WLRT_WUS=<folder> uses another checkout).
 // Its Blizzard_APIDocumentationGenerated folder is Blizzard's own description of every C_ function, Enum and
-// constant of the build. tools/smoke.js uses the same model to answer the addon's API calls with the right types.
+// constant of the build. tools/smoke.js uses the same model to answer the addon's API calls with the right types, and
+// to give secret values where the documentation says so.
 // "check" prints only what is new compared to tools/api-baseline.txt (names already looked at), exit code 1 if any.
+// It also lists "C_ form not tried first": a global Blizzard's own code no longer calls, whose replacement C_X.Name is
+// documented (Forever loads none of the deprecation fallbacks: likely nil there), called without trying the C_ form first.
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
@@ -149,43 +152,92 @@ function model(wus) {
         }
     }
     // enums first: constants may use them
-    const enums = {}, structs = new Set();
+    const enums = {}, structs = new Set(), fieldsOf = {}, secretKinds = new Set();
     const raw = systems.map((t) => value(t));
-    for (const s of raw) for (const t of (s && s.Tables) || []) {
-        if (t.Type === "Enumeration") { enums[t.Name] = {}; for (const fl of t.Fields || []) enums[t.Name][fl.Name] = fl.EnumValue; }
-        else if (t.Type === "Structure") structs.add(t.Name);
+    for (const s of raw) {
+        for (const t of (s && s.Tables) || []) {
+            if (t.Type === "Enumeration") { enums[t.Name] = {}; for (const fl of t.Fields || []) enums[t.Name][fl.Name] = fl.EnumValue; }
+            else if (t.Type === "Structure") structs.add(t.Name);
+        }
+        // SecretPredicatesDocumentation.lua: the predicates of type "Secret" (SecretWhenCooldownsRestricted...)
+        for (const p of (s && s.Predicates) || []) if (p.Type === "Secret") secretKinds.add(p.Name);
     }
-    const consts = {}, fn = {}, widget = {}, events = {};
+    // a return / payload / structure field for the secret values of the smoke test: its type as a spec character, the
+    // structure it is (or holds in a list), Nilable, NeverSecret, a unit token
+    const char = (t) => spec([{ Type: t }], enums, structs)[0];
+    const field = (r) => ({ name: r.Name, c: char(r.Type), struct: structs.has(r.Type) ? r.Type : undefined,
+        inner: r.InnerType ? (structs.has(r.InnerType) ? r.InnerType : char(r.InnerType)) : undefined, nilable: !!r.Nilable, never: !!r.NeverSecret,
+        unit: /^(UnitToken\w*|uiUnit)$/.test(r.Type) });
+    const flags = (o) => Object.keys(o).filter((k) => secretKinds.has(k) && o[k] === true);
+    const consts = {}, fn = {}, widget = {}, events = {}, secret = {}, secretEvents = {};
     systems.forEach((tbl, i) => {
         const s = value(tbl, enums);
         if (!s) return;
         for (const t of s.Tables || []) if (t.Type === "Constants") { consts[t.Name] = {}; for (const v of t.Values || []) consts[t.Name][v.Name] = v.Value; }
-        for (const e of s.Events || []) if (e.LiteralName) events[e.LiteralName] = (e.Payload || []).map((p) => p.Name);
+        for (const t of s.Tables || []) if (t.Type === "Structure") fieldsOf[t.Name] = (t.Fields || []).map(field);
+        for (const e of s.Events || []) if (e.LiteralName) {
+            events[e.LiteralName] = (e.Payload || []).map((p) => p.Name);
+            if (flags(e).length) secretEvents[e.LiteralName] = { flags: flags(e), values: (e.Payload || []).map(field) };
+        }
         for (const f of s.Functions || []) {
             const sp = spec(f.Returns, enums, structs);
-            if (s.Type === "ScriptObject") { if (!(f.Name in widget)) widget[f.Name] = sp; }
-            else fn[(s.Namespace ? s.Namespace + "." : "") + f.Name] = sp;
+            if (s.Type === "ScriptObject") { if (!(f.Name in widget)) widget[f.Name] = sp; continue; }
+            const name = (s.Namespace ? s.Namespace + "." : "") + f.Name;
+            fn[name] = sp;
+            if (flags(f).length && !f.ReturnsNeverSecret) secret[name] = { flags: flags(f), values: (f.Returns || []).map(field) };
         }
         void i;
     });
     // names the game's own Lua / XML defines (FrameXML): functions, tables, named frames, mixins; only the files
     // Forever loads (loadedFiles). Blizzard_Deprecated* apart: those shims load only while the CVar
     // loadDeprecationFallbacks is on.
-    const frameXML = new Set(), deprecated = new Set();
+    // A shim's body names Blizzard's replacement (IsPlayerSpell calls C_SpellBook.IsSpellKnown): kept in replacement.
+    // blizzCalls: global functions the rest of that code calls (the game has them, documented or not)
+    const frameXML = new Set(), deprecated = new Set(), replacement = {}, blizzCalls = new Set();
     for (const f of loadedFiles(wus)) {
         if (f.includes("Blizzard_APIDocumentation")) continue;
         const src = fs.readFileSync(f, "latin1");
         if (f.endsWith(".lua")) {
-            const into = /[\\/]Blizzard_Deprecated[^\\/]*[\\/]/.test(f) ? deprecated : frameXML;
+            const shim = /[\\/]Blizzard_Deprecated[^\\/]*[\\/]/.test(f);
+            const into = shim ? deprecated : frameXML;
             for (const x of src.matchAll(/^\s*function\s+([A-Za-z_]\w*)\s*\(/gm)) into.add(x[1]);
             for (const x of src.matchAll(/^\s*([A-Za-z_]\w*)\s*=[^=]/gm)) into.add(x[1]);
+            if (shim) shimReplacements(src, replacement);
+            else {
+                const code = src.replace(/--\[(=*)\[[\s\S]*?\]\1\]/g, "").replace(/--[^\n]*/g, "");
+                for (const x of code.matchAll(/(?:^|[^.:\w])([A-Z]\w*)\s*\(/gm)) blizzCalls.add(x[1]);
+            }
         } else {
             for (const x of src.matchAll(/\bname="([A-Za-z_]\w*)"/g)) frameXML.add(x[1]);
         }
     }
     let build = "?";
     try { build = git(["log", "-1", "--format=%s (%h, %cs)"], wus); } catch (e) { /* not a git checkout */ }
-    return { fn, widget, enums, consts, structs, events, frameXML, deprecated, build };
+    // only the structures the secret functions / events hold (the smoke test fills them)
+    const used = {};
+    const reach = (vals) => { for (const v of vals) for (const s of [v.struct, v.inner]) if (s && fieldsOf[s] && !used[s]) { used[s] = fieldsOf[s]; reach(fieldsOf[s]); } };
+    for (const x of [...Object.values(secret), ...Object.values(secretEvents)]) reach(x.values);
+    return { fn, widget, enums, consts, structs, events, frameXML, deprecated, replacement, blizzCalls, secret, secretEvents, secretStructs: used, build };
+}
+
+// Global functions of a Blizzard_Deprecated* file and the C_X.Y functions each one calls or is set to
+function shimReplacements(src, out) {
+    let ast;
+    try { ast = luaparse.parse(src, { luaVersion: "5.1", encodingMode: "pseudo-latin1" }); } catch (e) { return; }
+    const cCalls = (n, into) => {
+        if (!n || typeof n !== "object") return;
+        if (Array.isArray(n)) { n.forEach((c) => cCalls(c, into)); return; }
+        if (n.type === "MemberExpression" && n.base.type === "Identifier" && /^C_/.test(n.base.name)) into.add(n.base.name + "." + n.identifier.name);
+        for (const k in n) if (k !== "loc" && k !== "range") cCalls(n[k], into);
+    };
+    const add = (name, node) => { const s = out[name] || new Set(); cCalls(node, s); if (s.size) out[name] = s; };
+    (function v(n) {
+        if (!n || typeof n !== "object") return;
+        if (Array.isArray(n)) { n.forEach(v); return; }
+        if (n.type === "FunctionDeclaration" && !n.isLocal && n.identifier && n.identifier.type === "Identifier") add(n.identifier.name, n.body);
+        if (n.type === "AssignmentStatement") n.variables.forEach((t, i) => { if (t.type === "Identifier") add(t.name, n.init[i]); });
+        for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
+    })(ast);
 }
 
 // The model as a Lua file for the smoke test (tools/.cache/wow-api.lua)
@@ -200,6 +252,17 @@ function luaModel(m) {
     for (const k of Object.keys(m.enums).sort()) out.push("[" + q(k) + "]={" + Object.entries(m.enums[k]).map(([a, b]) => "[" + q(a) + "]=" + lit(b)).join(",") + "},");
     out.push("}, consts = {");
     for (const k of Object.keys(m.consts).sort()) out.push("[" + q(k) + "]={" + Object.entries(m.consts[k]).map(([a, b]) => "[" + q(a) + "]=" + lit(b)).join(",") + "},");
+    // secret values: the functions / events flagged with a Secret predicate, their returns / payload, the structures
+    // these hold ({ name, c = spec character, struct, inner, nilable, never = NeverSecret, unit = a unit token })
+    const fld = (v) => "{" + ["name=" + q(v.name), "c=" + q(v.c), v.struct && "struct=" + q(v.struct), v.inner && "inner=" + q(v.inner),
+        v.nilable && "nilable=true", v.never && "never=true", v.unit && "unit=true"].filter(Boolean).join(",") + "}";
+    const entry = (x) => "{flags={" + x.flags.map(q).join(",") + "},values={" + x.values.map(fld).join(",") + "}}";
+    out.push("}, secret = {");
+    for (const k of Object.keys(m.secret).sort()) out.push("[" + q(k) + "]=" + entry(m.secret[k]) + ",");
+    out.push("}, secretEvents = {");
+    for (const k of Object.keys(m.secretEvents).sort()) out.push("[" + q(k) + "]=" + entry(m.secretEvents[k]) + ",");
+    out.push("}, secretStructs = {");
+    for (const k of Object.keys(m.secretStructs).sort()) out.push("[" + q(k) + "]={" + m.secretStructs[k].map(fld).join(",") + "},");
     out.push("}, build = " + q(m.build) + " }");
     return out.join("\n") + "\n";
 }
@@ -238,11 +301,66 @@ function guarded(name, parents, line) {
     return false;
 }
 
+// Is the C_ form (forms: "C_X.Name") tried before node? Yes when the function around it (or the file) names C_X.Name
+// above it (anywhere: for a local alias, used below; a C_X.NameByID counts for Name), or when node is the fallback of
+// an "if" that tests a function of the same C_X: in a later branch of it, or below it in the same block.
+function triedFirst(forms, node, parents, anywhere) {
+    const scope = [...parents].reverse().find((p) => p.type === "FunctionDeclaration" || p.type === "Chunk");
+    if (!scope) return false;
+    const at = node.loc.start;
+    const wanted = forms.map((f) => f.split("."));
+    let hit = false;
+    (function v(n) {
+        if (hit || !n || typeof n !== "object") return;
+        if (Array.isArray(n)) { n.forEach(v); return; }
+        if (n.type === "MemberExpression" && n.base.type === "Identifier" && wanted.some(([ns, y]) => n.base.name === ns && n.identifier.name.startsWith(y))) {
+            const l = n.loc.start;
+            if (anywhere || l.line < at.line || (l.line === at.line && l.column < at.column)) { hit = true; return; }
+        }
+        for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
+    })(scope);
+    if (hit || anywhere) return hit;
+    const spaces = new Set(wanted.map(([ns]) => ns));
+    const tests = (cond) => { let t = false; (function v(n) {
+        if (t || !n || typeof n !== "object") return;
+        if (Array.isArray(n)) { n.forEach(v); return; }
+        if (n.type === "Identifier" && spaces.has(n.name)) { t = true; return; }
+        for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
+    })(cond); return t; };
+    for (let i = parents.length - 1; i >= 0; i--) {
+        const p = parents[i], child = parents[i + 1];
+        if (p.type === "IfStatement") {
+            const k = p.clauses.indexOf(child);
+            for (let j = 0; j < k; j++) if (tests(p.clauses[j].condition)) return true;
+        }
+        if (Array.isArray(p.body)) for (const s of p.body) {
+            if (s === child || s.loc.start.line >= at.line) break;
+            if (s.type === "IfStatement" && tests(s.clauses[0].condition)) return true;
+        }
+        if (p === scope) break;
+    }
+    return false;
+}
+
 // What the addon uses that the build does not document: C_X.Y, Enum.X, Constants.X, and direct calls of
 // globals that neither the documentation nor the game's Lua define (old C functions: they may exist, unverified)
 function check(m) {
     const found = new Map(); // "kind name" -> [where]
     const add = (k, where) => { if (!found.has(k)) found.set(k, []); found.get(k).push(where); };
+    // Forever loads none of Blizzard's deprecation fallbacks: an undocumented global that Blizzard's own code no longer
+    // calls and whose replacement is documented (C_X.Name, or the C_ function its Blizzard_Deprecated shim calls) is
+    // likely nil there. The code must try the C_ form first, above it in the same function ("C_X and C_X.Name(...) or
+    // Name(...)"; for a local alias anywhere in its scope), else it is listed
+    const cForms = {};
+    for (const k of Object.keys(m.fn)) {
+        const d = k.indexOf(".");
+        if (d > 0 && /^C_/.test(k)) (cForms[k.slice(d + 1)] = cForms[k.slice(d + 1)] || []).push(k);
+    }
+    const noFallback = (name, node, parents, where, alias) => {
+        if (m.blizzCalls.has(name)) return;
+        const forms = [...new Set([...(cForms[name] || []), ...[...(m.replacement[name] || [])].filter((k) => k in m.fn)])].sort();
+        if (forms.length && !triedFirst(forms, node, parents, alias)) add("C_ form not tried first " + name + " (" + forms.join(", ") + ")", where);
+    };
     const own = new Set(); // names the addon itself assigns at global scope
     const asts = [];
     for (const a of ADDONS) for (const f of luaFiles(path.join(REPO, a), [])) {
@@ -282,6 +400,7 @@ function check(m) {
                 if (/^[A-Z]/.test(name) && !(name in m.fn) && !m.frameXML.has(name) && !own.has(name)) {
                     const kind = m.deprecated.has(name) ? "deprecated shim" : "legacy";
                     add(kind + (guarded(name, parents, n.loc.start.line) ? " (guarded) " : " (no guard) ") + name, where);
+                    noFallback(name, n, parents, where);
                 }
             }
             // local X = X: the calls go through the local, the global is read once here
@@ -289,6 +408,7 @@ function check(m) {
                 const name = init && init.type === "Identifier" && init.isLocal === false && init.name;
                 if (name && /^[A-Z][a-z]/.test(name) && !(name in m.fn) && !m.frameXML.has(name) && !own.has(name)) {
                     add((m.deprecated.has(name) ? "deprecated shim" : "legacy") + " (local alias) " + name, where);
+                    noFallback(name, init, parents.concat([n]), where, true);
                 }
             });
             const next = parents.concat([n]);
