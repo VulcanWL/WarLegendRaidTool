@@ -6,6 +6,19 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- Annonces en liste (Raid Buffs, soft-res) : ton clic envoie 3 lignes, puis une confirmation envoie les 3 suivantes (plus
+  aucune ligne envoyée toute seule).
+- Groupes de raid : TOUT APPLIQUER déplace un joueur, puis « Déplacement suivant » demande ton clic pour chaque joueur
+  suivant (le jeu n'accepte ces déplacements que sur un clic).
+- Invitations en masse : quand le premier joueur rejoint, une question te demande de passer le groupe en raid.
+- Loot Council : la ligne « Butin : objet -> gagnant » part de ton clic d'attribution.
+- Qui a pull : pas d'annonce dans le canal raid sur WoW Forever (le jeu verrouille le chat au pull) ; le nom s'affiche
+  pour toi.
+- Petits automatismes : une quête partagée par un joueur attend ton clic (seules celles d'un PNJ sont acceptées).
+- Promotion automatique : « promu assistant » n'est dit que si le jeu l'a fait ; après 2 refus, un message te dit de le
+  faire à la main.
+
 ### Corrigé
 - Loot Council : une session de test laissée ouverte par un assistant ne bloque plus le maître du butin pendant 10 minutes ;
   le maître du butin (sinon le chef) remplace toujours une session ouverte, et un assistant ne peut plus retirer un raider

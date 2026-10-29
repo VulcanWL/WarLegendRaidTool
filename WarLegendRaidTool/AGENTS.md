@@ -37,7 +37,8 @@ this list; a line that fails it is a blocker, whatever the user asked (explain i
    and licence.
 3. **No harm to realms or other players** (Policy 3). Its examples: excessive use of the chat system, unnecessary
    loading from the hard disk, slow frame rates. So: public announces off by default or sent on click, automatic
-   whispers / replies rate-limited, nothing posted in public channels at login; addon messages through `W.Send`
+   whispers / replies opt-in, rate-limited and listed in the "Accepted exceptions" below (rule 7), nothing posted in
+   public channels at login; addon messages through `W.Send`
    (queue, throttle), bounded per sender, replies spread; `RequestRaidInfo`, inspect, guild-roster requests throttled;
    no heavy `OnUpdate` / scans (`smoke.js` cost, `W.Timed`); SavedVariables kept bounded.
 4. **No advertising** (Policy 4; EULA "Prohibited Commercial Uses" iv: no commercial advertisement, solicitation or
@@ -54,7 +55,10 @@ this list; a line that fails it is a blocker, whatever the user asked (explain i
    docs (build 1.60.1.70532, `tools/.cache/wow-ui-source`): `C_PartyInfo` ConvertToRaid / ConvertToParty /
    UninviteUnit / PromoteToAssistant / PromoteToLeader / DemoteAssistant / SetEveryoneIsAssistant / SetLootMethod /
    DoReadyCheck / DoCountdown; raid marks (SetRaidTarget, PlaceRaidMarker, ClearRaidMarker, RemoveRaidTargets);
-   `C_ChatInfo.SendChatMessage` / `PerformEmote`; `C_GuildInfo` RemoveFromGuild / SetNote / SetMOTD / SetInfoText /
+   `C_ChatInfo.SendChatMessage` (the client asks a click for SAY / YELL / CHANNEL outside an instance; group, raid and
+   whisper lines it lets through, but ours too go out only on a click, a list one confirmation click per 3 lines
+   (`W.AnnounceLines`); the automatic ones are rule 3 replies in the exceptions below) / `PerformEmote`;
+   `C_GuildInfo` RemoveFromGuild / SetNote / SetMOTD / SetInfoText /
    SetGuildRankOrder; `C_TradeInfo` money; `C_Macro.RunMacroText`; `C_ClickBindings`; `C_SettingsUtil.OpenSettingsPanel`;
    `C_Item.DeleteItem`. **Not restricted**: `InviteUnit` (invites queued after one click are standard) and addon
    messages. Old globals missing from the docs (`SetRaidSubgroup`, `SwapRaidSubgroup`, `GiveMasterLoot`, guild rank
@@ -85,8 +89,14 @@ suggested by the group; AutoPromote on roster events (`PromoteToAssistant` is `H
 refused outside a click, 5/11); Myslot's import steps run from timers after the confirm click; Focus putting back the
 key binding the player chose, out of combat; QualityOfLife junk selling and quests at the vendor / NPC the player
 opened; Loot Council putting owed items in the trade window on `TRADE_SHOW` (the master looter still clicks Accept);
-Summon's group line (one line, 3 s after the first request). Rule 10: SimExport and the Attendance / loot CSV are the
-player's own data, copied by hand from a text box, never sent anywhere.
+Summon's group line (one line, 3 s after the first request). Added 29/10 (user's yes, audit of 29/10 HIGH 6): the
+Loot Council `!sr` whisper reply (off by default, to the asker only, 3 per 10 s); QualityOfLife accepting group invites
+from friends / guild members (by GUID) and resurrections out of combat (both off by default, Shift skips). Rule 10:
+SimExport and the Attendance / loot CSV are the player's own data, copied by hand from a text box, never sent anywhere.
+**Moved into the click** (29/10, not exceptions): the Raid Groups mover (one move per click, then a "Next move"
+confirmation), the mass-invite conversion to raid (a confirmation when the first player joins), the Loot Council award
+line (said by the award click), announce lists (3 lines per click); WhoPulled never announces on Forever; shared quests
+are not auto-accepted.
 
 ## Load order and files
 `WarLegendRaidTool.toc` lists the files in load order: `Locale.lua`, `Core.lua`, `Lib.lua`, then one file
