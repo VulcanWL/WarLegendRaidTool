@@ -1,7 +1,8 @@
 name: WarLegend RaidTool checks
 
-# On every push, pull request and tag (or by hand): the checks of the PC (tools/check.js) plus Luacheck, the API used
-# against Blizzard's documentation of the current Forever build, and the smoke test in a simulated client.
+# On every push, pull request and tag (or by hand): the checks of the PC (tools/check.js, here with Lua 5.1's own
+# compiler) plus Luacheck, the API used against Blizzard's documentation of the current Forever build, and the smoke
+# test in a simulated client.
 # A failure puts a red cross on the commit and GitHub e-mails the person who pushed. It never changes the code.
 # A tag runs it from wlrt-release.yml (workflow_call): the release is published only when every check passed.
 
@@ -25,7 +26,12 @@ jobs:
       - name: Tools (luaparse, fengari)
         run: npm ci --prefix tools --no-audit --no-fund
 
-      - name: check.js (Lua 5.1 syntax, BOM / CRLF, .toc, globals, /wl vs HELP / README, prefixes, French texts)
+      # Lua 5.1's own compiler (Ubuntu's lua5.1 package: luac5.1): check.js compiles every file the .toc files load
+      # with it, as WoW does (one function past 60 upvalues or 200 locals and the game refuses the whole file)
+      - name: Lua 5.1 compiler (luac5.1)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends lua5.1
+
+      - name: check.js (Lua 5.1 syntax and compiler, BOM / CRLF, .toc, globals, /wl vs HELP / README, prefixes, French texts)
         run: node tools/check.js
 
       - name: Luacheck 1.2.0 (signed release binary, SHA-256 pinned)

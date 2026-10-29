@@ -7,8 +7,8 @@ zip holds only the three addon folders):
 @WarLegendRaidTool/STATUS.md
 
 Tools: `node tools/check.js` (checks, also the cross-file ones: W fields, `/wl` vs HELP / README, CATEGORIES,
-addon prefixes / lodPrefix, missing French, upvalues per function (Lua 5.1: 60 at most); `cd tools && npm install` once
-if `tools/node_modules` is missing),
+addon prefixes / lodPrefix, missing French, upvalues per function (Lua 5.1: 60 at most; the CI also compiles every loaded
+file with Lua 5.1's `luac5.1`); `cd tools && npm install` once if `tools/node_modules` is missing),
 `bash tools/sync.sh` (copy to the game folder), module detail in `docs/modules.md`.
 After a game session: `node tools/forever-report.js` (errors, audit log, installed version). `sync.sh` copies to
 `_forever_` only (the Classic beta is no longer used).

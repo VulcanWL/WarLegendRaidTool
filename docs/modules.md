@@ -98,7 +98,10 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   shadowing; the warnings already looked at are listed per file, a new one fails the CI). `check.js` also counts the
   upvalues of each function as Lua 5.1 does (the locals of enclosing functions it uses, those its inner functions use
   too): an error above 60 (WoW refuses the whole file; fengari takes 255, the smoke test never sees it), a warning above
-  50 (`Libs` not counted).
+  50 (`Libs` not counted). With Lua 5.1's own compiler (`luac5.1` on PATH or `LUAC=<path>`; the CI installs Ubuntu's
+  `lua5.1`, the PC has none), `check.js` also compiles every file the .toc files load, `Libs` included (136 today), as
+  WoW loads it (`luac5.1 -p`, a BOM dropped): every limit of 5.1, not only the upvalues. Missing in the CI (`CI` set) =
+  a problem; a luac of another Lua is refused.
 - `tools/wow-api.js`: model of the game's API from Blizzard_APIDocumentationGenerated in Gethe/wow-ui-source, branch
   `forever` (cloned into `tools/.cache`, 50 MB). `check` lists the C_ functions / Enum / Constants the addon uses that
   the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
@@ -175,7 +178,7 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   `--verbose` alone (everything).
 - `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
   addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
-- Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke, open world and battleground smoke), `wlrt-build-watch.yml` (hourly:
+- Workflows: `wlrt-ci.yml` (every push / PR: check.js with Lua 5.1's compiler, Luacheck, wow-api check, smoke, open world and battleground smoke), `wlrt-build-watch.yml` (hourly:
   new build or UI source commit = one issue, with the API check and smoke results for a UI commit), `wlrt-deps-watch.yml`
   (Mondays: one issue per new upstream value), `.github/dependabot.yml` (pull requests for the pinned actions and tools).
   Scheduled workflows run from `main` only.

@@ -7,9 +7,11 @@
 // Cross-file (three addons): W.X used but never assigned; W.slash.x <-> HELP (Core.lua) <-> README "Commandes";
 // W.RegisterModule keys <-> CATEGORIES; prefixes sent <-> received, raid addon prefixes <-> lodPrefix; L("...") without W.AddFR.
 // CHANGELOG.md (repo root): notes under "## <the .toc ## Version>" (the release workflow makes the release notes from them).
+// With Lua 5.1's own compiler (luac5.1 on PATH, or LUAC=<path>; the CI installs it): every file the .toc files load.
 "use strict";
 const fs = require("fs");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const luaparse = require("luaparse");
 
 const root = path.resolve(process.argv[2] || path.join(__dirname, ".."));
@@ -333,9 +335,34 @@ function crossChecks() {
     }
 }
 
+// Lua 5.1's own compiler, when there is one: each file the game loads (Libs too) compiled as WoW loads it, a UTF-8 BOM
+// dropped. It sees what luaparse and the count above do not: every limit of 5.1 (200 locals, 60 upvalues, nesting,
+// registers), long strings nested in long strings. A missing compiler is a problem in the CI only (CI set), where
+// lua5.1 is installed; a luac of another Lua is refused (5.3 takes 255 upvalues). Gives the number of files compiled.
+function compile51(files) {
+    const luac = process.env.LUAC || "luac5.1";
+    const v = spawnSync(luac, ["-v"], { encoding: "utf8" });
+    if (v.error) {
+        if (process.env.CI) problems.push("Lua 5.1 compiler not found (" + luac + "): install lua5.1 or set LUAC (" + v.error.code + ")");
+        return null;
+    }
+    const version = ((v.stdout || "") + (v.stderr || "")).trim();
+    if (!/^Lua 5\.1\b/.test(version)) { problems.push(luac + " is not Lua 5.1's compiler (" + (version.split("\n")[0] || "no version") + ")"); return 0; }
+    for (const f of files) {
+        let src = fs.readFileSync(f);
+        if (src[0] === 0xef && src[1] === 0xbb && src[2] === 0xbf) src = src.subarray(3);
+        const r = spawnSync(luac, ["-p", "-"], { input: src, encoding: "utf8" });
+        if (r.status === 0) continue;
+        const m = (r.stderr || "").match(/stdin:(\d+):\s*([\s\S]*)/);
+        report(f, m ? m[1] : 0, "Lua 5.1 compiler: " + (m ? m[2] : String(r.stderr || r.error || "failed")).trim());
+    }
+    return files.length;
+}
+
 let count = 0;
 const versions = new Set();
 const parsed = []; // { file, addon, ast } of every file that parsed, for the cross-file checks
+const loaded = new Set(); // every .lua file the .toc files load (Libs too), for Lua 5.1's compiler
 for (const addon of ADDONS) {
     const dir = path.join(root, addon);
     if (!fs.existsSync(dir)) { problems.push(addon + ": folder not found under " + root); continue; }
@@ -352,6 +379,7 @@ for (const addon of ADDONS) {
         const p = path.normalize(path.join(base, rel.replace(/\\/g, "/")));
         if (!fs.existsSync(p)) { report(from, line, "listed file not found: " + rel); return; }
         listed.add(p.toLowerCase());
+        if (/\.lua$/i.test(p)) loaded.add(p);
         if (p.endsWith(".xml")) {
             fs.readFileSync(p, "utf8").split("\n").forEach((l, i) => {
                 const m = l.match(/<(?:Script|Include)\s+file="([^"]+)"/i);
@@ -372,6 +400,7 @@ for (const addon of ADDONS) {
     }
 }
 if (parsed.length) crossChecks();
+const compiled = compile51([...loaded].sort());
 
 // The release notes are the lines of CHANGELOG.md under "## <version>" up to the next "## " (as the release workflow
 // reads them): the version of the .toc files needs at least one "- " line there, or the tag would make a release
@@ -393,5 +422,6 @@ if (!fs.existsSync(changelog)) {
 
 for (const p of problems) console.log(p);
 for (const w of warnings) console.log(w);
-console.log(count + " Lua files checked, " + problems.length + " problem(s)." + (warnings.length ? " " + warnings.length + " warning(s)." : ""));
+console.log(count + " Lua files checked, " + problems.length + " problem(s)." + (warnings.length ? " " + warnings.length + " warning(s)." : "") +
+    (compiled !== null ? " " + compiled + " loaded files compiled by Lua 5.1." : process.env.CI ? "" : " No Lua 5.1 compiler here (luac5.1): the CI compiles the files."));
 process.exit(problems.length ? 1 : 0);
