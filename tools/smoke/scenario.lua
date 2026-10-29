@@ -577,9 +577,9 @@ local function ProfileBox()
 end
 local MS = W.Space and W.Space("Myslot")
 local function MyslotBox()
-    local f = MS and MS.MainFrame
+    local f = Panel("Myslot")
     if not f then return nil end
-    return Under(f, function(o) return o.__type == "EditBox" and o.__parent and o.__parent.__type == "ScrollFrame" end), ButtonIn(f, MS.L["Import"])
+    return Under(f, function(o) return o.__type == "EditBox" and o.__parent and o.__parent.__type == "ScrollFrame" end), ButtonIn(f, W.L("Import"))
 end
 local function PopupBox(key, label) -- the text window (W.TextPopup) a button of the module opens
     return function()
@@ -592,32 +592,13 @@ local function PopupBox(key, label) -- the text window (W.TextPopup) a button of
         return f.box, f.ok
     end
 end
--- pairs as the game walks an array: 1, 2, 3... then the other keys (fengari walks a table constructor's array backwards:
--- Myslot's base64 encoder, a pairs over the bytes, wrote them reversed and the CRC32 refused its own export)
-local function OrderedPairs(t)
-    local n, i, k = #t, 0, nil
-    return function()
-        if i < n then i = i + 1; return i, t[i] end
-        while true do
-            local v
-            k, v = next(t, k)
-            if k == nil or math.type(k) ~= "integer" or k < 1 or k > n then return k, v end
-        end
-    end, t, nil
-end
--- a real Myslot export holding a macro whose name and lines carry escape codes, /gquit and Lua code (the action bar
--- functions it reads, missing from the Forever documentation, answer "empty slot" while it is made)
+-- a valid Myslot export (Myslot/Codec.lua) holding a macro whose name and lines carry escape codes, /gquit and Lua code,
+-- on an action slot, with a key binding that clicks a button
 local function MyslotCrafted()
-    local stubs = { pairs = OrderedPairs, GetActionInfo = function() end, GetNumMacros = function() return 1, 0 end, GetMacroInfo = function(i)
-        if i == 1 then return TEX .. MARK .. "|Hplayer:" .. MARK .. "|h[x]|h", "INV_Misc_QuestionMark", "/gquit\n/run print(1)\n" .. CODES end
-    end }
-    local kept = {}
-    for k, f in pairs(stubs) do kept[k] = rawget(_G, k); rawset(_G, k, f) end
-    local ok, text = pcall(MS.Export, MS, { ignoreMacros = {}, ignoreActionBars = {}, ignoreBinding = true, ignoreClickBindings = true,
-        ignoreCooldownManager = true, ignorePetActionBar = true })
-    for k in pairs(stubs) do rawset(_G, k, kept[k]) end
-    if not ok then error(text, 0) end
-    return text
+    local msg = { ver = 42, name = "Raider2", slot = { { id = 1, type = MS.SLOT.MACRO, index = 1 } },
+        macro = { { id = 1, name = TEX .. MARK .. "|Hplayer:" .. MARK .. "|h[x]|h", icon = "INV_MISC_QUESTIONMARK", body = "/gquit\n/run print(1)\n" .. CODES } },
+        bind = { { id = 0xFFFF, command = "CLICK " .. CODES .. ":LeftButton", key1 = { key = 1, mod = 0 } } } }
+    return MS.Armor(MS.Encode(msg), { "Myslot" }, "\n")
 end
 -- valid exports, cut at 20 places below (a copy that lost its end): the addon's own profile export, a preset as
 -- RaidGroups writes it, a softres.it CSV (quoted fields, a comma in a note)
@@ -727,7 +708,7 @@ local IMPORTERS = {
         { "blanks", function(n) return HEADER .. "{smain~{sinviteTool~{skeyword~sa" .. string.rep(" ", n) .. "b~}}}" .. string.rep(" ", n) end, grow = true },
         { "valid export cut", ProfileExport, cuts = true },
     } },
-    { "Myslot", MyslotBox, saved = { "MyslotExports", "MyslotSettings" }, cases = {
+    { "Myslot", MyslotBox, saved = { "WarLegendRaidToolDB" }, cases = {
         { "valid export cut", MyslotCrafted, cuts = true },
         { "junk", function(n) return string.rep("A", n) end, grow = true },
         { "past the size limit", function() return string.rep("A", 600000) end },
@@ -822,6 +803,15 @@ report.escapes = M.escapes
 report.reached = {}
 for at, n in pairs(M.reached) do report.reached[#report.reached + 1] = { at, n } end
 table.sort(report.reached, function(a, b) return a[1] < b[1] end)
+
+-- Myslot's text format (tools/smoke/myslot.lua): the same bytes as Myslot 6.2.1's exports, the import in the click only
+Phase("Myslot format")
+do
+    local chunk, err = load(SMOKE_READ(M.smokeDir .. "/myslot.lua"), "@tools/smoke/myslot.lua")
+    local ok
+    if chunk then ok, err = pcall(chunk, M, Check) end
+    if not ok then M.Error(err) end
+end
 
 -- cost: event floods in a raid, out of combat, window closed (fengari is slower than the game: compare, do not read as ms in game)
 Phase("perf")

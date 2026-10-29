@@ -13,6 +13,11 @@ Releases et les tags git.
   apprises sont repris.
 - DoesItDie lit les sorts en anglais et en français seulement ; les chemins de cadres à taper (onglet Avancé) sont
   retirés : cadres de Blizzard ou d'EllesmereUI.
+- Myslot devient un vrai module de l'addon : son onglet (Options > Petits automatismes > Myslot, en français) avec
+  Profil, Profils enregistrés, Parties et Supprimer, plus de fenêtre à part ni de bouton de minicarte. Même format
+  d'export : les textes de Myslot s'importent toujours, dans les deux sens. Tes exports et réglages sont repris.
+- Myslot : l'import se fait en entier dans le clic de la confirmation (plus de barre de progression), refusé en combat ;
+  les liens de partage dans le chat sont retirés (copier-coller seulement).
 
 ## 1.41.54 (29/10/2026)
 

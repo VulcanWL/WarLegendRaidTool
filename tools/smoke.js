@@ -133,6 +133,7 @@ function M.LoadAddOn(name)
     M.Fire("ADDON_LOADED", name)
     return true
 end
+M.smokeDir = scenarioPath:match("^(.*)[/\\\\]") -- the scenario loads its other files from there (myslot.lua)
 local report = load(SMOKE_READ(scenarioPath), "@tools/smoke/scenario.lua")(M, OPTS)
 
 -- written out as the game does: a secret value is not saved (counted, with where it was)

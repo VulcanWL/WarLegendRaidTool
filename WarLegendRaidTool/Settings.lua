@@ -355,7 +355,7 @@ for c in ("target targetexact tar tarexact cleartarget targetlasttarget targeten
     .. " assist focus clearfocus targetfocus cast use castsequence castrandom userandom stopcasting stopattack"
     .. " startattack stopmacro stopspelltarget petattack petfollow petpassive petdefensive petstay cancelaura"
     .. " cancelform dismount equip equipslot tm targetmarker"):gmatch("%S+") do MACRO_CMDS[c] = true end
-W.MACRO_CMDS = MACRO_CMDS -- also the allow list of the Myslot import warning (Myslot/gui.lua)
+W.MACRO_CMDS = MACRO_CMDS -- also the allow list of the Myslot import warning (Myslot/Myslot.lua ns.Risky)
 local function StripMacros(t, depth)
     if depth > 12 then return 0 end -- as deep as Read accepts: no macro line left unread
     local removed = 0

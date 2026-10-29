@@ -99,6 +99,35 @@ preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and Fren
 - Removed from the original: its own window and Blizzard settings page, the custom frame paths and the pick mode, the
   other 5 languages, the window language.
 
+## Myslot (a module made from a ported addon)
+`Myslot.lua` = the module (key `myslot`, Options > Small automations, `/wl myslot` and `/myslot`: `load name`, `clear
+action | macro | binding`); `Myslot/` = Myslot 6.2.1 by Boshi Lian (Apache-2.0, `LICENSE` kept) made into the module on
+29/10: `Codec.lua` (the text format), `keys.lua` (its binding / key / modifier numbers, unchanged), `Myslot.lua` (reading,
+`ns.Parse`, `ns.Risky`, `ns.Restore`, `ns.Clear`), `Tab.lua` (sub-tabs Profile, Saved profiles, Parts, Delete),
+`MySlot.proto` (the schema, not loaded). Shared through `W.Space("Myslot")`.
+- **The format never changes**: other Myslot users and the saved exports read it. "#" lines, then base64 of { 42, 86, 4,
+  22, CRC32 big endian, Charactor message }. `Codec.lua` writes the 6 messages by hand as lua-pb did: fields in tag order,
+  nil left out, repeated fields one by one, a varint past 2^32 cut to 32 bits, a negative one as 10 bytes, a message with
+  a required field missing not written (lua-pb's Serialize gave false) and not read, an unknown slot type read as missing
+  (so refused). Comments stripped with Myslot's own patterns. Checked by the bench phase "Myslot format" (below).
+- **In the click** (AGENTS.md rule 7): Export (it picks up and puts back a macro slot that shows a spell), the backup and
+  the import run in the click of Export / the confirmation's Yes, in one go (no coroutine or timer: the old import was
+  driven by `C_Timer`); refused in combat at the click and again at the Yes. The deletions (`ns.Clear`) only from a
+  `W.Confirm`.
+- **Untrusted text**: a paste of 500 KB at most (`ns.MAX_TEXT`), decoded with bounded reads (`pcall`); before the
+  question, `ns.Risky` lists every macro command off `W.MACRO_CMDS` (Settings.lua) and every chat line, and the key
+  bindings that click a button or run a macro (`W.Plain` on names and lines). Paste only: no addon message, nothing
+  received from other players.
+- **Saved**: `W.db.myslot`: options `allowClear`, `sort`, `myClass` (scalars, in profiles); data `exports` (100 at most,
+  { name, value, class }) and `backups` (3, { value, time }), checked at login. 1.37.0-1.41.54 saved in `MyslotExports` /
+  `MyslotSettings` (per character): migration 4 copies them, then they are set to nil; they stay in the .toc for that move
+  (drop them from `## SavedVariables` a version later). With the original addon loaded, its tables are given back and it
+  keeps `/myslot`.
+- Removed from the original: its window, minimap button (LibDBIcon / LibDataBroker), Blizzard settings page, chat-link
+  sharing (`share.lua`), lua-pb, locales, the retail parts (talent loadouts, Cooldown Manager, the pre-11.0 spellbook),
+  "Force import" (a bad checksum is refused), `/myslot trim`, "clear action bars before import" (the import empties the
+  chosen bars' other slots anyway).
+
 ## Test all and Cost
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test must
   end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.
@@ -171,8 +200,16 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   where the addon depends on it: pools reuse their objects, the world map is a MapCanvas (no map before its first opening,
   pins from pools), a frame becomes protected when a secure frame is its child or is anchored to it. It follows Lua 5.1 /
   WoW where fengari differs: `unpack` / `strsplit` give 8000 results at most, `bit` returns unsigned 32-bit numbers, a hex
-  literal past 32 bits is read as its number (fengari's integers have 32 bits); not modelled: `pairs` walks a table
-  constructor's array backwards in fengari (only the crafted Myslot export gets the game's order).
+  literal past 32 bits is read as its number (fengari's integers have 32 bits: an integer sum or product past 2^31 wraps,
+  write a float literal, `256.0`, where game numbers can grow that big); not modelled: `pairs` walks a table
+  constructor's array backwards in fengari.
+  Phase "Myslot format" (`tools/smoke/myslot.lua`, loaded from `M.smokeDir`): a model of the action bars, macros and key
+  bindings (`GetActionInfo`, `PickupAction` / `PlaceAction` swapping with the cursor, `CreateMacro`, `SetBinding`...);
+  Myslot 6.2.1's own exports of two setups (made by its lua-pb code before its removal, 29/10) must be read and written
+  back to the same bytes and come out of the module's Export of the same setups; 300 random messages of every field
+  round-trip; cut payloads and texts never raise an error; the tab's Import changes nothing before the confirmation's
+  Yes, nothing in combat, then puts the profile back (exported again: the same bytes) after saving a backup;
+  `/wl myslot clear macro` asks, then deletes in the Yes.
 - `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
   120 and a raid of 40 outside instances (`M.SetupWorld`: two continents, a few zones, positions for HereBeDragons).
   [1] enemy player frames of the danger alert (40 at most, clicks right after combat, nothing secure changed in combat),

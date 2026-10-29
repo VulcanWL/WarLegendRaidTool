@@ -1,3 +1,5 @@
+-- WarLegend RaidTool - Myslot: the numbers of the key binding commands, keys and modifiers in a Myslot export
+-- From Myslot 6.2.1 by Boshi Lian (Apache-2.0, see LICENSE), unchanged: an export stays readable by every Myslot.
 local _, MySlot = nil, WLRT.Space("Myslot")
 
 local MYSLOT_BINDS = {

@@ -1,51 +1,119 @@
 -- WarLegend RaidTool - Myslot
--- Tab of Myslot (files in the folder Myslot/: action bars, macros, key bindings and settings saved / restored as
--- text or as named exports, Myslot 6.2.1 by Boshi Lian, Apache-2.0). Open: /wl myslot or the Myslot tab.
--- Personal tool: it sends nothing through WLRT. The exports are in MyslotExports (the original addon's file name).
+-- Saves and restores the action bars, macros and key bindings as a text (to copy to another character or account) or as
+-- named profiles. Based on Myslot 6.2.1 by Boshi Lian (Apache-2.0), made into this module on 29/10: its files are in the
+-- folder Myslot/ (Codec.lua the text format, the same as Myslot's; keys.lua its key and binding lists; Myslot.lua
+-- reading and restoring; Tab.lua the tab). Personal tool: it sends nothing, a profile comes in only by a paste.
 local W = WLRT
 local L = W.L
+local ns = W.Space("Myslot")
+local db
 
 W.AddFR({
-    ["Myslot had an error while loading: see BugSack (/bugsack). If the original Myslot addon is also installed, disable it."] =
-        "Myslot a eu une erreur au chargement : voir BugSack (/bugsack). Si l'addon Myslot d'origine est aussi installé, désactive-le.",
-    ["Myslot: save and restore your action bars, macros, key bindings and settings as a text to copy or as named exports (also to move them to another character or account)."] =
-        "Myslot : sauvegarde et restaure tes barres d'action, macros, raccourcis et réglages sous forme d'un texte à copier ou d'exports nommés (aussi pour les passer à un autre personnage ou compte).",
-    ["Open Myslot"] = "Ouvrir Myslot",
-    ["Importing replaces your action bars and macros: it is refused in combat. Use the original addon's own confirmation."] =
-        "Importer remplace tes barres d'action et tes macros : refusé en combat. La confirmation d'origine de Myslot s'applique.",
-    ["If the original Myslot addon is installed, disable it: it uses the same saved file."] =
-        "Si l'addon Myslot d'origine est installé, désactive-le : il utilise le même fichier de données.",
-    -- said by the import confirmation of Myslot/gui.lua
-    ["Macros in this profile: %d."] = "Macros dans ce profil : %d.",
-    ["Macros with a command that is not targeting or casting (code, guild, chat...) (%d):"] =
-        "Macros avec une commande qui ne cible ni ne lance de sort (code, guilde, chat...) (%d) :",
-    ["Key bindings that click a button or run a macro (%d):"] =
-        "Raccourcis qui cliquent un bouton ou lancent une macro (%d) :",
-    ["Import only a profile you trust."] = "N'importe qu'un profil de confiance.",
-    -- said by /myslot load and /myslot clear (Myslot/gui.lua)
-    ["Myslot: the profile is in the window, click Import to apply it."] =
-        "Myslot : le profil est dans la fenêtre, clique sur Importer pour l'appliquer.",
-    ["Myslot: clear all your %s? There is no backup."] = "Myslot : effacer tous tes %s ? Il n'y a pas de sauvegarde.",
-    ["Myslot: paused until the end of the fight."] = "Myslot : en pause jusqu'à la fin du combat.",
+    ["Myslot: save and restore your action bars, macros and key bindings as a text, to copy to another character or account, or as named profiles. A profile pasted in the box is applied only by Import and its confirmation."] =
+        "Myslot : sauvegarde et restaure tes barres d'action, macros et raccourcis sous forme de texte, à copier vers un autre personnage ou compte, ou en profils nommés. Un profil collé dans la case n'est appliqué que par Importer et sa confirmation.",
+    ["Myslot is switched off in Settings > Modules."] = "Myslot est désactivé dans Réglages > Modules.",
+    ["Myslot: no profile named \"%s\" (Saved profiles)."] = "Myslot : aucun profil nommé « %s » (Profils enregistrés).",
+    ["Myslot: /wl myslot [load name | clear action | clear macro | clear binding]"] =
+        "Myslot : /wl myslot [load nom | clear action | clear macro | clear binding]",
 })
 
--- /wl myslot [load name | ...] : the arguments go to Myslot's own /myslot command
+-- The original addon, when enabled, loads before us (alphabetical order): it keeps its /myslot and its saved tables.
+local originalLoaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Myslot") or false
+-- its live saved tables, read before our saved variables replace the globals of the same name
+local originalExports = originalLoaded and MyslotExports or nil
+local originalSettings = originalLoaded and MyslotSettings or nil
+
+-- 1.37.0 to 1.41.54 kept the exports in MyslotExports and the settings in MyslotSettings (per character), the original
+-- addon's names (still listed in the .toc for this move): copied once into W.db.myslot, then no longer saved.
+W.Migration(4, "myslot", function(saved)
+    local t = type(saved.myslot) == "table" and saved.myslot or {}
+    saved.myslot = t
+    local old = MyslotExports
+    if type(old) == "table" then
+        t.exports, t.backups = {}, {}
+        for _, e in ipairs(type(old.exports) == "table" and old.exports or {}) do
+            if type(e) == "table" and type(e.value) == "string" then
+                t.exports[#t.exports + 1] = { name = tostring(e.name or "?"), value = e.value, class = type(e.class) == "string" and e.class or nil }
+            end
+        end
+        for _, b in ipairs(type(old.backups) == "table" and old.backups or {}) do
+            if type(b) == "table" and type(b.value) == "string" then t.backups[#t.backups + 1] = { value = b.value, time = tonumber(b.time) or 0 } end
+        end
+    end
+    local s = MyslotSettings
+    if type(s) == "table" then
+        if type(s.allowclearonimport) == "boolean" then t.allowClear = s.allowclearonimport end
+        if s.loadoutSort == "date" or s.loadoutSort == "name" or s.loadoutSort == "class" then t.sort = s.loadoutSort end
+        if type(s.loadoutFilterClass) == "boolean" then t.myClass = s.loadoutFilterClass end
+    end
+end)
+
+-- saved data checked once at login (a damaged file): strings only, names without escape codes, the list sizes bounded
+local function Sanitize(t)
+    local exports, backups = {}, {}
+    for _, e in ipairs(type(t.exports) == "table" and t.exports or {}) do
+        if type(e) == "table" and type(e.value) == "string" and #e.value <= ns.MAX_TEXT and #exports < 100 then
+            local name = W.CutUTF8(strtrim((tostring(e.name or "?"):gsub("[%c|]", " "))), 60)
+            exports[#exports + 1] = { name = name ~= "" and name or "?", value = e.value, class = type(e.class) == "string" and e.class:match("^%u+$") or nil }
+        end
+    end
+    for _, b in ipairs(type(t.backups) == "table" and t.backups or {}) do
+        if type(b) == "table" and type(b.value) == "string" and #b.value <= ns.MAX_TEXT then
+            backups[#backups + 1] = { value = b.value, time = tonumber(b.time) or 0 }
+        end
+    end
+    while #backups > 3 do table.remove(backups, 1) end
+    t.exports, t.backups = exports, backups
+end
+
+W.OnReady(function()
+    db = W.DB("myslot", { allowClear = false, sort = "date", myClass = false })
+    Sanitize(db)
+    ns.db = db
+    if originalLoaded then
+        MyslotExports, MyslotSettings = originalExports, originalSettings -- given back: the original addon saves them
+    else
+        MyslotExports, MyslotSettings = nil, nil -- moved into W.db.myslot (migration 4)
+    end
+end)
+
+-- /wl myslot: the tab; load <name>: that saved profile in the box (Import applies it, after its confirmation);
+-- clear action | macro | binding: asks, then deletes
 W.slash.myslot = function(rest)
-    if _G.SlashCmdList and _G.SlashCmdList.MYSLOT then _G.SlashCmdList.MYSLOT(rest or "")
-    else W.Print(L("Myslot had an error while loading: see BugSack (/bugsack). If the original Myslot addon is also installed, disable it.")) end
+    if W.IsOff("Myslot") then W.Print(L("Myslot is switched off in Settings > Modules.")); return end
+    local cmd, arg = strtrim(rest or ""):match("^(%S*)%s*(.-)$")
+    cmd = strlower(cmd or "")
+    if not db then return end
+    if cmd == "load" then
+        for _, e in ipairs(db.exports) do
+            if e.name == arg then
+                W.Toggle("Myslot")
+                ns.ShowText(e.value)
+                W.Print(L("Myslot: the profile is in the box of the Myslot tab, click Import to apply it."))
+                return
+            end
+        end
+        W.Print(L("Myslot: no profile named \"%s\" (Saved profiles)."):format(W.Plain(arg, 60)))
+    elseif cmd == "clear" then
+        if not ns.AskClear(strlower(arg or "")) then W.Print(L("Myslot: /wl myslot [load name | clear action | clear macro | clear binding]")) end
+    else
+        W.Toggle("Myslot")
+    end
+end
+
+-- /myslot, the original addon's command, unless that addon has it
+if not originalLoaded then
+    SLASH_MYSLOT1 = "/myslot"
+    SlashCmdList.MYSLOT = function(msg)
+        if not W.Allowed() then W.Denied(); return end
+        W.slash.myslot(msg)
+    end
 end
 
 W.RegisterModule("Myslot", "Myslot", function(p)
     W.Title(p, "Myslot")
-    local info = W.Label(p, L("Myslot: save and restore your action bars, macros, key bindings and settings as a text to copy or as named exports (also to move them to another character or account)."), "GameFontHighlightSmall")
-    info:SetPoint("TOPLEFT", 16, -40)
-    info:SetWidth(520)
-    info:SetJustifyH("LEFT")
-    W.Button(p, L("Open Myslot"), 140, 24, function() W.slash.myslot("") end):SetPoint("TOPLEFT", 16, -92)
-    local note = W.Label(p, L("Importing replaces your action bars and macros: it is refused in combat. Use the original addon's own confirmation.")
-        .. "\n" .. L("If the original Myslot addon is installed, disable it: it uses the same saved file."), "GameFontHighlightSmall")
-    note:SetPoint("TOPLEFT", 16, -130)
-    note:SetWidth(520)
-    note:SetJustifyH("LEFT")
-    note:SetTextColor(0.7, 0.7, 0.7)
+    local info = W.Label(p, L("Myslot: save and restore your action bars, macros and key bindings as a text, to copy to another character or account, or as named profiles. A profile pasted in the box is applied only by Import and its confirmation."), "GameFontHighlightSmall")
+    info:SetPoint("TOPLEFT", 16, -36)
+    info:SetWidth(790)
+    ns.BuildTab(p)
 end)

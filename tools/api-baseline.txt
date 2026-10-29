@@ -152,20 +152,12 @@ undocumented C_Console.GetAllCommands
 undocumented Constants.CharacterNameSeparatorConsts
 undocumented Enum.SendChatMessageResult
 
-# Myslot (WarLegendRaidTool/Myslot, 22/10/2026): bar / macro / binding functions of the base Classic API that Myslot calls as upstream;
-# the specialization ones do not exist on this client, its loops are empty on this client (GetNumSpecializations is nil).
-deprecated shim (guarded) FindBaseSpellByID
-legacy (guarded) GetSpecialization
-legacy (guarded) GetSpecializationInfo
-legacy (no guard) GetSpecializationInfo
-legacy (guarded) CreateMacro
+# Myslot (WarLegendRaidTool/Myslot, 22/10/2026; a module of the addon since 29/10, its retail and pre-11.0 spellbook parts
+# removed): bar / macro / binding functions of the base Classic API, as Myslot calls them (the export must not change).
+# GetFlyoutInfo / GetFlyoutSlotInfo: behind a flyout of the 11.0 spellbook (C_SpellBook), none on Forever's vanilla content.
 legacy (guarded) GetActionInfo
-legacy (guarded) GetNumMacros
-legacy (guarded) GetNumSpecializations
-legacy (guarded) GetPvpTalentInfoByID
-legacy (guarded) GetSpecializationInfoByID
+legacy (guarded) GetFlyoutInfo
 legacy (guarded) IsPetActive
-legacy (guarded) PickupAction
 legacy (guarded) PlaceAction
 legacy (no guard) DeleteMacro
 legacy (no guard) GetActionInfo
@@ -173,11 +165,7 @@ legacy (no guard) GetBinding
 legacy (no guard) GetCurrentBindingSet
 legacy (no guard) GetFlyoutSlotInfo
 legacy (no guard) GetNumBindings
-legacy (no guard) GetNumSpellTabs
 legacy (no guard) GetPetActionInfo
-legacy (no guard) GetProfessionInfo
-legacy (no guard) GetSpellBookItemInfo
-legacy (no guard) GetSpellTabInfo
 legacy (no guard) PickupAction
 legacy (no guard) PickupMacro
 legacy (no guard) PickupPetAction
@@ -203,13 +191,8 @@ hook on a missing function (guarded) LootFrame_UpdateButton
 # 29/10/2026, "C_ form not tried first" (a global Forever lacks, its C_ form not tried first). Fixed in the addon:
 # IsPlayerSpell / IsSpellKnown (RaidCooldowns, PvP Main / Dispel), IsEncounterInProgress (CombatTimer),
 # GetPOITextureCoords (CapTimers), GetNumSkillLines / GetSkillLineInfo (Guild). Accepted (never reached on Forever):
-# Myslot as upstream (FindBaseSpellByID: guarded fallback; specializations: loops over GetNumSpecializations, nil there;
-# GetSpellBookItemInfo: behind SPELLS_PER_PAGE / BOOKTYPE_PROFESSION, absent there; GetTalentInfo: behind
-# GetNumSpecGroups / MAX_TALENT_TIERS), Core.lua W.ClassicTalents (the old vanilla API, read only when C_Traits gives
-# nothing: W.OwnTalents / W.InspectTalents), PvP PlayerButton IsItemInRange (UpdateRangeViaItem is never called).
-C_ form not tried first FindBaseSpellByID (C_SpellBook.FindBaseSpellByID)
-C_ form not tried first GetSpecialization (C_SpecializationInfo.GetSpecialization)
-C_ form not tried first GetSpecializationInfo (C_SpecializationInfo.GetSpecializationInfo)
-C_ form not tried first GetSpellBookItemInfo (C_SpellBook.GetSpellBookItemInfo)
+# Core.lua W.ClassicTalents (the old vanilla API, read only when C_Traits gives nothing: W.OwnTalents /
+# W.InspectTalents), PvP PlayerButton IsItemInRange (UpdateRangeViaItem is never called). Myslot's (FindBaseSpellByID,
+# specializations, the old spellbook) left with its retail parts on 29/10.
 C_ form not tried first GetTalentInfo (C_Garrison.GetTalentInfo, C_SpecializationInfo.GetTalentInfo)
 C_ form not tried first IsItemInRange (C_Item.IsItemInRange)

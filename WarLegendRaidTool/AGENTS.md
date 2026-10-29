@@ -86,7 +86,7 @@ If a rule cannot be checked from the code alone (API behaviour on Forever), writ
 again, but a new one needs the user's yes): rules 7 / 8: InviteTool keyword and Battle.net whisper invites
 (`InviteUnit`, not restricted; once per 30 s per sender, auto-convert for guild members only) and accepting invites
 suggested by the group; AutoPromote on roster events (`PromoteToAssistant` is `HasRestrictions`: UNVERIFIED ToS, may be
-refused outside a click, 5/11); Myslot's import steps run from timers after the confirm click; Focus putting back the
+refused outside a click, 5/11); Focus putting back the
 key binding the player chose, out of combat; QualityOfLife junk selling and quests at the vendor / NPC the player
 opened; Loot Council putting owed items in the trade window on `TRADE_SHOW` (the master looter still clicks Accept);
 Summon's group line (one line, 3 s after the first request). Added 29/10 (user's yes, audit of 29/10 HIGH 6): the
@@ -95,7 +95,8 @@ from friends / guild members (by GUID) and resurrections out of combat (both off
 SimExport and the Attendance / loot CSV are the player's own data, copied by hand from a text box, never sent anywhere.
 **Moved into the click** (29/10, not exceptions): the Raid Groups mover (one move per click, then a "Next move"
 confirmation), the mass-invite conversion to raid (a confirmation when the first player joins), the Loot Council award
-line (said by the award click), announce lists (3 lines per click); WhoPulled never announces on Forever; shared quests
+line (said by the award click), announce lists (3 lines per click), the Myslot import (bars, macros, key bindings in
+the confirmation's Yes, in one go, no timer; recoded 29/10); WhoPulled never announces on Forever; shared quests
 are not auto-accepted.
 
 ## Load order and files
