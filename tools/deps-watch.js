@@ -14,10 +14,12 @@ const REPO = path.join(__dirname, "..");
 const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "watch.json"), "utf8"));
 const issues = process.argv.includes("--issues");
 const HEADERS = { "User-Agent": "WarLegendRaidTool-watch", Accept: "application/json" };
-if (process.env.GITHUB_TOKEN) HEADERS.Authorization = "Bearer " + process.env.GITHUB_TOKEN;
+// the workflow token goes to GitHub's API only (it went to every watched site, Blizzard's forum included)
+const GITHUB_HEADERS = process.env.GITHUB_TOKEN ? { ...HEADERS, Authorization: "Bearer " + process.env.GITHUB_TOKEN } : HEADERS;
 
 async function get(url, asJson) {
-    const res = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(20000) });
+    const headers = new URL(url).hostname === "api.github.com" ? GITHUB_HEADERS : HEADERS;
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
     return asJson ? res.json() : res.text();
 }
