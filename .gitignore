@@ -6,7 +6,10 @@
 !/WarLegendRaidTool_Dev/
 !/.gitignore
 !/.gitattributes
-# only our workflows and Dependabot: the rest of .github on disk belongs to EllesmereUI
+# GitHub landing page and the players' release notes (not in the release zip)
+!/README.md
+!/CHANGELOG.md
+# only our workflows, Dependabot and the landing page logo: the rest of .github on disk belongs to EllesmereUI
 !/.github/
 /.github/*
 !/.github/workflows/
@@ -16,6 +19,7 @@
 !/.github/workflows/wlrt-ci.yml
 !/.github/workflows/wlrt-deps-watch.yml
 !/.github/dependabot.yml
+!/.github/assets/
 /WarLegendRaidTool/*.rar
 /WarLegendRaidTool/*.zip
 *.bak

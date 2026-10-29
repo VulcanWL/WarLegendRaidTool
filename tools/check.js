@@ -6,6 +6,7 @@
 // global reads, and names used above the line where the same file declares them local (nil in game).
 // Cross-file (three addons): W.X used but never assigned; W.slash.x <-> HELP (Core.lua) <-> README "Commandes";
 // W.RegisterModule keys <-> CATEGORIES; prefixes sent <-> received, raid addon prefixes <-> lodPrefix; L("...") without W.AddFR.
+// CHANGELOG.md (repo root): notes under "## <the .toc ## Version>" (the release workflow makes the release notes from them).
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -303,6 +304,24 @@ for (const addon of ADDONS) {
     }
 }
 if (parsed.length) crossChecks();
+
+// The release notes are the lines of CHANGELOG.md under "## <version>" up to the next "## " (as the release workflow
+// reads them): the version of the .toc files needs at least one "- " line there, or the tag would make a release
+// without notes (or none at all). Another root (argv[2]) without the file is not checked.
+const changelog = path.join(root, "CHANGELOG.md");
+const tocVersion = [...versions][0];
+if (!fs.existsSync(changelog)) {
+    if (!process.argv[2]) problems.push("CHANGELOG.md: not found (the release notes come from it)");
+} else if (tocVersion) {
+    let inSection = false, notes = 0;
+    for (const l of fs.readFileSync(changelog, "utf8").split(/\r?\n/)) {
+        if (l.startsWith("## ")) {
+            if (inSection) break;
+            inSection = l.split(/\s+/)[1] === tocVersion;
+        } else if (inSection && l.startsWith("- ")) notes++;
+    }
+    if (!notes) problems.push("CHANGELOG.md: no notes under \"## " + tocVersion + "\", the ## Version of the .toc files (rename \"## Prochaine version\" at a release)");
+}
 
 for (const p of problems) console.log(p);
 console.log(count + " Lua files checked, " + problems.length + " problem(s).");

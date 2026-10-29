@@ -6,6 +6,7 @@ name: WarLegend RaidTool release
 # WowUp (github-addon-provider.ts): the _classic_beta_ client is "ClassicBeta" = flavor "forever". It takes the
 # asset named in release.json for that flavor, or else a zip whose name ends in "-forever.zip". The zip name is
 # the version WowUp compares, so it changes with every release.
+# The release notes are the "## <version>" section of CHANGELOG.md, above GitHub's compare link.
 
 on:
   push:
@@ -56,9 +57,18 @@ jobs:
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      # Notes for the players: the lines under "## <version>" up to the next "## " (check.js refuses a .toc version
+      # without that section, so this only fails if the check was skipped)
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '/^## / { if (found) exit; if ($2 == v) { found = 1; next } } found' CHANGELOG.md > notes.md
+          if ! grep -q '^- ' notes.md; then echo "::error::CHANGELOG.md has no notes under ## $VERSION"; exit 1; fi
+          cat notes.md
+
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           name: WarLegend RaidTool ${{ env.VERSION }}
+          body_path: notes.md
           files: |
             ${{ env.ZIP }}
             release.json

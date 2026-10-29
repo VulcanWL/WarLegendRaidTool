@@ -1,25 +1,36 @@
 # WaR LegenD RaidTool
 
-Addon WoW **Forever** (interface 16001) de la guilde **WaR LegenD** : groupes de raid, loot council (avec le
-nombre de loots reçus), buffs, ready check, checklist, inspection, suivi d'auras, CD de raid, préparation, présences,
-rerolls, outils de guilde (inactifs, métiers, recrutement, recrues en essai, stock des persos banque),
-export pour simulateurs (SimulationCraft, MythicSim, OXM), cadres PvP (dissipations façon Decursive, CC sur les cadres), alerte danger, alerte de contrôle (CC), texte de recharge, chrono de cimetière (style Capping),
-historique et records des premades de BG, liste de summon, layers de la guilde, classement JcJ de saison (Minotaure) et
-guilde par classe (responsables, rôles déclarés), repris de l'addon WarLegend v3 de Sashoof.
-Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la fenêtre trouve un réglage).
-La fenêtre a quatre onglets : **Raid** (Organisation, Préparation, Combat, Butin et présences : les outils d'une soirée,
-dans l'ordre), **JcJ** (Champs de bataille ; Monde ouvert : alerte danger, duels, layers), **Guilde** (Membres : guilde, classes,
-carte, Minotaure ; Mes personnages : rerolls, banque, export sim) et **Options** (Addon : réglages, version, bugs, temps de chargement ; Interface :
-cadres, options cachées, niveaux d'objet, carte ; Petits automatismes : qualité de vie, focus et contrôles, minuteurs (combat,
-texte de recharge), butin et améliorations (scintillements, améliorations dans les sacs), or et place dans les sacs (tri du butin,
-objectif d'or), Myslot), chacun avec toutes ses sections visibles sous de simples légendes. Les petits outils vont par deux sur une
-même page (aussi : Raid > Préparation « Appel et talents », Raid > Combat « Temps de mort et journal », JcJ « Minuteurs de champ de
-bataille ») ; chacun garde son interrupteur dans Options > Réglages > Modules. Les choix
-de valeurs s'ouvrent en menu déroulant. Options > Réglages : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la fenêtre et du texte (aussi : coin en bas à droite de la fenêtre à glisser), voix du
-décompte, doublons avec d'autres addons), **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à
-copier / coller). Langues : français / anglais (bouton de l'en-tête, comme le style). Styles : Auto, EllesmereUI, Blizzard,
-WaR LegenD, SashoofUI et les cinq styles **WL v3** de l'addon de Sashoof (panneaux ardoise, accent Cyan, Rouge, Or, Violet ou
-Monochrome, logo de la même couleur).
+Addon WoW **Forever** (interface 16001) de la guilde **WaR LegenD** : raid, butin, guilde et champs de bataille dans une
+seule fenêtre. Commande : `/wl` (`/wl help` affiche toutes les commandes ; la case « Rechercher une option... » en haut de la
+fenêtre trouve un réglage). Ce qui change à chaque version :
+[CHANGELOG.md](https://github.com/VulcanWL/WarLegendRaidTool/blob/main/CHANGELOG.md).
+
+La fenêtre a quatre onglets, chacun avec toutes ses sections visibles sous de simples légendes :
+
+- **Raid**, les outils d'une soirée dans l'ordre : Organisation (groupes de raid, invitations, promotion auto, liste de
+  summon, barre de marques), Préparation (ready check et talents, checklist, buffs, préparation des raiders, inspection),
+  Combat (CD de raid, suivi d'auras, qui a pull, temps de mort et journal), Butin et présences (loot council avec le nombre
+  de loots reçus, présences, tableau de bord, recrues en essai).
+- **JcJ** : Champs de bataille (cadres PvP avec dissipations façon Decursive et CC sur les cadres, chronos de capture et de
+  cimetière style Capping, historique et records des premades) ; Monde ouvert (alerte danger, duels, layers de la guilde).
+- **Guilde** : Membres (guilde : métiers, recrutement, inactifs ; guilde par classe avec responsables et rôles déclarés ;
+  carte de la guilde ; classement JcJ de saison Minotaure) ; Mes personnages (rerolls, stock des persos banque, export pour
+  simulateurs : SimulationCraft, MythicSim, OXM).
+- **Options** : Addon (réglages, version, bugs, temps de chargement) ; Interface (cadres, options cachées, niveaux d'objet,
+  carte) ; Petits automatismes (qualité de vie, focus et alerte de contrôle, minuteurs : combat et texte de recharge,
+  butin et améliorations : scintillements et améliorations dans les sacs, or et place dans les sacs : tri du butin et
+  objectif d'or, Myslot).
+
+Les petits outils vont par deux sur une même page (Raid > Préparation « Appel et talents », Raid > Combat « Temps de mort
+et journal », JcJ « Minuteurs de champ de bataille », et dans Petits automatismes) ; chacun garde son interrupteur dans
+Options > Réglages > Modules. Les choix de valeurs s'ouvrent en menu déroulant.
+
+- **Réglages** (Options > Réglages) : **Général** (bouton de minicarte, préchargement des modules de raid, taille de la
+  fenêtre et du texte, aussi par le coin en bas à droite de la fenêtre, voix du décompte, doublons avec d'autres addons),
+  **Modules** (éteindre ceux dont on ne se sert pas), **Profil** (configuration à copier / coller).
+- **Langues** : français / anglais (bouton de l'en-tête, comme le style).
+- **Styles** : Auto, EllesmereUI, Blizzard, WaR LegenD, SashoofUI et les cinq styles **WL v3** de l'addon de Sashoof
+  (panneaux ardoise, accent Cyan, Rouge, Or, Violet ou Monochrome, logo de la même couleur).
 
 > L'addon est ouvert à tous les joueurs (le réglage `W.GUILD_RESTRICTED` de `Core.lua` permet de le réserver à la guilde **War Legend**).
 > Droits réservés : utilisation libre, pas de redistribution modifiée sans accord.

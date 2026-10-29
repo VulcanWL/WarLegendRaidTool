@@ -117,11 +117,19 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - A new `/wl` sub-command goes in `W.slash` **and** in the `HELP` list of `Core.lua` (`/wl help`, with its French text)
   **and** in the "Commandes" table of `README.md`.
 - `README.md` is the user-facing doc (French): keep its feature list and command tables in sync with the code.
+- The repo root `README.md` is the GitHub landing page (French, short: logo `.github/assets/logo.png`, a table of the tabs
+  and sections, install, main commands; not in the zip). Update it when a tab / section of `CATEGORIES` or one of the
+  commands it lists changes.
+- The repo root `CHANGELOG.md` is for the players (French, not in the zip): each change a player notices adds one short
+  line under `## Prochaine version` (`### Ajouté` / `### Modifié` / `### Corrigé`). Its sections become the release notes.
 
 ## Releases
 - Releases are made by pushing a tag `v1.x.x` (GitHub workflow builds the zip that WowUp-CF installs). A push to `main`
   without a tag does not update the players. Guild members use WowUp-CF: **batch changes**, do not bump `## Version:`
   or propose a tag after every fix; release only when the user asks.
+- Release commit: with the `## Version:` bump, rename `## Prochaine version` of `CHANGELOG.md` to `## X.Y.Z (dd/mm/yyyy)`
+  and put a new empty `## Prochaine version` above it. `check.js` refuses a `## Version:` without notes in its section;
+  the release workflow copies that section into the GitHub release notes (above the compare link).
 - **Release gate (since 24/10)**: no tag before the first in-game session on Forever (planned 5 November) has run
   `/wl verify` and its results were read (`node tools/verify-live.js`, `--follow` while the game runs, `--saved` after a
   `/reload`) and every `LOOK` line was fixed or accepted by the user. Gated items: audit M1 (master loot candidates
