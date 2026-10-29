@@ -1052,7 +1052,8 @@ function MySlot:Export(opt)
 
     local s = ""
     s = "# --------------------" .. MYSLOT_LINE_SEP .. s
-    s = "# " .. L["Feedback"] .. "  farmer1992@gmail.com" .. MYSLOT_LINE_SEP .. s
+    -- WLRT: no author e-mail and no myslot.net line in the text players share (no outside address in game text);
+    -- the author and licence stay in this folder's LICENSE and the README credits
     s = "# " .. MYSLOT_LINE_SEP .. s
     s = "# " .. LEVEL .. ": " .. UnitLevel("player") .. MYSLOT_LINE_SEP .. s
     if talent then
@@ -1074,7 +1075,7 @@ function MySlot:Export(opt)
     end
 
     s = "# Wow Version: " .. GetBuildInfo() .. MYSLOT_LINE_SEP .. s
-    s = "# Myslot (https://myslot.net " .. L["<- share your profile here"]  ..")" .. MYSLOT_LINE_SEP .. s
+    s = "# Myslot" .. MYSLOT_LINE_SEP .. s
 
     local d = base64.enc(t)
     local LINE_LEN = 60
@@ -1153,7 +1154,12 @@ function MySlot:Import(text, opt)
     end
     ct = TableToString(ct)
 
-    local msg = _MySlot.Charactor():Parse(ct)
+    -- WLRT: a damaged or made-up text is refused, not a Lua error in the decoder
+    local ok, msg = pcall(function() return _MySlot.Charactor():Parse(ct) end)
+    if not ok or type(msg) ~= "table" then
+        MySlot:Print(L["Bad importing text [TEXT]"])
+        return
+    end
 
     if IsEmptyTable(msg.slot) and IsEmptyTable(msg.bind) and IsEmptyTable(msg.macro)
         and IsEmptyTable(msg.clickBinding)
@@ -2028,6 +2034,23 @@ function MySlot:RecoverData(msg, opt)
 
     if not opt.actionOpt.ignoreBinding then
 
+        -- WLRT: a key or command this client does not know (another game version, a made-up profile) is skipped: the
+        -- error it raised came after the key bindings were cleared, and they were all lost
+        local function Bind(k, command)
+            local mod, key = MySlot.R_MOD_KEYS[k.mod], MySlot.R_KEYS[k.key]
+            if key == "KEYCODE" then
+                key = k.keycode
+            end
+            if type(command) ~= "string" or type(mod) ~= "string" or type(key) ~= "string" then return end
+            key = (mod ~= "NONE" and (mod .. "-") or "") .. key
+            local bindingContext = 1
+
+            if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
+                 bindingContext = C_KeyBindings.GetBindingContextForAction(command)
+            end
+            SetBinding(key, command, bindingContext)
+        end
+
         local bindProcessed = 0
         for _, b in pairs(msg.bind or {}) do
             local command = b.command
@@ -2035,34 +2058,8 @@ function MySlot:RecoverData(msg, opt)
                 command = MySlot.R_BINDS[b.id]
             end
 
-            if b.key1 then
-                local mod, key = MySlot.R_MOD_KEYS[b.key1.mod], MySlot.R_KEYS[b.key1.key]
-                if key == "KEYCODE" then
-                    key = b.key1.keycode
-                end
-                key = (mod ~= "NONE" and (mod .. "-") or "") .. key
-                local bindingContext = 1
-
-                if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
-                     bindingContext = C_KeyBindings.GetBindingContextForAction(command)
-                end
-
-                SetBinding(key, command, bindingContext)
-            end
-
-            if b.key2 then
-                local mod, key = MySlot.R_MOD_KEYS[b.key2.mod], MySlot.R_KEYS[b.key2.key]
-                if key == "KEYCODE" then
-                    key = b.key2.keycode
-                end
-                key = (mod ~= "NONE" and (mod .. "-") or "") .. key
-                local bindingContext = 1
-
-                if C_KeyBindings and C_KeyBindings.GetBindingContextForAction then
-                     bindingContext = C_KeyBindings.GetBindingContextForAction(command)
-                end
-                SetBinding(key, command, bindingContext)
-            end
+            if b.key1 then pcall(Bind, b.key1, command) end
+            if b.key2 then pcall(Bind, b.key2, command) end
 
             bindProcessed = bindProcessed + 1
             if bindProcessed % 32 == 0 then

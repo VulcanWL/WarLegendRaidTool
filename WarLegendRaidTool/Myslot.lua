@@ -22,6 +22,10 @@ W.AddFR({
     ["Key bindings that click a button or run a macro (%d):"] =
         "Raccourcis qui cliquent un bouton ou lancent une macro (%d) :",
     ["Import only a profile you trust."] = "N'importe qu'un profil de confiance.",
+    -- said by /myslot load and /myslot clear (Myslot/gui.lua)
+    ["Myslot: the profile is in the window, click Import to apply it."] =
+        "Myslot : le profil est dans la fenêtre, clique sur Importer pour l'appliquer.",
+    ["Myslot: clear all your %s? There is no backup."] = "Myslot : effacer tous tes %s ? Il n'y a pas de sauvegarde.",
 })
 
 -- /wl myslot [load name | ...] : the arguments go to Myslot's own /myslot command

@@ -641,6 +641,8 @@ do
     b:SetText(L["Import"])
     b:SetScript("OnClick", function()
         local text = exportEditbox:GetText()
+        -- WLRT: a pasted text past 500 KB is no profile (it is decoded whole)
+        if #text > 500000 then MySlot:Print(L["Bad importing text [TEXT]"]); return end
         local msg = MySlot:Import(text, {
             force = forceImport,
         })
@@ -676,10 +678,13 @@ do
         MySlot:Print((RiskyText(msg, 1000)))
         local risk, flagged = RiskyText(msg, 5)
         text = text .. "\n\n" .. (flagged and RED_FONT_COLOR:WrapTextInColorCode(risk) or risk)
-        StaticPopupDialogs["MYSLOT_MSGBOX"].text = text
+        -- WLRT: the popup formats its text: a "%" of a macro name or line (listed above) made it fail, no popup at all
+        StaticPopupDialogs["MYSLOT_MSGBOX"].text = (text:gsub("%%", "%%%%"))
 
         StaticPopupDialogs["MYSLOT_MSGBOX"].OnAccept = function()
             StaticPopup_Hide("MYSLOT_MSGBOX")
+            -- WLRT: a fight may have started while the question was open: bars and macros cannot change then
+            if InCombatLockdown() then MySlot:Print(L["Import is not allowed when you are in combat"]); return end
 
             MySlot:Print(L["Starting backup..."])
             local backup = MySlot:Export(actionOpt)
@@ -710,6 +715,11 @@ do
             if clearOpt.ignoreClickBindings then
                 MySlot:Clear("CLICKBINDING")
             end
+            -- WLRT: the "clear before import" choices are for this import only (they stayed ticked, and the next
+            -- import cleared bars or macros nobody chose to clear); RecoverData does not read them
+            for k in pairs(clearOpt.ignoreActionBars or {}) do clearOpt.ignoreActionBars[k] = false end
+            for k in pairs(clearOpt.ignoreMacros or {}) do clearOpt.ignoreMacros[k] = false end
+            clearOpt.ignoreBinding, clearOpt.removeCooldownManager, clearOpt.ignoreClickBindings = false, nil, false
 
             ShowImportProgress()
             MySlot:RunAsync(function()
@@ -1634,6 +1644,12 @@ RegEvent("ADDON_LOADED", function()
             if not StaticPopup_Show("MYSLOT_REPLACE_TEXT", item.title) then
                 -- No popup slot free right now; try again shortly.
                 prompting = false
+                -- WLRT: 30 tries (30 s) at most, then the received profile is dropped: no retry for ever
+                item.tries = (item.tries or 0) + 1
+                if item.tries > 30 then
+                    MySlot:Print((L["Kept your text, discarded the received profile '%s'."]):format(item.title))
+                    return processIncoming()
+                end
                 table.insert(incoming, 1, item)
                 C_Timer.After(1, processIncoming)
             end
@@ -1701,19 +1717,11 @@ SlashCmdList["MYSLOT"] = function(msg, editbox)
         if profileString == "" then
             MySlot:Print(L["No profile found with name " .. what])
         else
-            local importMsg = MySlot:Import(profileString, { force = false })
-
-            if not importMsg then
-                return
-            end
-
-            local opt = {}
-            CreateSettingMenu(opt)
-
-            MySlot:RecoverData(importMsg, {
-                actionOpt = opt,
-                clearOpt = opt,
-            })
+            -- WLRT: never applied straight from a command (no question, no warning, no backup): the profile goes into
+            -- the window, and its Import button asks first, lists what it changes and makes a backup
+            f:Show()
+            exportEditbox:SetText(profileString)
+            MySlot:Print(WLRT.L("Myslot: the profile is in the window, click Import to apply it."))
         end
 
     elseif cmd == "clear" then
@@ -1736,14 +1744,13 @@ SlashCmdList["MYSLOT"] = function(msg, editbox)
             ["ACCOUNT"] = true,
             ["CHARACTOR"] = true,
         }
-        if what == "action" then
-            MySlot:Clear("ACTION", opt)
-        elseif what == "macro" then
-            MySlot:Clear("MACRO", opt)
-        elseif what == "binding" then
-            MySlot:Clear("BINDING", opt)
-        elseif what == "talents" then
-            MySlot:Clear("TALENTLOADOUT")
+        -- WLRT: asked first (it wiped every bar, macro or key binding at once), never in combat
+        local CLEAR = { action = "ACTION", macro = "MACRO", binding = "BINDING", talents = "TALENTLOADOUT" }
+        if CLEAR[what] then
+            WLRT.Confirm(string.format(WLRT.L("Myslot: clear all your %s? There is no backup."), what), function()
+                if InCombatLockdown() then MySlot:Print(L["Import is not allowed when you are in combat"]); return end
+                MySlot:Clear(CLEAR[what], what ~= "talents" and opt or nil)
+            end, WLRT.L("Clear"))
         else
             Settings.OpenToCategory(MySlot.settingcategory.ID)
         end

@@ -420,7 +420,25 @@ local outgoing = Share.NewSendQueue({
     end,
 })
 
+-- WLRT: 5 requests a minute per sender, answered or not: a stranger whispering requests in a loop must not make us
+-- whisper back in a loop
+local requests, requestKeys = {}, 0
+local function TooManyRequests(key)
+    local now, r = GetTime(), requests[key]
+    if not r or now - r[1] > 60 then
+        if not r then
+            requestKeys = requestKeys + 1
+            if requestKeys > 200 then wipe(requests); requestKeys = 1 end
+        end
+        r = { now, 0 }
+        requests[key] = r
+    end
+    r[2] = r[2] + 1
+    return r[2] > 5
+end
+
 local function HandleRequest(target, label, id, profile)
+    if TooManyRequests(TargetKey(target)) then return end
     local value = linked[profile]
     if not value then
         SendRaw(target, Share.EncodeError(id, "notfound"))
