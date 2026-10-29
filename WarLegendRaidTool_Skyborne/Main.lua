@@ -54,6 +54,9 @@ W.AddFR({
     ["/wl sk share debug - print the messages sent and received"] =
         "/wl sk share debug - affiche les messages envoyés et reçus",
     ["share debug %s"] = "debug du partage %s",
+    ["/wl sk share forget - forget the locations learned from other players"] =
+        "/wl sk share forget - oublie les positions apprises des autres joueurs",
+    ["Locations learned from other players forgotten."] = "Positions apprises des autres joueurs oubliées.",
 })
 
 local PIN = "WLRTSkyPinTemplate"
@@ -334,21 +337,69 @@ local function PruneShared()
     end
 end
 
--- Locations learned from other players' sightings: db.shared[dataKey][mapID] = { {x, y}, ... }.
+-- Locations learned from other players' sightings: db.shared[dataKey][mapID] = { {x, y, last heard}, ... }.
 -- Kept apart from db.found so "self-found only" stays self-found; not learned at all while it's on.
-function ns.LearnShared(mapID, x, y)
+-- WLRT: heard on a public channel, so learned only once 2 different players reported it (one stranger made a pin
+-- kept for good), forgotten when nobody reported it for 30 days, and /wl sk share forget clears them all.
+local SHARED_KEEP = 30 * 86400
+local candidates = {} -- this session: candidates[mapID] = { { x, y, by = { [sender] = true } }, ... }
+function ns.LearnShared(mapID, x, y, sender)
     if not db or db.selfOnly then return end
     local key = Faction().key
     local shared = db.shared[key]
-    if FindNear(WLRTSkyData[key][mapID], mapID, x, y) or FindNear(db.found[key][mapID], mapID, x, y)
-        or FindNear(shared[mapID], mapID, x, y) then return end
+    if FindNear(WLRTSkyData[key][mapID], mapID, x, y) or FindNear(db.found[key][mapID], mapID, x, y) then return end
+    local known = FindNear(shared[mapID], mapID, x, y)
+    if known then known[3] = GetServerTime(); return end
+    if sender then -- ours (no sender) is learned at once
+        local list = candidates[mapID] or {}
+        candidates[mapID] = list
+        local c = FindNear(list, mapID, x, y)
+        if not c then
+            if #list >= 100 then return end
+            c = { x, y, by = {} }
+            list[#list + 1] = c
+        end
+        c.by[sender] = true
+        local n = 0
+        for _ in pairs(c.by) do n = n + 1 end
+        if n < 2 then return end
+        for i, v in ipairs(list) do if v == c then table.remove(list, i); break end end
+    end
     shared[mapID] = shared[mapID] or {}
     -- heard on a public channel and saved for good: capped, a stranger cannot fill the map (or the saved file)
     if #shared[mapID] >= 100 then return end
     local total = 0 -- and in all: the number of maps is capped by nothing else
     for _, list in pairs(shared) do total = total + #list end
     if total >= 2000 then return end
-    table.insert(shared[mapID], { x, y })
+    table.insert(shared[mapID], { x, y, GetServerTime() })
+end
+
+-- WLRT: learned locations not reported for SHARED_KEEP are dropped (at login); an old one without a date gets today's
+local function ExpireShared()
+    local now = GetServerTime()
+    for _, maps in pairs(db.shared) do
+        for mapID, list in pairs(maps) do
+            for i = #list, 1, -1 do
+                local p = list[i]
+                if type(p) ~= "table" then
+                    table.remove(list, i)
+                elseif type(p[3]) ~= "number" then
+                    p[3] = now
+                elseif now - p[3] > SHARED_KEEP then
+                    table.remove(list, i)
+                end
+            end
+            if #list == 0 then maps[mapID] = nil end
+        end
+    end
+end
+
+function ns.ForgetShared()
+    if not db then return end
+    for k in pairs(db.shared) do db.shared[k] = {} end
+    wipe(candidates)
+    ns.Print(L("Locations learned from other players forgotten."))
+    if WorldMapFrame and WorldMapFrame:IsShown() and Provider then Provider:RefreshAllData() end
 end
 
 ---------------------------------------------------------------------------
@@ -581,6 +632,7 @@ function ns.Start()
         db.found[f.key] = db.found[f.key] or {}
         db.shared[f.key] = db.shared[f.key] or {}
     end
+    ExpireShared()
     if db.selfOnly == nil then db.selfOnly = false end
     if db.hideMinutes == nil then db.hideMinutes = MAX_MINUTES end
     if db.crowd == nil then db.crowd = true end -- WarLegend choice: sharing on by default (Skyborne characters only)

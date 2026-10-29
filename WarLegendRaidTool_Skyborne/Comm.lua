@@ -216,7 +216,8 @@ local function Refresh(p, mapID)
 end
 
 -- Maps holding sightings (or "not there"s): capped too, so strangers can't spread 200 entries over every zone map
-local MAX_MAPS = 100
+-- (WLRT: 40, the data knows about 17 zone maps a faction; 100 let a flood save 40,000 entries)
+local MAX_MAPS = 40
 local function Room(all, mapID)
     if all[mapID] then return true end
     local n = 0
@@ -225,10 +226,11 @@ local function Room(all, mapID)
 end
 
 -- A sighting. For a node and phase the newest report wins, sighting or "not there".
-local function Add(p, mapID, x, y, t, mine)
+-- sender: who reported it (nil for ours): a new location is learned once 2 players reported it (Main.lua)
+local function Add(p, mapID, x, y, t, mine, sender)
     mapID, x, y = Valid(mapID, x, y, t)
     if not mapID or not (mine or Room(reports, mapID)) then return end
-    ns.LearnShared(mapID, x, y) -- a location we don't have yet is kept, whatever the phase
+    ns.LearnShared(mapID, x, y, not mine and sender or nil) -- a location we don't have yet, whatever the phase
 
     local gi, g = Find(gone[mapID], p, mapID, x, y)
     if g then
@@ -403,12 +405,15 @@ end
 local function OnMessage(text, sender)
     local kind, v, fac, p, rest = strsplit(":", text, 5)
     Debug("<< %s: %s%s", sender, text, p and p == phase and " |cff00ff00<< your phase|r" or "")
-    if v ~= VERSION or fac ~= FactionTag() or not (p and p:match("^%d+$")) then return end
+    -- a phase is a zone uid: 20 digits at most (any number of digits made as many phases as a stranger wanted)
+    if v ~= VERSION or fac ~= FactionTag() or not (p and #p <= 20 and p:match("^%d+$")) then return end
 
     if (kind == "R" or kind == "XM") and rest then
         local mapID, x, y, t = strsplit(":", rest)
         mapID, x, y, t = Num(mapID), Num(x), Num(y), Num(t)
-        if mapID and x and y and t then (kind == "R" and Add or AddGone)(p, mapID, x / 10000, y / 10000, t) end
+        if mapID and x and y and t then
+            if kind == "R" then Add(p, mapID, x / 10000, y / 10000, t, false, sender) else AddGone(p, mapID, x / 10000, y / 10000, t) end
+        end
 
     elseif kind == "Q" then
         -- Whoever made a sighting for the phase answers first (1-3 s); the rest wait 4-12 s and then send only
@@ -436,8 +441,9 @@ local function OnMessage(text, sender)
             local mapID, x, y, t = strsplit(",", entry)
             mapID, x, y, t = Num(mapID), Num(x), Num(y), Num(t)
             if mapID and x and y and t then
-                (kind == "S" and Add or AddGone)(p, mapID, x / 10000, y / 10000, t)
-                if covered then
+                if kind == "S" then Add(p, mapID, x / 10000, y / 10000, t, false, sender) else AddGone(p, mapID, x / 10000, y / 10000, t) end
+                -- 100 entries covered at most: each of our entries is compared with all of them before answering
+                if covered and #covered < 300 then
                     local m, cx, cy = Valid(mapID, x / 10000, y / 10000, t)
                     if m then covered[#covered + 1], covered[#covered + 2], covered[#covered + 3] = m, cx, cy end
                 end
@@ -513,30 +519,16 @@ local function HideFromChat()
     end
 end
 
--- channel names shown in any chat window, lowercased
-local function ShownChannels()
-    local shown = {}
-    if not GetChatWindowChannels then return shown end
-    for i = 1, NUM_CHAT_WINDOWS or 10 do
-        local list = { GetChatWindowChannels(i) } -- name, zone for each channel
-        for j = 1, #list, 2 do
-            if type(list[j]) == "string" then shown[list[j]:lower()] = true end
-        end
-    end
-    return shown
-end
-
--- the numbers of the channels people chat in, lowest first: the game's own (General, Trade, Services...)
--- and custom ones shown in a chat window. A custom channel shown nowhere is an addon's, as ours is: we
--- never move one, so an addon doing the same as us can't swap back and forth with ours.
+-- the numbers of the game's own channels (General, Trade, Services...), lowest first. A custom channel is never
+-- moved: a player's own one keeps its number, and an addon doing the same as us can't swap back and forth with ours.
 local function ChatChannelNumbers()
     local out = {}
     if not (GetNumDisplayChannels and GetChannelDisplayInfo) then return out end
-    local shown = ShownChannels()
     for i = 1, GetNumDisplayChannels() or 0 do
-        local name, header, _, number, _, _, category = GetChannelDisplayInfo(i)
+        local _, header, _, number, _, _, category = GetChannelDisplayInfo(i)
+        -- WLRT: the game's own channels only (General, Trade...). A player's own channel is never renumbered: after a
+        -- /reload ours swapped with it, and the "/5 hello" typed for it went to our public channel
         local chat = category == "CHANNEL_CATEGORY_WORLD"
-            or (category == "CHANNEL_CATEGORY_CUSTOM" and type(name) == "string" and shown[name:lower()])
         if not header and type(number) == "number" and number > 0 and chat then
             out[#out + 1] = number
         end
@@ -606,6 +598,10 @@ function ns.SetCrowdEnabled(on)
 end
 
 function ns.ShareCommand(arg)
+    if arg == "forget" then -- WLRT: the locations learned from other players, all forgotten (both factions)
+        ns.ForgetShared()
+        return
+    end
     if arg == "debug" then
         debug = not debug
         ns.GetDB().shareDebug = debug
@@ -624,6 +620,7 @@ function ns.ShareCommand(arg)
         Enabled() and L("on") or L("off"), tostring(ChannelIndex() or L("not joined")), tostring(phase or L("unknown")),
         tentativeNpc and L(" (tentative)") or "", count, here, #queue)
     ns.Print(L("/wl sk share debug - print the messages sent and received"))
+    ns.Print(L("/wl sk share forget - forget the locations learned from other players"))
 end
 
 ---------------------------------------------------------------------------
@@ -710,6 +707,8 @@ events:SetScript("OnEvent", function(_, event, ...)
         local prefix, text, _, sender = ...
         prefix, text, sender = Clean(prefix), Clean(text), Clean(sender)
         if prefix ~= PREFIX or type(text) ~= "string" or type(sender) ~= "string" or not Enabled() then return end
+        -- WLRT: nothing read in an instance or a fight (strangers' traffic, parsed and compared there for nothing)
+        if inInstance or InCombatLockdown() then return end
         sender = Ambiguate(sender, "none")
         if not me[sender] and TooMany(sender) then return end
         -- the server echoes our own back
