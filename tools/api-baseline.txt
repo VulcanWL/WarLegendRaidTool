@@ -39,7 +39,6 @@ legacy (guarded) GetBattlefieldTimeWaited
 legacy (guarded) GetBattlefieldWinner
 legacy (guarded) GetChannelDisplayInfo
 legacy (guarded) GetChannelName
-legacy (guarded) GetChatWindowChannels
 legacy (guarded) GetCoinTextureString
 legacy (guarded) GetContainerItemInfo
 legacy (guarded) GetFactionInfoByID
