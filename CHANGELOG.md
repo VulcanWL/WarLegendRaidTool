@@ -10,6 +10,19 @@ Releases et les tags git.
 - Groupes de raid : un preset collé ou partagé abîmé (des milliers de virgules, un nom de joueur immense) ne fait plus d'erreur
   Lua, et un tel nom n'est plus enregistré.
 - Groupes de raid et soft-res : coller un texte plein d'espaces ne fige plus le jeu.
+- Temps de recharge du raid : en combat, une réponse ne dit plus « prêt » pour un sort encore en recharge (le jeu cache ces
+  temps pendant un combat).
+- Réparation par la banque de guilde : quand la guilde ne couvre pas tout, elle paie sa part et toi le reste (avant : tu payais
+  tout, ou rien n'était réparé).
+- Montants en or affichés avec les pièces (tri du butin, objectif d'or, réparation).
+- Carte : Ctrl + clic laisse le jeu poser et retirer son repère (l'option de WarLegend remettait aussitôt un repère retiré).
+- Avec EllesmereUI : la vente de camelote et la réparation de WarLegend ne s'éteignent plus quand le module Qualité de vie
+  d'EllesmereUI est désactivé.
+
+### Modifié
+- Avec EllesmereUI : butin rapide, mot de suppression, coordonnées de la carte et déplacement des fenêtres ne sont plus faits
+  en double quand EllesmereUI les fait.
+- Déplacer les fenêtres : aussi talents et grimoire, écurie, Héritage et la fenêtre sociale de WoW Forever.
 
 ## 1.41.51 (28/10/2026)
 

@@ -22,11 +22,13 @@ local function Naowh(key)
     end
 end
 
--- EllesmereUI: plain keys of its saved table (a missing key means "on" for sell junk / repair)
+-- EllesmereUI: plain keys of its saved table (a missing key means "on" for sell junk / repair). The table belongs to
+-- its main addon, but these features are done by its Quality of Life addon: nothing is covered while that one is off.
 local function EUI(test)
     return function()
         local db = _G.EllesmereUIDB
         if type(db) ~= "table" then return false end
+        if not (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("EllesmereUIQoL")) then return false end
         local ok, on = pcall(test, db)
         return ok and on == true
     end
@@ -45,7 +47,8 @@ end
 -- WarLegend feature -> { addon name, test }, first match wins
 local PROVIDERS = {
     combatTimer = { { "Naowh Forever", Naowh("combatTimer") } },
-    fastLoot = { { "Naowh Forever", Naowh("fastLoot") } },
+    fastLoot = { { "Naowh Forever", Naowh("fastLoot") },
+        { "EllesmereUI", EUI(function(d) return d.quickLoot and true or false end) } },
     sellJunk = { { "Naowh Forever", Naowh("sellJunk") },
         { "EllesmereUI", EUI(function(d) return d.autoSellJunk ~= false end) } },
     autoRepair = { { "Naowh Forever", Naowh("autoRepair") },
@@ -54,7 +57,11 @@ local PROVIDERS = {
         { "EllesmereUI", EUI(function(d) return d.skipCinematics == true end) } },
     questAccept = { { "Naowh Forever", Naowh("questAccept") } },
     questTurnIn = { { "Naowh Forever", Naowh("questTurnIn") } },
-    deleteConfirm = { { "Naowh Forever", Naowh("deleteConfirm") } },
+    deleteConfirm = { { "Naowh Forever", Naowh("deleteConfirm") },
+        { "EllesmereUI", EUI(function(d) return d.autoFillDelete and true or false end) } },
+    -- off by default there (opt-in switches of its Quality of Life addon)
+    mapCoords = { { "EllesmereUI", EUI(function(d) return d.mapCoords and true or false end) } },
+    moveFrames = { { "EllesmereUI", EUI(function(d) return d.shifterEnabled and true or false end) } },
     autoLog = { { "EllesmereUI", EUI(function(d) return type(d.autoLogging) == "table" and d.autoLogging.enabled == true end) } },
     autoInvite = { { "WarLegend v3", function() local ok, on = pcall(WL3Invite); return ok and on == true end } },
 }

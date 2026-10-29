@@ -8,6 +8,8 @@ local inCombat = false
 
 W.AddFR({
     ["Not enough money to repair your gear."] = "Pas assez d'argent pour réparer ton équipement.",
+    ["Gear repaired for %s: %s from the guild bank, %s from you."] =
+        "Équipement réparé pour %s : %s par la banque de guilde, %s par toi.",
 })
 
 W.OnReady(function()
@@ -94,16 +96,18 @@ W.On("LOOT_READY", FastLoot)
 W.On("LOOT_OPENED", FastLoot)
 
 -- Vendor: junk + repair
-local function Money(c) return GetCoinTextureString and GetCoinTextureString(c) or tostring(c) end
--- what the guild lets me take for a repair, read like the game's merchant frame: my withdraw limit (-1 = guild
--- master, no limit), never more than the bank holds. Too little: my own money pays (the game would refuse).
-local function GuildCanRepair(cost)
-    if not (CanGuildBankRepair and CanGuildBankRepair()) then return false end
-    if not (GetGuildBankWithdrawMoney and GetGuildBankMoney) then return true end -- unknown: the game decides
+local CoinText = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString) or GetCoinTextureString -- no global on Forever
+local function Money(c) return CoinText and CoinText(c) or tostring(c) end
+-- the guild's share of a repair, read like the game's merchant frame: my withdraw limit (-1 = guild master, no
+-- limit), never more than the bank holds; nil when unknown (the game decides). The game takes the rest from my
+-- own money (its tooltip: GUILDBANK_REPAIR_PERSONAL).
+local function GuildRepairShare(cost)
+    if not (CanGuildBankRepair and CanGuildBankRepair()) then return 0 end
+    if not (GetGuildBankWithdrawMoney and GetGuildBankMoney) then return nil end
     local limit, bank = W.Safe(GetGuildBankWithdrawMoney()), W.Safe(GetGuildBankMoney())
-    if type(limit) ~= "number" or type(bank) ~= "number" then return true end
+    if type(limit) ~= "number" or type(bank) ~= "number" then return nil end
     local amount = limit == -1 and bank or math.min(limit, bank)
-    return amount >= cost
+    return math.max(0, math.min(amount, cost))
 end
 W.On("MERCHANT_SHOW", function()
     if Shift() then return end
@@ -129,9 +133,16 @@ W.On("MERCHANT_SHOW", function()
     if W.FeatureOn(db, "autoRepair") and CanMerchantRepair() then
         local cost, can = GetRepairAllCost()
         if not can or not cost or cost == 0 then return end
-        if db.repairGuild and GuildCanRepair(cost) then
+        local guild = 0
+        if db.repairGuild then guild = GuildRepairShare(cost) end
+        if guild == nil or guild >= cost then
             RepairAllItems(true)
             W.Print(L("Gear repaired for ") .. Money(cost) .. L(" (guild bank)."))
+        elseif guild > 0 and (GetMoney() or 0) >= cost - guild then
+            -- the guild pays its share, my money the rest (one call, as the game's own guild repair button)
+            RepairAllItems(true)
+            W.Print(string.format(L("Gear repaired for %s: %s from the guild bank, %s from you."),
+                Money(cost), Money(guild), Money(cost - guild)))
         elseif (GetMoney() or 0) >= cost then
             RepairAllItems()
             W.Print(L("Gear repaired for ") .. Money(cost) .. ".")

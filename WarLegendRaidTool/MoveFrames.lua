@@ -56,8 +56,11 @@ W.OnReady(function()
     if type(db.tipPoint) ~= "table" then db.tipPoint = { "BOTTOMRIGHT", "BOTTOMRIGHT", -80, 160 } end
 end)
 
--- an option is used only while the module is on (Settings > Modules) and the player allowed
-local function Use(opt) return db and db[opt] and W.Allowed() and not W.IsOff("MoveFrames") end
+-- an option is used only while the module is on (Settings > Modules) and the player allowed; the windows also only
+-- while no other addon moves them (EllesmereUI's window mover, see Overlap.lua)
+local function Use(opt)
+    return db and db[opt] and W.Allowed() and not W.IsOff("MoveFrames") and not (opt == "windows" and W.Overlap("moveFrames"))
+end
 
 ---------------------------------------------------------------------------
 -- Blizzard windows. Hooks only (HookScript, never SetScript over Blizzard's), out of combat, and a
@@ -73,7 +76,9 @@ local WINDOWS = { "CharacterFrame", "SpellBookFrame", "PlayerTalentFrame", "Ques
     -- seen in BlizzMove's list for this kind of client; a frame this client does not have, or a protected one, is skipped.
     -- Not here: the loot windows, the game puts them back at the cursor / in a stack each time.
     "GameMenuFrame", "ReadyCheckFrame", "ContainerFrame1", "ContainerFrameCombinedBags", "SettingsPanel",
-    "QuestLogPopupDetailFrame", "ChatConfigFrame", "TalkingHeadFrame", "QuickKeybindFrame", "GuildInviteFrame" }
+    "QuestLogPopupDetailFrame", "ChatConfigFrame", "TalkingHeadFrame", "QuickKeybindFrame", "GuildInviteFrame",
+    -- WoW Forever's own windows (its UI source): talents and spellbook, stable, Legacy, social window
+    "PlayerSpellsFrame", "StableFrame", "LegacySystemFrame", "SocialUIFrame" }
 
 local hooked, moving, panelHook = {}, nil, false
 
@@ -410,6 +415,7 @@ W.RegisterModule("MoveFrames", "Move frames", function(p)
     W.Title(p, L("Move frames"))
     W.Check(p, L("Move Blizzard windows with the mouse (out of combat)"), function() return db.windows end,
         function(v) db.windows = v; SetWheels(v and true or false); if v then HookAll() end end):SetPoint("TOPLEFT", 12, -40)
+    W.OverlapNote(p, "moveFrames", "TOPLEFT", 400, -46)
     W.Label(p, L("Remember their place and size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -68)
     W.Cycle(p, 150, { { "never", L("Never") }, { "session", L("Until /reload") }, { "always", L("Always") } },
         function() return Memory() end,

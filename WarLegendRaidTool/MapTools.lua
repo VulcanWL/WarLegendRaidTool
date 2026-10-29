@@ -1,7 +1,7 @@
 -- WarLegend RaidTool - MapTools
 -- Small helpers on Blizzard's world map, ideas taken from OpenMap (MIT, (c) 2026 OpenMap contributors,
--- curseforge.com/wow/addons/openmap): coordinates under the map, Ctrl+click for a map pin, the map
--- reopening on my zone. Our own frame and two hooks; nothing runs while the map is closed. The pins of
+-- curseforge.com/wow/addons/openmap): coordinates under the map, Ctrl+click for a map pin (only on a map that does not
+-- place it itself), the map reopening on my zone. Our own frame and two hooks; nothing runs while the map is closed. The pins of
 -- the other addons (guild positions, Overlord, Skyborne...) are not touched.
 local W = WLRT
 
@@ -20,6 +20,8 @@ W.AddFR({
         "Idées d'OpenMap (MIT). Si un autre addon de carte affiche déjà les coordonnées, éteins cette option.",
     ["Map pins are not available on this client: that option does nothing here."] =
         "Les repères de carte n'existent pas sur ce client : cette option ne fait rien ici.",
+    ["Ctrl + click on the map: the game places its own pin, Ctrl + click on the pin removes it."] =
+        "Ctrl + clic sur la carte : le jeu pose son repère, Ctrl + clic sur le repère le retire.",
     ["Me"] = "Moi",
     ["Cursor"] = "Curseur",
 })
@@ -95,6 +97,11 @@ local function CanPin()
     return C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates and true or false
 end
 
+-- the game's own map places its pin on Ctrl + click and removes it on a Ctrl + click on the pin (Forever's world map:
+-- WaypointLocationDataProvider). Ours would put back a pin the player just removed, and setting the pin from addon
+-- code can taint the map's pin state (EllesmereUI's finding): left to the game.
+local function NativePin() return WaypointLocationDataProviderMixin ~= nil end
+
 local function DropPin(mapID, x, y)
     if not CanPin() or type(mapID) ~= "number" or not Valid(x, y) then return end
     if C_Map.CanSetUserWaypointOnMap and not C_Map.CanSetUserWaypointOnMap(mapID) then return end
@@ -114,7 +121,7 @@ local function HookMap()
     local sc = WorldMapFrame.ScrollContainer
     if sc and sc.HookScript and sc.GetNormalizedCursorPosition then
         sc:HookScript("OnMouseUp", W.Timed("map tools click", function(self, button)
-            if not (db.waypoint and button == "LeftButton" and IsControlKeyDown()) then return end
+            if NativePin() or not (db.waypoint and button == "LeftButton" and IsControlKeyDown()) then return end
             local x, y = self:GetNormalizedCursorPosition()
             local id = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
             -- after the game's own handling of the click
@@ -142,7 +149,7 @@ local function Apply()
     if not (WorldMapFrame and WorldMapFrame.ScrollContainer) then return end
     meText, cursorText = L("Me"), L("Cursor")
     BuildBar()
-    bar:SetShown(db.coords)
+    bar:SetShown(db.coords and not W.Overlap("mapCoords"))
     HookMap()
 end
 
@@ -158,9 +165,17 @@ W.RegisterModule("MapTools", "Map tools", function(p)
     W.Check(p, L("Coordinates under the map (me and the cursor)"), function() return db.coords end,
         function(v) db.coords = v; Apply() end,
         { L("Shows your position and the one under the mouse at the foot of the world map.") }):SetPoint("TOPLEFT", 12, -40)
-    W.Check(p, L("Ctrl + click on the map drops a map pin"), function() return db.waypoint end,
-        function(v) db.waypoint = v; Apply() end,
-        { L("Sets the game's map pin (and its arrow) where you click, if the game has not done it already.") }):SetPoint("TOPLEFT", 12, -66)
+    W.OverlapNote(p, "mapCoords", "TOPLEFT", 360, -46)
+    if NativePin() then
+        local native = W.Label(p, L("Ctrl + click on the map: the game places its own pin, Ctrl + click on the pin removes it."),
+            "GameFontHighlightSmall")
+        native:SetPoint("TOPLEFT", 16, -72)
+        native:SetTextColor(0.7, 0.7, 0.7)
+    else
+        W.Check(p, L("Ctrl + click on the map drops a map pin"), function() return db.waypoint end,
+            function(v) db.waypoint = v; Apply() end,
+            { L("Sets the game's map pin (and its arrow) where you click, if the game has not done it already.") }):SetPoint("TOPLEFT", 12, -66)
+    end
     W.Check(p, L("Reopen the map on my zone"), function() return db.reopen end,
         function(v) db.reopen = v; Apply() end,
         { L("Opens the map on the zone you are in, unless you had gone to another map on purpose.") }):SetPoint("TOPLEFT", 12, -92)
@@ -168,7 +183,7 @@ W.RegisterModule("MapTools", "Map tools", function(p)
         "GameFontHighlightSmall")
     info:SetPoint("TOPLEFT", 16, -126)
     info:SetTextColor(0.7, 0.7, 0.7)
-    if not CanPin() then
+    if not NativePin() and not CanPin() then
         local warn = W.Label(p, L("Map pins are not available on this client: that option does nothing here."), "GameFontDisable")
         warn:SetPoint("TOPLEFT", 16, -150)
     end

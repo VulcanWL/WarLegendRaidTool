@@ -48,7 +48,8 @@ AddOns\
 ```
 
 Le plus simple : télécharger le zip de la dernière **Release** (les quatre dossiers sont à la racine) et le
-décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer depuis une URL* → adresse de ce dépôt.
+décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer depuis une URL* → adresse de ce dépôt
+(WowUp ou WowUp-CF 2.24.0 ou plus récent pour trouver WoW Forever, 2.24.1 conseillée).
 
 ## Premier lancement
 
@@ -70,7 +71,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl minimap` | Affiche / cache le bouton de la minicarte (aussi dans Options > Réglages > Général). |
 | `/wl bugs` | Ouvre Options > Bugs (erreurs Lua récentes). |
 | `/wl preload` | Charger les modules de raid pendant l'écran de chargement (activé par défaut : pas de gel au premier `/wl` ; aussi dans Options > Réglages > Général). |
-| `/wl maptools` | Outils de la carte du monde (Options > Interface) : coordonnées sous la carte (moi et le curseur), Ctrl + clic pour poser le repère de carte du jeu, rouvrir la carte sur ma zone. Idées d'OpenMap (licence MIT). Rien ne touche aux points des autres addons. |
+| `/wl maptools` | Outils de la carte du monde (Options > Interface) : coordonnées sous la carte (moi et le curseur), rouvrir la carte sur ma zone (Ctrl + clic : sur WoW Forever, le jeu pose et retire lui-même son repère). Idées d'OpenMap (licence MIT). Rien ne touche aux points des autres addons. |
 | `/wl audit` | Journal du trafic de l'addon (messages reçus / refusés / envoyés par préfixe, lignes publiques, pics par minute, travaux les plus lents), enregistré tout seul dans `WTF\Account\...\SavedVariables\WarLegendRaidTool.lua` au `/reload` ou à la sortie (`auditLog.cur`, la session d'avant dans `.prev`). Jamais le texte des messages. Éteint par défaut : `/wl audit on` l'allume, `/wl audit off` l'éteint. |
 | `/wl perf` | Mémoire et CPU utilisés par l'addon (et le CPU des modules Raid, PvP et Skyborne quand ils sont chargés), puis ses travaux les plus lents (une exécution) et les plus coûteux (total depuis la connexion) : événements, timers, hooks, avec le fichier et la ligne. |
 | `/wl perf log` | Historique des 10 dernières sessions (comme BugSack pour les erreurs), gardé dans le fichier de sauvegarde : durée, groupe, version, mémoire, pire gel et plus gros allocateur de mémoire. Une session de moins de 3 min n'est gardée que si elle a eu un gel ; environ 12 Ko au maximum. |
