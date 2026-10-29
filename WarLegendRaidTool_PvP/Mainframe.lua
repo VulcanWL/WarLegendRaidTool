@@ -709,7 +709,7 @@ local function CreateMainFrame(playerType)
 
 		local point, offsetDirectionX, offsetDirectionY = Data.Helpers.getContainerAnchorPointForConfig(growRightwards, growDownwards)
 
-		self:SetScale(config.Framescale)
+		self:SetScale(WarLegendPvP.SafeScale(config.Framescale))
 		self:ClearAllPoints()
 
 		local scale = self:GetEffectiveScale()

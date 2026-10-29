@@ -45,6 +45,12 @@ W.AddFR({
     ["shares your position with the guild"] = "partage ta position avec la guilde",
     ["sets %d game option(s) at every login: %s"] = "règle %d option(s) du jeu à chaque connexion : %s",
     ["promotes to assistant: %d name(s) or rank(s)"] = "promeut assistant : %d nom(s) ou rang(s)",
+    ["%d other game option(s) ignored (only the ones of Options > Interface are taken)"] =
+        "%d autre(s) option(s) du jeu ignorée(s) (seules celles d'Options > Interface sont reprises)",
+    ["invite keyword: %s"] = "mot-clé d'invitation : %s",
+    ["switches off %d module(s)"] = "éteint %d module(s)",
+    ["%d battleground click macro line(s) use an item, equip or cancel a buff"] =
+        "%d ligne(s) de macro des clics de champ de bataille utilisent un objet, équipent ou retirent un buff",
 })
 local L = W.L
 
@@ -204,9 +210,21 @@ local function Export()
     return HEADER .. table.concat(out)
 end
 
+-- the ends trimmed by a plain loop: the pattern "^%s*(.-)%s*$" is quadratic on a long run of blanks inside the
+-- text (a pasted profile of 100 KB of spaces froze the client on Import)
+local function Trim(s)
+    local a = s:find("%S")
+    if not a then return "" end
+    local b = #s
+    while b > a and s:find("^%s", b) do b = b - 1 end
+    return s:sub(a, b)
+end
+
 local function Parse(text)
+    text = text or ""
+    if #text > 400000 then return nil, L("The profile text is damaged: copy it again, all of it.") end
     -- no line break in a profile: the ones a chat or Discord adds when copying are dropped, the ends trimmed
-    text = ((text or ""):gsub("[\r\n]", "")):match("^%s*(.-)%s*$")
+    text = Trim((text:gsub("[\r\n]", "")))
     if text:sub(1, #HEADER) ~= HEADER then return nil, L("This is not a WaR LegenD RaidTool profile.") end
     if #text > 300000 then return nil, L("The profile text is damaged: copy it again, all of it.") end
     entries = 0
@@ -216,6 +234,38 @@ local function Parse(text)
     end
     return data
 end
+
+-- Imported tables that place or size frames, checked by kind (a bad one is dropped, ours stays): anchor names only,
+-- offsets within 4000 px, scales 0.5 to 2. A made-up value raised a Lua error at every login or put frames off screen.
+local ANCHORS = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true,
+    BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
+local function GoodPoint(p) -- { point, relPoint, x, y } or { x, y }
+    if type(p) ~= "table" then return false end
+    for k, v in pairs(p) do
+        if type(k) ~= "number" or k < 1 or k > 4 or k % 1 ~= 0 then return false end
+        if type(v) == "string" then
+            if not ANCHORS[v] then return false end
+        elseif type(v) ~= "number" or v ~= v or v < -4000 or v > 4000 then
+            return false
+        end
+    end
+    return true
+end
+local function GoodMap(t, check) -- name or index -> value
+    if type(t) ~= "table" then return false end
+    for k, v in pairs(t) do
+        if (type(k) ~= "string" and type(k) ~= "number") or (type(k) == "string" and #k > 80) or not check(v) then return false end
+    end
+    return true
+end
+local function GoodScale(s) return type(s) == "number" and s >= 0.5 and s <= 2 end
+local PLACES = {
+    point = GoodPoint, emphPoint = GoodPoint, framesPoint = GoodPoint, tipPoint = GoodPoint,
+    pos = function(t) return GoodMap(t, GoodPoint) end, -- auras: one place per row
+    winPos = function(t) return GoodMap(t, GoodPoint) end,
+    elemPos = function(t) return GoodMap(t, GoodPoint) end,
+    winScale = function(t) return GoodMap(t, GoodScale) end,
+}
 
 -- the values are written in place: a module keeps its table, a value of another type than ours is ignored
 local function Apply(data)
@@ -227,7 +277,16 @@ local function Apply(data)
             for f, v in pairs(fields) do
                 if type(f) == "string" and #f <= 40 and not skip[f] and not Prefixed(key, f) then
                     if type(v) == "table" then
-                        if IsTableOption(key, f) then dest[f] = v end
+                        if key == "interfaceOptions" and f == "cvars" then
+                            -- only the game options of Options > Interface (W.KnownCVar), as short texts
+                            local kept = {}
+                            for c, val in pairs(v) do
+                                if W.KnownCVar and W.KnownCVar(c) and type(val) == "string" and #val <= 100 then kept[c] = val end
+                            end
+                            dest[f] = kept
+                        elseif IsTableOption(key, f) and (not PLACES[f] or PLACES[f](v)) then
+                            dest[f] = v
+                        end
                     elseif not IsTableOption(key, f) and (dest[f] == nil or type(dest[f]) == type(v)) then
                         dest[f] = v
                     end
@@ -286,6 +345,24 @@ local function StripMacros(t, depth)
     return removed
 end
 
+-- macro lines kept by the allow list that still act: use an item, equip, cancel a buff, a cast sequence
+local ACTING = { use = true, userandom = true, equip = true, equipslot = true, cancelaura = true, castsequence = true }
+local function CountActing(t, depth)
+    if depth > 12 then return 0 end
+    local n = 0
+    for _, v in pairs(t) do
+        if type(v) == "string" and v:find("/", 1, true) then
+            for line in (v .. "\n"):gmatch("(.-)\n") do
+                local cmd = line:match("^%s*/([%a_]+)")
+                if cmd and ACTING[cmd:lower()] then n = n + 1 end
+            end
+        elseif type(v) == "table" then
+            n = n + CountActing(v, depth + 1)
+        end
+    end
+    return n
+end
+
 -- { module key, field, value that acts on its own, what it does }
 local RISKY = {
     { "inviteTool", "enabled", true, "invites whoever whispers the keyword" },
@@ -313,9 +390,16 @@ local function Review(data)
     local io = main.interfaceOptions
     if type(io) == "table" and type(io.cvars) == "table" then
         local mine = type(W.db.interfaceOptions) == "table" and type(W.db.interfaceOptions.cvars) == "table" and W.db.interfaceOptions.cvars or {}
-        local names = {}
+        local names, ignored = {}, 0
         for cvar, v in pairs(io.cvars) do
-            if type(cvar) == "string" and mine[cvar] ~= v then names[#names + 1] = W.Plain(cvar, 40) end
+            if type(cvar) == "string" and W.KnownCVar and not W.KnownCVar(cvar) then
+                ignored = ignored + 1
+            elseif type(cvar) == "string" and mine[cvar] ~= v then
+                names[#names + 1] = W.Plain(cvar, 40)
+            end
+        end
+        if ignored > 0 then
+            lines[#lines + 1] = string.format(L("%d other game option(s) ignored (only the ones of Options > Interface are taken)"), ignored)
         end
         table.sort(names)
         if #names > 0 then
@@ -332,6 +416,24 @@ local function Review(data)
             if type(list) == "table" then for _ in pairs(list) do n = n + 1 end end
         end
         if n > 0 then lines[#lines + 1] = string.format(L("promotes to assistant: %d name(s) or rank(s)"), n) end
+    end
+    -- the changes that acted silently before (audit 28/10): the invite keyword, modules switched off, click macros
+    -- of the battleground frames that use an item, equip or cancel a buff (kept by the allow list: they are clicks)
+    local it, myIt = main.inviteTool, W.db.inviteTool
+    if type(it) == "table" and type(it.keyword) == "string" and it.keyword ~= (type(myIt) == "table" and myIt.keyword or nil) then
+        lines[#lines + 1] = string.format(L("invite keyword: %s"), W.Plain(it.keyword, 40))
+    end
+    local ui, myOff = main.ui, type(W.db.ui) == "table" and type(W.db.ui.off) == "table" and W.db.ui.off or {}
+    if type(ui) == "table" and type(ui.off) == "table" then
+        local n = 0
+        for k, v in pairs(ui.off) do
+            if v and not myOff[k] then n = n + 1 end
+        end
+        if n > 0 then lines[#lines + 1] = string.format(L("switches off %d module(s)"), n) end
+    end
+    if type(data.pvp) == "table" then
+        local n = CountActing(data.pvp, 1)
+        if n > 0 then lines[#lines + 1] = string.format(L("%d battleground click macro line(s) use an item, equip or cancel a buff"), n) end
     end
     if #lines == 0 then return "" end
     return "\n\n|cffff9900" .. L("This profile also:") .. "|r\n- " .. table.concat(lines, "\n- ")

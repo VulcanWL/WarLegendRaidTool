@@ -364,7 +364,7 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 
 
 								if relativeFrame then
-									local scale = (moduleFrameOnButton.config.Scale or 1)
+									local scale = WarLegendPvP.SafeScale(moduleFrameOnButton.config.Scale)
 									moduleFrameOnButton:SetScale(scale)
 									if relativeFrame:GetNumPoints() > 0 then
 										local effectiveScale = moduleFrameOnButton:GetEffectiveScale()

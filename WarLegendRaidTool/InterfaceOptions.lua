@@ -197,6 +197,21 @@ local PAGES = {
     },
 }
 
+-- the game options of these pages: the only ones a shared profile may set (Settings.lua); one kept from the CVar
+-- search stays on this computer (an imported "scriptProfile" or "taintLog" was set again at every login)
+local KNOWN = {}
+for _, page in ipairs(PAGES) do
+    for _, o in ipairs(page) do
+        local c = o[1]
+        if type(c) == "string" then
+            KNOWN[c:lower()] = true
+        elseif type(c) == "table" then
+            for _, x in ipairs(c) do KNOWN[x:lower()] = true end
+        end
+    end
+end
+function W.KnownCVar(name) return type(name) == "string" and KNOWN[name:lower()] or false end
+
 local function FirstExisting(c)
     if type(c) == "table" then
         for _, x in ipairs(c) do if Exists(x) then return x end end

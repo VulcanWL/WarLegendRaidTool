@@ -194,7 +194,7 @@ function castBar:AttachToPlayerButton(playerButton)
 		self.Bar:SetStatusBarTexture(WarLegendPvP:GetBarTexture("cast", playerButton.PlayerType))
 		self.Bar.Icon:SetSize(size.height + 4, size.height + 4)
 		if self.config.Scale then
-			self:SetScale(self.config.Scale)
+			self:SetScale(WarLegendPvP.SafeScale(self.config.Scale))
 		end
 		self:Show()
 		self:SetUnit(playerButton:GetUnitID())

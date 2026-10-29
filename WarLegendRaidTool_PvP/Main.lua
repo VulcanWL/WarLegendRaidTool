@@ -347,8 +347,17 @@ function WarLegendPvP:LoadSettings()
 	end
 	self.db = { profile = self:BuildProfile() }
 	if type(WarLegendRaidTool_PvPDB.TestPlayerCount) == "number" then
-		self.Testmode.PlayerCountTestmode = WarLegendRaidTool_PvPDB.TestPlayerCount
+		-- WarLegend: 1 to 40 like the slider (an imported 1e9 froze the client on Test)
+		local n = WarLegendRaidTool_PvPDB.TestPlayerCount
+		self.Testmode.PlayerCountTestmode = n == n and math.max(1, math.min(40, math.floor(n))) or 5
 	end
+end
+
+-- WarLegend: a scale from the settings, 0.3 to 3 (an imported 0 broke the frames: SetScale refuses it)
+function WarLegendPvP.SafeScale(v)
+	v = tonumber(v)
+	if not v or v ~= v then return 1 end
+	return math.max(0.3, math.min(3, v))
 end
 
 -- general value (Style, Locked...), saved value or default
