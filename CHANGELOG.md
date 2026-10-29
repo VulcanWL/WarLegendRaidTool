@@ -6,6 +6,27 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Loot Council : une session de test laissée ouverte par un assistant ne bloque plus le maître du butin pendant 10 minutes ;
+  le maître du butin (sinon le chef) remplace toujours une session ouverte, et un assistant ne peut plus retirer un raider
+  des sessions en le chuchotant.
+- Invitations « guilde seulement » et acceptation automatique : un inconnu qui a le même prénom qu'un membre de la guilde
+  n'est plus pris pour lui.
+- Import d'un profil : les positions, tailles, échelles, couleurs et listes sont vérifiées (un profil abîmé faisait des
+  erreurs à chaque connexion ou couvrait l'écran de cadres de champ de bataille) ; la confirmation dit aussi les modules
+  rallumés, les partages avec la guilde et le conseil du butin changés ; tes options d'interface gardées.
+- Myslot : la confirmation d'import liste toutes les commandes suspectes de chaque macro (pas seulement la première) ; un
+  import qui rencontre un combat attend la fin du combat.
+- Cadres de champ de bataille : un allié parti en combat ne prend plus la vie et la cible d'un autre ; après un changement
+  de réglage, les barres de vie et les marques de raid sont relues (plus de barre pleine sur un allié mort).
+- Temps de recharge du raid : pendant un boss, les sorts prêts ne disparaissent plus de la fenêtre des autres joueurs.
+- Historique des champs de bataille : la durée d'une partie est lue même sans l'aura de préparation.
+- Améliorations dans les sacs : une arme à deux mains n'est plus proposée si elle est moins bonne que ton bouclier ou ta
+  main gauche.
+- Invitations en masse : quand le groupe ne peut pas passer en raid, les invitations s'arrêtent avec un message (avant :
+  bloquées sans fin).
+- Préparation : l'aide de la syntaxe s'affiche sur une seule ligne.
+
 ## 1.41.53 (29/10/2026)
 
 ### Corrigé
