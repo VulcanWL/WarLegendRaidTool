@@ -96,7 +96,7 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     if f[1] ~= "1" then return end
     local role = ROLES[f[2]] and f[2] or ""
     db.known[W.Key(full)] = { n = W.Plain(name, 40), f = W.Plain(full, 60), r = role, s = W.Plain(f[3], 30), a = W.Plain(f[4], 60), t = time() }
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end)
 
 W.On("PLAYER_ENTERING_WORLD", function()
@@ -276,6 +276,6 @@ W.RegisterModule("Classes", "Classes", function(p)
     end)
 end, function() Refresh() end)
 
-W.On("GUILD_ROSTER_UPDATE", function() if UI.panel and UI.panel:IsShown() then Refresh() end end)
+W.On("GUILD_ROSTER_UPDATE", function() if UI.panel and UI.panel:IsVisible() then Refresh() end end)
 
 W.slash.classes = function() W.Toggle("Classes") end

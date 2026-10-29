@@ -135,6 +135,8 @@ local function CreateMainFrame(playerType)
 		local maxUnits = self:GetAttribute("maxUnits")
 		local playerIndex = self:GetAttribute("playerIndex")
 		local nextPlayerIndex
+		-- WarLegend: before the first scoreboard there is no list yet (the arithmetic below raised an error)
+		if not maxUnits or maxUnits < 1 or not playerIndex then return end
 
 		if button == "Button4" then
 			nextPlayerIndex = playerIndex -1
@@ -500,7 +502,8 @@ local function CreateMainFrame(playerType)
 		self:Debug("UpdatePlayerCountText", maxNumPlayers, isEnemy)
 
 
-		WarLegendPvP:SetAllyFaction(WarLegendPvP.AllyFaction or (WarLegendPvP.UserFaction == "Horde" and 1 or 0))
+		-- WarLegend: 0 is the Horde, 1 the Alliance (GetBattlefieldArenaFaction): the fallback had them the other way round
+		WarLegendPvP:SetAllyFaction(WarLegendPvP.AllyFaction or (WarLegendPvP.UserFaction == "Horde" and 0 or 1))
 
 		if self.playerCountConfig and self.playerCountConfig.PlayerCount.Enabled then
 			self.PlayerCount:Show()
@@ -554,6 +557,10 @@ local function CreateMainFrame(playerType)
 				playerButton:UpdateTargetIndicators()
 				playerButton:DeleteActiveUnitID()
 			end
+			-- WarLegend: the old player's target, level and death state go too (they stayed on the button)
+			if playerButton.Target then playerButton:IsNoLongerTarging(playerButton.Target) end
+			playerButton.PlayerLevel = nil
+			if playerButton.isDead then playerButton:PlayerIsAlive() end
 		else --no recycleable buttons remaining => create a new one
 			self.buttonCounter = (self.buttonCounter or 0) + 1
 			playerButton = WarLegendPvP:CreatePlayerButton(self, self.buttonCounter)

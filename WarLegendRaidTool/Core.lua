@@ -504,7 +504,9 @@ function Dispatch(prefix, msg, channel, sender, replay)
         end
         return
     end
-    local audit = W.AuditNote -- Audit.lua: what came in, what was refused and why (metadata only)
+    -- Audit.lua: what came in, what was refused and why (metadata only); only while the record runs (it is always
+    -- loaded: two calls per message for nothing made the fast path below dead)
+    local audit = W.AuditOn and W.AuditOn() and W.AuditNote
     if offFiles[addonFiles[prefix]] then
         if audit then audit("module-off", prefix, channel, nil, 0) end
         return
@@ -1992,9 +1994,9 @@ function W.BuildMain()
         rows[i] = r
         return r
     end
-    search:SetScript("OnTextChanged", function(self)
-        local q = self:GetText() or ""
-        hint:SetShown(q == "")
+    -- the search runs once typing pauses (0.15 s), not on every key
+    local SearchSoon = W.Debounce(0.15, function()
+        local q = search:GetText() or ""
         local found = W.SearchOptions(q, 16)
         if #found == 0 then results:Hide(); return end
         for i, f in ipairs(found) do
@@ -2006,6 +2008,10 @@ function W.BuildMain()
         for i = #found + 1, #rows do rows[i]:Hide() end
         results:SetHeight(8 + #found * 18)
         results:Show()
+    end)
+    search:SetScript("OnTextChanged", function(self)
+        hint:SetShown((self:GetText() or "") == "")
+        SearchSoon()
     end)
     search:HookScript("OnEscapePressed", function() results:Hide() end)
     main:HookScript("OnHide", function() results:Hide() end)
@@ -2321,7 +2327,8 @@ end
 function W.SearchOptions(query, max)
     local q = Norm(query):gsub("^%s+", ""):gsub("%s+$", "")
     if #q < 2 or not main then return {} end
-    if not allIndexed then
+    -- every tab built once for its index, never in a fight (a tab can make protected frames): the built ones until then
+    if not allIndexed and not InCombatLockdown() then
         allIndexed = true
         for _, m in ipairs(W.modules) do
             if not NOT_BUILT[m.key] then W.EnsurePanel(m) end
@@ -2335,13 +2342,16 @@ function W.SearchOptions(query, max)
         out[#out + 1] = { module = m, widget = widget,
             label = "|cffffd100" .. L(m.label) .. "|r" .. (widget and ("  |cff777777>|r  " .. text) or "") }
     end
+    -- the normalized texts are kept on the entries (they were made again for the whole index on every key)
     for _, m in ipairs(W.modules) do -- the tools first
-        if Norm(L(m.label)):find(q, 1, true) then add(m, nil, "") end
+        m.normLabel = m.normLabel or Norm(L(m.label))
+        if m.normLabel:find(q, 1, true) then add(m, nil, "") end
     end
     for _, m in ipairs(W.modules) do
         for _, e in ipairs(m.index or {}) do
-            local text = Plain(e.text)
-            if Norm(text):find(q, 1, true) then add(m, e.widget, text) end
+            e.plain = e.plain or Plain(e.text)
+            e.norm = e.norm or Norm(e.plain)
+            if e.norm:find(q, 1, true) then add(m, e.widget, e.plain) end
         end
     end
     return out

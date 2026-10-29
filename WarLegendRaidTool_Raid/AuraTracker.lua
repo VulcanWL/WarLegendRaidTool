@@ -279,7 +279,7 @@ end
 
 local function Dirty(row)
     row.dirty = true
-    if not flushPending then flushPending = true; W.After(0, Flush) end
+    if not flushPending then flushPending = true; W.After(0, Flush, "aura redraw") end
 end
 
 ---------------------------------------------------------------------------
@@ -292,7 +292,7 @@ local function QueueScan(row)
     W.After(0.5, function()
         row.scanPending = false
         if row.unit then Scan(row); Dirty(row) end
-    end)
+    end, "aura scan")
 end
 
 -- A value the client hides (secret) must not be tested, compared or used as a key

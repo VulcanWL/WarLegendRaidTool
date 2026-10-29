@@ -560,6 +560,7 @@ end
 function WarLegendPvP.Spread(parent, period, getList, fn)
 	local driver = CreateFrame("Frame", nil, parent)
 	local budget, index = 0, 1
+	local reported -- WarLegend: an error of fn is reported once (a secret value read every frame made ~400 a second)
 	driver:SetScript("OnUpdate", function(_, elapsed)
 		local list = getList()
 		local n = #list
@@ -571,7 +572,10 @@ function WarLegendPvP.Spread(parent, period, getList, fn)
 			if index > n then index = 1 end
 			local item = list[index]
 			index = index + 1
-			if item then fn(item) end
+			if item then
+				local ok, err = pcall(fn, item)
+				if not ok and not reported then reported = true; geterrorhandler()(err) end
+			end
 		end
 	end)
 	return driver
@@ -1526,7 +1530,9 @@ end
 
 local function restoreShowRaidFrameCVar()
 	if not previousCvarRaidOptionIsShown then return end --we didn't modify it so no need to restore it
-	SetCVar("raidOptionIsShown", previousCvarRaidOptionIsShown)
+	-- WarLegend: only while it is still ours ("0"): a value the player chose since stays; read again next time
+	if GetCVar("raidOptionIsShown") == "0" then SetCVar("raidOptionIsShown", previousCvarRaidOptionIsShown) end
+	previousCvarRaidOptionIsShown = nil
 end
 
 local function disableRaidFrames()

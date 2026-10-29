@@ -165,7 +165,7 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     if not e then e = {}; guild[key] = e end
     e.name, e.full, e.id, e.map, e.at, e.zone = name, full, id, map, math.min(at, now), W.Plain(f[5], 60)
     Number(map, id)
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end)
 
 ---------------------------------------------------------------------------
@@ -203,7 +203,7 @@ local function Observe(unit)
     current.id, current.map, current.zone, current.at = id, map, W.Safe(GetRealZoneText()) or "?", GetServerTime()
     Number(map, id)
     Share(true)
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end
 
 local evTarget = W.On("PLAYER_TARGET_CHANGED", function() Observe("target") end, nil, true)
@@ -224,7 +224,7 @@ local function Reset()
     wipe(voteAt); wipe(voteId); voteMap = nil
     lastLook = -1000
     Apply()
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end
 W.On("PLAYER_ENTERING_WORLD", Reset)
 W.On("ZONE_CHANGED_NEW_AREA", Reset)

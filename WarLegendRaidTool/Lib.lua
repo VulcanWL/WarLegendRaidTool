@@ -55,7 +55,7 @@ local function Pump()
     if res == "locked" then item.at = GetTime() end
     if (res == "throttle" or res == "locked") and GetTime() - item.at < MAX_WAIT then
         -- kept in the queue: throttle passes in a moment, a lockdown at the end of the encounter
-        W.After(res == "locked" and 3 or 1, Pump)
+        W.After(res == "locked" and 3 or 1, Pump, "send queue")
         return
     end
     table.remove(queue, 1)
@@ -63,7 +63,7 @@ local function Pump()
         warnedAt = GetTime()
         W.Print(L("Some messages could not be sent to the group (chat locked or throttled for too long)."))
     end
-    W.After(0.25, Pump)
+    W.After(0.25, Pump, "send queue") -- labelled: no caller lookup for each message sent
 end
 
 -- channel nil = raid/party; "LOCAL" when alone. Messages leave one every 0.25 s, in order.

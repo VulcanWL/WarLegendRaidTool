@@ -197,7 +197,7 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     local role = (f[7] == "Tank" or f[7] == "Heal" or f[7] == "DPS") and f[7] or ""
     db.peers[W.Key(full)] = { n = W.Plain(name, 40), f = W.Plain(full, 60), s = start, w = world, b = bg, v = wins, m = played,
         r = role, rw = roleWins, t = Now() }
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end)
 
 ---------------------------------------------------------------------------
@@ -242,7 +242,7 @@ local function Award(kind, mode, count, role)
         end
     end
     Share()
-    if UI.panel and UI.panel:IsShown() then Refresh() end
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
 end
 
 local function Mode()

@@ -108,7 +108,8 @@ W.OnAddon(DUR_PREFIX, function(msg, from, _, full)
     local p = W.Finite(msg, 0, 100)
     if p then
         durability[W.UnitKey(unit)] = p -- full identity: two players can share a first name
-        if frame then frame.nextRefresh = 0 end -- redrawn once on the next frame, not once per message
+        -- at most 4 redraws a second: 40 answers spread over many frames each forced one (the 1 s pace was bypassed)
+        if frame then frame.nextRefresh = math.min(frame.nextRefresh or 0, GetTime() + 0.25) end
     end
 end)
 
@@ -261,7 +262,8 @@ W.On("READY_CHECK_CONFIRM", function(unit, isReady)
     local key = W.UnitKey(unit)
     if not key then return end
     statuses[key] = isReady and "ready" or "notready"
-    if frame then frame.nextRefresh = 0 end -- up to 40 answers in a second: one redraw on the next frame
+    -- up to 40 answers in a second: at most 4 redraws a second (each answer forced one on the next frame)
+    if frame then frame.nextRefresh = math.min(frame.nextRefresh or 0, GetTime() + 0.25) end
 end)
 W.On("READY_CHECK_FINISHED", function()
     if frame and frame:IsShown() then
