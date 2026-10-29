@@ -31,23 +31,32 @@ end
 
 local function Apply()
     if not db or InCombatLockdown() then return end
-    -- secure unit frames: "focus" attribute on the chosen combination
+    local want = db.enabled and AVAILABLE
+    local attr = want and (string.lower(db.modifier) .. "-type" .. db.button) or nil
+    -- secure unit frames: "focus" attribute on the chosen combination; an old combination is given back, a frame that
+    -- already has it is left alone (this runs after every fight)
     for f, info in pairs(bound) do
-        if f:GetAttribute(info.attr) == "focus" then f:SetAttribute(info.attr, info.orig) end
-        bound[f] = nil
-    end
-    ClearOverrideBindings(Btn())
-    prevKey = nil
-    if not db.enabled or not AVAILABLE then return end
-    local attr = string.lower(db.modifier) .. "-type" .. db.button
-    for _, f in pairs(KnownFrames()) do
-        if f and f.GetAttribute then
-            bound[f] = { attr = attr, orig = f:GetAttribute(attr) }
-            f:SetAttribute(attr, "focus")
+        if info.attr ~= attr then
+            if f:GetAttribute(info.attr) == "focus" then f:SetAttribute(info.attr, info.orig) end
+            bound[f] = nil
         end
     end
-    prevKey = KeyName()
-    SetOverrideBindingClick(btn, true, prevKey, "WLRTFocusButton")
+    if want then
+        for _, f in pairs(KnownFrames()) do
+            if f and f.GetAttribute then
+                if not bound[f] then bound[f] = { attr = attr, orig = f:GetAttribute(attr) } end
+                if f:GetAttribute(attr) ~= "focus" then f:SetAttribute(attr, "focus") end
+            end
+        end
+    end
+    -- the key binding only when it changes: cleared and set again after every fight, it sent UPDATE_BINDINGS to every
+    -- addon each time
+    local key = want and KeyName() or nil
+    if key ~= prevKey then
+        ClearOverrideBindings(Btn())
+        prevKey = key
+        if key then SetOverrideBindingClick(btn, true, key, "WLRTFocusButton") end
+    end
 end
 
 W.OnReady(function()

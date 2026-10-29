@@ -507,6 +507,8 @@ local function TradeRef(link)
 end
 
 local answering, lastAnswer, answeredTo = false, -1000, {}
+-- lists arrive in bursts (answers to a "Q"): the open Professions tab is rebuilt once per 0.5 s, not once per list
+local RefreshProfsSoon = W.Coalesce(0.5, function() G.RefreshProfs() end)
 W.OnAddonLong(PREFIX, function(msg, from, _, full)
     local who = full or from
     if W.IsMe(who) or not W.GuildMember(who) then return end -- guild members only
@@ -559,7 +561,7 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
         -- what the guild roster (server) and their links told me is mine, not in their message: kept
         if old then e.srv, e.srvT, e.lk, e.lkT = old.srv, old.srvT, old.lk, old.lkT end
         Store(key, name, e)
-        G.RefreshProfs()
+        RefreshProfsSoon()
     end
 end)
 

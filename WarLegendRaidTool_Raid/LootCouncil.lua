@@ -1688,7 +1688,7 @@ local function BuildHistory(p)
     lbl:SetPoint("TOPLEFT", 14, -8)
     UI.filter = W.EditBox(p, 180, 40)
     UI.filter:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
-    UI.filter:SetScript("OnTextChanged", LC.RefreshHistory)
+    UI.filter:SetScript("OnTextChanged", W.Debounce(0.25, function() LC.RefreshHistory() end)) -- once typing pauses
     W.Button(p, L("Export CSV"), 110, 22, function()
         local out = { "date,item,itemID,winner,response,zone,source" }
         for _, h in ipairs(hist) do if not h.test then

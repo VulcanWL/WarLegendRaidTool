@@ -368,5 +368,4 @@ W.RegisterModule("Attendance", "Attendance", function(p)
     local hint = W.Label(p, L("Left-click a night for details, right-click to delete it.") .. "\n"
         .. L("Late = arrived more than 15 min after the start; Left = gone more than 15 min before the end."), "GameFontDisableSmall")
     hint:SetPoint("BOTTOMLEFT", 14, 4)
-    p:SetScript("OnShow", AT.Refresh)
-end, function() AT.Refresh() end)
+end, function() AT.Refresh() end) -- run at each showing of the tab (an OnShow too drew it twice)

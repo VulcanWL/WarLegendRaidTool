@@ -424,7 +424,6 @@ W.RegisterModule("RaidBuffs", "Raid Buffs", function(p)
     help:SetJustifyH("LEFT")
     UI.list = W.ScrollList(p, 800, 470, ROW_H, MakeRow)
     UI.list.sf:SetPoint("TOPLEFT", 6, -90)
-    p:SetScript("OnShow", RB.Refresh)
-end, function() RB.Refresh() end)
+end, function() RB.Refresh() end) -- run at each showing of the tab (an OnShow too drew it twice)
 
 W.OnRoster(function() if W.IsShown("RaidBuffs") then RB.Refresh() end end)

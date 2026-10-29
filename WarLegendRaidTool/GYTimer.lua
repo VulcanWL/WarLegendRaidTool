@@ -20,7 +20,7 @@ W.AddFR({
 })
 local L = W.L
 local db
-local WAVE, SOON, STEP = 30, 5, 0.1
+local WAVE, SOON, STEP = 30, 5, 0.2 -- 5 redraws a second (10 the whole battleground before)
 local frame, bar, text, timeText
 -- Same look as the Capping bars (LibCandyBar with Capping's defaults)
 local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"

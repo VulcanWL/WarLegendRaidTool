@@ -409,7 +409,7 @@ local function BuildItems(p)
     lbl:SetPoint("TOPLEFT", 14, -12)
     UI.search = W.EditBox(p, 260, 200)
     UI.search:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
-    UI.search:SetScript("OnTextChanged", RefreshItems)
+    UI.search:SetScript("OnTextChanged", W.Debounce(0.25, function() RefreshItems() end)) -- once typing pauses
     W.LinkTarget(UI.search)
     UI.items = W.Table(p, { { L("Item"), 260 }, { L("Character"), 160 }, { L("Bags"), 70, "RIGHT" }, { L("Bank"), 70, "RIGHT" },
         { L("Mail"), 70, "RIGHT" }, { L("Total"), 70, "RIGHT" } }, 440)

@@ -265,7 +265,7 @@ W.RegisterModule("Dashboard", "Dashboard", function(p)
     UI.ench = Board(p, 394, L("Missing enchants / gems"), L("Nobody is missing an enchant or a gem."))
     UI.week = Board(p, 584, L("Raids done this week"), L("No raid this week yet (Attendance)."))
     p:SetScript("OnShow", function() W.RequestGuildRoster(); Refresh() end)
-end, function() Refresh() end)
+end) -- the OnShow above draws the tab at each showing (a refresh function too drew it twice)
 
 W.On("GUILD_ROSTER_UPDATE", function()
     if W.IsShown("Dashboard") then Refresh() end

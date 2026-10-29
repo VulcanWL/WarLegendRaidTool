@@ -140,7 +140,9 @@ local function CheckEnd()
 end
 endEv1 = W.On("UPDATE_BATTLEFIELD_SCORE", CheckEnd, nil, true)
 endEv2 = W.On("UPDATE_BATTLEFIELD_STATUS", CheckEnd, nil, true)
-W.OnRoster(function() if rosterOn and cur and not cur.done then SeeGuild() end end)
+-- the guild members of the battleground: read 2 s after a burst of roster changes (each read looks at 40 units)
+local SeeGuildSoon = W.Coalesce(2, function() if rosterOn and cur and not cur.done then SeeGuild() end end)
+W.OnRoster(function() if rosterOn and cur and not cur.done then SeeGuildSoon() end end)
 
 local function Zone()
     local inBG = db and InBattleground()

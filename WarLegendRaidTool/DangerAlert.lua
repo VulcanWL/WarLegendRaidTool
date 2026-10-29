@@ -147,6 +147,7 @@ end
 
 -- Enemy players seen: db.seen[key] = { n = name, c = class, l = level, g = guild, z = zone, t = last seen, k = times }
 local MAX_SEEN, AGAIN = 200, 300 -- seen again after 5 min: one more time
+local seenCount -- entries of db.seen, nil = not counted yet
 local RECENT = 10 -- a player written less than 10 s ago (same GUID) is not read again: nameplate, target, mouseover
 local recent, recentCount = {}, 0
 local LogChanged
@@ -168,15 +169,22 @@ local function Record(unit)
     local now = time()
     local e = db.seen[key]
     if not e then
-        -- full: the one seen longest ago goes first
-        local count, oldest = 0, nil
-        for k, v in pairs(db.seen) do
-            count = count + 1
-            if not oldest or (v.t or 0) < (db.seen[oldest].t or 0) then oldest = k end
+        -- counted once, then kept up to date (the 200 entries were counted for every new name)
+        if not seenCount then
+            seenCount = 0
+            for _ in pairs(db.seen) do seenCount = seenCount + 1 end
         end
-        if count >= MAX_SEEN and oldest then db.seen[oldest] = nil end
+        -- full: the one seen longest ago goes first
+        if seenCount >= MAX_SEEN then
+            local oldest
+            for k, v in pairs(db.seen) do
+                if not oldest or (v.t or 0) < (db.seen[oldest].t or 0) then oldest = k end
+            end
+            if oldest then db.seen[oldest] = nil; seenCount = seenCount - 1 end
+        end
         e = { k = 0, t = 0 }
         db.seen[key] = e
+        seenCount = seenCount + 1
     end
     if now - e.t >= AGAIN then e.k = e.k + 1 end
     e.n, e.t = name, now
@@ -455,6 +463,9 @@ local function NewEntry(unit, guid)
     return e
 end
 
+-- the 40 click slots set up once after a burst of new enemies (it ran for each one)
+local SyncClicksSoon = W.Coalesce(0.2, function() SyncClicks() end)
+
 local function Bind(unit)
     local e, new
     if W.Safe(UnitIsPlayer(unit)) and W.Safe(UnitIsEnemy("player", unit)) then
@@ -478,7 +489,7 @@ local function Bind(unit)
         Paint(e.slot)
     end
     Changed()
-    if new and db.framesClick then SyncClicks() end -- in combat: after the combat
+    if new and db.framesClick then SyncClicksSoon() end -- in combat: after the combat
 end
 
 local function Unbind(unit)
@@ -707,7 +718,7 @@ W.RegisterModule("DangerAlert", L("Danger alert"), function(p)
     W.Cycle(p, 150, classes, function() return db.logClass end, function(v) db.logClass = v; Fill() end)
         :SetPoint("TOPLEFT", 400, -280)
     W.Button(p, L("Clear the list"), 130, 22, function()
-        W.Confirm(L("Clear the list of the enemy players seen?"), function() wipe(db.seen); Fill() end)
+        W.Confirm(L("Clear the list of the enemy players seen?"), function() wipe(db.seen); seenCount = 0; Fill() end)
     end):SetPoint("TOPLEFT", 560, -280)
     list = W.Table(p, { { L("Enemy player"), 200 }, { L("Level"), 50, "RIGHT" }, { L("Guild"), 160 }, { L("Zone"), 160 },
         { L("Seen"), 70, "CENTER" }, { L("Times"), 50, "RIGHT" } }, 230)

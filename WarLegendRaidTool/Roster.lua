@@ -162,6 +162,6 @@ W.RegisterModule("Roster", "Trials", function(p)
         ScanTrials()
         RefreshTrials()
     end)
-end, function() RefreshTrials() end)
+end) -- the OnShow above draws the tab at each showing (a refresh function too drew it twice)
 
 W.slash.trials = function() W.Toggle("Roster") end

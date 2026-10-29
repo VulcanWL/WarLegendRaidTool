@@ -197,7 +197,9 @@ end
 ---------------------------------------------------------------------------
 -- Events (only while the option is on)
 ---------------------------------------------------------------------------
-local evBags = W.On("BAG_UPDATE_DELAYED", Rebuild, nil, true)
+-- the bags priced again once per second at most (looting, selling and sorting fire this many times in a row)
+local RebuildSoon = W.Coalesce(1, function() Rebuild() end)
+local evBags = W.On("BAG_UPDATE_DELAYED", RebuildSoon, nil, true)
 local evLoot = W.On("LOOT_OPENED", Rebuild, nil, true)
 local function Apply()
     local on = db and db.enabled and not W.IsOff("LootTriage") and true or false
