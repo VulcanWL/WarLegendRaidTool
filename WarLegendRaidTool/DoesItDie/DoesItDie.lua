@@ -1,16 +1,46 @@
--- DoesItDie
--- Tracks your DoTs on the target and shows the damage they still have to deal as a marker on its health
--- bar (if the health ends inside the marker, the DoTs will kill it), plus a skull on the portrait when
--- they're lethal. Look and animation are configurable in the options panel (/did).
+-- WarLegend RaidTool - DoesItDie: DoT tracking
+-- Tracks your DoTs on each mob and the damage they still have to deal, shown as a marker on its health bar (if
+-- the health ends inside the marker, the DoTs will kill it), plus a kill icon when they're lethal (Display.lua,
+-- Nameplates.lua, Focus.lua). Based on DoesItDie 0.8.3 by Joe Greive (MIT, see LICENSE in this folder). Settings
+-- in the DoesItDie tab (Options.lua, saved in W.db.doesItDie); the module itself is ../DoesItDie.lua.
 --
 -- In WoW: Forever, target health, player stats and auras are secret in combat, so addon code can
 -- never compare "health vs DoT damage" itself. What stays readable:
 --   * our own casts (UNIT_SPELLCAST_SUCCEEDED) and spell descriptions -> which DoT, base damage, duration
 --   * UNIT_COMBAT damage amounts on units -> actual tick sizes (already include resists/reductions)
 -- StatusBars accept secret values, so the "damage >= health" comparison is done by the widget, not
--- by Lua: see the skull notes in the Display section.
+-- by Lua: see the skull notes in Display.lua. Personal tool: it sends nothing.
+local W = WLRT
+local L = W.L
+local ns = W.Space("DoesItDie") -- shared with the other files of this folder
 
-local ADDON_NAME, ns = "WarLegendRaidTool", WLRT.Space("DoesItDie") -- ns is shared with Options.lua
+W.AddFR({
+    ["Learned tick sizes cleared."] = "Tailles de tick apprises effacées.",
+    ["Target portrait not found: the kill icon shows beside the target frame."] =
+        "Portrait de la cible introuvable : l'icône de mort s'affiche à côté du cadre de cible.",
+    ["Target frame health bar not found: no marker on it."] =
+        "Barre de vie du cadre de cible introuvable : pas de marque dessus.",
+    ["Health bar markers on."] = "Marques sur la barre de vie allumées.",
+    ["Health bar markers off."] = "Marques sur la barre de vie éteintes.",
+    ["Kill icon test for 5 seconds: one icon ON the portrait (the real one) and one ABOVE it (plain test)."] =
+        "Test de l'icône de mort pendant 5 secondes : une icône SUR le portrait (la vraie) et une AU-DESSUS (test simple).",
+    ["Trace log echoed to chat."] = "Journal de suivi recopié dans le chat.",
+    ["Trace log no longer echoed to chat."] = "Journal de suivi plus recopié dans le chat.",
+    ["The kill icon on the target's portrait means your DoTs will kill it."] =
+        "L'icône de mort sur le portrait de la cible veut dire que tes DoT vont la tuer.",
+    ["open the DoesItDie tab"] = "ouvrir l'onglet DoesItDie",
+    ["health bar markers on / off"] = "marques sur la barre de vie allumées / éteintes",
+    ["show the kill icon for 5 seconds to check its position"] =
+        "montrer l'icône de mort 5 secondes pour vérifier sa place",
+    ["check what the addon can reach on the visible nameplates (logged)"] =
+        "vérifier ce que l'addon peut lire sur les barres de nom visibles (dans le journal)",
+    ["test showing when the target is below 20% (or the given percent); again to stop"] =
+        "tester l'affichage quand la cible passe sous 20 % (ou le pourcentage donné) ; encore pour arrêter",
+    ["trace log (casts, ticks, estimates) echoed to chat or not"] =
+        "journal de suivi (sorts, ticks, estimations) recopié dans le chat ou non",
+    ["learned tick sizes"] = "tailles de tick apprises",
+    ["forget the learned tick sizes"] = "oublier les tailles de tick apprises",
+})
 
 local UPDATE_INTERVAL = 0.1
 local DEFAULT_TICK_INTERVAL = 3
@@ -88,8 +118,10 @@ local SCHOOL_MASKS = {
     Frostfire = 4 + 16, -- Forever's Frostfire Bolt: combined schools report as the OR of their masks
 }
 
--- User options (edited in the options panel, saved in DoesItDieDB).
+-- User options (edited in the DoesItDie tab, saved in W.db.doesItDie). Scalars only (W.DB); the learned tick sizes
+-- (ticks) and the trace log (log) are tables of data next to them, never in a profile.
 local DEFAULTS = {
+    enabled = false, -- the module's switch (DoesItDie tab): off, nothing is registered and nothing runs
     -- Skull
     showSkull = true,
     skullIcon = "cross",
@@ -127,14 +159,8 @@ local DEFAULTS = {
     labelColor = "white",
     -- Misc
     debug = false,
-    -- Custom frames (Frames.lua): another addon's target health bar / kill icon spot, as frame paths. Empty =
-    -- a known replacement target frame (EllesmereUI's) if there is one, else Blizzard's.
-    customHealthBar = "",
-    customIconAnchor = "",
-    -- Focus frame (Focus.lua): the marker on it too, on a custom bar or the one found, in its own look (Focus tab)
+    -- Focus frame (Focus.lua): the marker on it too (EllesmereUI's or Blizzard's), in its own look (Focus tab)
     focusMode = "markerIcon",
-    customFocusHealthBar = "",
-    customPlateHealthBar = "", -- (Nameplates.lua) keys from Blizzard's nameplate to a plate addon's bar
     focusIcon = "skull",
     focusIconSize = 18,
     focusIconPosition = "left", -- the portrait is on the right of Blizzard's focus frame
@@ -152,7 +178,6 @@ local DEFAULTS = {
     -- Accuracy
     waitFirstTick = "off",
     estimateDuringCast = true,
-    uiLanguage = "auto", -- the options window's language (Locale.lua): "auto" or a language tag
     -- Nameplates (Nameplates.lua): their own look, since enemy plates are red. Defaults read well on red.
     nameplateMode = "markerIcon",
     nameplateIconSize = 18,
@@ -180,7 +205,7 @@ local WAIT_MODES = {
     { id = "always", label = "Always (real ticks only)" },
 }
 
-local MAX_TRACE_LINES = 500
+local MAX_TRACE_LINES = 300 -- about 25 KB in the saved file
 
 local db
 local dotsByTarget = {}     -- targetKey -> { [spellName] = dot }
@@ -190,11 +215,12 @@ local warnedSecretGuid = false
 -- Helpers
 ---------------------------------------------------------------------------
 
+-- msg: already translated (L() at the caller)
 local function print(msg)
-    DEFAULT_CHAT_FRAME:AddMessage("|cffff6666DoesItDie|r " .. msg)
+    W.Print("|cffff6666DoesItDie|r " .. msg)
 end
 
--- Always recorded to SavedVariables (db.log) for diagnosing accuracy; echoed to chat with /did debug.
+-- Always recorded to the saved file (db.log) for diagnosing accuracy; echoed to chat with /wl did debug.
 local function trace(msg)
     if not db then return end
     table.insert(db.log, string.format("%.1f %s", GetTime(), msg))
@@ -1113,23 +1139,12 @@ local function targetRemainingDamage()
 end
 
 ---------------------------------------------------------------------------
--- Settings, and what the options window (Options.lua) needs
+-- Settings, and what the DoesItDie tab (Options.lua) needs
 ---------------------------------------------------------------------------
 
-local function applyDefaults()
-    -- Settings from earlier versions.
-    if db.showMarkers == nil and db.showLine ~= nil then db.showMarkers = db.showLine end
-    db.showLine, db.showRemaining = nil, nil
-    db.showFullLine, db.lineThickness, db.lineColor = nil, nil, nil
-    db.preview, db.previewPercent, db.previewOffInCombat = nil, nil, nil
-    for key, value in pairs(DEFAULTS) do
-        if db[key] == nil then db[key] = value end
-    end
-end
-
--- ns.db is set on ADDON_LOADED.
 ns.DEFAULTS = DEFAULTS
-ns.lists = { waitModes = WAIT_MODES } -- Display.lua adds the look lists
+ns.TICKS_VERSION = DB_VERSION -- (../DoesItDie.lua's migration keeps the tick sizes of the same version)
+ns.lists = { waitModes = WAIT_MODES } -- Display.lua and Nameplates.lua add the look lists
 -- What Display.lua needs from the tracking above.
 ns.tracking = { housekeep = housekeep, targetRemainingDamage = targetRemainingDamage, unitKey = unitKey }
 
@@ -1145,7 +1160,7 @@ ns.trace = trace
 
 function ns.resetLearnedTicks()
     wipe(db.ticks)
-    print("Learned tick sizes cleared.")
+    print(L("Learned tick sizes cleared."))
 end
 
 function ns.forgetLearnedTick(key)
@@ -1153,9 +1168,9 @@ function ns.forgetLearnedTick(key)
     trace("FORGET learned tick size for " .. tostring(key))
 end
 
--- The options window's list of learned tick sizes: per entry its key in db.ticks, spellID, comboPoints (finishers,
--- whose keys are "spellIDxN"), perTick, and when the client has them the spell's name and what its description
--- predicts (tooltipPerTick, ticks, interval, duration, school). Shaped DoTs (Agony) learn their average tick.
+-- The tab's list of learned tick sizes: per entry its key in db.ticks, spellID, comboPoints (finishers, whose keys
+-- are "spellIDxN"), perTick, and when the client has them the spell's name and what its description predicts
+-- (tooltipPerTick, ticks, interval, duration, school). Shaped DoTs (Agony) learn their average tick.
 -- Sorted by name, then combo points.
 function ns.learnedTickList()
     local list = {}
@@ -1191,86 +1206,118 @@ function ns.learnedTickList()
     return list
 end
 
----------------------------------------------------------------------------
--- Events
----------------------------------------------------------------------------
+-- The saved settings (W.db.doesItDie), given by the module's W.OnReady (../DoesItDie.lua). The learned data is
+-- checked (a damaged or edited file keeps only numbers), and the client's own names are added to the name tables.
+function ns.SetDB(saved)
+    db = saved
+    -- bump DB_VERSION to discard tick sizes learned by an older, buggier version
+    if db.ticksVersion ~= DB_VERSION then db.ticks, db.ticksVersion = nil, DB_VERSION end
+    if type(db.ticks) ~= "table" then db.ticks = {} end
+    if type(db.log) ~= "table" then db.log = {} end
+    for key, perTick in pairs(db.ticks) do
+        local goodKey = type(key) == "number" or (type(key) == "string" and key:match("^%d+x%d+$") ~= nil)
+        if not goodKey or type(perTick) ~= "number" or perTick ~= perTick or perTick < 0 or perTick > 1000000 then
+            db.ticks[key] = nil
+        end
+    end
+    while #db.log > MAX_TRACE_LINES do table.remove(db.log, 1) end
+    ns.db = db
+    ns.display.setDb(db)
+    trace("===== session start =====")
+    local added = ns.locale.addClientNames(NAME_TABLES, function(spellID)
+        local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)
+        if name and not isSecret(name) and type(name) == "string" then return name end
+    end)
+    if #added > 0 then trace("NAMES from this client: " .. table.concat(added, ", ")) end
+end
 
--- WLRT: the original DoesItDie addon loads before us (alphabetical order) when it is enabled: its /did is kept and
--- ours stays off (both would mark every nameplate, over the same saved table)
-local originalLoaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DoesItDie")
-local originalSlash = SlashCmdList and SlashCmdList.DOESITDIE
--- WLRT: the original's live saved table, read before our saved variables replace the global DoesItDieDB (both
--- addons save that global at logout: without giving it back, the original's changes were lost every session)
-local originalDB = originalLoaded and type(DoesItDieDB) == "table" and DoesItDieDB or nil
+---------------------------------------------------------------------------
+-- Events: a frame of its own, registered only while the module is on (ns.SetActive). The spell cast events are
+-- registered for the player only, and UNIT_COMBAT comes for every unit many times a second, so they don't go
+-- through W.On (every unit, every handler of the addon's frame).
+---------------------------------------------------------------------------
 
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
-frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")    -- custom target frames (Frames.lua) exist by then
-frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
-frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")   -- combo points, before a finisher spends them
--- Estimate during casting: DoTs with a cast time show from the cast's start until it ends.
-frame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
-frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
-frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
-frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
-frame:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")   -- keeps a recent combo point reading as backup
-frame:RegisterEvent("UNIT_COMBAT")
-frame:RegisterEvent("NAME_PLATE_UNIT_ADDED")   -- plate tokens stand in for secret GUIDs (see plateTokenFor)
-frame:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
+local EVENTS = { "PLAYER_TARGET_CHANGED", "PLAYER_ENTERING_WORLD", "UNIT_COMBAT",
+    "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" } -- plate tokens stand in for secret GUIDs (plateTokenFor)
+local PLAYER_EVENTS = {
+    "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_SENT", -- combo points, before a finisher spends them
+    -- Estimate during casting: DoTs with a cast time show from the cast's start until it ends.
+    "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_POWER_FREQUENT", -- keeps a recent combo point reading as backup
+}
 -- Never register COMBAT_LOG_EVENT_UNFILTERED: Forever forbids it and shows a "blocked" popup.
+local active = false
+local portraitWarned = false
 
-frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "ADDON_LOADED" then
-        if ... ~= ADDON_NAME then return end
-        -- WLRT: off by default (Raid > Combat > Kill time & combat log): nothing runs until it is switched on, then
-        -- /reload; also off while the module is switched off in Settings > Modules
-        local wl = WarLegendRaidToolDB and WarLegendRaidToolDB.doesItDie
-        local ui = WarLegendRaidToolDB and WarLegendRaidToolDB.ui
-        local moduleOff = type(ui) == "table" and type(ui.off) == "table" and ui.off.DoesItDie
-        if not (type(wl) == "table" and wl.enabled) or moduleOff or originalLoaded then
-            self:UnregisterAllEvents()
-            self:SetScript("OnUpdate", nil)
-            for _, f in ipairs(ns.offFrames or {}) do f:SetScript("OnUpdate", nil); f:Hide() end
-            if originalLoaded then
-                if originalDB then DoesItDieDB = originalDB end
-                SlashCmdList.DOESITDIE = originalSlash
-                if type(wl) == "table" and wl.enabled then
-                    WLRT.Print(WLRT.L("The original DoesItDie addon is enabled: the one of WaR LegenD stays off (disable one of them)."))
-                end
-                return
-            end
-            SlashCmdList.DOESITDIE = function() WLRT.Print(WLRT.L("DoesItDie is off: switch it on in Raid > Combat > Kill time & combat log > DoesItDie, then /reload.")) end
-            return
-        end
-        DoesItDieDB = DoesItDieDB or {}
-        db = DoesItDieDB
-        if db.version ~= DB_VERSION then
-            db.ticks, db.intervals, db.version = nil, nil, DB_VERSION
-        end
-        db.ticks = db.ticks or {}
-        db.log = db.log or {}
-        applyDefaults()
-        ns.db = db
-        ns.display.setDb(db)
-        trace("===== session start =====")
-        local added = ns.locale.addClientNames(NAME_TABLES, function(spellID)
-            local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)
-            if name and not isSecret(name) and type(name) == "string" then return name end
-        end)
-        if #added > 0 then trace("NAMES from this client: " .. table.concat(added, ", ")) end
-        local ok, err = pcall(ns.registerOptions)
-        if not ok then
-            trace("Options panel registration failed: " .. tostring(err))
-            print("Couldn't create the options panel; slash commands still work (/did help).")
-        end
-        if not ns.display.attach() then print("Target portrait not found; kill icon shown beside the target frame.") end
-        self:UnregisterEvent("ADDON_LOADED")
+-- Nothing to draw: no DoT tracked and no cast estimate (the driver below then sleeps).
+local function idle()
+    return next(dotsByTarget) == nil and castInProgress == nil
+end
 
-    elseif not db then
-        return
+-- One driver for the target marker, the nameplates and the focus frame (each had an OnUpdate of its own, running
+-- all the time): shown only while something is tracked, the tab's preview is on or the kill icon test runs.
+local driver = CreateFrame("Frame")
+driver:Hide()
+local sinceUpdate = 0
+local RefreshAll = W.Timed("DoesItDie display", function()
+    ns.refresh()
+    ns.refreshPlates()
+    ns.refreshFocus()
+end)
+driver:SetScript("OnUpdate", function(self, elapsed)
+    ns.display.animate(elapsed)
+    sinceUpdate = sinceUpdate + elapsed
+    if sinceUpdate < UPDATE_INTERVAL then return end
+    sinceUpdate = 0
+    RefreshAll() -- its last pass hides what idle leaves on screen
+    if idle() and not ns.display.busy() then self:Hide() end
+end)
 
-    elseif event == "PLAYER_ENTERING_WORLD" then
+function ns.Wake()
+    if not db or driver:IsShown() then return end
+    sinceUpdate = UPDATE_INTERVAL -- the first frame draws
+    driver:Show()
+end
+
+-- Off: every DoT is forgotten and every marker hidden at once (no /reload).
+local function forgetAll()
+    wipe(dotsByTarget)
+    wipe(sentTargets)
+    castInProgress, armedTrap, lastDotCast, lastOutcome = nil, nil, nil, nil
+    comboAtSend = nil
+    resetComboCount()
+end
+
+-- on: the module's switch, Settings > Modules and the guild check together (ns.Allowed, ../DoesItDie.lua).
+function ns.SetActive(on)
+    on = (on and db ~= nil) and true or false
+    if on == active then return end
+    active = on
+    if on then
+        for _, event in ipairs(EVENTS) do pcall(frame.RegisterEvent, frame, event) end
+        for _, event in ipairs(PLAYER_EVENTS) do pcall(frame.RegisterUnitEvent, frame, event, "player") end
+        trace("===== tracking on =====")
+        if not ns.display.attach(true) and not portraitWarned then
+            portraitWarned = true
+            print(L("Target portrait not found: the kill icon shows beside the target frame."))
+        end
+    else
+        frame:UnregisterAllEvents()
+        forgetAll()
+        ns.stopExecuteProbe()
+        trace("===== tracking off =====")
+        ns.Wake()
+    end
+end
+
+function ns.IsActive() return active end
+
+local function OnEvent(self, event, ...)
+    -- switched off in Settings > Modules (or the guild check failed) since: stops at the first event
+    if not ns.Allowed() then return ns.SetActive(false) end
+
+    if event == "PLAYER_ENTERING_WORLD" then
         ns.display.attach()
 
     elseif event == "PLAYER_TARGET_CHANGED" then
@@ -1278,7 +1325,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
         resetComboCount() -- combo points belong to the target they were built on
         dropCastInProgress("target changed")
         ns.display.forgetTracedDamage()
-        ns.display.attach() -- custom frames may only exist (or be rebuilt) by now
+        ns.display.attach() -- other addons' frames may only exist (or be rebuilt) by now
         trace("TARGET changed to " .. (unitKey("target") or "none"))
         ns.refresh()
 
@@ -1324,60 +1371,47 @@ frame:SetScript("OnEvent", function(self, event, ...)
             ns.playFlash()
         end
     end
-end)
-
-local sinceUpdate = 0
-frame:SetScript("OnUpdate", function(self, elapsed)
-    if db then ns.display.animate(elapsed) end
-    sinceUpdate = sinceUpdate + elapsed
-    if sinceUpdate < UPDATE_INTERVAL or not db then return end
-    sinceUpdate = 0
-    ns.refresh()
-end)
+    if not idle() then ns.Wake() end
+end
+frame:SetScript("OnEvent", W.Timed("DoesItDie events", OnEvent))
 
 ---------------------------------------------------------------------------
--- Slash commands
+-- Commands: /wl did <command> (also /did). No command opens the tab (../DoesItDie.lua).
 ---------------------------------------------------------------------------
 
-SLASH_DOESITDIE1 = "/did"
-SLASH_DOESITDIE2 = "/doesitdie"
-SlashCmdList.DOESITDIE = function(msg)
-    local cmd = strlower(strtrim(msg or ""))
-    if cmd == "" or cmd == "options" or cmd == "config" then
-        ns.openOptions()
-    elseif cmd == "line" then
+function ns.Command(cmd)
+    if cmd == "line" then
         db.showMarkers = not db.showMarkers
         if db.showMarkers and not ns.display.hasHealthBar() then
-            print("Target frame health bar not found; health bar markers unavailable.")
+            print(L("Target frame health bar not found: no marker on it."))
         else
-            print("Health bar markers " .. (db.showMarkers and "ON" or "OFF") .. ".")
+            print(db.showMarkers and L("Health bar markers on.") or L("Health bar markers off."))
         end
+        ns.reattach()
     elseif cmd == "plates" then
         ns.probeNameplates()
     elseif cmd:match("^exec") then
         ns.toggleExecuteProbe(tonumber(cmd:match("%d+")))
     elseif cmd == "skull" then
         ns.display.testSkull(5)
-        print("Kill icon test for 5 seconds: one icon ON the portrait (the real one) and one ABOVE it (plain test).")
+        ns.Wake()
+        print(L("Kill icon test for 5 seconds: one icon ON the portrait (the real one) and one ABOVE it (plain test)."))
     elseif cmd == "debug" then
         db.debug = not db.debug
-        print("Debug " .. (db.debug and "ON" or "OFF") .. ".")
+        print(db.debug and L("Trace log echoed to chat.") or L("Trace log no longer echoed to chat."))
     elseif cmd == "reset" then
-        wipe(db.ticks)
-        print("Learned tick sizes cleared.")
-    elseif cmd == "ticks" then
-        ns.toggleTickViewer()
+        ns.resetLearnedTicks()
     else
+        print(L("The kill icon on the target's portrait means your DoTs will kill it."))
         for _, line in ipairs({
-            "The kill icon on the target's portrait means your DoTs will kill it.",
-            "/did - open the options window",
-            "/did line - toggle health bar markers on/off",
-            "/did skull - show the kill icon for 5 seconds to check its position",
-            "/did plates - check what the addon can reach on visible nameplates (logged)",
-            "/did exec [percent] - test showing when the target is below 20% (or the given percent); again to stop",
-            "/did debug - toggle echoing the trace log (casts, ticks, estimates) to chat",
-            "/did ticks - show learned tick sizes",
-            "/did reset - forget learned tick sizes",
-        }) do print(ns.locale.T(line)) end
+            { "/wl did", L("open the DoesItDie tab") },
+            { "/wl did line", L("health bar markers on / off") },
+            { "/wl did skull", L("show the kill icon for 5 seconds to check its position") },
+            { "/wl did plates", L("check what the addon can reach on the visible nameplates (logged)") },
+            { "/wl did exec [percent]", L("test showing when the target is below 20% (or the given percent); again to stop") },
+            { "/wl did debug", L("trace log (casts, ticks, estimates) echoed to chat or not") },
+            { "/wl did ticks", L("learned tick sizes") },
+            { "/wl did reset", L("forget the learned tick sizes") },
+        }) do print("|cffffd100" .. line[1] .. "|r - " .. line[2]) end
     end
 end

@@ -1,5 +1,5 @@
--- DoesItDie: French (frFR) spell descriptions and names. Registers itself with Locale.lua.
--- Ported from PR #11 (gou-gouze). The French patterns only see descriptions the English and German ones didn't
+-- WarLegend RaidTool - DoesItDie: French (frFR) spell descriptions and names. Registers itself with Locale.lua.
+-- Ported from PR #11 (gou-gouze). The French patterns only see descriptions the English ones didn't
 -- read, and can't match their text (they need "points de dégâts", "points de vie", "Coup de grâce").
 --
 -- The wording is WoW: Forever's own French tooltips (Wowhead, data env Forever, locale fr), except the names
@@ -10,7 +10,7 @@
 --   * "sec" or plain "s" for seconds ("en 8 s" on Rupture)
 --   * bleeds may be stated as health lost ("perd 15 points de vie en 9 sec", Pourfendre)
 
-local _, ns = nil, WLRT.Space("DoesItDie")
+local ns = WLRT.Space("DoesItDie")
 
 local PHYSICAL = 1
 
@@ -144,15 +144,8 @@ local function parseDot(desc, comboPoints)
     end
 end
 
--- The options window in this language: English text -> translation (see T in Locale.lua). Untranslated text
--- stays English. Every key, ready to fill in: python tools/test_load.py --dump-strings strings.lua
-local STRINGS = {
-}
-
 ns.locale.register({
     tag = "frFR",
-    label = "Français",
-    strings = STRINGS,
     parseDot = parseDot,
     isFinisher = isFinisher,
     comboPointsAwarded = comboPointsAwarded,

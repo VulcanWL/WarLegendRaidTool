@@ -1,23 +1,22 @@
--- DoesItDie: other client languages
--- DoesItDie.lua reads English spell descriptions and looks spells up by their English names. This file lets other
--- languages add their own wording for the same readings, and their names for the name-keyed tables. Each language
--- is one file (Locale_deDE.lua, ...) loaded after this one and before DoesItDie.lua, which calls
+-- WarLegend RaidTool - DoesItDie: spell text in other client languages
+-- DoesItDie.lua reads English spell descriptions and looks spells up by their English names. This file lets another
+-- language add its own wording for the same readings, and its names for the name-keyed tables. Each language is one
+-- file (Locale_frFR.lua: the guild plays in English or French) loaded after this one and before DoesItDie.lua:
 --
 --     ns.locale.register({
---         tag = "deDE",
+--         tag = "frFR",
 --         parseDot = function(desc, comboPoints) ... end,   -- same returns as parseDot in DoesItDie.lua
 --         isFinisher = function(desc) ... end,              -- a combo point finisher ("Finishing move")
 --         comboPointsAwarded = function(desc) ... end,      -- N from "Awards N combo point", or nil
---         names = { ["Rip"] = { "Zerfetzen" }, ... },       -- English name -> names in this language
---         label = "Deutsch",                                -- the language's own name (Window language list)
---         strings = { ["Live preview"] = "Vorschau", ... }, -- the options window's text: English -> this language
+--         names = { ["Rip"] = { "Déchirure" }, ... },       -- English name -> names in this language
 --     })
 --
 -- The English patterns always run first and are unchanged. Descriptions they don't read go to every registered
 -- language in registration order, whatever GetLocale() says: one language's patterns can't match another's text,
--- and on WoW: Forever GetLocale() answers enUS while the spell text is German.
+-- and on WoW: Forever GetLocale() may answer enUS while the spell text is in another language.
+-- The module's own texts (tab, messages) go through W.L like the rest of the addon.
 
-local _, ns = nil, WLRT.Space("DoesItDie")
+local ns = WLRT.Space("DoesItDie")
 
 local L = { languages = {} }
 ns.locale = L
@@ -26,48 +25,6 @@ ns.locale = L
 function L.register(language)
     assert(type(language) == "table" and type(language.tag) == "string", "DoesItDie: a language needs a tag")
     table.insert(L.languages, language)
-end
-
----------------------------------------------------------------------------
--- The addon's own text (options window, chat): T("English text") returns it in the window language, else as is.
--- Keys are the exact English text, so a translator works from what's on screen; anything a language doesn't
--- translate stays English. The window language is the uiLanguage setting: "auto" picks the registered language
--- whose tag is GetLocale() (which may answer enUS on a non-English Forever client, hence the setting). It's
--- read when text is built, so a change applies after /reload. List every key: tools/test_load.py --dump-strings.
----------------------------------------------------------------------------
-
-local function hasStrings(language)
-    return type(language.strings) == "table" and next(language.strings) ~= nil
-end
-
-local function windowLanguage()
-    local setting = ns.db and ns.db.uiLanguage or "auto"
-    local wanted = setting
-    if setting == "auto" then wanted = GetLocale and GetLocale() end
-    for _, language in ipairs(L.languages) do
-        if language.tag == wanted and hasStrings(language) then return language end
-    end
-end
-
--- Every key T was asked for, when L.collectStrings is set (tools/test_load.py --dump-strings).
-L.seenStrings = {}
-
-function L.T(text)
-    if type(text) ~= "string" or text == "" then return text end
-    if L.collectStrings then L.seenStrings[text] = true end
-    local language = windowLanguage()
-    local translated = language and language.strings[text]
-    if type(translated) == "string" and translated ~= "" then return translated end
-    return text
-end
-
--- The Window language choices: Auto, English, then every language with translations.
-function L.windowLanguages()
-    local list = { { id = "auto", label = "Auto (game client)" }, { id = "enUS", label = "English" } }
-    for _, language in ipairs(L.languages) do
-        if hasStrings(language) then table.insert(list, { id = language.tag, label = language.label or language.tag }) end
-    end
-    return list
 end
 
 ---------------------------------------------------------------------------

@@ -6,6 +6,14 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- DoesItDie devient un vrai module de l'addon : son onglet à lui (Raid > Combat > DoesItDie) avec un aperçu en direct
+  et ses réglages en sous-onglets (en français), plus de fenêtre à part. L'allumer ou l'éteindre prend effet tout de
+  suite, sans `/reload`, et il ne coûte plus rien quand aucun DoT n'est suivi. Tes réglages et les tailles de tick
+  apprises sont repris.
+- DoesItDie lit les sorts en anglais et en français seulement ; les chemins de cadres à taper (onglet Avancé) sont
+  retirés : cadres de Blizzard ou d'EllesmereUI.
+
 ## 1.41.54 (29/10/2026)
 
 ### Modifié

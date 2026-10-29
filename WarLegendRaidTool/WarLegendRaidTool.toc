@@ -73,12 +73,7 @@ Upgrades.lua
 MoneyGoal.lua
 LoadTimes.lua
 DoesItDie\Locale.lua
-DoesItDie\Locale_deDE.lua
-DoesItDie\Locale_esES.lua
 DoesItDie\Locale_frFR.lua
-DoesItDie\Locale_koKR.lua
-DoesItDie\Locale_ptBR.lua
-DoesItDie\Locale_zhCN.lua
 DoesItDie\DoesItDie.lua
 DoesItDie\Display.lua
 DoesItDie\Frames.lua

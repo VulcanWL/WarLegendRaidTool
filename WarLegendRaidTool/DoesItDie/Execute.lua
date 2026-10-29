@@ -1,4 +1,5 @@
--- DoesItDie execute range: the probe (/did exec) for showing when the target is below a health percentage
+-- WarLegend RaidTool - DoesItDie: execute range
+-- The probe (/wl did exec) for showing when the target is below a health percentage
 -- (Execute and Hammer of Wrath: 20%). Target health is secret, so two ways are tested side by side:
 --
 --  A. Geometry, like the kill icon: a very long invisible StatusBar with max = max health and value = health.
@@ -13,9 +14,16 @@
 --     SetVertexColor (color curve). Should light up exactly when the real kill icon on the portrait does.
 --
 -- The icons show above the target frame until /did exec is typed again. Compare A and B with the target's
--- health as it drops past the threshold, and C with the real kill icon.
+-- health as it drops past the threshold, and C with the real kill icon. Its frame runs only while the probe is on.
+local W = WLRT
+local L = W.L
+local ns = W.Space("DoesItDie")
 
-local ADDON_NAME, ns = "WarLegendRaidTool", WLRT.Space("DoesItDie")
+W.AddFR({
+    ["Execute probe on at %d%%. Above the target frame, icons A (geometry) and B (health percent) should appear only while the target is below %d%%; C (middle, kill icon via curve) only while the real kill icon shows. /wl did exec to stop, /reload to save the log."] =
+        "Sonde d'exécution allumée à %d %%. Au-dessus du cadre de cible, les icônes A (géométrie) et B (pourcentage de vie) doivent apparaître seulement quand la cible est sous %d %% ; C (au milieu, icône de mort par courbe) seulement quand la vraie icône de mort s'affiche. /wl did exec pour arrêter, /reload pour enregistrer le journal.",
+    ["Execute probe off."] = "Sonde d'exécution éteinte.",
+})
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local ICON = "Interface\\Icons\\INV_Sword_48"
@@ -63,7 +71,7 @@ end
 -- Probe widgets
 ---------------------------------------------------------------------------
 
-local holder = CreateFrame("Frame", "DoesItDieExecuteProbe", UIParent)
+local holder = CreateFrame("Frame", "WLRTDoesItDieExecuteProbe", UIParent)
 holder:SetSize(ICON_SIZE * 3 + 32, ICON_SIZE + 14)
 holder:SetFrameStrata("HIGH")
 holder:Hide()
@@ -318,20 +326,23 @@ local function start(percent)
 
     active = true
     holder:Show()
-    C_Timer.After(0.5, traceGeometry)
-    ns.print(string.format("Execute probe on at %d%%. Above the target frame, icons A (geometry) and B (health "
-        .. "percent) should appear only while the target is below %d%%; C (middle, kill icon via curve) only "
-        .. "while the real kill icon shows. /did exec to stop, /reload to save the log.", percent, percent))
+    W.After(0.5, traceGeometry)
+    ns.print(L("Execute probe on at %d%%. Above the target frame, icons A (geometry) and B (health percent) should appear only while the target is below %d%%; C (middle, kill icon via curve) only while the real kill icon shows. /wl did exec to stop, /reload to save the log."):format(percent, percent))
 end
 
--- /did exec [percent]: starts the probe, changes its threshold, or (with no percent) stops it.
+-- /wl did exec [percent]: starts the probe, changes its threshold, or (with no percent) stops it.
 function ns.toggleExecuteProbe(percent)
     if active and not percent then
         active = false
         holder:Hide()
         ns.trace("EXEC probe off")
-        ns.print("Execute probe off.")
+        ns.print(L("Execute probe off."))
         return
     end
     start(math.max(1, math.min(99, percent or threshold)))
+end
+
+-- The module switched off: the probe stops with it.
+function ns.stopExecuteProbe()
+    if active then ns.toggleExecuteProbe() end
 end

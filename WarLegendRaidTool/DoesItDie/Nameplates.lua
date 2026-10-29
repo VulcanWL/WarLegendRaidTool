@@ -1,19 +1,28 @@
--- DoesItDie nameplates: the damage marker (and optionally the kill icon) on every enemy nameplate that has your
+-- WarLegend RaidTool - DoesItDie: nameplates
+-- The damage marker (and optionally the kill icon) on every enemy nameplate that has your
 -- DoTs on it, using the per-mob tracking in DoesItDie.lua (ns.dotBreakdownForUnit). Same secret-value trick as
 -- the target frame: StatusBars are fed the mob's hidden health and do the comparing.
 --
 -- Widgets are created per Blizzard nameplate frame (which WoW recycles between mobs) and parented to it, so
 -- they move, scale and hide with the plate. With EllesmereUI's nameplates they go on its own plate frame instead,
 -- and with Platynator's they anchor to its health bar (see findHealthBar). They're lighter than the target marker: fill, per-DoT segments and a thin outline in the
--- Marker tab's style; no glow, shine, spark or animation.
+-- Marker tab's style; no glow, shine, spark or animation. Drawn by the driver of DoesItDie.lua (ns.refreshPlates),
+-- which only runs while a DoT is tracked.
 --
--- Also the probe (/did plates): what the addon can reach on nameplates, logged, with a test bar on each.
+-- Also the probe (/wl did plates): what the addon can reach on nameplates, logged, with a test bar on each.
+local W = WLRT
+local L = W.L
+local ns = W.Space("DoesItDie")
 
-local ADDON_NAME, ns = "WarLegendRaidTool", WLRT.Space("DoesItDie")
+W.AddFR({
+    ["none drawn yet"] = "aucune dessinée pour l'instant",
+    ["Nameplate display error (logged): %s"] = "Erreur d'affichage des barres de nom (dans le journal) : %s",
+    ["Nameplate probe: %d nameplates found, %d magenta test bars shown for %d seconds. Results are in the log (/reload to save it)."] =
+        "Sonde des barres de nom : %d barres trouvées, %d barres de test magenta montrées %d secondes. Résultats dans le journal (/reload pour l'enregistrer).",
+})
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
 local MAX_PLATES = 40
-local UPDATE_INTERVAL = 0.1
 local MAX_SEGMENTS = 4
 local OUTLINE_THICKNESS = 1
 local ICON_BAR_LENGTH = 10000 -- see the kill icon notes in DoesItDie.lua
@@ -119,17 +128,6 @@ local function forbidden(frame)
     return not ok or result == true
 end
 
--- The Advanced tab's "Nameplate health bar": keys from the Blizzard nameplate, e.g. "unitFrame.healthBar".
-local function resolveFromPlate(plate, path)
-    local current = plate
-    for key in string.gmatch(path, "[^%.]+") do
-        local ok, value = pcall(function() return current[key] end)
-        if not ok or type(value) ~= "table" then return nil end
-        current = value
-    end
-    if current ~= plate and isStatusBar(current) then return current end
-end
-
 -- Automatic search for a nameplate addon's health bar (Plater, KUI, ...): they hang their own frames on Blizzard's
 -- nameplate and keep the bar in a field named like "health" (healthBar, health, HealthBar). Breadth-first through
 -- the plate's frames (not Blizzard's UnitFrame), the first shown StatusBar under such a key wins. Returns the bar
@@ -232,7 +230,6 @@ end
 
 -- The health bar a nameplate shows, the frame our widgets go on, the path the bar was found under, and whether
 -- it's a plate addon's bar (drawn in a strata of its own, which ours must match). In order:
---   * the Advanced tab's path from the plate, when set and shown
 --   * EllesmereUI: it parks Blizzard's bar on a hidden frame and shows its own plate, a pooled frame parented to
 --     the Blizzard plate while in use, listed by unit in its addon table, with the bar at .health. Our widgets go
 --     on that frame so they fade, scale and hide with it.
@@ -242,12 +239,6 @@ end
 --   * the automatic search (searchHealthBar), for other plate addons
 --   * Blizzard's bar, hidden: only the kill icon is drawn, beside the plate (iconOnly)
 local function findHealthBar(plate, unit)
-    local db = ns.db
-    local custom = db and strtrim(db.customPlateHealthBar or "") or ""
-    if custom ~= "" then
-        local bar = resolveFromPlate(plate, custom)
-        if bar and barShown(bar) then return bar, plate, "custom " .. custom, true end
-    end
     local eui = EllesmereNameplates_NS
     local euiPlate = type(eui) == "table" and type(eui.plates) == "table" and eui.plates[unit]
     if type(euiPlate) == "table" and euiPlate.nameplate == plate and euiPlate.health then
@@ -277,12 +268,11 @@ local function findHealthBar(plate, unit)
     return nil, nil, unitFrame and "no health bar found" or "no UnitFrame"
 end
 
--- What the last drawn nameplate's marker was on, for the options window.
+-- What the last drawn nameplate's marker was on, for the tab.
 local lastBarPath
 
 function ns.plateBarStatus()
-    if not lastBarPath then return "|cff888888none drawn yet|r" end
-    if lastBarPath:find("^custom ") then return "|cff66ff66" .. lastBarPath:sub(8) .. "|r" end
+    if not lastBarPath then return "|cff888888" .. L("none drawn yet") .. "|r" end
     if lastBarPath:find("^auto ") then return "found: " .. lastBarPath:sub(6) end
     return lastBarPath
 end
@@ -399,6 +389,8 @@ local STYLE_KEYS = {
 
 -- Pushes the look settings onto one plate's widgets when any of them changed since the last time.
 local function applyStyle(w, db)
+    if w.signature and w.generation == ns.lookGeneration then return end -- (see applyAppearance, Display.lua)
+    w.generation = ns.lookGeneration
     local parts = {}
     for i, key in ipairs(STYLE_KEYS) do parts[i] = tostring(db[key]) end
     local signature = table.concat(parts, "|")
@@ -597,22 +589,17 @@ ns.barMarker = {
     end,
 }
 
-local driver = CreateFrame("Frame")
-ns.offFrames = ns.offFrames or {} -- WLRT: stopped at load while DoesItDie is off
-ns.offFrames[#ns.offFrames + 1] = driver
-local sinceUpdate = 0
+-- Called 10 times a second by the driver of DoesItDie.lua while something is tracked. An error is reported once
+-- (log and chat) instead of every 0.1 s.
 local reportedError = false
-driver:SetScript("OnUpdate", function(_, elapsed)
-    sinceUpdate = sinceUpdate + elapsed
-    if sinceUpdate < UPDATE_INTERVAL then return end
-    sinceUpdate = 0
+function ns.refreshPlates()
     local ok, err = pcall(refreshPlates)
-    if not ok and not reportedError and ns.trace then
+    if not ok and not reportedError then
         reportedError = true
         ns.trace("ERROR in nameplate update: " .. tostring(err))
-        ns.print("Nameplate display error (logged): " .. tostring(err))
+        ns.print(L("Nameplate display error (logged): %s"):format(tostring(err)))
     end
-end)
+end
 
 local function testBar(i)
     if not testBars[i] then
@@ -630,13 +617,10 @@ local function testBar(i)
     return testBars[i]
 end
 
-local hider = CreateFrame("Frame")
-hider:Hide()
-hider:SetScript("OnUpdate", function(self)
-    if GetTime() < hideTestBarsAt then return end
+local function hideTestBars()
+    if GetTime() < hideTestBarsAt - 0.05 then return end -- a later probe pushed the time back
     for _, bar in ipairs(testBars) do bar:Hide() end
-    self:Hide()
-end)
+end
 
 -- Checks one nameplate unit; returns a log line and whether the test bar could be shown.
 local function probePlate(unit, index)
@@ -734,8 +718,7 @@ function ns.probeNameplates()
     end
 
     hideTestBarsAt = GetTime() + TEST_SECONDS
-    hider:Show()
+    W.After(TEST_SECONDS, hideTestBars)
     ns.trace(string.format("PLATES probe done: %d nameplates, %d test bars shown", found, shown))
-    ns.print(string.format("Nameplate probe: %d nameplates found, %d magenta test bars shown for %d seconds. "
-        .. "Results are in the log (/reload to save it).", found, shown, TEST_SECONDS))
+    ns.print(L("Nameplate probe: %d nameplates found, %d magenta test bars shown for %d seconds. Results are in the log (/reload to save it)."):format(found, shown, TEST_SECONDS))
 end

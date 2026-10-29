@@ -1,43 +1,230 @@
--- DoesItDie options window (/did).
---
--- Left: a live preview. The addon's real marker and kill icon are attached to a mock target frame here (see
--- ns.setDisplayHost in DoesItDie.lua) and fed plain numbers from the preview sliders, so the preview runs the
--- same drawing code as combat. Right: tabbed settings. Top: presets.
---
--- Controls are built from basic widgets (CheckButton, Slider, Button) rather than Blizzard templates, so they
--- don't depend on templates behaving the same in Forever. Settings are written straight to ns.db.
+-- WarLegend RaidTool - DoesItDie: the tab
+-- Built in the DoesItDie tab of the window (../DoesItDie.lua: ns.BuildTab). Left: the settings in sub-tabs, written
+-- straight to ns.db; a row greys out when a setting above makes it unused. Right: a live preview: the real marker and
+-- kill icon are attached to a mock target frame, nameplate and focus frame (ns.setDisplayHost, ns.setPlatePreview,
+-- ns.setFocusPreview) and fed plain numbers, so it runs the same drawing code as combat; out of combat only, while
+-- the tab is shown. The rows are plain widgets (CheckButton, Slider, a list button with color swatches): the window
+-- has no slider or color list of its own.
+local W = WLRT
+local L = W.L
+local ns = W.Space("DoesItDie")
 
-local ADDON_NAME, ns = "WarLegendRaidTool", WLRT.Space("DoesItDie")
-local T = ns.locale.T -- the window's text in the window language (Locale.lua)
+W.AddFR({
+    -- sub-tabs, presets, buttons
+    ["Kill icon"] = "Icône de mort",
+    ["Marker"] = "Marque",
+    ["Effects"] = "Effets",
+    ["Text"] = "Texte",
+    ["Nameplates"] = "Barres de nom",
+    ["Focus"] = "Focalisation",
+    ["Accuracy"] = "Précision",
+    ["Learned ticks"] = "Ticks appris",
+    ["Presets"] = "Préréglages",
+    ["Minimal"] = "Minimal",
+    ["Classic"] = "Classique",
+    ["Juicy"] = "Éclatant",
+    ["Debug"] = "Débogage",
+    ["%s preset applied."] = "Préréglage %s appliqué.",
+    ["Reset this tab"] = "Réinitialiser cet onglet",
+    ["Copy from the Marker tab"] = "Copier depuis l'onglet Marque",
+    ["Copy from the Nameplates tab"] = "Copier depuis l'onglet Barres de nom",
+    -- lists (ns.lists)
+    ["Purple"] = "Violet", ["Gold"] = "Or", ["White"] = "Blanc", ["Red"] = "Rouge", ["Orange"] = "Orange",
+    ["Green"] = "Vert", ["Cyan"] = "Cyan", ["Pink"] = "Rose", ["Black"] = "Noir",
+    ["Raid skull"] = "Crâne de raid", ["Red X"] = "X rouge", ["Green checkmark"] = "Coche verte",
+    ["Boss skull"] = "Crâne de boss", ["Sunglasses"] = "Lunettes de soleil",
+    ["None"] = "Aucun", ["Flat"] = "Uni", ["Health bar texture"] = "Texture de barre de vie",
+    ["Raid bar texture"] = "Texture de barre de raid", ["Diagonal stripes"] = "Rayures diagonales",
+    ["Fade in from left"] = "Fondu depuis la gauche",
+    ["Dashed"] = "Tirets", ["Solid"] = "Plein",
+    ["Fine dots (1px)"] = "Points fins (1 px)", ["Dots (2px)"] = "Points (2 px)",
+    ["Short dashes (4px)"] = "Tirets courts (4 px)", ["Dashes (8px)"] = "Tirets (8 px)",
+    ["Long dashes (16px)"] = "Tirets longs (16 px)",
+    ["Left of the bar"] = "À gauche de la barre", ["Centered on the bar"] = "Au centre de la barre",
+    ["Inside the bar, right end"] = "Dans la barre, à droite",
+    ["One color (fill color)"] = "Une couleur (celle du remplissage)", ["By spell school"] = "Par école de magie",
+    ["Different color per DoT"] = "Une couleur par DoT",
+    ["Never (estimate straight away)"] = "Jamais (estimation tout de suite)", ["When unsure"] = "En cas de doute",
+    ["Always (real ticks only)"] = "Toujours (vrais ticks seulement)",
+    ["Off"] = "Rien", ["Marker only"] = "Marque seulement", ["Marker and kill icon"] = "Marque et icône de mort",
+    ["Right of the health bar"] = "À droite de la barre de vie", ["Left of the health bar"] = "À gauche de la barre de vie",
+    ["Above the health bar"] = "Au-dessus de la barre de vie",
+    -- Kill icon
+    ["Show icon on portrait"] = "Icône sur le portrait",
+    ["Shows an icon over the target's portrait when your DoTs on it will kill it."] =
+        "Montre une icône sur le portrait de la cible quand tes DoT vont la tuer.",
+    ["Icon"] = "Icône",
+    ["Size"] = "Taille",
+    ["Pulse"] = "Pulsation",
+    ["Gently pulses the icon while it's showing."] = "L'icône pulse doucement tant qu'elle est affichée.",
+    ["Horizontal offset"] = "Décalage horizontal",
+    ["Pixels right (+) or left (-) of the portrait's center."] =
+        "Pixels à droite (+) ou à gauche (-) du centre du portrait.",
+    ["Vertical offset"] = "Décalage vertical",
+    ["Pixels up (+) or down (-) from the portrait's center."] =
+        "Pixels vers le haut (+) ou le bas (-) depuis le centre du portrait.",
+    -- Marker
+    ["Show damage marker"] = "Marque des dégâts",
+    ["Marks the damage your DoTs still have to deal on the target's health bar. If the health ends inside it, the target dies."] =
+        "Marque sur la barre de vie de la cible les dégâts que tes DoT doivent encore faire. Si la vie finit dedans, la cible meurt.",
+    ["DoT colors"] = "Couleurs des DoT",
+    ["One color, or one segment per DoT colored by spell school or with a different color each."] =
+        "Une couleur, ou un segment par DoT coloré par école de magie ou d'une couleur différente chacun.",
+    ["Fill style"] = "Remplissage",
+    ["Fill color"] = "Couleur du remplissage",
+    ["Used when DoT colors is set to one color."] = "Utilisée quand les couleurs des DoT sont sur une couleur.",
+    ["Fill opacity"] = "Opacité du remplissage",
+    ["Dividers between DoTs"] = "Séparations entre les DoT",
+    ["Outline"] = "Contour",
+    ["Dash length"] = "Longueur des tirets",
+    ["Outline thickness"] = "Épaisseur du contour",
+    ["Outline color"] = "Couleur du contour",
+    ["Outline opacity"] = "Opacité du contour",
+    -- Effects
+    ["Smooth motion"] = "Mouvement fluide",
+    ["The marker grows in when it appears and glides to new values instead of jumping."] =
+        "La marque grandit en apparaissant et glisse vers ses nouvelles valeurs au lieu de sauter.",
+    ["Flash on new DoT"] = "Flash à chaque nouveau DoT",
+    ["Spark"] = "Étincelle",
+    ["A bright flare on the marker's edge when a DoT lands."] = "Un éclat lumineux au bord de la marque quand un DoT arrive.",
+    ["Pulse outline"] = "Contour qui pulse",
+    ["Glow"] = "Halo",
+    ["Soft halo in the outline color."] = "Halo doux de la couleur du contour.",
+    ["Glow size"] = "Taille du halo",
+    ["Shine sweep"] = "Reflet qui passe",
+    ["Shine every"] = "Reflet toutes les",
+    ["Scroll stripes"] = "Rayures qui défilent",
+    ["Animates the diagonal stripes fill."] = "Anime le remplissage en rayures diagonales.",
+    -- Text
+    ["Show damage text"] = "Texte des dégâts",
+    ["Remaining DoT damage next to the health bar (a per-DoT breakdown with DoT colors)."] =
+        "Dégâts restants des DoT à côté de la barre de vie (détail par DoT avec les couleurs des DoT).",
+    ["Position"] = "Position",
+    ["Color"] = "Couleur",
+    -- Nameplates, Focus
+    ["Show on nameplates"] = "Sur les barres de nom",
+    ["Draws a marker (and optionally the kill icon) on every enemy nameplate with your DoTs on it, in its own look below."] =
+        "Dessine une marque (et si voulu l'icône de mort) sur chaque barre de nom ennemie qui porte tes DoT, avec son propre style ci-dessous.",
+    ["Kill icon size"] = "Taille de l'icône de mort",
+    ["Kill icon position"] = "Place de l'icône de mort",
+    ["Icon horizontal offset"] = "Décalage horizontal de l'icône",
+    ["Pixels right (+) or left (-) of the chosen position."] = "Pixels à droite (+) ou à gauche (-) de la place choisie.",
+    ["Icon vertical offset"] = "Décalage vertical de l'icône",
+    ["Pixels up (+) or down (-) from the chosen position."] = "Pixels vers le haut (+) ou le bas (-) depuis la place choisie.",
+    ["Show on focus frame"] = "Sur le cadre de focalisation",
+    ["Draws the marker (and optionally the kill icon) on your focus's health bar, for your DoTs on it, in its own look below. /cast [@focus] macros put the DoT on your focus."] =
+        "Dessine la marque (et si voulu l'icône de mort) sur la barre de vie de ta focalisation, pour tes DoT sur elle, avec son propre style ci-dessous. Les macros /cast [@focus] mettent le DoT sur ta focalisation.",
+    ["Nameplate bar in use"] = "Dernière barre de nom utilisée",
+    ["Focus bar in use"] = "Barre de focalisation utilisée",
+    -- Accuracy
+    ["Wait for first tick"] = "Attendre le 1er tick",
+    ["Whether a new DoT counts before its first tick lands. \"When unsure\" waits for finishers with unknown combo points and spells the addon hasn't seen tick yet."] =
+        "Si un nouveau DoT compte avant son premier tick. « En cas de doute » attend pour les coups de grâce aux points de combo inconnus et les sorts que l'addon n'a pas encore vus faire un tick.",
+    ["Estimate during casting"] = "Estimation pendant l'incantation",
+    ["Shows a DoT with a cast time while you're still casting it. Once the cast lands the normal estimate takes over; an interrupted or failed cast removes it."] =
+        "Montre un DoT à temps d'incantation pendant que tu l'incantes encore. Une fois le sort lancé, l'estimation normale prend le relais ; une incantation interrompue ou ratée le retire.",
+    ["Echo trace log to chat"] = "Journal de suivi dans le chat",
+    ["Prints each DoT cast, matched tick and estimate to chat."] =
+        "Écrit chaque DoT lancé, tick reconnu et estimation dans le chat.",
+    ["Health bar in use"] = "Barre de vie utilisée",
+    ["Kill icon in use"] = "Place de l'icône de mort",
+    ["Commands: /wl did skull, plates, exec [percent], debug, reset (/wl did help explains them)."] =
+        "Commandes : /wl did skull, plates, exec [pourcentage], debug, reset (/wl did help les explique).",
+    -- Learned ticks
+    ["What each DoT really ticks for, learned from your casts and used instead of its tooltip. Tooltips leave out spell power and attack power: Bonus is how much more yours do. Shift-click: link the spell. Right-click: forget the size."] =
+        "Ce que chaque DoT fait vraiment par tick, appris de tes sorts et utilisé à la place de son infobulle. Les infobulles oublient la puissance des sorts et d'attaque : Bonus dit combien les tiens font de plus. Maj + clic : lien du sort. Clic droit : oublier la taille.",
+    ["Spell"] = "Sort",
+    ["Combo"] = "Combo",
+    ["Per tick"] = "Par tick",
+    ["Tooltip"] = "Infobulle",
+    ["Bonus"] = "Bonus",
+    ["Total"] = "Total",
+    ["Nothing learned yet. Tick sizes are learned as your DoTs tick on your targets."] =
+        "Rien d'appris pour l'instant. Les tailles de tick s'apprennent quand tes DoT font des ticks sur tes cibles.",
+    ["Forget all"] = "Tout oublier",
+    ["1 learned tick size"] = "1 taille de tick apprise",
+    ["%d learned tick sizes"] = "%d tailles de tick apprises",
+    ["Spell %d"] = "Sort %d",
+    ["Combo points"] = "Points de combo",
+    ["Learned per tick"] = "Appris par tick",
+    ["Tooltip per tick"] = "Infobulle par tick",
+    ["Ticks"] = "Ticks",
+    ["%d, every %gs (%gs)"] = "%d, toutes les %g s (%g s)",
+    ["Full duration"] = "Durée complète",
+    ["Learned from this spell's ticks on your targets; used instead of the tooltip's number, which leaves out spell power and attack power."] =
+        "Appris des ticks de ce sort sur tes cibles ; utilisé à la place du nombre de l'infobulle, qui oublie la puissance des sorts et d'attaque.",
+    ["Shift-click: link it in chat. Right-click: forget it."] = "Maj + clic : lien dans le chat. Clic droit : l'oublier.",
+    -- preview
+    ["Live preview"] = "Aperçu en direct",
+    ["Mottled Boar"] = "Sanglier tacheté",
+    ["In combat: the marker and kill icon are showing on your target. The preview resumes after combat."] =
+        "En combat : la marque et l'icône de mort s'affichent sur ta cible. L'aperçu reprend après le combat.",
+    ["Target health"] = "Vie de la cible",
+    ["DoT damage"] = "Dégâts des DoT",
+    ["Remaining damage of two sample DoTs, as a percentage of the target's max health."] =
+        "Dégâts restants de deux DoT d'exemple, en pourcentage de la vie max de la cible.",
+    ["Simulate fight"] = "Simuler un combat",
+    ["Stop"] = "Arrêter",
+    ["Flash"] = "Flash",
+    ["No DoTs on the target"] = "Aucun DoT sur la cible",
+    ["DoTs finish it: the kill icon shows"] = "Les DoT l'achèvent : l'icône de mort s'affiche",
+    ["Survives by %d%% of its health"] = "Survit avec %d %% de sa vie",
+    ["Nameplate"] = "Barre de nom",
+    ["While this tab is open, the marker and kill icon are drawn here instead of on your target."] =
+        "Tant que cet onglet est ouvert, la marque et l'icône de mort sont dessinées ici au lieu de sur ta cible.",
+})
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
--- Tall enough for the longest tabs (Nameplates, Focus: 15 rows); wide enough for the seven tab names in a row.
-local WINDOW_WIDTH, WINDOW_HEIGHT = 800, 548
-local HEADER_HEIGHT = 52 -- title bar: title, presets, close button
-local PREVIEW_WIDTH = 290
-local ROW_HEIGHT = 26
+local ROW_HEIGHT = 24
 local SETTINGS_LAYOUT = { label = 170, control = 200 }
 local PREVIEW_LAYOUT = { label = 92, control = 140 }
+local PREVIEW_WIDTH = 330
 local DISABLED_ALPHA = 0.35
 local SIMULATION_STEP = 0.5 -- seconds
+local SUBTABS_TOP = -94      -- the sub-tab buttons; their pages start 28 px lower
+local PANE_LEFT = 446        -- where the preview starts (the settings rows are 420 px wide)
 
--- Presets only set appearance; accuracy and troubleshooting settings are left alone.
+-- The number settings (sliders): min, max, step. Also what an imported profile or the old saved file may set
+-- (ns.Sanitize).
+local RANGES = {
+    skullSize = { 20, 128, 2 }, skullOffsetX = { -150, 150, 1 }, skullOffsetY = { -150, 150, 1 },
+    fillOpacity = { 0, 100, 5 }, outlineThickness = { 1, 8, 1 }, outlineOpacity = { 10, 100, 5 },
+    glowSize = { 2, 16, 1 }, shineInterval = { 2, 10, 1 }, labelSize = { 8, 20, 1 },
+    nameplateIconSize = { 12, 128, 1 }, plateIconOffsetX = { -40, 40, 1 }, plateIconOffsetY = { -40, 40, 1 },
+    plateFillOpacity = { 0, 100, 5 }, plateOutlineThickness = { 1, 3, 1 }, plateOutlineOpacity = { 10, 100, 5 },
+    focusIconSize = { 12, 128, 1 }, focusIconOffsetX = { -40, 40, 1 }, focusIconOffsetY = { -40, 40, 1 },
+    focusFillOpacity = { 0, 100, 5 }, focusOutlineThickness = { 1, 3, 1 }, focusOutlineOpacity = { 10, 100, 5 },
+}
+-- The choice settings and the list each picks from (ns.lists, filled by DoesItDie.lua, Display.lua, Nameplates.lua).
+local CHOICES = {
+    skullIcon = "icons", dotColors = "dotColors", fillTexture = "fills", fillColor = "colors",
+    outlineStyle = "outlines", dashLength = "dashLengths", outlineColor = "colors",
+    labelPosition = "labelPositions", labelColor = "colors", waitFirstTick = "waitModes",
+    nameplateMode = "nameplateModes", plateIcon = "icons", nameplateIconPosition = "nameplateIconPositions",
+    plateDotColors = "dotColors", plateFillTexture = "fills", plateFillColor = "colors",
+    plateOutlineStyle = "outlines", plateDashLength = "dashLengths", plateOutlineColor = "colors",
+    focusMode = "nameplateModes", focusIcon = "icons", focusIconPosition = "nameplateIconPositions",
+    focusDotColors = "dotColors", focusFillTexture = "fills", focusFillColor = "colors",
+    focusOutlineStyle = "outlines", focusDashLength = "dashLengths", focusOutlineColor = "colors",
+}
+
+-- Presets only set the look; accuracy settings are left alone.
 local PRESETS = {
-    { id = "minimal", label = "Minimal", values = {
+    { label = "Minimal", values = {
         showSkull = true, skullIcon = "cross", skullSize = 40, skullPulse = false,
         showMarkers = true, fillTexture = "flat", fillColor = "purple", fillOpacity = 35, dotColors = "single",
         outlineStyle = "solid", outlineThickness = 1, outlineColor = "purple", outlineOpacity = 100,
         smoothMotion = true, flashOnApply = false, pulseOutline = false,
         showSpark = false, showGlow = false, showShine = false, scrollStripes = false, showLabel = false,
     } },
-    { id = "classic", label = "Classic", values = {
+    { label = "Classic", values = {
         showSkull = true, skullIcon = "skull", skullSize = 48, skullPulse = true,
         showMarkers = true, fillTexture = "smooth", fillColor = "red", fillOpacity = 60, dotColors = "single",
         outlineStyle = "dashed", dashLength = 4, outlineThickness = 2, outlineColor = "gold", outlineOpacity = 100,
         smoothMotion = true, flashOnApply = true, pulseOutline = false,
         showSpark = true, showGlow = false, showShine = false, scrollStripes = false, showLabel = false,
     } },
-    { id = "juicy", label = "Juicy", values = {
+    { label = "Juicy", values = {
         showSkull = true, skullIcon = "shades", skullSize = 64, skullPulse = true,
         showMarkers = true, fillTexture = "stripes", fillColor = "red", fillOpacity = 100, dotColors = "each",
         segmentDividers = true, outlineStyle = "dashed", dashLength = 4, outlineThickness = 1, outlineColor = "red",
@@ -45,7 +232,7 @@ local PRESETS = {
         showSpark = true, showGlow = true, glowSize = 7, showShine = true, shineInterval = 3, scrollStripes = true,
         showLabel = false,
     } },
-    { id = "debug", label = "Debug", values = {
+    { label = "Debug", values = {
         showSkull = true, skullIcon = "cross", skullPulse = false,
         showMarkers = true, fillTexture = "flat", fillOpacity = 60, dotColors = "school", segmentDividers = true,
         outlineStyle = "solid", outlineThickness = 1, outlineColor = "white", outlineOpacity = 100,
@@ -55,10 +242,28 @@ local PRESETS = {
     } },
 }
 
-local window
-local controls = {} -- every settings/preview row, refreshed after each change
-local tabs, activeTab = {}, nil
-local menu -- shared dropdown list
+local function findEntry(list, id)
+    for _, entry in ipairs(list or {}) do
+        if entry.id == id then return entry end
+    end
+end
+
+-- A number out of its slider's range, or an id not in its list (an imported profile, an edited file), goes back to
+-- the default: a made-up size or texture drew huge frames or nothing at all.
+function ns.Sanitize(db)
+    for key, range in pairs(RANGES) do
+        local v = db[key]
+        if type(v) ~= "number" or v ~= v or v < range[1] or v > range[2] then db[key] = ns.DEFAULTS[key] end
+    end
+    for key, listName in pairs(CHOICES) do
+        if not findEntry(ns.lists[listName], db[key]) then db[key] = ns.DEFAULTS[key] end
+    end
+end
+
+local page        -- the tab (p of W.RegisterModule)
+local ui = {}     -- the preview's widgets and the sub-tabs
+local controls = {} -- every settings / preview row, refreshed after each change
+local menu        -- shared list of choices
 local simulation
 
 -- Preview numbers, in % of the mock target's max health.
@@ -72,16 +277,19 @@ local preview = {
 
 local function db() return ns.db end
 
-local function findEntry(list, id)
-    for _, entry in ipairs(list) do
-        if entry.id == id then return entry end
-    end
-end
-
 local function setBackdrop(frame, shade, alpha)
     frame:SetBackdrop({ bgFile = WHITE, edgeFile = WHITE, edgeSize = 1 })
     frame:SetBackdropColor(shade, shade, shade, alpha or 1)
     frame:SetBackdropBorderColor(0.28, 0.28, 0.3, 1)
+end
+
+local function refreshControls()
+    for _, control in ipairs(controls) do control:Refresh() end
+end
+
+local function changed()
+    ns.reattach() -- the look is applied again, then the display redrawn
+    refreshControls()
 end
 
 ---------------------------------------------------------------------------
@@ -100,52 +308,8 @@ local function setPreviewDamage(total)
     preview.dots[2].damage = total * 0.4
 end
 
-local function refreshControls()
-    for _, control in ipairs(controls) do control:Refresh() end
-end
-
 local function inCombat()
     return (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player"))
-end
-
--- The preview only takes over the display out of combat: in combat the real target comes first, even with the
--- window open (settings changes still apply to it live).
-local function syncDisplayHost()
-    if not window or not window:IsShown() then return end
-    local paused = inCombat() and true or false
-    window.combatNote:SetShown(paused)
-    window.mock:SetAlpha(paused and 0.3 or 1)
-    window.mockPlate:SetAlpha(paused and 0.3 or 1)
-    window.mockFocus:SetAlpha(paused and 0.3 or 1)
-    window.simulateButton:SetEnabled(not paused)
-    window.flashButton:SetEnabled(not paused)
-    if paused ~= window.previewPaused then
-        window.previewPaused = paused
-        if paused and simulation then
-            simulation:Cancel()
-            simulation = nil
-            window.simulateButton:SetText(T("Simulate fight"))
-        end
-        ns.setDisplayHost((not paused) and window.host or nil)
-        ns.setPlatePreview((not paused) and window.plateHost or nil, preview)
-        ns.setFocusPreview((not paused) and window.focusHost or nil, preview)
-    end
-end
-
-local function updatePreview()
-    if not window then return end
-    window.healthBar:SetValue(preview.health)
-    window.plateHealthBar:SetValue(preview.health)
-    window.focusHealthBar:SetValue(preview.health)
-    local total = previewTotal()
-    if total <= 0 then
-        window.status:SetText(T("No DoTs on the target"))
-    elseif total >= preview.health then
-        window.status:SetText("|cff66ff66" .. T("DoTs finish it: the kill icon shows") .. "|r")
-    else
-        window.status:SetText(string.format(T("Survives by %d%% of its health"), math.floor(preview.health - total + 0.5)))
-    end
-    ns.refresh()
 end
 
 local function stopSimulation()
@@ -153,12 +317,49 @@ local function stopSimulation()
         simulation:Cancel()
         simulation = nil
     end
-    if window then window.simulateButton:SetText(T("Simulate fight")) end
+    if ui.simulateButton then ui.simulateButton:SetText(L("Simulate fight")) end
+end
+
+-- The preview only takes over the display out of combat: in combat the real target comes first, even with the tab
+-- open (settings changes still apply to it live).
+local function syncDisplayHost()
+    if not ui.mock or not page:IsVisible() then return end
+    local paused = inCombat() and true or false
+    ui.combatNote:SetShown(paused)
+    ui.mock:SetAlpha(paused and 0.3 or 1)
+    ui.mockPlate:SetAlpha(paused and 0.3 or 1)
+    ui.mockFocus:SetAlpha(paused and 0.3 or 1)
+    ui.simulateButton:SetEnabled(not paused)
+    ui.flashButton:SetEnabled(not paused)
+    if paused ~= ui.previewPaused then
+        ui.previewPaused = paused
+        if paused then stopSimulation() end
+        ns.setDisplayHost((not paused) and ui.host or nil)
+        ns.setPlatePreview((not paused) and ui.plateHost or nil, preview)
+        ns.setFocusPreview((not paused) and ui.focusHost or nil, preview)
+    end
+end
+
+local function updatePreview()
+    if not ui.mock then return end
+    ui.healthBar:SetValue(preview.health)
+    ui.plateHealthBar:SetValue(preview.health)
+    ui.focusHealthBar:SetValue(preview.health)
+    local total = previewTotal()
+    if total <= 0 then
+        ui.status:SetText(L("No DoTs on the target"))
+    elseif total >= preview.health then
+        ui.status:SetText("|cff66ff66" .. L("DoTs finish it: the kill icon shows") .. "|r")
+    else
+        ui.status:SetText(L("Survives by %d%% of its health"):format(math.floor(preview.health - total + 0.5)))
+    end
+    ns.refresh()
 end
 
 -- A scripted fight: a DoT lands, ticks, a second DoT lands and makes it lethal, ticks until the target dies.
 local function startSimulation()
     stopSimulation()
+    if not (C_Timer and C_Timer.NewTicker) then return end
     preview.health = 80
     setPreviewDamage(0)
     local step = 0
@@ -183,39 +384,30 @@ local function startSimulation()
         refreshControls()
         if preview.health <= 0 or (step > 5 and previewTotal() <= 0) then stopSimulation() end
     end)
-    window.simulateButton:SetText(T("Stop"))
+    ui.simulateButton:SetText(L("Stop"))
     updatePreview()
     refreshControls()
 end
 
 ---------------------------------------------------------------------------
--- Controls
+-- Rows: a label (W.Label, so the window's search finds the option) and a control
 ---------------------------------------------------------------------------
-
-local function changed()
-    ns.reattach() -- refreshes; re-attaches only if a custom frame setting changed what to attach to
-    refreshControls()
-end
 
 local function makeRow(parent, labelText, opts)
     local layout = opts.layout or SETTINGS_LAYOUT
     local row = CreateFrame("Frame", nil, parent)
     row:SetSize(layout.label + layout.control + 50, ROW_HEIGHT)
     row.layout = layout
-    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    row.label = W.Label(row, labelText, "GameFontHighlightSmall")
     row.label:SetPoint("LEFT", 6, 0)
     row.label:SetWidth(layout.label - 8)
-    row.label:SetJustifyH("LEFT")
-    labelText = T(labelText)
-    local tooltip = opts.tooltip and T(opts.tooltip)
-    row.label:SetText(labelText)
     row.enabledIf = opts.enabledIf
-    if tooltip then
+    if opts.tooltip then
         row:EnableMouse(true)
         row:SetScript("OnEnter", function(self)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(labelText, 1, 1, 1)
-            GameTooltip:AddLine(tooltip, nil, nil, nil, true)
+            GameTooltip:AddLine(opts.tooltip, nil, nil, nil, true)
             GameTooltip:Show()
         end)
         row:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -226,7 +418,7 @@ local function makeRow(parent, labelText, opts)
         widget:EnableMouse(enabled)
         if widget.EnableMouseWheel then widget:EnableMouseWheel(enabled) end
     end
-    table.insert(controls, row)
+    controls[#controls + 1] = row
     return row
 end
 
@@ -251,7 +443,7 @@ local function checkbox(parent, key, labelText, opts)
     return row
 end
 
--- get/set work on any value (settings or preview numbers).
+-- get / set work on any value (a setting or a preview number).
 local function sliderRow(parent, labelText, min, max, step, get, set, opts)
     opts = opts or {}
     local row = makeRow(parent, labelText, opts)
@@ -291,8 +483,9 @@ local function sliderRow(parent, labelText, min, max, step, get, set, opts)
     return row
 end
 
-local function slider(parent, key, labelText, min, max, step, opts)
-    return sliderRow(parent, labelText, min, max, step,
+local function slider(parent, key, labelText, opts)
+    local range = RANGES[key]
+    return sliderRow(parent, labelText, range[1], range[2], range[3],
         function() return db()[key] end,
         function(value)
             db()[key] = value
@@ -304,16 +497,19 @@ local function closeMenu()
     if menu then menu:Hide() end
 end
 
--- Shared dropdown list under `owner`; entries may carry an rgb swatch.
+-- Shared list of choices under `owner`; entries may carry an rgb swatch. On the tab (not UIParent): it follows the
+-- window's scale.
 local function openMenu(owner, list, current, pick)
     if not menu then
-        menu = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        menu = CreateFrame("Frame", nil, page, "BackdropTemplate")
         menu:SetFrameStrata("FULLSCREEN_DIALOG")
         menu:EnableMouse(true)
         setBackdrop(menu, 0.08, 0.98)
         menu.buttons = {}
-        -- Close on a click anywhere else (event may not exist on every client; clicking the owner toggles too).
-        pcall(menu.RegisterEvent, menu, "GLOBAL_MOUSE_DOWN")
+        menu:Hide()
+        -- closed by a click anywhere else, only while it is open (the event may not exist on every client)
+        menu:SetScript("OnShow", function(self) pcall(self.RegisterEvent, self, "GLOBAL_MOUSE_DOWN") end)
+        menu:SetScript("OnHide", function(self) self:UnregisterAllEvents() end)
         menu:SetScript("OnEvent", function(self)
             if not self:IsMouseOver() and not (self.owner and self.owner:IsMouseOver()) then self:Hide() end
         end)
@@ -342,7 +538,7 @@ local function openMenu(owner, list, current, pick)
         if entry.rgb then button.swatch:SetColorTexture(entry.rgb[1], entry.rgb[2], entry.rgb[3], 1) end
         button.text:ClearAllPoints()
         button.text:SetPoint("LEFT", entry.rgb and 26 or 8, 0)
-        button.text:SetText(entry.id == current and ("|cffffd100" .. T(entry.label) .. "|r") or T(entry.label))
+        button.text:SetText(entry.id == current and ("|cffffd100" .. L(entry.label) .. "|r") or L(entry.label))
         button:SetScript("OnClick", function()
             menu:Hide()
             pick(entry.id)
@@ -356,10 +552,10 @@ local function openMenu(owner, list, current, pick)
     menu:Show()
 end
 
-local function choice(parent, key, labelText, list, opts)
+local function choice(parent, key, labelText, opts)
     opts = opts or {}
+    local list = ns.lists[CHOICES[key]]
     local row = makeRow(parent, labelText, opts)
-    for _, entry in ipairs(list) do T(entry.label) end -- (so --dump-strings lists every entry)
     local button = CreateFrame("Button", nil, row, "BackdropTemplate")
     button:SetSize(row.layout.control, 22)
     button:SetPoint("LEFT", row, "LEFT", row.layout.label, 0)
@@ -372,7 +568,6 @@ local function choice(parent, key, labelText, list, opts)
     swatch:SetPoint("LEFT", 8, 0)
     local text = button:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     text:SetJustifyH("LEFT")
-    text:SetPoint("RIGHT", -20, 0)
     local arrow = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     arrow:SetPoint("RIGHT", -8, 0)
     arrow:SetText("v")
@@ -380,68 +575,17 @@ local function choice(parent, key, labelText, list, opts)
         openMenu(self, list, db()[key], function(id)
             db()[key] = id
             changed()
-            if opts.onChange then opts.onChange(id) end
         end)
     end)
     function row:Refresh()
         local entry = findEntry(list, db()[key])
-        text:SetText(entry and T(entry.label) or tostring(db()[key]))
+        text:SetText(entry and L(entry.label) or tostring(db()[key]))
         swatch:SetShown(entry ~= nil and entry.rgb ~= nil)
         if entry and entry.rgb then swatch:SetColorTexture(entry.rgb[1], entry.rgb[2], entry.rgb[3], 1) end
         text:ClearAllPoints()
         text:SetPoint("LEFT", (entry and entry.rgb) and 26 or 8, 0)
         text:SetPoint("RIGHT", -20, 0)
         self:ApplyEnabled(button)
-    end
-    return row
-end
-
-local function pushButton(parent, text, width, onClick)
-    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    button:SetSize(width, 22)
-    button:SetText(T(text))
-    button:SetScript("OnClick", onClick)
-    return button
-end
-
--- A frame path setting (Frames.lua): a text box (saved on Enter or leaving it) and a Pick button that takes the
--- next click on screen.
-local function frameRow(parent, key, labelText, kind, opts)
-    opts = opts or {}
-    local row = makeRow(parent, labelText, opts)
-    local box = CreateFrame("EditBox", nil, row, "BackdropTemplate")
-    box:SetSize(row.layout.control - (opts.noPick and 0 or 58), 22)
-    box:SetPoint("LEFT", row, "LEFT", row.layout.label, 0)
-    setBackdrop(box, 0.13)
-    box:SetFontObject("GameFontHighlightSmall")
-    box:SetTextInsets(6, 6, 0, 0)
-    box:SetAutoFocus(false)
-    local function save(value)
-        db()[key] = strtrim(value or "")
-        changed()
-    end
-    box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-    box:SetScript("OnEscapePressed", function(self)
-        self:SetText(db()[key])
-        self:ClearFocus()
-    end)
-    box:SetScript("OnEditFocusLost", function(self)
-        if strtrim(self:GetText() or "") ~= db()[key] then save(self:GetText()) end
-    end)
-    local pick = (not opts.noPick) and pushButton(row, "Pick", 52, function()
-        ns.print(kind == "bar"
-            and T("Click your target's health bar (you may need to move this window). Right-click cancels.")
-            or T("Click where the kill icon should go (you may need to move this window). Right-click cancels."))
-        ns.startFramePick(kind, function(path)
-            box:SetText(path)
-            save(path)
-            ns.print(string.format(T("Picked %s."), path))
-        end)
-    end)
-    if pick then pick:SetPoint("LEFT", box, "RIGHT", 6, 0) end
-    function row:Refresh()
-        if not box:HasFocus() then box:SetText(db()[key] or "") end
-        self:ApplyEnabled(box)
     end
     return row
 end
@@ -458,30 +602,9 @@ local function infoRow(parent, labelText, getText, opts)
     return row
 end
 
-local function actionRow(parent, labelText, buttonText, onClick, opts)
-    opts = opts or {}
-    local row = makeRow(parent, labelText, opts)
-    local button = pushButton(row, buttonText, 90, onClick)
-    button:SetPoint("LEFT", row, "LEFT", row.layout.label, 0)
-    row.button = button
-    function row:Refresh() self:ApplyEnabled(button) end
-    return row
-end
-
 ---------------------------------------------------------------------------
--- Learned tick sizes viewer (Advanced tab > View): one row per learned tick size, with the spell's icon, name
--- and rank (hover for its tooltip, shift-click to link it), what its description predicts per tick, and the
--- difference: the spell power or attack power the description leaves out.
+-- Learned tick sizes (sub-tab): what each DoT really ticks for, next to its tooltip
 ---------------------------------------------------------------------------
-
-local TICKS_ROW_HEIGHT, TICKS_VISIBLE_ROWS = 32, 11
--- Column x positions and widths in a row; numbers are right-aligned in theirs.
-local TICKS_COLUMNS = {
-    spell = { 44, 212 }, combo = { 258, 48 }, learned = { 310, 66 }, tooltip = { 380, 66 }, bonus = { 450, 58 },
-    total = { 512, 70 },
-}
-local SPELL_LINK_COLOR = { 0.44, 0.84, 1 }
-local tickViewer
 
 local function formatTick(value)
     if not value then return "-" end
@@ -489,774 +612,475 @@ local function formatTick(value)
     return string.format("%.1f", value)
 end
 
-local function spellCall(fnName, spellID)
-    local fn = C_Spell and C_Spell[fnName]
-    if not fn then return nil end
-    local ok, value = pcall(fn, spellID)
-    if ok and (type(value) == "string" or type(value) == "number") then return value end
-end
-
 local function spellLink(spellID)
-    local link = spellCall("GetSpellLink", spellID)
-    if not link and GetSpellLink then
-        local ok, value = pcall(GetSpellLink, spellID)
-        link = ok and value or nil
-    end
-    return link
+    local fn = C_Spell and C_Spell.GetSpellLink or GetSpellLink
+    if not fn then return nil end
+    local ok, link = pcall(fn, spellID)
+    if ok and type(link) == "string" then return link end
 end
 
-local function showTickTooltip(row)
-    local entry = row.entry
-    if not entry then return end
-    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+local function showTickTooltip(owner, entry)
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
     local shown = GameTooltip.SetSpellByID and pcall(GameTooltip.SetSpellByID, GameTooltip, entry.spellID)
-    if not shown then GameTooltip:SetText(entry.name or (T("Spell") .. " " .. entry.spellID), 1, 1, 1) end
+    if not shown then GameTooltip:SetText(entry.name or L("Spell %d"):format(entry.spellID), 1, 1, 1) end
     GameTooltip:AddLine(" ")
     GameTooltip:AddLine("DoesItDie", 1, 0.82, 0)
     if entry.comboPoints then
-        GameTooltip:AddDoubleLine(T("Combo points"), entry.comboPoints, 0.8, 0.8, 0.8, 1, 1, 1)
+        GameTooltip:AddDoubleLine(L("Combo points"), entry.comboPoints, 0.8, 0.8, 0.8, 1, 1, 1)
     end
-    GameTooltip:AddDoubleLine(T("Learned per tick"), formatTick(entry.perTick), 0.8, 0.8, 0.8, 1, 1, 1)
+    GameTooltip:AddDoubleLine(L("Learned per tick"), formatTick(entry.perTick), 0.8, 0.8, 0.8, 1, 1, 1)
     if entry.tooltipPerTick then
-        GameTooltip:AddDoubleLine(T("Tooltip per tick"), formatTick(entry.tooltipPerTick), 0.8, 0.8, 0.8, 1, 1, 1)
-        GameTooltip:AddDoubleLine(T("Ticks"), string.format(T("%d, every %gs (%gs)"), entry.ticks, entry.interval,
+        GameTooltip:AddDoubleLine(L("Tooltip per tick"), formatTick(entry.tooltipPerTick), 0.8, 0.8, 0.8, 1, 1, 1)
+        GameTooltip:AddDoubleLine(L("Ticks"), L("%d, every %gs (%gs)"):format(entry.ticks, entry.interval,
             entry.duration), 0.8, 0.8, 0.8, 1, 1, 1)
-        GameTooltip:AddDoubleLine(T("Full duration"), formatTick(entry.perTick * entry.ticks), 0.8, 0.8, 0.8, 1, 1, 1)
+        GameTooltip:AddDoubleLine(L("Full duration"), formatTick(entry.perTick * entry.ticks), 0.8, 0.8, 0.8, 1, 1, 1)
     end
-    GameTooltip:AddLine(T("Learned from this spell's ticks on your targets; used instead of the tooltip's number, "
-        .. "which leaves out spell power and attack power."), 0.6, 0.6, 0.6, true)
-    GameTooltip:AddLine(T("Shift-click to link it in chat."), 0.5, 0.8, 1)
+    GameTooltip:AddLine(L("Learned from this spell's ticks on your targets; used instead of the tooltip's number, which leaves out spell power and attack power."), 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine(L("Shift-click: link it in chat. Right-click: forget it."), 0.5, 0.8, 1)
     GameTooltip:Show()
 end
 
-local function createTickRow(parent, index)
-    local row = CreateFrame("Button", nil, parent)
-    row:SetHeight(TICKS_ROW_HEIGHT)
-    row:RegisterForClicks("LeftButtonUp")
-    local stripe = row:CreateTexture(nil, "BACKGROUND")
-    stripe:SetAllPoints()
-    stripe:SetColorTexture(1, 1, 1, index % 2 == 0 and 0.035 or 0)
-    local highlight = row:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(1, 1, 1, 0.08)
-    -- The spell's school color, as on the marker with "Color by school".
-    row.school = row:CreateTexture(nil, "ARTWORK")
-    row.school:SetSize(3, TICKS_ROW_HEIGHT - 8)
-    row.school:SetPoint("LEFT", 2, 0)
-    row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(24, 24)
-    row.icon:SetPoint("LEFT", 12, 0)
-    row.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-
-    row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    row.name:SetPoint("TOPLEFT", row, "TOPLEFT", TICKS_COLUMNS.spell[1], -3)
-    row.name:SetWidth(TICKS_COLUMNS.spell[2])
-    row.name:SetJustifyH("LEFT")
-    row.name:SetWordWrap(false)
-    row.rank = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.rank:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -1)
-    row.rank:SetWidth(TICKS_COLUMNS.spell[2])
-    row.rank:SetJustifyH("LEFT")
-    row.cells = {}
-    for _, column in ipairs({ "combo", "learned", "tooltip", "bonus", "total" }) do
-        local cell = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        cell:SetPoint("LEFT", row, "LEFT", TICKS_COLUMNS[column][1], 0)
-        cell:SetWidth(TICKS_COLUMNS[column][2])
-        cell:SetJustifyH(column == "combo" and "CENTER" or "RIGHT")
-        row.cells[column] = cell
-    end
-
-    local forget = CreateFrame("Button", nil, row)
-    forget:SetSize(20, 20)
-    forget:SetPoint("RIGHT", row, "RIGHT", -6, 0)
-    forget.text = forget:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    forget.text:SetPoint("CENTER")
-    forget.text:SetText("x")
-    forget.text:SetTextColor(0.6, 0.6, 0.6)
-    local forgetHighlight = forget:CreateTexture(nil, "HIGHLIGHT")
-    forgetHighlight:SetAllPoints()
-    forgetHighlight:SetColorTexture(1, 0.3, 0.3, 0.25)
-    forget:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-        GameTooltip:SetText(T("Forget this tick size"), 1, 1, 1)
-        GameTooltip:AddLine(T("The next cast starts from the tooltip again and learns it anew."), nil, nil, nil, true)
-        GameTooltip:Show()
-    end)
-    forget:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    forget:SetScript("OnClick", function()
-        if not row.entry then return end
-        ns.forgetLearnedTick(row.entry.key)
-        tickViewer:Refresh()
-    end)
-
-    row:SetScript("OnEnter", showTickTooltip)
-    row:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    row:SetScript("OnClick", function(self)
-        if not (self.entry and IsShiftKeyDown and IsShiftKeyDown()) then return end
-        local link = spellLink(self.entry.spellID)
-        if link and not (ChatEdit_InsertLink and ChatEdit_InsertLink(link)) and ChatFrame_OpenChat then
-            ChatFrame_OpenChat(link)
-        end
-    end)
-    return row
+local function colorCode(rgb)
+    local function byte(v) return math.floor(v * 255 + 0.5) end
+    return string.format("|cff%02x%02x%02x", byte(rgb[1]), byte(rgb[2]), byte(rgb[3]))
 end
 
-local function fillTickRow(row, entry)
-    row.entry = entry
-    local color = entry.color or { 0.5, 0.5, 0.5 }
-    row.school:SetColorTexture(color[1], color[2], color[3], 1)
-    row.icon:SetTexture(spellCall("GetSpellTexture", entry.spellID) or "Interface\\Icons\\INV_Misc_QuestionMark")
-    row.name:SetText(entry.name or (T("Spell") .. " " .. entry.spellID))
-    row.name:SetTextColor(SPELL_LINK_COLOR[1], SPELL_LINK_COLOR[2], SPELL_LINK_COLOR[3])
-    local rank = spellCall("GetSpellSubtext", entry.spellID)
-    row.rank:SetText(rank and rank ~= "" and rank or ("ID " .. entry.spellID))
-    row.cells.combo:SetText(entry.comboPoints or "")
-    row.cells.learned:SetText(formatTick(entry.perTick))
-    row.cells.tooltip:SetText(entry.tooltipPerTick and formatTick(entry.tooltipPerTick) or "-")
-    local bonus = entry.tooltipPerTick and entry.tooltipPerTick > 0
-        and math.floor((entry.perTick / entry.tooltipPerTick - 1) * 100 + 0.5)
-    if bonus then
-        row.cells.bonus:SetText(string.format("%+d%%", bonus))
-        if bonus > 0 then
-            row.cells.bonus:SetTextColor(0.4, 1, 0.4)
-        elseif bonus < 0 then
-            row.cells.bonus:SetTextColor(1, 0.45, 0.45)
-        else
-            row.cells.bonus:SetTextColor(0.7, 0.7, 0.7)
+local function refreshTicks()
+    if not ui.ticks or not db() then return end
+    local rows = {}
+    for _, entry in ipairs(ns.learnedTickList()) do
+        local bonus = entry.tooltipPerTick and entry.tooltipPerTick > 0
+            and math.floor((entry.perTick / entry.tooltipPerTick - 1) * 100 + 0.5)
+        local bonusText = "-"
+        if bonus then
+            bonusText = string.format("%+d%%", bonus)
+            if bonus > 0 then bonusText = "|cff66ff66" .. bonusText .. "|r"
+            elseif bonus < 0 then bonusText = "|cffff7373" .. bonusText .. "|r" end
         end
-    else
-        row.cells.bonus:SetText("-")
-        row.cells.bonus:SetTextColor(0.7, 0.7, 0.7)
+        local name = entry.name or L("Spell %d"):format(entry.spellID)
+        rows[#rows + 1] = { entry = entry, cells = {
+            entry.color and (colorCode(entry.color) .. name .. "|r") or name,
+            entry.comboPoints and tostring(entry.comboPoints) or "",
+            formatTick(entry.perTick),
+            entry.tooltipPerTick and formatTick(entry.tooltipPerTick) or "-",
+            bonusText,
+            entry.ticks and formatTick(entry.perTick * entry.ticks) or "-",
+        } }
     end
-    row.cells.total:SetText(entry.ticks and formatTick(entry.perTick * entry.ticks) or "-")
-    row:Show()
+    ui.ticks:SetData(rows)
+    ui.ticksCount:SetText(#rows == 1 and L("1 learned tick size") or L("%d learned tick sizes"):format(#rows))
+    ui.forgetAll:SetEnabled(#rows > 0)
 end
 
-local function createTickViewer()
-    local width = TICKS_COLUMNS.total[1] + TICKS_COLUMNS.total[2] + 56
-    local viewer = CreateFrame("Frame", "DoesItDieLearnedTicks", UIParent, "BackdropTemplate")
-    viewer:Hide()
-    viewer:SetSize(width, 112 + TICKS_VISIBLE_ROWS * TICKS_ROW_HEIGHT + 44)
-    viewer:SetFrameStrata("DIALOG")
-    viewer:SetToplevel(true)
-    viewer:SetClampedToScreen(true)
-    viewer:EnableMouse(true)
-    viewer:SetMovable(true)
-    viewer:RegisterForDrag("LeftButton")
-    viewer:SetScript("OnDragStart", viewer.StartMoving)
-    viewer:SetScript("OnDragStop", viewer.StopMovingOrSizing)
-    setBackdrop(viewer, 0.06, 0.97)
-    table.insert(UISpecialFrames, "DoesItDieLearnedTicks") -- Escape closes it
-
-    local title = viewer:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText(T("Learned tick sizes"))
-    local close = CreateFrame("Button", nil, viewer, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -6, -10)
-    local intro = viewer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    intro:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
-    intro:SetWidth(width - 32)
-    intro:SetJustifyH("LEFT")
-    intro:SetText(T("What each DoT really ticks for, learned from your casts and used instead of its tooltip. "
-        .. "Tooltips leave out spell power and attack power: Bonus is how much more yours do. "
-        .. "Hover a spell for details, shift-click to link it."))
-
-    local list = CreateFrame("Frame", nil, viewer, "BackdropTemplate")
-    list:SetPoint("TOPLEFT", 10, -100)
-    list:SetPoint("TOPRIGHT", -10, -100)
-    list:SetHeight(TICKS_VISIBLE_ROWS * TICKS_ROW_HEIGHT + 2)
-    setBackdrop(list, 0.09)
-    list:EnableMouseWheel(true)
-
-    local headers = { spell = "Spell", combo = "Combo", learned = "Per tick", tooltip = "Tooltip", bonus = "Bonus",
-        total = "Total" }
-    for column, text in pairs(headers) do
-        local header = viewer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        header:SetPoint("BOTTOMLEFT", list, "TOPLEFT", TICKS_COLUMNS[column][1], 4)
-        header:SetWidth(TICKS_COLUMNS[column][2])
-        header:SetJustifyH(column == "spell" and "LEFT" or column == "combo" and "CENTER" or "RIGHT")
-        header:SetText(T(text))
+local function buildTicks(frame)
+    local intro = W.Label(frame, L("What each DoT really ticks for, learned from your casts and used instead of its tooltip. Tooltips leave out spell power and attack power: Bonus is how much more yours do. Shift-click: link the spell. Right-click: forget the size."), "GameFontHighlightSmall")
+    intro:SetPoint("TOPLEFT", 8, -8)
+    intro:SetWidth(PANE_LEFT - 20)
+    ui.ticks = W.Table(frame, {
+        { L("Spell"), 150 }, { L("Combo"), 46, "CENTER" }, { L("Per tick"), 56, "RIGHT" },
+        { L("Tooltip"), 56, "RIGHT" }, { L("Bonus"), 50, "RIGHT" }, { L("Total"), 56, "RIGHT" },
+    }, 330, 18)
+    ui.ticks:SetPoint("TOPLEFT", 4, -70)
+    ui.ticks:SetEmptyText(L("Nothing learned yet. Tick sizes are learned as your DoTs tick on your targets."))
+    ui.ticks.onEnter = function(data, row) showTickTooltip(row, data.entry) end
+    ui.ticks.onClick = function(data, button)
+        if button == "RightButton" then
+            ns.forgetLearnedTick(data.entry.key)
+            GameTooltip:Hide()
+            refreshTicks()
+        elseif IsShiftKeyDown and IsShiftKeyDown() then
+            local link = spellLink(data.entry.spellID)
+            if link and not (ChatEdit_InsertLink and ChatEdit_InsertLink(link)) and ChatFrame_OpenChat then
+                ChatFrame_OpenChat(link)
+            end
+        end
     end
-
-    viewer.rows = {}
-    for i = 1, TICKS_VISIBLE_ROWS do
-        viewer.rows[i] = createTickRow(list, i)
-        viewer.rows[i]:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -1 - (i - 1) * TICKS_ROW_HEIGHT)
-        viewer.rows[i]:SetPoint("RIGHT", list, "RIGHT", -1, 0)
-    end
-    local empty = list:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    empty:SetPoint("CENTER")
-    empty:SetWidth(width - 80)
-    empty:SetText(T("Nothing learned yet. Tick sizes are learned as your DoTs tick on your targets."))
-
-    local count = viewer:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    count:SetPoint("BOTTOMLEFT", 16, 18)
-    local forgetAll = pushButton(viewer, "Forget all", 100, function()
+    ui.ticksCount = W.Label(frame, "", "GameFontDisableSmall")
+    ui.ticksCount:SetPoint("BOTTOMLEFT", 10, 16)
+    ui.forgetAll = W.Button(frame, L("Forget all"), 110, 22, function()
         ns.resetLearnedTicks()
-        viewer:Refresh()
+        refreshTicks()
     end)
-    forgetAll:SetPoint("BOTTOMRIGHT", -12, 12)
-
-    viewer.offset = 0
-    function viewer:Refresh()
-        local entries = ns.learnedTickList()
-        local maxOffset = math.max(0, #entries - TICKS_VISIBLE_ROWS)
-        self.offset = math.max(0, math.min(self.offset, maxOffset))
-        for i, row in ipairs(self.rows) do
-            local entry = entries[self.offset + i]
-            if entry then fillTickRow(row, entry) else row.entry = nil; row:Hide() end
-        end
-        empty:SetShown(#entries == 0)
-        local scrolled = maxOffset > 0 and ("  " .. string.format(T("(%d-%d shown; scroll for more)"),
-            self.offset + 1, math.min(#entries, self.offset + TICKS_VISIBLE_ROWS))) or ""
-        local counted = #entries == 1 and T("1 learned tick size")
-            or string.format(T("%d learned tick sizes"), #entries)
-        count:SetText(counted .. scrolled)
-        forgetAll:SetEnabled(#entries > 0)
-    end
-    list:SetScript("OnMouseWheel", function(_, delta)
-        viewer.offset = viewer.offset - delta
-        viewer:Refresh()
-    end)
-    -- New ticks are learned while it's open (in combat): keep it current.
-    local sinceRefresh = 0
-    viewer:SetScript("OnUpdate", function(self, elapsed)
-        sinceRefresh = sinceRefresh + elapsed
-        if sinceRefresh < 1 then return end
-        sinceRefresh = 0
-        self:Refresh()
-    end)
-    viewer:SetScript("OnShow", function(self)
-        sinceRefresh = 0
-        self:Refresh()
-    end)
-    return viewer
+    ui.forgetAll:SetPoint("BOTTOMLEFT", 300, 10)
 end
-
-local function toggleTickViewer()
-    if not ns.db then return end
-    if not tickViewer then tickViewer = createTickViewer() end
-    if tickViewer:IsShown() then return tickViewer:Hide() end
-    tickViewer:ClearAllPoints()
-    if window and window:IsShown() then
-        tickViewer:SetPoint("CENTER", window, "CENTER", 0, 0)
-    else
-        tickViewer:SetPoint("CENTER")
-    end
-    tickViewer:Show()
-end
-ns.toggleTickViewer = toggleTickViewer
 
 ---------------------------------------------------------------------------
--- Tabs
+-- Sub-tabs of settings
 ---------------------------------------------------------------------------
 
-local function selectTab(tab)
-    closeMenu()
-    activeTab = tab
-    for _, other in ipairs(tabs) do
-        local selected = other == tab
-        other.content:SetShown(selected)
-        other.button.text:SetTextColor(selected and 1 or 0.6, selected and 0.82 or 0.6, selected and 0 or 0.6)
-        other.button.underline:SetShown(selected)
-        if other.footer then other.footer:SetShown(selected) end
-    end
-end
-
--- A tab whose methods add rows top to bottom and remember the setting keys, for "Reset this tab".
-local function addTab(name)
-    local area = window.settingsArea
-    local tab = { keys = {}, y = 0 }
-    tab.content = CreateFrame("Frame", nil, area)
-    tab.content:SetPoint("TOPLEFT", area, "TOPLEFT", 8, -40)
-    tab.content:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", -8, 40)
-    tab.content:Hide()
-
-    local button = CreateFrame("Button", nil, area)
-    button.text = button:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    button.text:SetText(T(name))
-    -- Tight padding: seven tabs have to fit the settings area's width.
-    button:SetSize(button.text:GetStringWidth() + 12, 26)
-    button.text:SetPoint("CENTER")
-    button.underline = button:CreateTexture(nil, "ARTWORK")
-    button.underline:SetColorTexture(1, 0.82, 0, 1)
-    button.underline:SetHeight(2)
-    button.underline:SetPoint("BOTTOMLEFT", 3, 0)
-    button.underline:SetPoint("BOTTOMRIGHT", -3, 0)
-    local previous = tabs[#tabs]
-    if previous then
-        button:SetPoint("LEFT", previous.button, "RIGHT", 2, 0)
-    else
-        button:SetPoint("TOPLEFT", area, "TOPLEFT", 8, -8)
-    end
-    button:SetScript("OnClick", function() selectTab(tab) end)
-    tab.button = button
-
+-- A sub-tab whose methods add rows top to bottom and remember the setting keys, for "Reset this tab".
+local function newTab(frame)
+    local tab = { frame = frame, keys = {}, y = 8 }
     local function place(row, key)
-        row:SetPoint("TOPLEFT", tab.content, "TOPLEFT", 0, -tab.y)
+        row:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -tab.y)
         tab.y = tab.y + ROW_HEIGHT
-        if key then table.insert(tab.keys, key) end
+        if key then tab.keys[#tab.keys + 1] = key end
         return row
     end
-    function tab:checkbox(key, ...) return place(checkbox(self.content, key, ...), key) end
-    function tab:slider(key, ...) return place(slider(self.content, key, ...), key) end
-    function tab:choice(key, ...) return place(choice(self.content, key, ...), key) end
-    function tab:action(...) return place(actionRow(self.content, ...)) end
-    function tab:frame(key, ...) return place(frameRow(self.content, key, ...), key) end
-    function tab:info(...) return place(infoRow(self.content, ...)) end
-    function tab:gap() self.y = self.y + 8 end
-
-    table.insert(tabs, tab)
+    function tab:checkbox(key, ...) return place(checkbox(frame, key, ...), key) end
+    function tab:slider(key, ...) return place(slider(frame, key, ...), key) end
+    function tab:choice(key, ...) return place(choice(frame, key, ...), key) end
+    function tab:info(...) return place(infoRow(frame, ...)) end
+    function tab:gap() self.y = self.y + 6 end
     return tab
 end
 
-local function resetTab(tab)
-    for _, key in ipairs(tab.keys) do db()[key] = ns.DEFAULTS[key] end
-    changed()
-end
+local function isDashed(s) return s.outlineStyle == "dashed" end
+local function hasOutline(s) return s.outlineStyle ~= "none" end
+local function singleColor(s) return s.dotColors == "single" end
+local function perDot(s) return s.dotColors ~= "single" end
+local function showsLabel(s) return s.showLabel end
 
-local function applyPreset(preset)
-    for key, value in pairs(preset.values) do db()[key] = value end
-    changed()
-    ns.print(preset.label .. " preset applied.")
-end
+local function buildSettings(frames)
+    local tabs = {}
 
----------------------------------------------------------------------------
--- Window
----------------------------------------------------------------------------
+    local icon = newTab(frames[1])
+    icon:checkbox("showSkull", L("Show icon on portrait"),
+        { tooltip = L("Shows an icon over the target's portrait when your DoTs on it will kill it.") })
+    icon:choice("skullIcon", L("Icon"))
+    icon:slider("skullSize", L("Size"))
+    icon:checkbox("skullPulse", L("Pulse"), { tooltip = L("Gently pulses the icon while it's showing.") })
+    icon:slider("skullOffsetX", L("Horizontal offset"),
+        { tooltip = L("Pixels right (+) or left (-) of the portrait's center.") })
+    icon:slider("skullOffsetY", L("Vertical offset"),
+        { tooltip = L("Pixels up (+) or down (-) from the portrait's center.") })
+    tabs[1] = icon
 
-local function isDashed(settings) return settings.outlineStyle == "dashed" end
-local function hasOutline(settings) return settings.outlineStyle ~= "none" end
-local function singleColor(settings) return settings.dotColors == "single" end
-local function perDot(settings) return settings.dotColors ~= "single" end
-local function showsLabel(settings) return settings.showLabel end
-
-local function buildTabs()
-    local lists = ns.lists
-
-    local icon = addTab("Kill icon")
-    icon:checkbox("showSkull", "Show icon on portrait",
-        { tooltip = "Shows an icon over the target's portrait when your DoTs on it will kill it." })
-    icon:choice("skullIcon", "Icon", lists.icons)
-    icon:slider("skullSize", "Size", 20, 128, 2)
-    icon:checkbox("skullPulse", "Pulse", { tooltip = "Gently pulses the icon while it's showing." })
-    -- Wide ranges: with a custom target frame (Advanced) the icon may be centered on a long health bar.
-    icon:slider("skullOffsetX", "Horizontal offset", -150, 150, 1,
-        { tooltip = "Pixels right (+) or left (-) of the portrait's center (or the custom spot's, see Advanced)." })
-    icon:slider("skullOffsetY", "Vertical offset", -150, 150, 1,
-        { tooltip = "Pixels up (+) or down (-) from the portrait's center (or the custom spot's, see Advanced)." })
-
-    local marker = addTab("Marker")
-    marker:checkbox("showMarkers", "Show damage marker", { tooltip = "Marks the damage your DoTs still have to "
-        .. "deal on the target's health bar. If the health ends inside it, the target dies." })
-    marker:choice("dotColors", "DoT colors", lists.dotColors, { tooltip = "One color, or one segment per DoT "
-        .. "colored by spell school or with a different color each." })
-    marker:choice("fillTexture", "Fill style", lists.fills)
-    marker:choice("fillColor", "Fill color", lists.colors, { enabledIf = singleColor,
-        tooltip = "Used when DoT colors is set to one color." })
-    marker:slider("fillOpacity", "Fill opacity", 0, 100, 5, { suffix = "%" })
-    marker:checkbox("segmentDividers", "Dividers between DoTs", { enabledIf = perDot })
+    local marker = newTab(frames[2])
+    marker:checkbox("showMarkers", L("Show damage marker"), { tooltip = L("Marks the damage your DoTs still have to deal on the target's health bar. If the health ends inside it, the target dies.") })
+    marker:choice("dotColors", L("DoT colors"), { tooltip = L("One color, or one segment per DoT colored by spell school or with a different color each.") })
+    marker:choice("fillTexture", L("Fill style"))
+    marker:choice("fillColor", L("Fill color"), { enabledIf = singleColor,
+        tooltip = L("Used when DoT colors is set to one color.") })
+    marker:slider("fillOpacity", L("Fill opacity"), { suffix = "%" })
+    marker:checkbox("segmentDividers", L("Dividers between DoTs"), { enabledIf = perDot })
     marker:gap()
-    marker:choice("outlineStyle", "Outline", lists.outlines)
-    marker:choice("dashLength", "Dash length", lists.dashLengths, { enabledIf = isDashed })
-    marker:slider("outlineThickness", "Outline thickness", 1, 8, 1, { enabledIf = hasOutline })
-    marker:choice("outlineColor", "Outline color", lists.colors, { enabledIf = hasOutline })
-    marker:slider("outlineOpacity", "Outline opacity", 10, 100, 5, { suffix = "%", enabledIf = hasOutline })
+    marker:choice("outlineStyle", L("Outline"))
+    marker:choice("dashLength", L("Dash length"), { enabledIf = isDashed })
+    marker:slider("outlineThickness", L("Outline thickness"), { enabledIf = hasOutline })
+    marker:choice("outlineColor", L("Outline color"), { enabledIf = hasOutline })
+    marker:slider("outlineOpacity", L("Outline opacity"), { suffix = "%", enabledIf = hasOutline })
+    tabs[2] = marker
 
-    local effects = addTab("Effects")
-    effects:checkbox("smoothMotion", "Smooth motion",
-        { tooltip = "The marker grows in when it appears and glides to new values instead of jumping." })
-    effects:checkbox("flashOnApply", "Flash on new DoT")
-    effects:checkbox("showSpark", "Spark", { tooltip = "A bright flare on the marker's edge when a DoT lands." })
-    effects:checkbox("pulseOutline", "Pulse outline", { enabledIf = hasOutline })
+    local effects = newTab(frames[3])
+    effects:checkbox("smoothMotion", L("Smooth motion"),
+        { tooltip = L("The marker grows in when it appears and glides to new values instead of jumping.") })
+    effects:checkbox("flashOnApply", L("Flash on new DoT"))
+    effects:checkbox("showSpark", L("Spark"), { tooltip = L("A bright flare on the marker's edge when a DoT lands.") })
+    effects:checkbox("pulseOutline", L("Pulse outline"), { enabledIf = hasOutline })
     effects:gap()
-    effects:checkbox("showGlow", "Glow", { enabledIf = hasOutline, tooltip = "Soft halo in the outline color." })
-    effects:slider("glowSize", "Glow size", 2, 16, 1,
-        { enabledIf = function(s) return hasOutline(s) and s.showGlow end })
-    effects:checkbox("showShine", "Shine sweep")
-    effects:slider("shineInterval", "Shine every", 2, 10, 1,
-        { suffix = "s", enabledIf = function(s) return s.showShine end })
-    effects:checkbox("scrollStripes", "Scroll stripes", { tooltip = "Animates the diagonal stripes fill.",
+    effects:checkbox("showGlow", L("Glow"), { enabledIf = hasOutline, tooltip = L("Soft halo in the outline color.") })
+    effects:slider("glowSize", L("Glow size"), { enabledIf = function(s) return hasOutline(s) and s.showGlow end })
+    effects:checkbox("showShine", L("Shine sweep"))
+    effects:slider("shineInterval", L("Shine every"), { suffix = "s", enabledIf = function(s) return s.showShine end })
+    effects:checkbox("scrollStripes", L("Scroll stripes"), { tooltip = L("Animates the diagonal stripes fill."),
         enabledIf = function(s) return s.fillTexture == "stripes" and singleColor(s) end })
+    tabs[3] = effects
 
-    local text = addTab("Text")
-    text:checkbox("showLabel", "Show damage text",
-        { tooltip = "Remaining DoT damage next to the health bar (a per-DoT breakdown with DoT colors)." })
-    text:choice("labelPosition", "Position", lists.labelPositions, { enabledIf = showsLabel })
-    text:slider("labelSize", "Size", 8, 20, 1, { enabledIf = showsLabel })
-    text:choice("labelColor", "Color", lists.colors, { enabledIf = showsLabel })
+    local text = newTab(frames[4])
+    text:checkbox("showLabel", L("Show damage text"),
+        { tooltip = L("Remaining DoT damage next to the health bar (a per-DoT breakdown with DoT colors).") })
+    text:choice("labelPosition", L("Position"), { enabledIf = showsLabel })
+    text:slider("labelSize", L("Size"), { enabledIf = showsLabel })
+    text:choice("labelColor", L("Color"), { enabledIf = showsLabel })
+    tabs[4] = text
 
     -- Nameplates have their own look: enemy plates are red, so the target marker's colors may not show on them.
     local platesOn = function(s) return s.nameplateMode ~= "off" end
     local plateIcon = function(s) return s.nameplateMode == "markerIcon" end
     local plateSingle = function(s) return platesOn(s) and s.plateDotColors == "single" end
     local plateOutline = function(s) return platesOn(s) and s.plateOutlineStyle ~= "none" end
-    local plates = addTab("Nameplates")
-    plates:choice("nameplateMode", "Show on nameplates", lists.nameplateModes, { tooltip = "Draws a marker "
-        .. "(and optionally the kill icon) on every enemy nameplate with your DoTs on it, in its own look below." })
-    plates:choice("plateIcon", "Kill icon", lists.icons, { enabledIf = plateIcon })
-    plates:slider("nameplateIconSize", "Kill icon size", 12, 128, 1, { enabledIf = plateIcon })
-    plates:choice("nameplateIconPosition", "Kill icon position", lists.nameplateIconPositions,
-        { enabledIf = plateIcon })
-    plates:slider("plateIconOffsetX", "Icon horizontal offset", -40, 40, 1,
-        { enabledIf = plateIcon, tooltip = "Pixels right (+) or left (-) of the chosen position." })
-    plates:slider("plateIconOffsetY", "Icon vertical offset", -40, 40, 1,
-        { enabledIf = plateIcon, tooltip = "Pixels up (+) or down (-) from the chosen position." })
+    local plates = newTab(frames[5])
+    plates:choice("nameplateMode", L("Show on nameplates"), { tooltip = L("Draws a marker (and optionally the kill icon) on every enemy nameplate with your DoTs on it, in its own look below.") })
+    plates:choice("plateIcon", L("Kill icon"), { enabledIf = plateIcon })
+    plates:slider("nameplateIconSize", L("Kill icon size"), { enabledIf = plateIcon })
+    plates:choice("nameplateIconPosition", L("Kill icon position"), { enabledIf = plateIcon })
+    plates:slider("plateIconOffsetX", L("Icon horizontal offset"),
+        { enabledIf = plateIcon, tooltip = L("Pixels right (+) or left (-) of the chosen position.") })
+    plates:slider("plateIconOffsetY", L("Icon vertical offset"),
+        { enabledIf = plateIcon, tooltip = L("Pixels up (+) or down (-) from the chosen position.") })
     plates:gap()
-    plates:choice("plateDotColors", "DoT colors", lists.dotColors, { enabledIf = platesOn })
-    plates:choice("plateFillTexture", "Fill style", lists.fills, { enabledIf = platesOn })
-    plates:choice("plateFillColor", "Fill color", lists.colors, { enabledIf = plateSingle })
-    plates:slider("plateFillOpacity", "Fill opacity", 0, 100, 5, { suffix = "%", enabledIf = platesOn })
-    plates:choice("plateOutlineStyle", "Outline", lists.outlines, { enabledIf = platesOn })
-    plates:choice("plateDashLength", "Dash length", lists.dashLengths,
+    plates:choice("plateDotColors", L("DoT colors"), { enabledIf = platesOn })
+    plates:choice("plateFillTexture", L("Fill style"), { enabledIf = platesOn })
+    plates:choice("plateFillColor", L("Fill color"), { enabledIf = plateSingle })
+    plates:slider("plateFillOpacity", L("Fill opacity"), { suffix = "%", enabledIf = platesOn })
+    plates:choice("plateOutlineStyle", L("Outline"), { enabledIf = platesOn })
+    plates:choice("plateDashLength", L("Dash length"),
         { enabledIf = function(s) return platesOn(s) and s.plateOutlineStyle == "dashed" end })
-    plates:slider("plateOutlineThickness", "Outline thickness", 1, 3, 1, { enabledIf = plateOutline })
-    plates:choice("plateOutlineColor", "Outline color", lists.colors, { enabledIf = plateOutline })
-    plates:slider("plateOutlineOpacity", "Outline opacity", 10, 100, 5, { suffix = "%", enabledIf = plateOutline })
-    plates.footer = pushButton(window.settingsArea, "Copy from Marker tab", 160, function()
-        local db = ns.db
-        db.plateFillTexture, db.plateFillColor, db.plateFillOpacity = db.fillTexture, db.fillColor, db.fillOpacity
-        db.plateDotColors, db.plateIcon = db.dotColors, db.skullIcon
-        db.plateOutlineStyle, db.plateDashLength = db.outlineStyle, db.dashLength
-        db.plateOutlineThickness = math.min(db.outlineThickness, 3)
-        db.plateOutlineColor, db.plateOutlineOpacity = db.outlineColor, db.outlineOpacity
+    plates:slider("plateOutlineThickness", L("Outline thickness"), { enabledIf = plateOutline })
+    plates:choice("plateOutlineColor", L("Outline color"), { enabledIf = plateOutline })
+    plates:slider("plateOutlineOpacity", L("Outline opacity"), { suffix = "%", enabledIf = plateOutline })
+    plates:info(L("Nameplate bar in use"), function() return ns.plateBarStatus() end)
+    plates.footer = W.Button(frames[5], L("Copy from the Marker tab"), 200, 22, function()
+        local s = db()
+        s.plateFillTexture, s.plateFillColor, s.plateFillOpacity = s.fillTexture, s.fillColor, s.fillOpacity
+        s.plateDotColors, s.plateIcon = s.dotColors, s.skullIcon
+        s.plateOutlineStyle, s.plateDashLength = s.outlineStyle, s.dashLength
+        s.plateOutlineThickness = math.min(s.outlineThickness, 3)
+        s.plateOutlineColor, s.plateOutlineOpacity = s.outlineColor, s.outlineOpacity
         changed()
     end)
-    plates.footer:SetPoint("BOTTOMLEFT", 10, 10)
-    plates.footer:Hide()
+    tabs[5] = plates
 
-    -- The focus frame (Focus.lua): its own look, like the nameplates'. Its frame path is on the Advanced tab.
+    -- The focus frame (Focus.lua): its own look, like the nameplates'.
     local focusOn = function(s) return s.focusMode ~= "off" end
     local focusIcon = function(s) return s.focusMode == "markerIcon" end
     local focusSingle = function(s) return focusOn(s) and s.focusDotColors == "single" end
     local focusOutline = function(s) return focusOn(s) and s.focusOutlineStyle ~= "none" end
-    local focus = addTab("Focus")
-    focus:choice("focusMode", "Show on focus frame", lists.nameplateModes, { tooltip = "Draws the marker (and "
-        .. "optionally the kill icon) on your focus's health bar, for your DoTs on it, in its own look below. "
-        .. "/cast [@focus] macros put the DoT on your focus. For another addon's focus frame, see the Advanced tab." })
-    focus:choice("focusIcon", "Kill icon", lists.icons, { enabledIf = focusIcon })
-    focus:slider("focusIconSize", "Kill icon size", 12, 128, 1, { enabledIf = focusIcon })
-    focus:choice("focusIconPosition", "Kill icon position", lists.nameplateIconPositions, { enabledIf = focusIcon })
-    focus:slider("focusIconOffsetX", "Icon horizontal offset", -40, 40, 1,
-        { enabledIf = focusIcon, tooltip = "Pixels right (+) or left (-) of the chosen position." })
-    focus:slider("focusIconOffsetY", "Icon vertical offset", -40, 40, 1,
-        { enabledIf = focusIcon, tooltip = "Pixels up (+) or down (-) from the chosen position." })
+    local focus = newTab(frames[6])
+    focus:choice("focusMode", L("Show on focus frame"), { tooltip = L("Draws the marker (and optionally the kill icon) on your focus's health bar, for your DoTs on it, in its own look below. /cast [@focus] macros put the DoT on your focus.") })
+    focus:choice("focusIcon", L("Kill icon"), { enabledIf = focusIcon })
+    focus:slider("focusIconSize", L("Kill icon size"), { enabledIf = focusIcon })
+    focus:choice("focusIconPosition", L("Kill icon position"), { enabledIf = focusIcon })
+    focus:slider("focusIconOffsetX", L("Icon horizontal offset"),
+        { enabledIf = focusIcon, tooltip = L("Pixels right (+) or left (-) of the chosen position.") })
+    focus:slider("focusIconOffsetY", L("Icon vertical offset"),
+        { enabledIf = focusIcon, tooltip = L("Pixels up (+) or down (-) from the chosen position.") })
     focus:gap()
-    focus:choice("focusDotColors", "DoT colors", lists.dotColors, { enabledIf = focusOn })
-    focus:choice("focusFillTexture", "Fill style", lists.fills, { enabledIf = focusOn })
-    focus:choice("focusFillColor", "Fill color", lists.colors, { enabledIf = focusSingle })
-    focus:slider("focusFillOpacity", "Fill opacity", 0, 100, 5, { suffix = "%", enabledIf = focusOn })
-    focus:choice("focusOutlineStyle", "Outline", lists.outlines, { enabledIf = focusOn })
-    focus:choice("focusDashLength", "Dash length", lists.dashLengths,
+    focus:choice("focusDotColors", L("DoT colors"), { enabledIf = focusOn })
+    focus:choice("focusFillTexture", L("Fill style"), { enabledIf = focusOn })
+    focus:choice("focusFillColor", L("Fill color"), { enabledIf = focusSingle })
+    focus:slider("focusFillOpacity", L("Fill opacity"), { suffix = "%", enabledIf = focusOn })
+    focus:choice("focusOutlineStyle", L("Outline"), { enabledIf = focusOn })
+    focus:choice("focusDashLength", L("Dash length"),
         { enabledIf = function(s) return focusOn(s) and s.focusOutlineStyle == "dashed" end })
-    focus:slider("focusOutlineThickness", "Outline thickness", 1, 3, 1, { enabledIf = focusOutline })
-    focus:choice("focusOutlineColor", "Outline color", lists.colors, { enabledIf = focusOutline })
-    focus:slider("focusOutlineOpacity", "Outline opacity", 10, 100, 5, { suffix = "%", enabledIf = focusOutline })
-    focus.footer = pushButton(window.settingsArea, "Copy from Nameplates tab", 180, function()
-        local db = ns.db
+    focus:slider("focusOutlineThickness", L("Outline thickness"), { enabledIf = focusOutline })
+    focus:choice("focusOutlineColor", L("Outline color"), { enabledIf = focusOutline })
+    focus:slider("focusOutlineOpacity", L("Outline opacity"), { suffix = "%", enabledIf = focusOutline })
+    focus:info(L("Focus bar in use"), function() return ns.focusStatus() end)
+    focus.footer = W.Button(frames[6], L("Copy from the Nameplates tab"), 200, 22, function()
+        local s = db()
         for plateKey, focusKey in pairs(ns.focusKeys) do
-            if plateKey ~= "nameplateMode" then db[focusKey] = db[plateKey] end
+            if plateKey ~= "nameplateMode" then s[focusKey] = s[plateKey] end
         end
         changed()
     end)
-    focus.footer:SetPoint("BOTTOMLEFT", 10, 10)
-    focus.footer:Hide()
+    tabs[6] = focus
 
-    local advanced = addTab("Advanced")
-    advanced:choice("uiLanguage", "Window language", ns.locale.windowLanguages(), { tooltip = "The language of this "
-        .. "window and the addon's messages. Auto follows your game client. Changes apply after /reload.",
-        onChange = function() ns.print(T("The window language changes after a /reload.")) end })
-    advanced:choice("waitFirstTick", "Wait for first tick", lists.waitModes, { tooltip = "Whether a new DoT "
-        .. "counts before its first tick lands. \"When unsure\" waits for finishers with unknown combo points "
-        .. "and spells the addon hasn't seen tick yet." })
-    advanced:checkbox("estimateDuringCast", "Estimate during casting", { tooltip = "Shows a DoT with a cast time "
-        .. "while you're still casting it. Once the cast lands the normal estimate takes over; an interrupted or "
-        .. "failed cast removes it." })
-    advanced:checkbox("debug", "Echo trace log to chat",
-        { tooltip = "Prints each DoT cast, matched tick and estimate to chat." })
-    local learned = advanced:action("Learned tick sizes", "View", toggleTickViewer, { tooltip = "What each of your "
-        .. "DoTs really ticks for, learned from earlier casts, next to what its tooltip says. Reset forgets them all." })
-    local resetLearned = pushButton(learned, "Reset", 90, function()
-        ns.resetLearnedTicks()
-        if tickViewer and tickViewer:IsShown() then tickViewer:Refresh() end
-    end)
-    resetLearned:SetPoint("LEFT", learned.button, "RIGHT", 6, 0)
-    -- Custom target frame (Frames.lua), for unit frame addons that replace Blizzard's.
-    advanced:gap()
-    advanced:gap()
-    advanced:frame("customHealthBar", "Target health bar", "bar", { tooltip = "For unit frame addons that replace "
-        .. "Blizzard's target frame. Target something, click Pick, then click its health bar. Or type the frame's "
-        .. "name (/fstack shows it). The bar must fill left to right. Leave empty for Blizzard's, or "
-        .. "EllesmereUI's when it shows its own target frame." })
-    advanced:frame("customIconAnchor", "Kill icon spot", "anchor", { tooltip = "Where the kill icon is centered "
-        .. "(e.g. the custom frame's portrait). Empty: Blizzard's portrait, or EllesmereUI's when its target frame "
-        .. "shows one; else the health bar in use. "
-        .. "Fine-tune with the offsets on the Kill icon tab." })
-    advanced:info("Health bar in use", function() return (ns.attachStatus()) end)
-    advanced:info("Kill icon in use", function() return select(2, ns.attachStatus()) end)
-    -- Custom focus frame (Focus.lua; its look is on the Focus tab).
-    advanced:gap()
-    advanced:frame("customFocusHealthBar", "Focus health bar", "bar", { tooltip = "For unit frame addons that "
-        .. "replace Blizzard's focus frame. Focus something, click Pick, then click its health bar. Leave empty for "
-        .. "Blizzard's, or EllesmereUI's when it shows its own focus frame.",
-        enabledIf = function(settings) return settings.focusMode ~= "off" end })
-    advanced:info("Focus bar in use", function() return ns.focusStatus and ns.focusStatus() or "" end)
-    -- Nameplate addons' bars (Nameplates.lua): found automatically; this is for one the search misses.
-    advanced:gap()
-    advanced:frame("customPlateHealthBar", "Nameplate health bar", "bar", { noPick = true, tooltip = "Most "
-        .. "nameplate addons' health bars are found automatically (Plater, EllesmereUI, Platynator, ...). If the "
-        .. "marker doesn't show on yours, type the keys from Blizzard's nameplate to its bar, like "
-        .. "unitFrame.healthBar. /did plates logs what each plate uses. Leave empty for automatic." })
-    advanced:info("Nameplate bar in use", function() return ns.plateBarStatus and ns.plateBarStatus() or "" end)
+    local accuracy = newTab(frames[7])
+    accuracy:choice("waitFirstTick", L("Wait for first tick"), { tooltip = L("Whether a new DoT counts before its first tick lands. \"When unsure\" waits for finishers with unknown combo points and spells the addon hasn't seen tick yet.") })
+    accuracy:checkbox("estimateDuringCast", L("Estimate during casting"), { tooltip = L("Shows a DoT with a cast time while you're still casting it. Once the cast lands the normal estimate takes over; an interrupted or failed cast removes it.") })
+    accuracy:checkbox("debug", L("Echo trace log to chat"),
+        { tooltip = L("Prints each DoT cast, matched tick and estimate to chat.") })
+    accuracy:gap()
+    accuracy:info(L("Health bar in use"), function() return (ns.attachStatus()) end)
+    accuracy:info(L("Kill icon in use"), function() return select(2, ns.attachStatus()) end)
+    local commands = W.Label(frames[7], L("Commands: /wl did skull, plates, exec [percent], debug, reset (/wl did help explains them)."), "GameFontDisableSmall")
+    commands:SetPoint("TOPLEFT", 10, -(accuracy.y + 10))
+    commands:SetWidth(PANE_LEFT - 20)
+    tabs[7] = accuracy
+
+    for _, tab in ipairs(tabs) do
+        if tab.footer then tab.footer:SetPoint("BOTTOMLEFT", 10, 10) end
+    end
+    return tabs
+end
+
+---------------------------------------------------------------------------
+-- Preview pane
+---------------------------------------------------------------------------
+
+local function mockBar(parent, width, height, r, g, b, backR, backG, backB)
+    local bar = CreateFrame("StatusBar", nil, parent)
+    bar:SetSize(width, height)
+    bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    bar:SetStatusBarColor(r, g, b)
+    bar:SetMinMaxValues(0, 100)
+    local back = bar:CreateTexture(nil, "BACKGROUND")
+    back:SetAllPoints()
+    back:SetColorTexture(backR, backG, backB, 1)
+    return bar
+end
+
+local function roundPortrait(parent, size)
+    local portrait = parent:CreateTexture(nil, "ARTWORK")
+    portrait:SetSize(size, size)
+    portrait:SetTexture("Interface\\Icons\\Ability_Hunter_Pet_Boar")
+    local mask = parent:CreateMaskTexture()
+    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    mask:SetAllPoints(portrait)
+    portrait:AddMaskTexture(mask)
+    return portrait
 end
 
 local function buildPreview(pane)
-    local title = pane:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    title:SetPoint("TOPLEFT", 12, -12)
-    title:SetText(T("Live preview"))
+    local title = W.Label(pane, L("Live preview"), "GameFontNormal")
+    title:SetPoint("TOPLEFT", 12, -10)
 
     -- Mock target frame: name, health bar, round portrait.
     local mock = CreateFrame("Frame", nil, pane, "BackdropTemplate")
     mock:SetSize(PREVIEW_WIDTH - 24, 78)
-    mock:SetPoint("TOP", pane, "TOP", 0, -40)
+    mock:SetPoint("TOPLEFT", pane, "TOPLEFT", 12, -32)
     setBackdrop(mock, 0.03)
-
-    local portrait = mock:CreateTexture(nil, "ARTWORK")
-    portrait:SetSize(56, 56)
+    local portrait = roundPortrait(mock, 56)
     portrait:SetPoint("RIGHT", mock, "RIGHT", -12, 0)
-    portrait:SetTexture("Interface\\Icons\\Ability_Hunter_Pet_Boar")
-    local mask = mock:CreateMaskTexture()
-    mask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-    mask:SetAllPoints(portrait)
-    portrait:AddMaskTexture(mask)
-
-    local healthBar = CreateFrame("StatusBar", nil, mock)
-    healthBar:SetSize(PREVIEW_WIDTH - 110, 18)
+    local healthBar = mockBar(mock, PREVIEW_WIDTH - 110, 18, 0.1, 0.8, 0.1, 0.25, 0.08, 0.08)
     healthBar:SetPoint("RIGHT", portrait, "LEFT", -10, -6)
-    healthBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    healthBar:SetStatusBarColor(0.1, 0.8, 0.1)
-    healthBar:SetMinMaxValues(0, 100)
-    local healthBack = healthBar:CreateTexture(nil, "BACKGROUND")
-    healthBack:SetAllPoints()
-    healthBack:SetColorTexture(0.25, 0.08, 0.08, 1)
-
     local name = mock:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     name:SetPoint("BOTTOMLEFT", healthBar, "TOPLEFT", 0, 4)
-    name:SetText(T("Mottled Boar"))
+    name:SetText(L("Mottled Boar"))
+    ui.mock, ui.healthBar = mock, healthBar
+    ui.host = { healthBar = healthBar, portrait = portrait, layerFrame = page }
 
-    window.healthBar = healthBar
-    window.host = { healthBar = healthBar, portrait = portrait, layerFrame = window }
-    window.mock = mock
-
-    -- Shown over the mock frame while combat has the display back on the real target.
-    window.combatNote = pane:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    window.combatNote:SetPoint("CENTER", mock, "CENTER")
-    window.combatNote:SetWidth(PREVIEW_WIDTH - 40)
-    window.combatNote:SetText(T("In combat: the marker and kill icon are showing on your target. "
-        .. "The preview resumes after combat."))
-    window.combatNote:Hide()
+    -- Over the mock frame while combat has the display back on the real target.
+    ui.combatNote = pane:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    ui.combatNote:SetPoint("CENTER", mock, "CENTER")
+    ui.combatNote:SetWidth(PREVIEW_WIDTH - 40)
+    ui.combatNote:SetText(L("In combat: the marker and kill icon are showing on your target. The preview resumes after combat."))
+    ui.combatNote:Hide()
 
     -- Preview controls (plain numbers, not settings).
-    local health = sliderRow(pane, "Target health", 0, 100, 1,
+    local health = sliderRow(pane, L("Target health"), 0, 100, 1,
         function() return preview.health end,
         function(value)
             stopSimulation()
             preview.health = value
             updatePreview()
         end, { layout = PREVIEW_LAYOUT, suffix = "%" })
-    health:SetPoint("TOPLEFT", mock, "BOTTOMLEFT", -4, -14)
-    local damage = sliderRow(pane, "DoT damage", 0, 100, 1,
+    health:SetPoint("TOPLEFT", mock, "BOTTOMLEFT", -4, -10)
+    local damage = sliderRow(pane, L("DoT damage"), 0, 100, 1,
         function() return math.floor(previewTotal() + 0.5) end,
         function(value)
             stopSimulation()
             setPreviewDamage(value)
             updatePreview()
         end, { layout = PREVIEW_LAYOUT, suffix = "%",
-            tooltip = "Remaining damage of two sample DoTs, in % of the target's max health." })
+            tooltip = L("Remaining damage of two sample DoTs, as a percentage of the target's max health.") })
     damage:SetPoint("TOPLEFT", health, "BOTTOMLEFT", 0, 0)
 
-    window.simulateButton = pushButton(pane, "Simulate fight", 130, function()
+    ui.simulateButton = W.Button(pane, L("Simulate fight"), 130, 22, function()
         if simulation then stopSimulation() else startSimulation() end
     end)
-    window.simulateButton:SetPoint("TOPLEFT", damage, "BOTTOMLEFT", 6, -10)
-    window.flashButton = pushButton(pane, "Flash", 80, function() ns.playFlash() end)
-    window.flashButton:SetPoint("LEFT", window.simulateButton, "RIGHT", 8, 0)
+    ui.simulateButton:SetPoint("TOPLEFT", damage, "BOTTOMLEFT", 6, -8)
+    ui.flashButton = W.Button(pane, L("Flash"), 80, 22, function() ns.playFlash() end)
+    ui.flashButton:SetPoint("LEFT", ui.simulateButton, "RIGHT", 8, 0)
 
-    window.status = pane:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    window.status:SetPoint("TOPLEFT", window.simulateButton, "BOTTOMLEFT", 0, -14)
-    window.status:SetWidth(PREVIEW_WIDTH - 30)
-    window.status:SetJustifyH("LEFT")
+    ui.status = pane:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ui.status:SetPoint("TOPLEFT", ui.simulateButton, "BOTTOMLEFT", 0, -10)
+    ui.status:SetWidth(PREVIEW_WIDTH - 30)
+    ui.status:SetJustifyH("LEFT")
 
     -- Mock enemy nameplate (red, like the real ones), drawn by the real nameplate code (Nameplates.lua).
     local plateLabel = pane:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    plateLabel:SetPoint("TOPLEFT", window.status, "BOTTOMLEFT", 0, -20)
-    plateLabel:SetText(T("Nameplate"))
+    plateLabel:SetPoint("TOPLEFT", ui.status, "BOTTOMLEFT", 0, -16)
+    plateLabel:SetText(L("Nameplate"))
     local mockPlate = CreateFrame("Frame", nil, pane)
     mockPlate:SetSize(140, 26)
     mockPlate:SetPoint("TOPLEFT", plateLabel, "BOTTOMLEFT", 40, -6)
     local plateName = mockPlate:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     plateName:SetPoint("TOP", mockPlate, "TOP")
-    plateName:SetText(T("Mottled Boar"))
-    local plateBar = CreateFrame("StatusBar", nil, mockPlate)
-    plateBar:SetSize(140, 10)
+    plateName:SetText(L("Mottled Boar"))
+    local plateBar = mockBar(mockPlate, 140, 10, 0.85, 0.1, 0.1, 0.1, 0.02, 0.02)
     plateBar:SetPoint("BOTTOM", mockPlate, "BOTTOM")
-    plateBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    plateBar:SetStatusBarColor(0.85, 0.1, 0.1)
-    plateBar:SetMinMaxValues(0, 100)
-    local plateBack = plateBar:CreateTexture(nil, "BACKGROUND")
-    plateBack:SetAllPoints()
-    plateBack:SetColorTexture(0.1, 0.02, 0.02, 1)
-    window.mockPlate = mockPlate
-    window.plateHealthBar = plateBar
-    window.plateHost = { plate = mockPlate, healthBar = plateBar }
+    ui.mockPlate, ui.plateHealthBar = mockPlate, plateBar
+    ui.plateHost = { plate = mockPlate, healthBar = plateBar }
 
     -- A small focus frame (Focus.lua draws on it), shaped like Blizzard's: bar on the left, portrait on the right.
     local focusLabel = pane:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    focusLabel:SetPoint("TOPLEFT", plateLabel, "BOTTOMLEFT", 0, -46)
-    focusLabel:SetText(T("Focus"))
+    focusLabel:SetPoint("TOPLEFT", plateLabel, "BOTTOMLEFT", 0, -44)
+    focusLabel:SetText(L("Focus"))
     local mockFocus = CreateFrame("Frame", nil, pane)
     mockFocus:SetSize(170, 36)
     mockFocus:SetPoint("TOPLEFT", focusLabel, "BOTTOMLEFT", 50, -4)
-    local focusPortrait = mockFocus:CreateTexture(nil, "ARTWORK")
-    focusPortrait:SetSize(32, 32)
+    local focusPortrait = roundPortrait(mockFocus, 32)
     focusPortrait:SetPoint("RIGHT", mockFocus, "RIGHT", 0, 0)
-    focusPortrait:SetTexture("Interface\\Icons\\Ability_Hunter_Pet_Boar")
-    local focusMask = mockFocus:CreateMaskTexture()
-    focusMask:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask", "CLAMPTOBLACKADDITIVE",
-        "CLAMPTOBLACKADDITIVE")
-    focusMask:SetAllPoints(focusPortrait)
-    focusPortrait:AddMaskTexture(focusMask)
-    local focusBar = CreateFrame("StatusBar", nil, mockFocus)
-    focusBar:SetSize(130, 12)
+    local focusBar = mockBar(mockFocus, 130, 12, 0.1, 0.8, 0.1, 0.25, 0.08, 0.08)
     focusBar:SetPoint("RIGHT", focusPortrait, "LEFT", -6, -5)
-    focusBar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    focusBar:SetStatusBarColor(0.1, 0.8, 0.1)
-    focusBar:SetMinMaxValues(0, 100)
-    local focusBack = focusBar:CreateTexture(nil, "BACKGROUND")
-    focusBack:SetAllPoints()
-    focusBack:SetColorTexture(0.25, 0.08, 0.08, 1)
     local focusName = mockFocus:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     focusName:SetPoint("BOTTOMLEFT", focusBar, "TOPLEFT", 0, 3)
-    focusName:SetText(T("Mottled Boar"))
-    window.mockFocus = mockFocus
-    window.focusHealthBar = focusBar
-    window.focusHost = { frame = mockFocus, healthBar = focusBar }
+    focusName:SetText(L("Mottled Boar"))
+    ui.mockFocus, ui.focusHealthBar = mockFocus, focusBar
+    ui.focusHost = { frame = mockFocus, healthBar = focusBar }
 
     local hint = pane:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    hint:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 12, 12)
+    hint:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 12, 10)
     hint:SetWidth(PREVIEW_WIDTH - 24)
     hint:SetJustifyH("LEFT")
-    hint:SetText(T("While this window is open, the marker and kill icon are drawn here instead of on your target."))
+    hint:SetText(L("While this tab is open, the marker and kill icon are drawn here instead of on your target."))
 end
 
-local function createWindow()
-    window = CreateFrame("Frame", "DoesItDieOptions", UIParent, "BackdropTemplate")
-    window:Hide() -- new frames start shown; ns.openOptions shows it (running OnShow)
-    window:SetSize(WINDOW_WIDTH, WINDOW_HEIGHT)
-    window:SetPoint("CENTER")
-    window:SetFrameStrata("DIALOG")
-    window:SetToplevel(true)
-    window:SetClampedToScreen(true)
-    window:EnableMouse(true)
-    window:SetMovable(true)
-    window:RegisterForDrag("LeftButton")
-    window:SetScript("OnDragStart", window.StartMoving)
-    window:SetScript("OnDragStop", window.StopMovingOrSizing)
-    setBackdrop(window, 0.06, 0.97)
-    table.insert(UISpecialFrames, "DoesItDieOptions") -- Escape closes it
+---------------------------------------------------------------------------
+-- The tab
+---------------------------------------------------------------------------
 
-    local title = window:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -18)
-    title:SetText("DoesItDie")
+local LEARNED_TAB = 8
 
-    local close = CreateFrame("Button", nil, window, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -6, -12)
-
-    -- Presets, right-aligned in the title bar.
-    local presetLabel = window:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+-- y: below the header of ../DoesItDie.lua (title, description, switch, presets).
+function ns.BuildTab(p)
+    page = p
+    -- Presets, right-aligned on the switch's line.
     local previous
     for i = #PRESETS, 1, -1 do
         local preset = PRESETS[i]
-        local button = pushButton(window, preset.label, 72, function() applyPreset(preset) end)
+        local button = W.Button(p, L(preset.label), 80, 22, function()
+            for key, value in pairs(preset.values) do db()[key] = value end
+            changed()
+            ns.print(L("%s preset applied."):format(L(preset.label)))
+        end)
         if previous then
             button:SetPoint("RIGHT", previous, "LEFT", -4, 0)
         else
-            button:SetPoint("RIGHT", close, "LEFT", -8, 0)
+            button:SetPoint("TOPRIGHT", p, "TOPRIGHT", -8, -62)
         end
         previous = button
     end
+    local presetLabel = W.Label(p, L("Presets"), "GameFontDisableSmall")
     presetLabel:SetPoint("RIGHT", previous, "LEFT", -8, 0)
-    presetLabel:SetText(T("Presets"))
 
-    local pane = CreateFrame("Frame", nil, window, "BackdropTemplate")
-    pane:SetPoint("TOPLEFT", 10, -HEADER_HEIGHT)
-    pane:SetPoint("BOTTOMLEFT", 10, 10)
-    pane:SetWidth(PREVIEW_WIDTH)
-    setBackdrop(pane, 0.09)
+    local tabs
+    local sub = W.SubTabs(p, { L("Kill icon"), L("Marker"), L("Effects"), L("Text"), L("Nameplates"), L("Focus"),
+        L("Accuracy"), L("Learned ticks") }, function(i)
+        closeMenu()
+        if ui.reset then ui.reset:SetShown(i ~= LEARNED_TAB) end
+        if i == LEARNED_TAB then refreshTicks() end
+        ui.current = tabs and tabs[i]
+    end, SUBTABS_TOP)
+    tabs = buildSettings(sub.frames)
+    buildTicks(sub.frames[LEARNED_TAB])
+    ui.reset = W.Button(p, L("Reset this tab"), 150, 22, function()
+        if not ui.current then return end
+        for _, key in ipairs(ui.current.keys) do db()[key] = ns.DEFAULTS[key] end
+        changed()
+    end)
+    ui.reset:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 230, 10)
+
+    local pane = CreateFrame("Frame", nil, p, "BackdropTemplate")
+    pane:SetPoint("TOPLEFT", p, "TOPLEFT", PANE_LEFT, SUBTABS_TOP - 28)
+    pane:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 4)
+    setBackdrop(pane, 0.09, 0.6)
     buildPreview(pane)
 
-    local area = CreateFrame("Frame", nil, window, "BackdropTemplate")
-    area:SetPoint("TOPLEFT", pane, "TOPRIGHT", 10, 0)
-    area:SetPoint("BOTTOMRIGHT", -10, 10)
-    setBackdrop(area, 0.09)
-    window.settingsArea = area
-
-    local divider = area:CreateTexture(nil, "ARTWORK")
-    divider:SetColorTexture(0.28, 0.28, 0.3, 1)
-    divider:SetHeight(1)
-    divider:SetPoint("TOPLEFT", 8, -34)
-    divider:SetPoint("TOPRIGHT", -8, -34)
-
-    buildTabs()
-    local reset = pushButton(area, "Reset this tab", 120, function() resetTab(activeTab) end)
-    reset:SetPoint("BOTTOMRIGHT", -10, 10)
-
-    window:SetScript("OnShow", function()
+    -- Combat hands the display back to the real target, and after combat back to the preview.
+    ui.events = CreateFrame("Frame")
+    ui.events:SetScript("OnEvent", syncDisplayHost)
+    p:HookScript("OnShow", function()
+        ui.events:RegisterEvent("PLAYER_REGEN_DISABLED")
+        ui.events:RegisterEvent("PLAYER_REGEN_ENABLED")
         ns.setPreviewState(preview)
-        window.previewPaused = nil
+        ui.previewPaused = nil
         syncDisplayHost()
         refreshControls()
         updatePreview()
+        if sub.current == LEARNED_TAB then refreshTicks() end
     end)
-    window:SetScript("OnHide", function()
-        stopSimulation()
-        closeMenu()
-        ns.setPreviewState(nil)
-        ns.setDisplayHost(nil)
-        ns.setPlatePreview(nil)
-        ns.setFocusPreview(nil)
-    end)
-    -- Combat hands the display back to the real target, and after combat back to the preview.
-    window:RegisterEvent("PLAYER_REGEN_DISABLED")
-    window:RegisterEvent("PLAYER_REGEN_ENABLED")
-    window:SetScript("OnEvent", function() syncDisplayHost() end)
-    selectTab(tabs[1])
+    p:HookScript("OnHide", ns.EndPreview)
+    sub:Select(1)
+    ui.sub = sub
 end
 
-function ns.openOptions()
-    if not ns.db then return end
-    if not window then createWindow() end
-    if window:IsShown() then
-        window:Hide()
-    else
-        window:Show()
-    end
+-- The tab hidden (or, from Display.lua, its mock frame no longer visible): the display goes back to the real target.
+function ns.EndPreview()
+    if ui.events then ui.events:UnregisterAllEvents() end
+    stopSimulation()
+    closeMenu()
+    ui.previewPaused = nil
+    ns.setPreviewState(nil)
+    ns.setDisplayHost(nil)
+    ns.setPlatePreview(nil)
+    ns.setFocusPreview(nil)
 end
 
--- Options > AddOns > DoesItDie: a short page with a button that opens the window.
-function ns.registerOptions()
-    local panel = CreateFrame("Frame")
-    local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -16)
-    title:SetText("DoesItDie")
-    local text = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    text:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -10)
-    text:SetText(T("Settings have their own window with a live preview. You can also type /did."))
-    local open = pushButton(panel, "Open DoesItDie options", 200, function()
-        if SettingsPanel and SettingsPanel:IsShown() then pcall(HideUIPanel, SettingsPanel) end
-        if not (window and window:IsShown()) then ns.openOptions() end
-    end)
-    open:SetPoint("TOPLEFT", text, "BOTTOMLEFT", 0, -14)
-    local category = Settings.RegisterCanvasLayoutCategory(panel, "DoesItDie")
-    Settings.RegisterAddOnCategory(category)
+-- /wl did ticks: the Learned ticks sub-tab (the tab is opened by ../DoesItDie.lua).
+function ns.ShowLearnedTicks()
+    if ui.sub then ui.sub:Select(LEARNED_TAB) end
 end

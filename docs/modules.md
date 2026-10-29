@@ -75,6 +75,30 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   neither the place, the class nor the options (`PlaceKey`) places nothing again: each minimap add makes the library
   update every pin.
 
+## DoesItDie (a module made from a ported addon)
+`DoesItDie.lua` = the module (key `doesItDie`, Raid > Combat, `/wl did` and `/did`); `DoesItDie/` = DoesItDie 0.8.3 by Joe
+Greive (MIT, `LICENSE` kept) made into the module on 29/10: `DoesItDie.lua` (DoT tracking, its events, the driver,
+`ns.Command`), `Display.lua` (target marker and kill icon), `Nameplates.lua`, `Focus.lua`, `Execute.lua` (`/wl did exec`
+probe), `Frames.lua` (EllesmereUI's target / focus frames, found by name), `Options.lua` (the tab: sub-tabs and live
+preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and French only). Shared through `W.Space("DoesItDie")`.
+- **Off by default, switched at once**: `ns.Allowed()` = the module's switch, Settings > Modules, the guild check, no
+  original DoesItDie addon loaded. `ns.SetActive` registers / unregisters the events (a frame of its own: the spell cast
+  events for the player only, `UNIT_COMBAT` for every unit, too frequent for `W.On`) and forgets every DoT. `W.On` of the
+  module file (target change, entering world, combat) switch it back on after Settings > Modules.
+- **One driver**: the target marker, the nameplates and the focus are drawn 10 times a second by one `OnUpdate`, shown only
+  while a DoT is tracked, a cast estimate runs, the tab's preview is on or the kill icon test runs (`ns.Wake`; it hides
+  itself after the pass that hides everything). At rest, switched on: 0 ms. The look is applied again only when a setting
+  changes (`ns.lookGeneration`, bumped by `ns.reattach`).
+- **Secret values**: target health, mob GUIDs (instances) can be secret: health only ever goes into StatusBar min / max (the
+  widget compares), GUIDs fall back to the nameplate token. Never `COMBAT_LOG_EVENT_UNFILTERED` (Forever forbids it).
+- **Saved**: options = scalars of `W.db.doesItDie` (profiles); `ticks` (learned tick sizes) and `log` (300 trace lines) are
+  data. `ns.Sanitize` puts back a number out of its slider's range or an id out of its list (imported profile).
+  1.37.0-1.41.54 saved in `DoesItDieDB` (the original's name): migration 3 copies it, then it is set to nil; it stays in the
+  .toc for that move (drop it from `## SavedVariables` a version later). With the original addon loaded, its table is
+  given back and ours stays off.
+- Removed from the original: its own window and Blizzard settings page, the custom frame paths and the pick mode, the
+  other 5 languages, the window language.
+
 ## Test all and Cost
 - **Test all** (`/wl test`, header button): `W.RegisterTest(label, enabledFn, runFn, stopFn)` in the module file. A test must
   end by itself (timer) and `stopFn` must hide it. Never send addon / chat messages from a test.

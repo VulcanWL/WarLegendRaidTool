@@ -186,9 +186,8 @@ legacy (no guard) PlaceAction
 legacy (no guard) SaveBindings
 legacy (no guard) SetBinding
 undocumented C_PetJournal.PickupPet
-# DoesItDie (WarLegendRaidTool/DoesItDie, 23/10/2026): kept as upstream, every call guarded (EllesmereNameplates_NS = another addon's table).
+# DoesItDie (WarLegendRaidTool/DoesItDie, 23/10/2026; a module of the addon since 29/10, frame picking removed): every call guarded (EllesmereNameplates_NS = another addon's table).
 deprecated shim (guarded) ChatFrame_OpenChat
-legacy (guarded) GetMouseFocus
 legacy (local alias) EllesmereNameplates_NS
 legacy (guarded) GetTradePlayerItemLink
 

@@ -1663,7 +1663,7 @@ local CATEGORIES = {
     { key = "pve", title = "Raid", sections = {
         { key = "org", title = "Organisation", items = { "RaidGroups", "InviteTool", "AutoPromote", "Summon", "MarksBar" } },
         { key = "prep", title = "Preparation", items = { { "ReadyCheck", "TalentReminder", label = "Ready check & talents", split = { 145 } }, "Checklist", "RaidBuffs", "Readiness", "RaidInspect" } },
-        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", { "DoesItDie", "AutoLog", label = "Kill time & combat log", split = { 215 } } } },
+        { key = "fight", title = "Combat", items = { "RaidCooldowns", "AuraTracker", "WhoPulled", "DoesItDie", "AutoLog" } },
         { key = "loot", title = "Loot and attendance", items = { "LootCouncil", "Attendance", "Dashboard", "Roster" } },
     } },
     { key = "pvp", title = "PvP", pvp = true, sections = {
@@ -1708,7 +1708,6 @@ W.AddFR({
     ["Auto Promote"] = "Promotion auto",
     ["Marks Bar"] = "Barre de marques",
     ["Ready check & talents"] = "Appel et talents",
-    ["Kill time & combat log"] = "Temps de mort et journal",
     ["Focus & crowd control"] = "Focus et contrôles",
     ["Timers"] = "Minuteurs",
     ["Loot & upgrades"] = "Butin et améliorations",

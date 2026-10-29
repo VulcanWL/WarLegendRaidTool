@@ -19,7 +19,7 @@ globals = {
     "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne", "MyslotExports", "MyslotSettings", "DoesItDieDB",
     "SlashCmdList", "StaticPopupDialogs", "BINDING_HEADER_WARLEGENDRAIDTOOL",
     "SLASH_WARLEGENDRT1", "SLASH_WARLEGENDRT2", "SLASH_WARLEGENDRT3", "SLASH_WARLEGENDRTDIRECT1", "SLASH_WARLEGENDRTDIRECT2",
-    "SLASH_WLRTREADYCHECK1",
+    "SLASH_WLRTREADYCHECK1", "SLASH_DOESITDIE1", "SLASH_DOESITDIE2",
 }
 -- the battleground frames are BattleGroundEnemies (Bullsei) cleaned up: its unused locals and empty branches are
 -- kept as upstream so a later update stays easy to compare
@@ -34,4 +34,3 @@ files["WarLegendRaidTool_Raid/RaidCooldowns.lua"] = { ignore = { "211/UI" } }
 files["WarLegendRaidTool_Raid/Readiness.lua"] = { ignore = { "211/asked" } }
 files["WarLegendRaidTool_Skyborne"] = { ignore = { "211/ADDON", "211/W", "311/saved" } }
 files["WarLegendRaidTool/Myslot"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- Myslot (Boshi Lian) as upstream: only syntax errors are looked at
-files["WarLegendRaidTool/DoesItDie"] = { ignore = { "1", "2", "3", "4", "5", "6" } } -- DoesItDie (Joe Greive) as upstream: only syntax errors are looked at
