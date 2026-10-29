@@ -49,6 +49,17 @@ W.AddFR({
         "%d autre(s) option(s) du jeu ignorée(s) (seules celles d'Options > Interface sont reprises)",
     ["invite keyword: %s"] = "mot-clé d'invitation : %s",
     ["switches off %d module(s)"] = "éteint %d module(s)",
+    ["switches on %d module(s)"] = "allume %d module(s)",
+    ["switches on modules that share with the guild: %s"] = "allume des modules qui partagent avec la guilde : %s",
+    ["changes who is in the loot council"] = "change qui fait partie du conseil du butin",
+    ["shares your layer with the guild"] = "partage ton layer avec la guilde",
+    ["shares your class card with the guild"] = "partage ta fiche de classe avec la guilde",
+    ["shares your Minotaure score with the guild"] = "partage ton score Minotaure avec la guilde",
+    ["shares your professions with the guild"] = "partage tes métiers avec la guilde",
+    ["answers soft-res whispers (!sr) automatically"] = "répond automatiquement aux chuchotements de soft-res (!sr)",
+    ["lists summon requests from the group chat"] = "liste les demandes d'invocation du chat de groupe",
+    ["says in the raid chat who asks for a summon"] = "dit dans le chat de raid qui demande une invocation",
+    ["accepts resurrections out of combat"] = "accepte les résurrections hors combat",
     ["%d battleground click macro line(s) use an item, equip or cancel a buff"] =
         "%d ligne(s) de macro des clics de champ de bataille utilisent un objet, équipent ou retirent un buff",
 })
@@ -158,12 +169,14 @@ local TABLE_FIELDS = {
     dangerAlert = { framesPoint = true },
 }
 -- these save "point" as an anchor name (a string), the others as a table
-local STRING_POINT = { marksBar = true, moneyGoal = true, upgrades = true, combatTimer = true }
--- fields named by a prefix: the player's own game options, kept to give them back (LootSparkles "o_<CVar>")
-local SKIP_PREFIX = { lootSparkles = "o_" }
+local STRING_POINT = { marksBar = true, moneyGoal = true, upgrades = true, combatTimer = true, raidCooldowns = true }
+-- fields named by a pattern: state, not options. The player's own game options kept to give them back (LootSparkles
+-- "o_<CVar>"), the transport times measured in game (Transports "c<id>" / "a<id>" / "o<id>": imported, they went out to
+-- the guild as my own observations), the tool last seen in a top tab
+local SKIP_PATTERN = { lootSparkles = "^o_", transports = "^[cao]%d+$", ui = "^tabModule_" }
 local function Prefixed(key, field)
-    local pre = SKIP_PREFIX[key]
-    return pre and field:sub(1, #pre) == pre or false
+    local pat = SKIP_PATTERN[key]
+    return pat and field:find(pat) ~= nil or false
 end
 local function IsTableOption(key, field)
     if field == "point" then return not STRING_POINT[key] end
@@ -239,18 +252,21 @@ end
 -- offsets within 4000 px, scales 0.5 to 2. A made-up value raised a Lua error at every login or put frames off screen.
 local ANCHORS = { TOPLEFT = true, TOP = true, TOPRIGHT = true, LEFT = true, CENTER = true, RIGHT = true,
     BOTTOMLEFT = true, BOTTOM = true, BOTTOMRIGHT = true }
-local function GoodPoint(p) -- { point, relPoint, x, y } or { x, y }
-    if type(p) ~= "table" then return false end
-    for k, v in pairs(p) do
-        if type(k) ~= "number" or k < 1 or k > 4 or k % 1 ~= 0 then return false end
-        if type(v) == "string" then
-            if not ANCHORS[v] then return false end
-        elseif type(v) ~= "number" or v ~= v or v < -4000 or v > 4000 then
-            return false
-        end
+local function Offset(v) return type(v) == "number" and v == v and v >= -4000 and v <= 4000 end
+-- the shape too, not only the types: { "TOP" } or {} passed and gave SetPoint(nil) errors at every build
+local function Count(p)
+    local n = 0
+    for k in pairs(p) do
+        if type(k) ~= "number" or k < 1 or k > 4 or k % 1 ~= 0 then return -1 end
+        n = n + 1
     end
-    return true
+    return n
 end
+local function GoodPoint(p) -- { point, relPoint, x, y }
+    return type(p) == "table" and Count(p) == 4 and ANCHORS[p[1]] == true and ANCHORS[p[2]] == true
+        and Offset(p[3]) and Offset(p[4])
+end
+local function GoodXY(p) return type(p) == "table" and Count(p) == 2 and Offset(p[1]) and Offset(p[2]) end -- a box: { x, y }
 local function GoodMap(t, check) -- name or index -> value
     if type(t) ~= "table" then return false end
     for k, v in pairs(t) do
@@ -263,9 +279,27 @@ local PLACES = {
     point = GoodPoint, emphPoint = GoodPoint, framesPoint = GoodPoint, tipPoint = GoodPoint,
     pos = function(t) return GoodMap(t, GoodPoint) end, -- auras: one place per row
     winPos = function(t) return GoodMap(t, GoodPoint) end,
-    elemPos = function(t) return GoodMap(t, GoodPoint) end,
+    elemPos = function(t) return GoodMap(t, GoodXY) end,
     winScale = function(t) return GoodMap(t, GoodScale) end,
 }
+-- scalar fields that place or size a frame, checked by name: SetScale(0), an "XYZ" anchor, a 4000 px guild pin
+-- (a button catching world clicks) or offsets of 1e12 came in with a type check only
+local function Between(lo, hi) return function(v) return type(v) == "number" and v >= lo and v <= hi end end
+local SCALAR_CHECK = {
+    point = function(v) return ANCHORS[v] == true end, relPoint = function(v) return ANCHORS[v] == true end,
+    x = Offset, y = Offset, scale = Between(0.5, 2.5), size = Between(8, 200),
+}
+-- what an imported option table may hold: a table inside a list of texts raised a Lua error at every use
+local function Texts(max, plain)
+    return function(t)
+        return GoodMap(t, function(v) return type(v) == "string" and #v <= max and not (plain and v:find("|", 1, true)) end)
+    end
+end
+local CONTENT = { guild = { msgs = Texts(255) }, classes = { leaders = Texts(60, true) } }
+local function GoodContent(key, f, v)
+    local check = CONTENT[key] and CONTENT[key][f]
+    return not check or check(v)
+end
 
 -- the values are written in place: a module keeps its table, a value of another type than ours is ignored
 local function Apply(data)
@@ -278,16 +312,18 @@ local function Apply(data)
                 if type(f) == "string" and #f <= 40 and not skip[f] and not Prefixed(key, f) then
                     if type(v) == "table" then
                         if key == "interfaceOptions" and f == "cvars" then
-                            -- only the game options of Options > Interface (W.KnownCVar), as short texts
-                            local kept = {}
+                            -- only the game options of Options > Interface (W.KnownCVar), as short texts, merged:
+                            -- the ones I keep that the profile does not carry stay
+                            local kept = type(dest[f]) == "table" and dest[f] or {}
                             for c, val in pairs(v) do
                                 if W.KnownCVar and W.KnownCVar(c) and type(val) == "string" and #val <= 100 then kept[c] = val end
                             end
                             dest[f] = kept
-                        elseif IsTableOption(key, f) and (not PLACES[f] or PLACES[f](v)) then
+                        elseif IsTableOption(key, f) and (not PLACES[f] or PLACES[f](v)) and GoodContent(key, f, v) then
                             dest[f] = v
                         end
-                    elseif not IsTableOption(key, f) and (dest[f] == nil or type(dest[f]) == type(v)) then
+                    elseif not IsTableOption(key, f) and (dest[f] == nil or type(dest[f]) == type(v))
+                        and (not SCALAR_CHECK[f] or SCALAR_CHECK[f](v)) then
                         dest[f] = v
                     end
                 end
@@ -372,7 +408,17 @@ local RISKY = {
     { "qol", "sellJunk", true, "sells grey items at vendors" },
     { "readiness", "answerFrom", "group", "answers the readiness checks of any group leader" },
     { "guildPositions", "share", true, "shares your position with the guild" },
+    { "layers", "share", true, "shares your layer with the guild" },
+    { "classes", "share", true, "shares your class card with the guild" },
+    { "minotaure", "share", true, "shares your Minotaure score with the guild" },
+    { "guild", "profShare", true, "shares your professions with the guild" },
+    { "loot", "srWhisper", true, "answers soft-res whispers (!sr) automatically" },
+    { "summon", "enabled", true, "lists summon requests from the group chat" },
+    { "summon", "say", true, "says in the raid chat who asks for a summon" },
+    { "qol", "acceptResurrect", true, "accepts resurrections out of combat" },
 }
+-- modules that send my data to the guild once switched on
+local SHARING = { GuildPositions = "Guild map", Layers = "Layers", Classes = "Classes", Minotaure = "Minotaure", Guild = "Guild" }
 
 local function Review(data)
     local lines = {}
@@ -430,6 +476,25 @@ local function Review(data)
             if v and not myOff[k] then n = n + 1 end
         end
         if n > 0 then lines[#lines + 1] = string.format(L("switches off %d module(s)"), n) end
+        -- ui.off is replaced whole: a module I switched off and the profile does not is switched back on
+        local on, sharing = 0, {}
+        for k, v in pairs(myOff) do
+            if v and not ui.off[k] then
+                on = on + 1
+                if SHARING[k] then sharing[#sharing + 1] = L(SHARING[k]) end
+            end
+        end
+        if on > 0 then lines[#lines + 1] = string.format(L("switches on %d module(s)"), on) end
+        if #sharing > 0 then
+            table.sort(sharing)
+            lines[#lines + 1] = string.format(L("switches on modules that share with the guild: %s"), table.concat(sharing, ", "))
+        end
+    end
+    -- who votes on my loot (Loot Council: the rank and the extra names)
+    local lt, myLt = main.loot, type(W.db.loot) == "table" and W.db.loot or {}
+    if type(lt) == "table" and ((lt.councilExtra ~= nil and lt.councilExtra ~= myLt.councilExtra)
+        or (lt.councilRank ~= nil and lt.councilRank ~= myLt.councilRank)) then
+        lines[#lines + 1] = L("changes who is in the loot council")
     end
     if type(data.pvp) == "table" then
         local n = CountActing(data.pvp, 1)
@@ -497,6 +562,8 @@ local function BuildProfile(p)
         local data, err = Parse(box:GetText())
         if not data then W.Print(err); return end
         W.Confirm(L("Replace your settings with this profile?") .. Review(data), function()
+            -- the battleground part needs its addon, which never loads in combat: it was dropped without a word
+            if InCombatLockdown() then W.Print(L("Not in combat.")); return end
             Apply(data)
             W.ConfirmReload(L("Profile imported: reload to apply it."))
         end)

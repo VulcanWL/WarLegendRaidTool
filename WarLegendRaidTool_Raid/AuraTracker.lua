@@ -89,8 +89,9 @@ end
 local function ParseCustom()
     wipe(cusById); wipe(cusByName); wipe(cusByLower)
     hasCustom, hasTyped = false, false
-    for tok in (db.custom or ""):gmatch("[^,;\n]+") do
-        tok = tok:gsub("^%s+", ""):gsub("%s+$", "")
+    -- a pasted profile's text is bounded, and trimmed by W.Trim: "%s+$" is quadratic on a long run of spaces
+    for tok in tostring(db.custom or ""):sub(1, 2000):gmatch("[^,;\n]+") do
+        tok = W.Trim(tok)
         local id = tonumber(tok) or tonumber(tok:match("spell:(%d+)")) -- shift-clicked spell links work too
         if id then
             cusById[id] = true
@@ -428,7 +429,11 @@ local function ResolveTanks()
         if #tanks < 2 and u and u ~= "player" and UnitExists(u) and not W.UnitIsMe(u) then tanks[#tanks + 1] = u end
     end
     if (db.tankNames or "") ~= "" then
-        for _, n in ipairs(W.NameList(db.tankNames)) do add(W.UnitByName(n)) end
+        -- 2 tanks at most, from a bounded list (a pasted "a,a,a..." of 10,000 names ran on every roster change)
+        for i, n in ipairs(W.NameList(tostring(db.tankNames):sub(1, 200))) do
+            if #tanks >= 2 or i > 10 then break end
+            add(W.UnitByName(n))
+        end
     elseif W.InRaid() then
         for i = 1, W.NumRaid() do
             local u = W.RAID_UNITS[i]

@@ -288,8 +288,33 @@ local function savedSide(side)
 	return saved[side]
 end
 
+-- WarLegend: the values a pasted profile brings, clamped near the /wl tab's choices (a 3000 px bar made 40 secure
+-- buttons cover the screen and catch every click; a colour that is not 3 numbers stopped the placing of the buttons)
+local function Clamp(v, lo, hi)
+	v = tonumber(v)
+	if not v or v ~= v then return nil end
+	return math.max(lo, math.min(hi, v))
+end
+local function SanitizeSide(s)
+	s.Width, s.Height, s.PowerHeight = Clamp(s.Width, 50, 600), Clamp(s.Height, 8, 100), Clamp(s.PowerHeight, 1, 30)
+	if s.Scale ~= nil then s.Scale = WarLegendPvP.SafeScale(s.Scale) end
+	if s.X ~= nil or s.Y ~= nil then
+		s.X, s.Y = Clamp(s.X, -10000, 10000), Clamp(s.Y, -10000, 10000)
+		if not (s.X and s.Y) then s.X, s.Y = nil, nil end
+	end
+	if type(s.Range) == "number" then s.Range = Clamp(s.Range, 5, 100)
+	elseif type(s.Range) ~= "string" or #s.Range > 20 then s.Range = nil end
+	local c = s.BarColor
+	if c ~= nil then
+		local ok = type(c) == "table"
+		for i = 1, 3 do ok = ok and type(c[i]) == "number" and c[i] == c[i] and c[i] >= 0 and c[i] <= 1 end
+		if not ok then s.BarColor = nil end
+	end
+end
+
 function WarLegendPvP:BuildProfile()
 	local saved = WarLegendRaidTool_PvPDB
+	for side in pairs(self.consts.PlayerTypes) do SanitizeSide(savedSide(side)) end
 	local profile = CopyTable(Data.defaultSettings.profile)
 	profile.Style = "auto"
 	for _, key in ipairs(GENERAL_KEYS) do
