@@ -259,12 +259,13 @@ local function OwnProfessions()
     if #out == 0 and (skills or (GetNumSkillLines and GetSkillLineInfo)) then
         local names = ProfByName()
         for i = 1, skills and C_SkillInfo.GetNumSkillLines() or GetNumSkillLines() do
-            local name, header, _, rank, _, _, max
+            local name, header, rank, max
             if skills then
                 local s = C_SkillInfo.GetSkillLineInfo(i)
                 if s then name, header, rank, max = s.name, s.isHeader, s.rank, s.maxRank end
             else
-                name, header, _, rank, _, _, max = GetSkillLineInfo(i)
+                local r = { GetSkillLineInfo(i) } -- name, header, expanded, rank, temp points, modifier, max rank
+                name, header, rank, max = r[1], r[2], r[4], r[7]
             end
             name = W.Safe(name)
             if name and not header and names[name:lower()] then
