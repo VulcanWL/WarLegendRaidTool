@@ -65,8 +65,18 @@ local function Promote(name)
     end
 end
 
+-- something to promote: a name listed or a rank ticked (most raid leaders have neither)
+local function Configured()
+    if next(db.names) then return true end
+    for _, on in pairs(db.ranks) do
+        if on then return true end
+    end
+    return false
+end
+
+-- not in a battleground: its raid is not ours (and every roster change there read the whole raid)
 local function Check()
-    if not db or not W.InRaid() or not W.IsLeader() or InCombatLockdown() then return end
+    if not db or not W.InRaid() or not W.IsLeader() or InCombatLockdown() or W.InPvP() or not Configured() then return end
     RefreshRanks()
     local now = GetTime()
     for i = 1, W.NumRaid() do

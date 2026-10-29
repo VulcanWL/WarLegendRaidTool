@@ -479,20 +479,23 @@ end
 
 -- Hidden addon messages to the guild's WarLegend RaidTool users (never a chat line). Only my own data
 -- (read on my game): what the roster or a link told me about others stays on my side.
-function G.Broadcast()
+-- target: whispered to that member only (the answer to a "Q"), else to the guild
+function G.Broadcast(target)
     if not W.IsInGuild() or not (db and db.profShare) then return end
     local me = MyEntry()
     local profs = OwnProfessions()
     if #profs > 0 then me.profs = MergeSkills(profs, me.profs) end -- the client gave nothing (not ready yet): the last read stays
     me.t = me.t or time()
-    W.SendLong(PREFIX, Encode(me), "GUILD")
+    W.SendLong(PREFIX, Encode(me), target and "WHISPER" or "GUILD", target)
 end
 
+-- true when the question went out (once a minute at most)
 local lastAsk = 0
 function G.Ask()
     if not W.IsInGuild() or GetTime() - lastAsk < 60 then return end
     lastAsk = GetTime()
     W.SendLong(PREFIX, "Q", "GUILD")
+    return true
 end
 
 -- The "trade:..." reference of a real profession link ("|cff......|Htrade:GUID:ids|h[name]|h|r"), nil for
@@ -503,17 +506,18 @@ local function TradeRef(link)
         or link:match("^|H(trade:[%w:%-]+)|h%[[^%]|]*%]|h$")
 end
 
-local answering, lastAnswer = false, -1000
+local answering, lastAnswer, answeredTo = false, -1000, {}
 W.OnAddonLong(PREFIX, function(msg, from, _, full)
     local who = full or from
     if W.IsMe(who) or not W.GuildMember(who) then return end -- guild members only
     local t = W.Unpack(msg)
     if t[1] == "Q" then
-        -- one answer per 2 minutes at most, whoever asks: a flood of "Q" must not make the whole guild send
-        if answering or GetTime() - lastAnswer < 120 then return end
-        answering = true
-        lastAnswer = GetTime()
-        W.After(2 + math.random() * 10, function() answering = false; G.Broadcast() end)
+        -- answered to the asker alone (whispered): the whole guild sent its list to the guild, and each member read
+        -- everyone's (N members = N x N). One answer at a time, 20 s apart at least, once per 10 min per asker.
+        local now = GetTime()
+        if answering or now - lastAnswer < 20 or now - (answeredTo[who] or -1000) < 600 then return end
+        answering, lastAnswer, answeredTo[who] = true, now, now
+        W.After(2 + math.random() * 10, function() answering = false; G.Broadcast(who) end)
     elseif t[1] == "D" then
         local e = { t = time(), profs = {}, rec = {}, links = {} }
         local count = 0 -- a forged message of thousands of tiny fields stops here, not after a long loop
@@ -1247,7 +1251,8 @@ local function BuildProfs(p)
     local dash = W.Label(p, "-", "GameFontHighlightSmall")
     dash:SetPoint("LEFT", minBox, "RIGHT", 6, 0)
     SkillBox("profMax", dash)
-    W.Button(p, L("Ask the guild"), 130, 22, function() G.Ask(); G.Broadcast() end):SetPoint("TOPRIGHT", -16, -6)
+    -- my list goes with the question only when the question went out (once a minute): clicks cannot flood the guild
+    W.Button(p, L("Ask the guild"), 130, 22, function() if G.Ask() then G.Broadcast() end end):SetPoint("TOPRIGHT", -16, -6)
 
     -- line 2: recipe search (the list then shows the recipes and who can craft them)
     local lbl = W.Label(p, L("Recipe or item:"), "GameFontHighlightSmall")

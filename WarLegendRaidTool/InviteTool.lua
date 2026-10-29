@@ -81,10 +81,21 @@ local function ConvertToRaidNow()
     if C_PartyInfo and C_PartyInfo.ConvertToRaid then C_PartyInfo.ConvertToRaid() elseif ConvertToRaid then ConvertToRaid() end
 end
 
+local keywordAt, keywordN = {}, 0 -- W.Key(name) -> GetTime() of the last keyword invite; entries
 local function InviteFromKeyword(name)
     if db.guildOnly and not W.GuildMember(name) then return end
-    -- party full: convert to raid automatically if we are leader
-    if db.autoRaid and not W.InRaid() and W.NumParty() >= 4 and W.IsLeader() then ConvertToRaidNow() end
+    -- only when I may invite (alone, leader or assistant), once per 30 s per sender: a stranger whispering the keyword
+    -- in a loop must not make us send "suggest invite" popups to our leader
+    if W.InGroup() and not W.CanLead() then return end
+    local key, now = W.Key(name) or name, GetTime()
+    if now - (keywordAt[key] or -1000) < 30 then return end
+    if not keywordAt[key] then
+        keywordN = keywordN + 1
+        if keywordN > 200 then wipe(keywordAt); keywordN = 1 end -- many senders: forgotten all at once
+    end
+    keywordAt[key] = now
+    -- party full: convert to raid automatically if we are leader, for a guild member only
+    if db.autoRaid and not W.InRaid() and W.NumParty() >= 4 and W.IsLeader() and W.GuildMember(name) then ConvertToRaidNow() end
     Invite(name)
 end
 

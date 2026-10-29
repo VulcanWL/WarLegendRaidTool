@@ -206,6 +206,23 @@ end
 ---------------------------------------------------------------------------
 local function Normalize(s) return ((s or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()) end
 
+-- the names asking for a summon, said in one group line 3 s after the first (40 raiders typing the keyword made 40
+-- lines at once)
+local sayNames, saying = {}, false
+local function SayLater(name)
+    sayNames[#sayNames + 1] = name
+    if saying then return end
+    saying = true
+    W.After(3, function()
+        saying = false
+        local channel = W.Channel()
+        if channel and #sayNames > 0 then
+            W.Announce(W.CutUTF8(string.format(L("Summon: %s"), table.concat(sayNames, ", ")), 255), channel)
+        end
+        wipe(sayNames)
+    end)
+end
+
 local function OnChat(text, sender)
     text, sender = W.Safe(text), W.Safe(sender)
     if type(text) ~= "string" or type(sender) ~= "string" or sender == "" then return end
@@ -223,7 +240,7 @@ local function OnChat(text, sender)
     if #queue >= 40 then return end
     queue[#queue + 1] = { key = key, name = name, class = class }
     W.Print(string.format(L("%s to summon (not in the zone yet)"), W.ColorName(name, class)))
-    if db.say and W.Channel() then W.Announce(string.format(L("Summon: %s"), name), W.Channel()) end
+    if db.say and W.Channel() then SayLater(name) end
     if db.autoShow then Show() else Refresh() end
     Watch()
 end

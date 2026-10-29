@@ -74,9 +74,15 @@ local function Number(map, id)
     local key = tostring(map)
     local zone = db.registry[key]
     if type(zone) ~= "table" then
-        local zones = 0
-        for _ in pairs(db.registry) do zones = zones + 1 end
-        if zones >= MAX_ZONES then return 0 end
+        -- full: the zone seen least recently is forgotten (refusing new ones left "layer 0" everywhere for good once
+        -- a guild member had sent made-up map ids)
+        local zones, oldestKey, oldestSeen = 0, nil, nil
+        for k, z in pairs(db.registry) do
+            zones = zones + 1
+            local seen = type(z) == "table" and tonumber(z.seen) or 0
+            if not oldestSeen or seen < oldestSeen then oldestKey, oldestSeen = k, seen end
+        end
+        if zones >= MAX_ZONES and oldestKey then db.registry[oldestKey] = nil end
         zone = { next = 0, ids = {} }; db.registry[key] = zone
     end
     local e = zone.ids[id]
@@ -92,6 +98,7 @@ local function Number(map, id)
         zone.ids[id] = e
     end
     e.seen = GetServerTime()
+    zone.seen = e.seen
     return e.n
 end
 
@@ -150,6 +157,7 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     if f[1] ~= "1" then return end
     local id, map, at = f[2], tonumber(f[3]), W.Finite(f[4])
     if not id or #id > 24 or not id:match("^%d+%-%d+$") or not map or map < 1 or map > 100000 or map % 1 ~= 0 or not at then return end
+    if C_Map and C_Map.GetMapInfo and not C_Map.GetMapInfo(map) then return end -- a map this client does not know
     local now = GetServerTime()
     if at > now + 60 or now - at > KEEP then return end
     local key = W.Key(full)
