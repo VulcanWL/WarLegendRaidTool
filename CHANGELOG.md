@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.53 (29/10/2026)
+
 ### Corrigé
 - WoW Forever n'a plus les anciennes fonctions des sorts connus : les temps de recharge du raid montrent enfin tes propres
   sorts, et les cadres de champ de bataille ne comptent que les sorts que tu as appris (portée, dissipations, buffs).
