@@ -67,16 +67,18 @@ local function Pump()
 end
 
 -- channel nil = raid/party; "LOCAL" when alone. Messages leave one every 0.25 s, in order.
-function W.Queue(prefix, msg, channel, target)
+-- urgent: sent before the waiting messages (a loot award must not wait behind a long resync whispered to someone)
+function W.Queue(prefix, msg, channel, target, urgent)
     channel = channel or W.Channel() or "LOCAL"
     if #queue >= MAX_QUEUE then -- long lockdown: the oldest goes, memory stays small, said once a minute
-        table.remove(queue, 1)
+        table.remove(queue, urgent and #queue or 1) -- an urgent one replaces the newest, never itself
         if GetTime() - warnedAt > 60 then
             warnedAt = GetTime()
             W.Print(L("Some messages could not be sent to the group (chat locked or throttled for too long)."))
         end
     end
-    queue[#queue + 1] = { prefix = prefix, msg = msg, channel = channel, target = target, at = GetTime() }
+    local m = { prefix = prefix, msg = msg, channel = channel, target = target, at = GetTime() }
+    if urgent then table.insert(queue, 1, m) else queue[#queue + 1] = m end
     if not pumping then pumping = true; Pump() end
     return true
 end
@@ -393,6 +395,8 @@ function W.CSV(...)
     local out = {}
     for i = 1, select("#", ...) do
         local v = tostring((select(i, ...)) or "")
+        -- a cell starting with = + - @ (or a tab / return) is a formula for a spreadsheet (=HYPERLINK...): kept as text
+        if v:find("^[=+%-@\t\r]") then v = "'" .. v end
         if v:find('[,"\n]') then v = '"' .. v:gsub('"', '""') .. '"' end
         out[i] = v
     end
@@ -763,6 +767,26 @@ end
 -- A question is open: a prompt nobody asked for (a timer's) waits instead of replacing it
 function W.ConfirmShown()
     return confirm ~= nil and confirm:IsShown()
+end
+
+-- A list said in the group chat (on a click): one line a second, max (20) at most, the last one saying how many were
+-- left out, each within 255 bytes. Blizzard's policy: no excessive use of the chat (300 soft-reserves in one frame).
+W.AddFR({ ["... and %d more line(s): see the window."] = "... et %d ligne(s) de plus : voir la fenêtre." })
+local sayQueue, saying = {}, false
+local function SayNext()
+    local l = table.remove(sayQueue, 1)
+    if not l then saying = false; return end
+    W.Announce(l[1], l[2])
+    W.After(1, SayNext, "group lines")
+end
+function W.AnnounceLines(lines, channel, max)
+    max = max or 20
+    for i = 1, math.min(#lines, max) do
+        local text = lines[i]
+        if i == max and #lines > max then text = string.format(L("... and %d more line(s): see the window."), #lines - max + 1) end
+        if #sayQueue < 40 then sayQueue[#sayQueue + 1] = { W.CutUTF8(text, 255), channel } end
+    end
+    if not saying and #sayQueue > 0 then saying = true; SayNext() end
 end
 
 -- Reload confirmation. The WoW: Forever client blocks ReloadUI() from addon code, even on a click,

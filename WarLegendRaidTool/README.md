@@ -96,7 +96,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/wl loot add [objet]` | Ajoute un objet (lien) à la liste des objets à attribuer. |
 | `/wl loot test` | Lance une session de test. |
 | `/wl sr` | Ouvre l'onglet des soft-res. |
-| `!sr [objet]` *(chuchotement)* | Un joueur réserve un objet en chuchotant le chef de loot (si l'option est cochée). `!sr` seul : voir ses réserves. |
+| `!sr [objet]` *(chuchotement)* | Un joueur réserve un objet en chuchotant le chef de loot (si l'option est cochée chez lui : décochée par défaut, seul celui qui recueille les réserves l'allume). `!sr` seul : voir ses réserves. |
 
 **Outils**
 

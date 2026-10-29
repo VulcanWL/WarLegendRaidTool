@@ -138,7 +138,7 @@ W.OnReady(function()
     db = W.DB("loot", {
         enabled = true, autoStart = true, announce = true, autopass = true, minQuality = 4,
         timeout = 60, councilRank = 1, councilExtra = "", logLoot = true,
-        srWhisper = true, srMax = 1,
+        srWhisper = false, srMax = 1,
     })
     -- the loot history has its own key (WarLegendRaidToolDB.lootHistory), apart from the module options
     if type(W.db.lootHistory) ~= "table" then
@@ -147,6 +147,12 @@ W.OnReady(function()
     db.history = nil
     hist = W.db.lootHistory
     if type(db.sr) ~= "table" then db.sr = {} end
+    -- "!sr" whispers are for whoever collects the soft-res: off by default now (every raider answered them and kept a
+    -- list); switched off once here, unless this player already holds a list
+    if not db.srChecked then
+        db.srChecked = true
+        if next(db.sr) == nil then db.srWhisper = false end
+    end
     if type(db.pending) ~= "table" then db.pending = {} end
 end)
 
@@ -303,7 +309,7 @@ local function KeyName(key)
     for _, u in ipairs(W.GroupUnits()) do
         if W.UnitKey(u) == key then return W.UnitDisplayName(u) or key end
     end
-    return key
+    return W.Plain(key, 60) -- a name from the starter's message: never its colour / line codes
 end
 
 local function HasSR(str, name)
@@ -381,6 +387,9 @@ end
 -- Messages
 ---------------------------------------------------------------------------
 local function Send(...) W.Queue(PREFIX, W.Pack(...)) end
+-- an award goes before the waiting messages: behind a resync whispered to 3 players it waited 16 s or more, and the
+-- "Award" button came back meanwhile (a second click gave or owed the item twice)
+local function SendFirst(...) W.Queue(PREFIX, W.Pack(...), nil, nil, true) end
 
 -- council members as full identities (two players can share a first name)
 local function CouncilList()
@@ -465,6 +474,15 @@ local function MasterLooterUnit()
 end
 
 local function SameName(a, b) return a and b and a:lower() == b:lower() end
+
+-- the loot authority of the group: the master looter under master loot, else the group leader
+local function LootAuthority(full)
+    local u = full and W.UnitByName(full)
+    if not u then return false end
+    local ml = MasterLooterUnit()
+    if ml then return W.SameUnit(u, ml) end
+    return W.Safe(UnitIsGroupLeader(u)) == true
+end
 
 local function MayStart(full, channel)
     if not W.InGroup() then return channel == "LOCAL" end -- alone: our own test session, never a whisper
@@ -640,7 +658,9 @@ Receive.A = function(t, from, full, channel)
         local h = hist[i]
         if h.src == "council" and h.item == item.str and h.winner == winner and time() - (h.t or 0) < 900 then seen = true; break end
     end
-    if not seen then
+    -- saved only from the loot authority of the group, or my own session: an assistant who starts sessions cannot
+    -- write made-up awards into every raider's history (30 a session, pushing the real ones out of the 1,000 lines)
+    if not seen and (W.IsMe(full) or LootAuthority(full)) then
         Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes, test = S.test or nil })
     end
     -- a test session (even in a raid) is never announced
@@ -1321,19 +1341,26 @@ function LC.AskAward(idx, key)
         if item.winner or item.awarding then W.Print(L("This item is already awarded.")); return end
         item.awarding = true
         W.After(10, function() item.awarding = nil end) -- the "A" never came back (send refused): award again possible
-        local given, found = GiveLoot(item.str, key, name)
-        if not given then
-            if found then
-                -- still on the corpse: not awarded, it can be given again (in range) or to someone else
-                W.Print(string.format(L("Could not give %s to %s (out of range or not eligible?)."), W.ItemLink(item.str), name))
-                item.awarding = nil
-                return
-            elseif key ~= MyKey() and not S.test then -- a test item (my own gear) is never owed
-                W.Print(string.format(L("Trade %s to %s (item not in the loot window)."), W.ItemLink(item.str), name))
-                Owe(item.str, key, name) -- put in the trade window when that player opens a trade with me
+        if item.givenTo then
+            -- given (or owed) by an earlier click whose "A" never came back: only the "A" goes again, to that player
+            key = item.givenTo
+            c = item.cands[key]
+        else
+            local given, found = GiveLoot(item.str, key, name)
+            if not given then
+                if found then
+                    -- still on the corpse: not awarded, it can be given again (in range) or to someone else
+                    W.Print(string.format(L("Could not give %s to %s (out of range or not eligible?)."), W.ItemLink(item.str), name))
+                    item.awarding = nil
+                    return
+                elseif key ~= MyKey() and not S.test then -- a test item (my own gear) is never owed
+                    W.Print(string.format(L("Trade %s to %s (item not in the loot window)."), W.ItemLink(item.str), name))
+                    Owe(item.str, key, name) -- put in the trade window when that player opens a trade with me
+                end
             end
+            item.givenTo = key
         end
-        Send("A", S.sid, idx, key, c and c.resp or "")
+        SendFirst("A", S.sid, idx, key, c and c.resp or "")
         -- next item without a winner
         for i = 1, S.n do
             if S.items[i] and not S.items[i].winner and i ~= idx then UI.vote.sel = i; break end
@@ -1471,6 +1498,11 @@ local function Reply(to, text)
     r[2] = r[2] + 1
     W.SendChat(W.TAG:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") .. text, "WHISPER", to)
 end
+-- that player had his 3 answers of the last 10 s: his whisper is not even read (the soft-res list is not scanned)
+local function Limited(to)
+    local r = replies[to]
+    return r ~= nil and GetTime() - r[1] <= REPLY_WINDOW and r[2] >= REPLY_MAX
+end
 
 local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
     if not db or not db.srWhisper then return end
@@ -1478,6 +1510,7 @@ local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
     if not text or not sender or not text:lower():match("^!sr") then return end
     -- only my group and my guild can soft-reserve; answers go to the full "Name-Realm"
     if not (W.UnitByName(W.FullName(sender)) or W.GuildMember(sender)) then return end
+    if Limited(sender) then return end
     local name = W.Plain(W.FOREVER and W.FullName(sender) or W.BaseName(sender), 40) -- with the surname on Forever
     local rest = text:gsub("^!%a+%s*", "")
     local mine = PlayerSR(name)
@@ -1491,6 +1524,7 @@ local srEv = W.On("CHAT_MSG_WHISPER", function(text, sender)
         return
     end
     local id = W.ParseItem(rest)
+    if id and (id < 1 or id > 9999999) then id = nil end -- a made-up number is not saved as an item
     if not id then Reply(sender, L("Unknown item. Whisper \"!sr\" + the item link or ID.")); return end
     if #mine >= (db.srMax or 1) then
         Reply(sender, string.format(L("You already have %d soft-res: %s"), #mine, list()))
@@ -1715,9 +1749,11 @@ local function BuildSR(p)
     W.Button(p, L("Announce"), 100, 22, function()
         local ch = W.Channel()
         if not ch then W.Print(L("You are not in a group.")); return end
+        local lines = {}
         for id, list in pairs(db.sr) do
-            if #list > 0 then W.Announce("SR " .. ItemText(id) .. ": " .. table.concat(list, ", "), ch) end
+            if #list > 0 then lines[#lines + 1] = "SR " .. ItemText(id) .. ": " .. table.concat(list, ", ") end
         end
+        W.AnnounceLines(lines, ch) -- one line a second, 20 at most (a few nights of soft-res made 300 lines at once)
     end):SetPoint("TOPLEFT", 190, -6)
     W.Button(p, L("Clear"), 90, 22, function()
         W.Confirm(L("Clear all soft-res?"), function() wipe(db.sr); LC.RefreshSR() end)

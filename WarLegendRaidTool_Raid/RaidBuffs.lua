@@ -203,9 +203,7 @@ end
 
 function RB.Send()
     local lines, perCaster = RB.Lines()
-    if db.chat and W.Channel() then
-        for _, l in ipairs(lines) do W.Announce(l, W.Channel()) end
-    end
+    if db.chat and W.Channel() then W.AnnounceLines(lines, W.Channel()) end -- one a second, 255 bytes each
     for caster, text in pairs(perCaster) do W.Queue(PREFIX, W.Pack("A", caster, text)) end
 end
 
@@ -317,9 +315,8 @@ function RB.Check(toRaid)
     local lines = MissingLines()
     if not lines then W.Print(L("Buffs are hidden by the game right now (combat?).")); return end
     if #lines == 0 then W.Print(L("Everyone has their buffs.")); return end
-    for _, l in ipairs(lines) do
-        if toRaid and W.Channel() then W.Announce(l, W.Channel()) else W.Print(l) end
-    end
+    if toRaid and W.Channel() then W.AnnounceLines(lines, W.Channel()); return end -- one a second, 255 bytes each
+    for _, l in ipairs(lines) do W.Print(l) end
 end
 
 -- Panel
