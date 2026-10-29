@@ -148,6 +148,13 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   error, a blocked action, a chat line or a failed check. To compare with the code before a change, run the same bench on
   the addons of `HEAD` (`git archive HEAD <the four folders>` into a scratch folder with a copy of `tools/smoke*`, then
   `NODE_PATH=tools/node_modules WLRT_WUS=<the UI source> node tools/smoke.js --bg` there).
+- `--quiet` (any of the three modes): only what fails (each Lua error and the message behind the first one, blocked
+  actions, the FAIL lines of every verdict, failed checks, the chat lines / actions sent when one is counted), under one
+  line per pass: problems, seconds, counts (`== fresh install, English client: no problem in 50 s (0 Lua error(s), ...)`);
+  what the addons print is not written out. Same problems counted, same exit code; without it the output is the full one
+  (the CI and the user read it). When all passes: 2 or 3 lines / 200-450 bytes instead of about 110 lines / 8-10 KB per
+  mode. Agents run it first; on a failure, `--quiet --verbose` (every FAIL line, the stack of each Lua error) or
+  `--verbose` alone (everything).
 - `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
   addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
 - Workflows: `wlrt-ci.yml` (every push / PR: check.js, Luacheck, wow-api check, smoke, open world and battleground smoke), `wlrt-build-watch.yml` (hourly:

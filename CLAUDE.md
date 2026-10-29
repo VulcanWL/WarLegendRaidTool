@@ -14,6 +14,7 @@ After a game session: `node tools/forever-report.js` (errors, audit log, install
 Also: `node tools/smoke.js` (the addons run in a simulated client: Lua errors, protected actions in combat, messages
 sent by tests or caused by hostile addon messages and chat lines, escape codes of other players shown live, pasted
 profiles / presets / soft-res, cost; `--seed S` sends the same hostile messages again; `--open-world`: raid of 40 /
-guild of 120; `--bg`: Alterac 40 vs 40, cost of each frame), `node tools/wow-api.js check` (API used vs Blizzard's
+guild of 120; `--bg`: Alterac 40 vs 40, cost of each frame; `--quiet`: only what fails and one line per pass, what agents
+run first, `--verbose` only on a failure), `node tools/wow-api.js check` (API used vs Blizzard's
 documentation of the Forever build), `node tools/deps-watch.js` (upstream libraries / ported addons / Blizzard policy);
 the CI and the watches of `.github/workflows` run them (see "Checks and watch" in `docs/modules.md`).

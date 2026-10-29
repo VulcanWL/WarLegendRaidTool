@@ -224,6 +224,9 @@ Sessions are opened in `C:\Dev\WarLegendRaidTool` (its `CLAUDE.md` loads this fi
   `RaidGroups.lua`, `LootCouncil.lua`, PvP `Main.lua` are big: never read them whole, never re-read a range you
   already have and did not change. List of Core's API: `grep -n "^function W\." WarLegendRaidTool/Core.lua`.
 - Keep command output short: `git diff --stat`, `grep -c`, `| head`, `| tail`. No `cat` of big files or logs.
+- Smoke bench: `node tools/smoke.js --quiet` first (also with `--open-world` / `--bg`): only what fails, under one line
+  per pass, same verdict and exit code (2 or 3 lines instead of about 110 when all passes). `--verbose` only on a failure, with
+  `--quiet` kept to see just the failures in full (every FAIL line, the stack of each Lua error).
 - Web pages: `get_page_text` / `read_page` or a `zoom` on one region rather than full screenshots.
 - Batch independent reads / searches in one call. No sub-agents for code search here: a targeted Grep is cheaper.
 - Never trade a needed check for tokens: say the trade-off instead.
