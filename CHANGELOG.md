@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.52 (29/10/2026)
+
 ### Corrigé
 - Groupes de raid : un preset collé ou partagé abîmé (des milliers de virgules, un nom de joueur immense) ne fait plus d'erreur
   Lua, et un tel nom n'est plus enregistré.
