@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.54 (29/10/2026)
+
 ### Modifié
 - Annonces en liste (Raid Buffs, soft-res) : ton clic envoie 3 lignes, puis une confirmation envoie les 3 suivantes (plus
   aucune ligne envoyée toute seule).
