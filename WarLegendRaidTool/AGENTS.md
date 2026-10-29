@@ -21,7 +21,8 @@ The user is French but asked (23/10) for **answers in English** (fewer tokens). 
   it: a size cap per prefix (`W.OnAddonLong(prefix, fn, max)`, `#field` / `#line` checks), a split with a single class
   (`gmatch("[^;]+")`) or plain `find(sep, 1, true)`, then anchored patterns on short pieces. Never a pattern with a
   repeated class before a literal (`(.-)%s*=`, `([^=;]+)=`, `(%d+):(%d+)`) unanchored on a received field: quadratic or
-  cubic, one message froze every client (audit 28/10). `tools/smoke/scenario.lua` "long texts" checks the long prefixes.
+  cubic, one message froze every client (audit 28/10). `tools/smoke/scenario.lua` "long texts" checks the long prefixes,
+  "chat lines" the chat parsers, "paste" the importers, and every text shown is checked for escape codes of other players.
 - There are no automated tests. The user tests in game with `/reload`. Say what to test.
 
 ## Blizzard ToS check (every change, every changed line)

@@ -732,7 +732,7 @@ end
 
 -- A shared or pasted string comes from someone else: the preset name is shown in the confirmation and the lists,
 -- so no escape sequence ("|" textures, colors, links) and no control character; the class is a class token only;
--- a raid holds 40 players.
+-- a raid holds 40 players; a name past 60 bytes is no character's (first name and surname / realm).
 function RG.Deserialize(str)
     local name, preset = nil, { players = {} }
     for chunk in string.gmatch(str or "", "[^;]+") do
@@ -740,9 +740,10 @@ function RG.Deserialize(str)
             name = W.CutUTF8((chunk:gsub("[%c|]", "")), 40)
             if name:match("^%s*$") then name = "Preset" end
         elseif #preset.players < 40 then
-            local n, c, g, i, ma = strsplit(",", chunk)
+            -- 5 pieces at most: the game's strsplit raises an error past 8000 (a player made of commas)
+            local n, c, g, i, ma = strsplit(",", chunk, 5)
             n = n and W.SanitizeName(n)
-            if n and n ~= "" and n ~= "#boss" then
+            if n and n ~= "" and #n <= 60 and n ~= "#boss" then
                 g = tonumber(g) or 1
                 if g ~= g or g < 1 or g > 8 or g % 1 ~= 0 then g = 1 end -- g ~= g: NaN
                 i = tonumber(i) or 0
@@ -871,7 +872,7 @@ function RG.Import()
         showName = true, hint = L("Paste a WaR LegenD (or RaidPresets) string."),
         onConfirm = function(text, wanted)
             -- line breaks of the paste only: Forever names ("First Surname") and preset names keep their spaces
-            text = (text or ""):gsub("[\r\n\t]", ""):gsub("^%s+", ""):gsub("%s+$", "")
+            text = W.Trim(((text or ""):gsub("[\r\n\t]", "")))
             if text:sub(1, #EXPORT_TAG) == EXPORT_TAG then text = text:sub(#EXPORT_TAG + 1) end
             local name, preset = RG.Deserialize(text)
             if not name or #preset.players == 0 then return L("Invalid or unreadable string.") end

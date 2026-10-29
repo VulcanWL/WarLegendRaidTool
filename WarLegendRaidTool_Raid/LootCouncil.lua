@@ -1547,15 +1547,22 @@ end
 W.OnRoster(LC.Watch)
 W.OnReady(LC.Watch)
 
+-- One CSV line: cut at the commas outside quotes, quotes dropped, ends trimmed. The pieces between two quotes / commas
+-- are gathered then joined (a field built letter by letter was copied whole at each letter: a long pasted line froze
+-- the client), the ends trimmed by a plain loop (W.Trim)
 local function CSVSplit(line)
-    local out, field, inq = {}, "", false
-    for ch in line:gmatch(".") do
-        if ch == '"' then inq = not inq
-        elseif ch == "," and not inq then out[#out + 1] = field; field = ""
-        else field = field .. ch end
+    local out, parts, inq, pos = {}, {}, false, 1
+    while true do
+        local a = line:find('[",]', pos)
+        if not a then parts[#parts + 1] = line:sub(pos); break end
+        parts[#parts + 1] = line:sub(pos, a - 1)
+        if line:sub(a, a) == '"' then inq = not inq
+        elseif inq then parts[#parts + 1] = ","
+        else out[#out + 1] = table.concat(parts); parts = {} end
+        pos = a + 1
     end
-    out[#out + 1] = field
-    for i, v in ipairs(out) do out[i] = v:gsub("^%s+", ""):gsub("%s+$", "") end
+    out[#out + 1] = table.concat(parts)
+    for i, v in ipairs(out) do out[i] = W.Trim(v) end
     return out
 end
 

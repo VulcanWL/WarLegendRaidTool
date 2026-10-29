@@ -108,11 +108,25 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
 - `tools/smoke.js` + `tools/smoke/wow.lua` (the fake client) + `tools/smoke/scenario.lua`: fengari (Lua 5.3 in JS) runs
   the four addons twice (fresh English install; /reload with the saved data, French, Skyborne character): login, every
   `/wl` command alone and in a raid, every tab, Test all, ready check, pull, combat (protected frames changed in combat
-  are listed as the game would block them), hostile addon messages on every prefix, own messages replayed 100 times,
-  event floods. Limits: values are never secret, frames draw nothing, the server never answers: it proves the code runs,
-  not that a feature works in game. The fake client follows FrameXML where the addon depends on it: pools reuse their
-  objects, the world map is a MapCanvas (no map before its first opening, pins from pools), a frame becomes protected when a
-  secure frame is its child or is anchored to it.
+  are listed as the game would block them), hostile addon messages on every prefix (from guild mates, strangers and a raid
+  assistant; `--seed S`, default 12345: the same seed and `--fuzz N` send the same messages, the one behind the first Lua
+  error of each prefix / event is printed as a Lua string), own messages replayed 100 times, shaped hostile messages (own
+  messages with one field replaced, the fields Classes / Layers / Raid Buffs keep and show), every tab drawn again, chat
+  lines of other players (whispers, Battle.net, group / guild / public chat, system, battleground, loot; junk and lines
+  past 255 bytes; InviteTool, `!sr` and Summon off then on; the chat filters run on each line), pasted texts (profile,
+  Myslot, Raid Groups preset, soft-res CSV: junk, huge, nested, NaN / inf, escape codes, separators, one long line, 1 / 16 /
+  256 KB), long texts, event floods. Verdicts: a chat line < 1 s, no chat line and no action but AGENTS.md's accepted
+  exceptions (keyword invite 1 per 30 s per sender, `!sr` answers 3 per 10 s); a paste < 1 s, refused or in the
+  confirmation with the saved data untouched (a preset / soft-res list: saved in a checked form); no escape code of
+  another player shown live: the hostile pieces carry a mark inside their codes and `M.Shown` (`wow.lua`) reads every
+  text shown (widget text, chat line, tooltip line, popup, print) for a live `|T`, `|A`, `|K`, `|H` other than an item
+  link or a line break of the pieces, with the line that showed it. Limits: values are never secret, frames draw nothing,
+  the server never answers: it proves the code runs, not that a feature works in game. The fake client follows FrameXML
+  where the addon depends on it: pools reuse their objects, the world map is a MapCanvas (no map before its first opening,
+  pins from pools), a frame becomes protected when a secure frame is its child or is anchored to it. It follows Lua 5.1 /
+  WoW where fengari differs: `unpack` / `strsplit` give 8000 results at most, `bit` returns unsigned 32-bit numbers, a hex
+  literal past 32 bits is read as its number (fengari's integers have 32 bits); not modelled: `pairs` walks a table
+  constructor's array backwards in fengari (only the crafted Myslot export gets the game's order).
 - `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
   120 and a raid of 40 outside instances (`M.SetupWorld`: two continents, a few zones, positions for HereBeDragons).
   [1] enemy player frames of the danger alert (40 at most, clicks right after combat, nothing secure changed in combat),

@@ -12,7 +12,8 @@ addon prefixes / lodPrefix, missing French; `cd tools && npm install` once if `t
 After a game session: `node tools/forever-report.js` (errors, audit log, installed version). `sync.sh` copies to
 `_forever_` only (the Classic beta is no longer used).
 Also: `node tools/smoke.js` (the addons run in a simulated client: Lua errors, protected actions in combat, messages
-sent by tests or caused by hostile addon messages, cost; `--open-world`: raid of 40 / guild of 120; `--bg`: Alterac
-40 vs 40, cost of each frame), `node tools/wow-api.js check` (API used vs Blizzard's
+sent by tests or caused by hostile addon messages and chat lines, escape codes of other players shown live, pasted
+profiles / presets / soft-res, cost; `--seed S` sends the same hostile messages again; `--open-world`: raid of 40 /
+guild of 120; `--bg`: Alterac 40 vs 40, cost of each frame), `node tools/wow-api.js check` (API used vs Blizzard's
 documentation of the Forever build), `node tools/deps-watch.js` (upstream libraries / ported addons / Blizzard policy);
 the CI and the watches of `.github/workflows` run them (see "Checks and watch" in `docs/modules.md`).

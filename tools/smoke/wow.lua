@@ -47,7 +47,14 @@ end
 ---------------------------------------------------------------------------
 -- Lua 5.1 as WoW has it
 ---------------------------------------------------------------------------
-unpack = table.unpack
+-- unpack and strsplit are C functions there: their results go on the C stack, 8000 slots at most (LUAI_MAXCSTACK), more
+-- raises an error in the game (fengari takes a million)
+local MAX_C_RESULTS = 7990
+function unpack(t, i, j)
+    i, j = i or 1, j or #t
+    if j - i + 1 > MAX_C_RESULTS then error("too many results to unpack", 2) end
+    return table.unpack(t, i, j)
+end
 loadstring = load
 table.getn = function(t) return #t end
 math.mod = math.fmod
@@ -97,19 +104,35 @@ function strsplit(d, s, n)
         out[#out + 1] = s:sub(pos, a - 1)
         pos = b + 1
     end
+    if #out > MAX_C_RESULTS then error("strsplit: too many results", 2) end
     return table.unpack(out)
 end
 function strsplittable(d, s, n) return { strsplit(d, s, n) } end
 function strlenutf8(s) local n = 0; for _ in tostring(s):gmatch("[^\128-\191]") do n = n + 1 end return n end
 function tostringall(...) local t = table.pack(...); for i = 1, t.n do t[i] = tostring(t[i]) end return table.unpack(t, 1, t.n) end
 function scrub(...) return ... end
+-- the game's bit library: 32-bit values, results unsigned (0 to 2^32 - 1). fengari's integers are signed 32-bit: a value
+-- goes in as one (2^31 and up as negative), the result comes back as a number of the game's range
+local function I(x)
+    x = math.floor(x) % 4294967296.0
+    if x >= 2147483648.0 then x = x - 4294967296.0 end
+    return math.tointeger(x)
+end
+local function U(x) if x < 0 then return x + 4294967296.0 end return x end
+local function Fold(op) -- band / bor / bxor take two values or more
+    return function(a, ...)
+        local r = I(a)
+        for i = 1, select("#", ...) do r = op(r, I((select(i, ...)))) end
+        return U(r)
+    end
+end
 bit = {
-    band = function(a, b) return math.tointeger(a) & math.tointeger(b) end,
-    bor = function(a, b) return math.tointeger(a) | math.tointeger(b) end,
-    bxor = function(a, b) return math.tointeger(a) ~ math.tointeger(b) end,
-    bnot = function(a) return ~math.tointeger(a) & 0xffffffff end,
-    lshift = function(a, n) return (math.tointeger(a) << n) & 0xffffffff end,
-    rshift = function(a, n) return (math.tointeger(a) & 0xffffffff) >> n end,
+    band = Fold(function(x, y) return x & y end),
+    bor = Fold(function(x, y) return x | y end),
+    bxor = Fold(function(x, y) return x ~ y end),
+    bnot = function(a) return U(~I(a)) end,
+    lshift = function(a, n) return U(I(a) << n) end,
+    rshift = function(a, n) return U(I(a) >> n) end,
 }
 function debugprofilestop() return os.clock() * 1000 end
 function debugprofilestart() end
@@ -151,6 +174,7 @@ end
 
 function M.Error(err)
     local msg = tostring(err)
+    M.errorSeq, M.lastError = (M.errorSeq or 0) + 1, msg -- the scenario finds the input behind an error by these
     for _, e in ipairs(M.errors) do if e.msg == msg then e.count = e.count + 1; return end end
     M.errors[#M.errors + 1] = { msg = msg, count = 1, phase = M.phase, trace = debug.traceback("", 2) }
 end
@@ -338,8 +362,14 @@ function Widget:RegisterAllEvents()
 end
 function Widget:SetAttribute(k, v) self.__attr[k] = v end
 function Widget:GetAttribute(k) return self.__attr[k] end
-function Widget:SetText(t) self.__text = t ~= nil and tostring(t) or nil end
-function Widget:SetFormattedText(f, ...) self.__text = string.format(f, ...) end
+function Widget:SetText(t)
+    self.__text = t ~= nil and tostring(t) or nil
+    if M.mark then M.Shown(self.__text, self.__type, self.__type ~= "EditBox") end
+end
+function Widget:SetFormattedText(f, ...)
+    self.__text = string.format(f, ...)
+    if M.mark then M.Shown(self.__text, self.__type, self.__type ~= "EditBox") end
+end
 function Widget:GetText() return self.__text end
 function Widget:GetStringWidth() return #(self.__text or "") * 6 end
 function Widget:GetUnboundedStringWidth() return #(self.__text or "") * 6 end
@@ -403,6 +433,8 @@ function Widget:GetDuration() return 0 end
 function Widget:Play() end
 function Widget:Stop() end
 -- tooltip
+function Widget:AddLine(t) if M.mark then M.Shown(t, "tooltip line", true) end end
+function Widget:AddDoubleLine(a, b) if M.mark then M.Shown(a, "tooltip line", true); M.Shown(b, "tooltip line", true) end end
 function Widget:NumLines() return 0 end
 function Widget:GetUnit() return nil end
 function Widget:GetItem() return nil end
@@ -411,7 +443,10 @@ function Widget:IsOwned() return false end
 function Widget:GetOwner() return self.__owner end
 function Widget:SetOwner(o) self.__owner = o end
 -- chat frame
-function Widget:AddMessage(msg) M.prints[#M.prints + 1] = tostring(msg) end
+function Widget:AddMessage(msg)
+    M.prints[#M.prints + 1] = tostring(msg)
+    if M.mark then M.Shown(tostring(msg), "chat line", true) end
+end
 -- backdrop (BackdropTemplate)
 function Widget:SetBackdrop(b) self.__backdrop = b end
 function Widget:GetBackdrop() return self.__backdrop end
@@ -580,11 +615,12 @@ function UnitInParty(u) return IsInGroup() and UnitIndex(u) ~= nil end
 function GetRaidRosterInfo(i)
     local p = M.group[i]
     if not p then return nil end
-    return p.name, i == 1 and 2 or 0, math.floor((i - 1) / 5) + 1, 60, p.class, p.class, "Molten Core", true, false, nil, false, "DAMAGER"
+    return p.name, i == 1 and 2 or (p.assist and 1 or 0), math.floor((i - 1) / 5) + 1, 60, p.class, p.class, "Molten Core", true, false, nil, false, "DAMAGER"
 end
+-- the player leads; a member with assist = true is an assistant
 function UnitIsGroupLeader(u) return UnitIndex(u) == 1 end
-function UnitIsGroupAssistant(u) return UnitIndex(u) == 1 end
-function UnitIsRaidOfficer(u) return UnitIndex(u) == 1 end
+function UnitIsGroupAssistant(u) local i = UnitIndex(u); return i == 1 or (i ~= nil and M.group[i].assist == true) end
+function UnitIsRaidOfficer(u) return UnitIsGroupAssistant(u) end
 function UnitExists(u) return Who(u) ~= nil end
 function UnitIsPlayer(u) local p = Who(u); return p ~= nil and not p.npc end
 function UnitIsUnit(a, b) local x, y = Who(a), Who(b); return x ~= nil and x == y end
@@ -806,6 +842,70 @@ end
 
 -- what the addon sends: kept, and counted as "sensitive" when it acts for the player
 function M.Sensitive(what) M.sensitive[#M.sensitive + 1] = what .. " (" .. (M.phase or "?") .. ")" end
+
+-- Text from other players reaching the screen (scenario.lua): the hostile pieces carry M.mark inside their escape
+-- codes. While M.mark is set, every text shown (a widget's text, a chat line, a tooltip line, a popup, print) that holds
+-- the mark is read: a live texture |T, atlas |A, Battle.net name |K or link |H other than an item link with the mark
+-- inside, or a line break of the pieces (mark<"\n">mark, mark<|n>mark: never the addon's own line between two texts)
+-- outside an edit box, goes to M.escapes with the line of our code that showed it. "||" is an escaped "|": never a code.
+M.escapes, M.reached = {}, {} -- reached: where a text with the mark was shown, escaped or not (what the check sees)
+local CLOSE = { T = "|t", A = "|a", H = "|h", K = "|k" }
+local function LiveCode(s, breaks)
+    local marks = { M.mark, M.MARK or M.mark:upper() }
+    local i = 1
+    while true do
+        local a = s:find("|", i, true)
+        if not a then break end
+        local c = s:sub(a + 1, a + 1)
+        local close = CLOSE[c]
+        if close then
+            local b = s:find(close, a + 2, true) or #s + 1
+            local body = s:sub(a + 2, b - 1)
+            for _, m in ipairs(marks) do
+                if body:find(m, 1, true) and not (c == "H" and body:find("^item:")) then return "|" .. c end
+            end
+            i = b
+        else
+            if c == "n" and breaks then
+                for _, m in ipairs(marks) do
+                    if s:sub(a - #m - 1, a + 2 + #m) == m .. "<|n>" .. m then return "|n" end
+                end
+            end
+            i = a + 2 -- "||" (escaped), "|c", "|r", "|n"...
+        end
+    end
+    if breaks then
+        for _, m in ipairs(marks) do
+            if s:find(m .. "<\n>" .. m, 1, true) then return "line break" end
+        end
+    end
+end
+M.LiveCode = LiveCode
+function M.Shown(text, kind, breaks)
+    if not M.mark or type(text) ~= "string" then return end
+    if not (text:find(M.mark, 1, true) or text:find(M.MARK or M.mark:upper(), 1, true)) then return end
+    local at = "?"
+    for level = 2, 40 do
+        local info = debug.getinfo(level, "Sl")
+        if not info then break end
+        local file = info.source:match("^@Interface/AddOns/(.+)$")
+        if file then at = file .. ":" .. (info.currentline or 0); break end
+    end
+    M.reached[at .. " (" .. kind .. ")"] = (M.reached[at .. " (" .. kind .. ")"] or 0) + 1
+    local code = LiveCode(text, breaks)
+    if not code then return end
+    local key = code .. " " .. at .. " " .. kind
+    for _, e in ipairs(M.escapes) do if e.key == key then e.count = e.count + 1; return end end
+    M.escapes[#M.escapes + 1] = { key = key, code = code, at = at, kind = kind, phase = M.phase, count = 1, sample = text:sub(1, 160) }
+end
+-- print writes to the chat frame in the game: read as a chat line (still written out here)
+do
+    local write = print
+    function print(...)
+        if M.mark then M.Shown(table.concat({ tostringall(...) }, " "), "print", true) end
+        return write(...)
+    end
+end
 C_ChatInfo = C_ChatInfo or {}
 local prefixes = {}
 M.prefixes = prefixes
@@ -817,7 +917,7 @@ C_ChatInfo.SendAddonMessage = function(prefix, msg, channel, target)
 end
 C_ChatInfo.SendAddonMessageLogged = C_ChatInfo.SendAddonMessage
 C_ChatInfo.SendChatMessage = function(msg, channel, lang, target)
-    M.chat[#M.chat + 1] = { msg = msg, channel = channel, target = target, phase = M.phase }
+    M.chat[#M.chat + 1] = { msg = msg, channel = channel, target = target, phase = M.phase, at = M.now }
     return 0
 end
 C_ChatInfo.InChatMessagingLockdown = function() return false end
@@ -1136,7 +1236,16 @@ for i = 0, 3 do PowerBarColor[i] = PowerBarColor.MANA end
 SOUNDKIT = setmetatable({}, { __index = function() return 1 end })
 StaticPopupDialogs = {}
 STATICPOPUP_NUMDIALOGS = 4
-function StaticPopup_Show(which) local d = StaticPopupDialogs[which]; M.popups = (M.popups or 0) + 1; if not d then return nil end return StaticPopup1 end
+function StaticPopup_Show(which, a, b)
+    local d = StaticPopupDialogs[which]
+    M.popups = (M.popups or 0) + 1
+    if not d then return nil end
+    if M.mark and type(d.text) == "string" then
+        local ok, text = pcall(string.format, d.text, a or "", b or "")
+        M.Shown(ok and text or d.text, "popup " .. tostring(which), true)
+    end
+    return StaticPopup1
+end
 function StaticPopup_Hide() end
 function StaticPopup_FindVisible() return nil end
 UISpecialFrames = {}
@@ -1204,11 +1313,37 @@ function Item:CreateFromItemLink()
         GetItemID = function() return 0 end, GetItemName = function() return nil end, GetItemLink = function() return nil end, GetItemIcon = function() return nil end }
 end
 function Item:CreateFromItemID() return Item:CreateFromItemLink() end
+-- chat filters (ChatFrame_AddMessageEventFilter): kept, run by M.ChatFilters on a line as the chat frame does before
+-- showing it (a filter returning true hides the line, its other returns replace the line's arguments)
+M.chatFilters = {}
+function ChatFrame_AddMessageEventFilter(event, fn)
+    local l = M.chatFilters[event] or {}
+    M.chatFilters[event] = l
+    for _, f in ipairs(l) do if f == fn then return end end
+    l[#l + 1] = fn
+end
+function ChatFrame_RemoveMessageEventFilter(event, fn)
+    local l = M.chatFilters[event] or {}
+    for i = #l, 1, -1 do if l[i] == fn then table.remove(l, i) end end
+end
+function M.ChatFilters(event, ...)
+    local args = table.pack(...)
+    for _, fn in ipairs(M.chatFilters[event] or {}) do
+        local r = table.pack(xpcall(fn, function(e) M.Error(e); return e end, ChatFrame1, event, table.unpack(args, 1, args.n)))
+        if r[1] and r[2] then return true end
+        if r[1] and r[3] ~= nil then args = table.pack(table.unpack(r, 3, r.n)) end
+    end
+    return false, table.unpack(args, 1, args.n)
+end
+-- texts of the client read by the chat parsers (enUS): loot lines (LootCouncil.lua), the duel countdown (DuelTimer.lua);
+-- the other ALL_CAPS globals read as their own name (end of this file)
+LOOT_ITEM, LOOT_ITEM_MULTIPLE = "%s receives loot: %s.", "%s receives loot: %sx%d."
+LOOT_ITEM_SELF, LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %s.", "You receive loot: %sx%d."
+DUEL_COUNTDOWN = "Duel starting: %d"
 -- old functions the game may have, answering nothing. Never a FrameXML function Forever does not load
 -- (BankFrameItemButton_Update, ContainerFrame_Update, LootFrame_UpdateButton, InspectPaperDollFrame_UpdateButtons: nil
 -- here as in the game, so a hook on them is skipped as there; tools/wow-api.js check lists those hooks)
-for _, n in ipairs({ "SetItemRef", "ChatFrame_RemoveChannel", "ChatFrame_AddMessageEventFilter",
-    "ChatFrame_RemoveMessageEventFilter", "PaperDollItemSlotButton_Update", "InspectPaperDollItemSlotButton_Update",
+for _, n in ipairs({ "SetItemRef", "ChatFrame_RemoveChannel", "PaperDollItemSlotButton_Update", "InspectPaperDollItemSlotButton_Update",
     "UpdateUIPanelPositions", "SecureHandlerWrapScript", "SetRaidTargetIconTexture", "StopCinematic", "ShowUIPanel", "HideUIPanel",
     "ToggleFrame", "CloseDropDownMenus", "PlaceRaidMarker", "ClearCursor", "FocusUnit", "GetTexCoordsForRoleSmallCircle",
     "ConsoleGetAllCommands", "CursorHasItem", "GetClassAtlas", "GetSpecializationInfoForClassID",

@@ -1,11 +1,14 @@
 // WarLegend RaidTool - smoke test in a simulated client (not shipped).
-// Usage: node tools/smoke.js [--fuzz N] [--verbose] [--open-world] [--bg]    (once: cd tools && npm install)
+// Usage: node tools/smoke.js [--fuzz N] [--seed S] [--verbose] [--open-world] [--bg]    (once: cd tools && npm install)
 // Runs the four addons in fengari (a Lua VM in JavaScript) on top of tools/smoke/wow.lua, a small fake client whose
 // API answers come from Blizzard's own API documentation of the current build (tools/wow-api.js, cached UI source).
 // Plays tools/smoke/scenario.lua twice: a fresh install (English client), then a /reload with the saved data (French).
-// Reports: Lua errors, protected actions in combat, messages sent by "Test all" or caused by hostile addon messages,
-// the cost of event floods. It is NOT the game: it shows that the code runs with plausible answers, not that a feature
-// does what it should in game (the user still tests with /reload). Exit code 1 when something is wrong.
+// Reports: Lua errors, protected actions in combat, messages sent by "Test all" or caused by hostile addon messages or
+// chat lines, escape codes of other players shown live, pasted texts (profile, Myslot, preset, soft-res), the cost of
+// event floods. The hostile messages come from --seed (default 12345): the same seed and --fuzz send the same ones, and
+// the message behind the first Lua error of each prefix / event is printed. It is NOT the game: it shows that the code
+// runs with plausible answers, not that a feature does what it should in game (the user still tests with /reload).
+// Exit code 1 when something is wrong.
 const fs = require("fs");
 const path = require("path");
 const { lua, lauxlib, lualib, to_luastring } = require("fengari");
@@ -65,6 +68,13 @@ local modelPath, wowPath, scenarioPath, root, TOCS, SAVED, OPTS = ...
 local API = load(SMOKE_READ(modelPath), "@wow-api.lua")()
 local M = load(SMOKE_READ(wowPath), "@tools/smoke/wow.lua")(API)
 M.locale = OPTS.locale
+-- fengari's integers have 32 bits: a hex literal past them wraps (0x100000000 is 0 there, "n % 0" an error), the game
+-- (Lua 5.1, only doubles) reads the number: written as that number (Myslot's protobuf library)
+local function Wide(h)
+    local v = 0.0
+    for d in h:gmatch(".") do v = v * 16 + tonumber(d, 16) end
+    return string.format("%.1f", v)
+end
 function M.LoadAddOn(name)
     local toc = TOCS[name]
     if not toc then return false end
@@ -73,6 +83,7 @@ function M.LoadAddOn(name)
     local ns = {}
     for _, f in ipairs(toc.files) do
         local src = SMOKE_READ(root .. "/" .. f)
+        if src then src = src:gsub("0[xX](%x%x%x%x%x%x%x%x%x+)", Wide) end
         if not src then M.Error("file listed in the .toc not found: " .. f)
         else
             local chunk, err = load(src, "@Interface/AddOns/" .. f)
@@ -161,7 +172,8 @@ function run(options, savedIn) {
     });
     const savedLua = "{" + Object.entries(savedIn || {}).map(([k, v]) => "[" + luaStr(k) + "]=" + luaStr(v)).join(",") + "}";
     const version = (fs.readFileSync(path.join(REPO, ADDONS[0], ADDONS[0] + ".toc"), "utf8").match(/^## Version:\s*(\S+)/m) || [])[1] || "?";
-    const optsLua = "{locale=" + luaStr(options.locale) + ",race=" + luaStr(options.race || "Human") + ",fuzz=" + Number(options.fuzz) + ",version=" + luaStr(version) + "}";
+    const optsLua = "{locale=" + luaStr(options.locale) + ",race=" + luaStr(options.race || "Human") + ",fuzz=" + Number(options.fuzz) +
+        ",seed=" + Number(options.seed || 12345) + ",version=" + luaStr(version) + "}";
     for (const s of [apiModel(), path.join(TOOLS, "smoke", "wow.lua"), path.join(TOOLS, "smoke", options.scenario || "scenario.lua"), REPO]) lua.lua_pushstring(L, to_luastring(s));
     // the saved data came back from the first run as one character per byte (J in the glue): pushed back byte for byte
     // (latin1), not re-encoded as UTF-8 (to_luastring), so "é" stays the two bytes the addon saved
@@ -194,9 +206,13 @@ function show(title, { out }) {
     console.log("  'Test all' sent: " + (r.testChat || 0) + " chat line(s), " + (r.testAddon || 0) + " addon message(s)");
     const fuzz = list(r.fuzz);
     const fuzzChat = fuzz.reduce((a, f) => a + f.chat, 0), fuzzSens = fuzz.reduce((a, f) => a + f.sensitive, 0);
-    console.log("  hostile addon messages: " + fuzz.length + " prefixes, " + fuzz.reduce((a, f) => a + f.sent, 0) + " messages -> " +
+    console.log("  hostile addon messages (seed " + r.seed + "): " + fuzz.length + " prefixes, " + fuzz.reduce((a, f) => a + f.sent, 0) + " messages -> " +
         fuzz.reduce((a, f) => a + f.replies, 0) + " addon replies, " + fuzzChat + " chat line(s), " + fuzzSens + " action(s) for the player");
     for (const f of fuzz) if (f.replies > f.sent / 10 || f.chat || f.sensitive || verbose) console.log("    " + f.prefix + ": " + f.replies + " replies, " + f.chat + " chat, " + f.sensitive + " actions");
+    // the input behind the first Lua error (counted with the errors above): node tools/smoke.js --seed S --fuzz N sends it again
+    const blame = (what, f, channel) => console.log("    first Lua error on " + what + ": " + (f.later ? "in a timer after " : "") + "message " + f.n +
+        " from " + f.from + (channel ? " (" + channel + ")" : "") + ": " + f.msg + "\n      -> " + f.err);
+    for (const f of fuzz) if (f.first) blame(f.prefix, f.first, f.first.channel);
     const replay = list(r.replay);
     const worst = replay.reduce((a, x) => (x.replies > a.replies ? x : a), { replies: 0 });
     const replayBad = replay.reduce((a, x) => a + x.chat + x.sensitive, 0);
@@ -204,6 +220,43 @@ function show(title, { out }) {
         (worst.prefix ? " (" + worst.prefix + ")" : "") + ", " + replayBad + " chat line(s) / action(s)");
     for (const x of replay) if (x.chat || x.sensitive || x.replies > 20 || verbose) console.log("    " + x.prefix + " \"" + x.msg + "\": " + x.replies + " replies, " + x.chat + " chat, " + x.sensitive + " actions");
     bad += replayBad;
+    const sh = r.shaped || {};
+    console.log("  shaped hostile messages (own messages with a marked field, fields shown by Classes / Layers / Raid Buffs): " + (sh.sent || 0) +
+        " -> " + (sh.replies || 0) + " addon replies, " + (sh.chat || 0) + " chat line(s), " + (sh.sensitive || 0) + " action(s) for the player");
+    if (sh.first) blame("a shaped message (" + sh.first.channel + ")", sh.first);
+    bad += (sh.chat || 0) + (sh.sensitive || 0);
+    // chat lines of other players: < 1 s each, no chat line, no action, but AGENTS.md's accepted exceptions
+    const cl = r.chatLines || {};
+    const clKinds = [list(cl.bad), list(cl.badActions), list(cl.badChat)];
+    const clBad = clKinds.reduce((a, k) => a + k.length, 0);
+    console.log("  chat lines from other players: " + (cl.sent || 0) + " lines on " + (cl.events || 0) + " events (as installed, then InviteTool / !sr / Summon on) -> worst " +
+        Number(cl.worst || 0).toFixed(0) + " ms" + (cl.worstEvent ? " (" + cl.worstEvent + ")" : "") + "; accepted: " + (cl.actionsOk || 0) +
+        " keyword invite(s), " + (cl.chatOk || 0) + " !sr answer(s); not allowed: " + list(cl.badActions).length + " action(s), " +
+        list(cl.badChat).length + " chat line(s), " + list(cl.bad).length + " other");
+    for (const k of clKinds) {
+        for (const b of k.slice(0, verbose ? 200 : 5)) console.log("    FAIL " + b);
+        if (k.length > 5 && !verbose) console.log("    ... " + (k.length - 5) + " more of this kind (--verbose)");
+    }
+    for (const [ev, f] of Object.entries(cl.first || {})) blame(ev, f);
+    bad += clBad;
+    // pasted texts: < 1 s, refused or in the confirmation with the saved data untouched, or saved in a checked form
+    const paste = list(r.paste);
+    const pasteBad = paste.filter((p) => p.fail);
+    const slow = paste.reduce((a, p) => ((p.ms || 0) > a.ms ? p : a), { ms: 0 });
+    console.log("  pasted text: " + paste.length + " cases (profile, Myslot, Raid Groups preset, soft-res CSV) -> slowest " + slow.ms.toFixed(0) + " ms" +
+        (slow.case ? " (" + slow.importer + ", " + slow.case + ", " + slow.size + " bytes)" : "") + "; problems: " + pasteBad.length);
+    for (const p of paste) {
+        if (p.fail || verbose) console.log("    " + (p.fail ? "FAIL " : "ok   ") + p.importer + ", " + p.case + ": " +
+            (p.fail || (p.size + " bytes, " + (p.ms || 0).toFixed(0) + " ms, " + p.outcome)));
+    }
+    bad += pasteBad.length;
+    // escape codes from the hostile pieces shown live (tools/smoke/wow.lua M.Shown), with the line that showed them
+    const esc = list(r.escapes);
+    const reached = list(r.reached);
+    console.log("  escape codes of other players shown live (|T |A |K, |H not an item, line breaks): " + esc.length + " (their text reached the screen at " +
+        reached.length + " place(s)" + (verbose ? ": " + reached.map((x) => x[0] + " x" + x[1]).join(", ") : ", --verbose lists them") + ")");
+    for (const e of esc) console.log("    FAIL " + e.code + " shown by " + e.at + " (" + e.kind + ", " + e.phase + ", x" + e.count + "): " + JSON.stringify(e.sample));
+    bad += esc.length;
     const chat = list(out.chat);
     console.log("  chat lines sent (all phases): " + chat.length);
     for (const c of chat.slice(0, verbose ? 50 : 8)) console.log("    [" + c[0] + "] " + c[1] + ": " + String(c[2]).slice(0, 90));
@@ -272,9 +325,11 @@ if (args.includes("--open-world")) {
 }
 
 const fuzz = Number(opt("--fuzz", 300));
-const first = run({ locale: "enUS", fuzz });
+const seedArg = Number(opt("--seed", 12345));
+const seed = Number.isFinite(seedArg) ? Math.floor(Math.abs(seedArg)) % 2147483648 : 12345;
+const first = run({ locale: "enUS", fuzz, seed });
 show("fresh install, English client", first);
-const second = run({ locale: "frFR", race: "Skyborne", fuzz: Math.max(1, Math.floor(fuzz / 3)) }, first.saved);
+const second = run({ locale: "frFR", race: "Skyborne", fuzz: Math.max(1, Math.floor(fuzz / 3)), seed }, first.saved);
 show("after /reload (saved data kept), French client, Skyborne character", second);
 console.log(bad ? "Smoke test: " + bad + " problem(s)." : "Smoke test: no problem found (simulated client: still test in game).");
 process.exit(bad ? 1 : 0);

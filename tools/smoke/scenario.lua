@@ -120,12 +120,27 @@ for _, n in ipairs({ "WarLegendRaidTool_PvP", "WarLegendRaidTool_Skyborne" }) do
 M.Fire("PLAYER_ENTERING_WORLD", false, false)
 M.Advance(3)
 
--- hostile addon messages on every prefix: from a guild mate (guild, raid), and whispered by a stranger
+-- hostile addon messages on every prefix: from guild mates (guild, officer), raid members (a raid assistant among them),
+-- whispered by them and by a stranger. The same --seed and --fuzz give the same messages: the one behind the first Lua
+-- error of each prefix is kept to replay it
 Phase("fuzz")
-local seed = 12345
+local seed = opts.seed or 12345
+report.seed = seed
 local function Rand(n) seed = (seed * 1103515245 + 12345) % 2147483648; return (seed % n) + 1 end
+local function Errs() return M.errorSeq or 0 end
+-- a text as a Lua string literal (control characters, quotes, bytes past 127 as \ddd), to paste it back
+local function Lit(s) return '"' .. (s:gsub('[%c"\\\128-\255]', function(c) return string.format("\\%03d", c:byte()) end)) .. '"' end
+-- text from other players reaching the screen: every escape code of the pieces holds this mark (tools/smoke/wow.lua
+-- M.Shown reads each text shown from now until the floods); the item links the addon shows itself have none
+local MARK = "zq9"
+M.mark, M.MARK = MARK, MARK:upper()
+local TEX = "|TInterface\\Icons\\" .. MARK .. ":4000|t"
+-- line breaks of the pieces, told apart from the addon's own line between two texts (wow.lua LiveCode)
+local BREAK, NBREAK = MARK .. "<\n>" .. MARK, MARK .. "<|n>" .. MARK
+local CODES = TEX .. "|A:" .. MARK .. ":64:64|a|H" .. MARK .. ":1|h[" .. MARK .. "]|h|K" .. MARK .. "|k" .. NBREAK
 local PIECES = { "", "0", "1", "-1", "2147483648", "1e309", "-1e309", "nan", "inf", "0x7fffffff", "1.5", "999999999999",
-    "|cffff0000red|r", "|Hitem:19019::::::::60:::::|h[x]|h", "|TInterface\\Icons\\INV_Misc_QuestionMark:4000|t", "||", "|", "~", "~1~2~3",
+    "|cffff0000red|r", "|Hitem:19019::::::::60:::::|h[x]|h", TEX, "|A:" .. MARK .. ":64:64|a", "|H" .. MARK .. ":1|h[x]|h",
+    "|Hplayer:" .. MARK .. "|h[" .. MARK .. "]|h", "|K" .. MARK .. "|k", BREAK, NBREAK, "||", "|", "~", "~1~2~3",
     "^", "^^^", ";", ",", ":", "[", "]", "/gquit", "/run print(1)", "\n", "\0", "Raider2", "Raider2-Forever", "Smoketest",
     string.rep("A", 255), "é", "\255\254", "raid1", "player", "Q", "?", "R", "S", "A", "D", "1:2:3", "a=b", "{}" }
 local function Junk()
@@ -139,20 +154,33 @@ end
 local prefixes = {}
 for p in pairs(M.prefixes) do prefixes[#prefixes + 1] = p end
 table.sort(prefixes)
+-- Raider4 is a raid assistant until the tabs are drawn again below: what only a leader may send reaches its handler
+M.group[4].assist = true
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
 local SENDERS = { { "Raider2-Forever", "RAID" }, { "Guildie1-Forever", "GUILD" }, { "Raider3-Forever", "WHISPER" }, { "Stranger-Other", "WHISPER" },
-    { "Raider4-Forever", "PARTY" }, { "Guildie2-Forever", "OFFICER" }, { "Stranger-Other", "CHANNEL" } }
+    { "Raider4-Forever", "PARTY" }, { "Guildie2-Forever", "OFFICER" }, { "Stranger-Other", "CHANNEL" }, { "Raider4-Forever", "RAID" } }
 local perPrefix = opts.fuzz or 300
 for _, p in ipairs(prefixes) do
     M.phase = "fuzz " .. p
     local chatBefore, addonBefore, sensBefore = #M.chat, #M.addon, #M.sensitive
-    for i = 1, perPrefix do
-        local s = SENDERS[Rand(#SENDERS)]
-        M.Fire("CHAT_MSG_ADDON", p, Junk(), s[2], s[1], s[1], 0, 0, "", 0)
-        if i % 50 == 0 then M.Advance(0.5) end
+    local first, msg, s
+    -- the message behind the first error (later: in a timer after it, it was the last one sent)
+    local function Blame(e0, i, later)
+        if not first and msg and Errs() > e0 then first = { n = i, msg = Lit(msg), from = s[1], channel = s[2], err = M.lastError, later = later } end
     end
+    for i = 1, perPrefix do
+        s, msg = SENDERS[Rand(#SENDERS)], Junk()
+        local e0 = Errs()
+        M.Fire("CHAT_MSG_ADDON", p, msg, s[2], s[1], s[1], 0, 0, "", 0)
+        Blame(e0, i)
+        if i % 50 == 0 then e0 = Errs(); M.Advance(0.5); Blame(e0, i, true) end
+    end
+    local e0 = Errs()
     M.Advance(2)
+    Blame(e0, perPrefix, true)
     report.fuzz[#report.fuzz + 1] = { prefix = p, sent = perPrefix, replies = #M.addon - addonBefore, chat = #M.chat - chatBefore,
-        sensitive = #M.sensitive - sensBefore }
+        sensitive = #M.sensitive - sensBefore, first = first }
 end
 
 -- the addon's own messages (valid requests and answers), replayed 100 times by other players: replies stay bounded
@@ -176,6 +204,54 @@ for _, a in ipairs(samples) do
     report.replay[#report.replay + 1] = { prefix = a.prefix, msg = tostring(a.msg):sub(1, 40), replies = #M.addon - before,
         chat = #M.chat - chatBefore, sensitive = #M.sensitive - sensBefore }
 end
+-- shaped hostile messages (random junk rarely has the shape a handler keeps, so it seldom reaches the screen): the
+-- addon's own messages with one field ("^" or "|" separated) replaced by a marked piece, and the fields a handler
+-- stores and shows (class spec / availability, layer zone, the buff lines a leader assigns), from a guild mate and
+-- from the raid assistant
+Phase("shaped")
+local MARKED = { TEX, CODES, "|H" .. MARK .. ":1|h[" .. MARK .. "]|h", BREAK, "||T" .. MARK .. ":4000||t" }
+local function Variants(msg, out)
+    local starts = { 1 }
+    for pos in msg:gmatch("()[%^|]") do starts[#starts + 1] = pos + 1 end
+    for k = 1, math.min(#starts, 8) do
+        local a, b = starts[k], (starts[k + 1] or #msg + 2) - 2
+        for _, p in ipairs(MARKED) do out[#out + 1] = msg:sub(1, a - 1) .. p .. msg:sub(b + 1) end
+    end
+end
+local shapedMsgs = {}
+for _, a in ipairs(samples) do
+    local list = {}
+    Variants(tostring(a.msg), list)
+    for _, m in ipairs(list) do shapedMsgs[#shapedMsgs + 1] = { a.prefix, m } end
+end
+for _, p in ipairs(MARKED) do
+    shapedMsgs[#shapedMsgs + 1] = { "WLRT_PROFILE", "1^Tank^" .. p .. "^" .. p, "GUILD" }
+    shapedMsgs[#shapedMsgs + 1] = { "WLRT_LAYER", string.format("1^5-7^1411^%d^", GetServerTime()) .. p, "GUILD" }
+    shapedMsgs[#shapedMsgs + 1] = { "WLRT_BUFF", "A^Smoketest^" .. p .. " | " .. p, "RAID" }
+end
+local shaped = { sent = #shapedMsgs }
+report.shaped = shaped
+local addon0, chatS0, sensS0 = #M.addon, #M.chat, #M.sensitive
+for i, s in ipairs(shapedMsgs) do
+    local channel = s[3] or (i % 2 == 0 and "GUILD" or "RAID")
+    -- under the per-sender limit of Dispatch (40 messages in 5 s): guild mates take turns, the assistant 1 every 0.25 s
+    local from = channel == "GUILD" and string.format("Guildie%d-Forever", 3 + i % 10) or "Raider4-Forever"
+    M.phase = "shaped " .. s[1]
+    local e0 = Errs()
+    M.Fire("CHAT_MSG_ADDON", s[1], s[2], channel, from, from, 0, 0, "", 0)
+    if not shaped.first and Errs() > e0 then shaped.first = { n = i, msg = Lit(s[2]), from = from, channel = s[1] .. " " .. channel, err = M.lastError } end
+    M.Advance(0.25, 0.25)
+end
+M.Advance(5)
+shaped.replies, shaped.chat, shaped.sensitive = #M.addon - addon0, #M.chat - chatS0, #M.sensitive - sensS0
+-- what the hostile messages left (lists, maps) drawn again: every tab, the world map (pins); M.Shown reads it
+AllTabs("window after hostile messages")
+M.Call(WorldMapFrame.Show, WorldMapFrame)
+M.Advance(1)
+M.Call(WorldMapFrame.Hide, WorldMapFrame)
+M.group[4].assist = nil
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
 
 -- pathological long texts (audit 28/10) on the prefixes read by W.OnAddonLong: one character repeated, no separator.
 -- A pattern with a repeated class before a literal ("(.-)%s*=", "([^=;]+)=", "(%d+):(%d+)") is quadratic / cubic on
@@ -214,6 +290,406 @@ for _, c in ipairs({
 end
 W.IsGroupLead = isLead
 M.Advance(5)
+
+-- chat lines from other players (not addon messages): whispers, Battle.net whispers, group / guild / public chat,
+-- system and battleground messages, loot lines, with the game's arguments (ChatInfoDocumentation.lua: text, playerName,
+-- languageName, channelName, playerName2, specialFlags, zoneChannelID, channelIndex, channelBaseName, languageID,
+-- lineID, guid, bnSenderID...), from guild mates, raid members and strangers; the chat filters run on each line as the
+-- chat frame does. As installed (InviteTool, "!sr" and Summon off), then with their checkbox on. A line takes < 1 s,
+-- sends no chat line and acts for no one, except what AGENTS.md accepts: InviteTool's invite of the sender of a keyword
+-- (Battle.net: the friend's character), once per 30 s per sender, and the "!sr" answers whispered to the sender, 3 per
+-- 10 s (rule 3, LootCouncil.lua Reply)
+Phase("chat lines")
+-- a checkbox of a module's tab, clicked as the player would (its label in the client's language)
+local function ClickCheck(label, on)
+    local text = W.L(label)
+    for _, f in ipairs(M.frames) do
+        local l = rawget(f, "label")
+        if f.__type == "CheckButton" and type(l) == "table" and l.__text == text then
+            if f:GetChecked() ~= on then f:SetChecked(on); M.Script(f, "OnClick", "LeftButton", true) end
+            return true
+        end
+    end
+    return false
+end
+local SWITCHES = { "Invite on keyword whisper", "Accept \"!sr [item]\" whispers", "Summon list (type 123 in the raid chat)" }
+local GUILD = { "Guildie1-Forever", "Guildie2-Forever", "Guildie4-Forever" }
+local GROUP = { "Raider2-Forever", "Raider3-Forever", "Raider5-Forever" }
+local OTHERS = { "Stranger-Other", "Stranger2-Other" }
+local function Mix(...)
+    local t = {}
+    for _, l in ipairs({ ... }) do for _, n in ipairs(l) do t[#t + 1] = n end end
+    return t
+end
+local ANYONE, MATES = Mix(GUILD, GROUP, OTHERS), Mix(GROUP, OTHERS)
+-- event, who sends it (none: the server, "bn": a Battle.net friend)
+local CHAT_EVENTS = {
+    { "CHAT_MSG_WHISPER", ANYONE }, { "CHAT_MSG_BN_WHISPER", "bn" }, { "CHAT_MSG_RAID", MATES }, { "CHAT_MSG_RAID_LEADER", MATES },
+    { "CHAT_MSG_PARTY", MATES }, { "CHAT_MSG_PARTY_LEADER", MATES }, { "CHAT_MSG_INSTANCE_CHAT", MATES },
+    { "CHAT_MSG_INSTANCE_CHAT_LEADER", MATES }, { "CHAT_MSG_SAY", ANYONE }, { "CHAT_MSG_YELL", ANYONE }, { "CHAT_MSG_CHANNEL", ANYONE },
+    { "CHAT_MSG_GUILD", GUILD }, { "CHAT_MSG_OFFICER", GUILD }, { "CHAT_MSG_SYSTEM" }, { "CHAT_MSG_BG_SYSTEM_HORDE" },
+    { "CHAT_MSG_BG_SYSTEM_ALLIANCE" }, { "CHAT_MSG_BG_SYSTEM_NEUTRAL" }, { "CHAT_MSG_LOOT" },
+}
+local ITEM = "|Hitem:19019::::::::60:::::|h[x]|h"
+-- what the parsers look for (keywords, "!sr", duel countdown, base assaulted, flag, loot line, Myslot tag), alone or
+-- followed by junk
+local KEYWORDS = { "inv", "INV please", "  inv  ", "+1", "123", "!sr", "!SR ", "!sr 19019", "!sr 0", "!sr -5", "!sr 99999999999",
+    "!sr nan", "!sr 1e309", "!sr " .. ITEM, "!sr " .. TEX, "Duel starting: 3", "Duel starting: 99", "Duel starting: ",
+    "Raider2 has assaulted the Farm!", "The Horde has taken the Stables!", "The flag was captured!", "attaqué la ferme !",
+    "Raider2 receives loot: " .. ITEM .. ".", "You receive loot: " .. ITEM .. "x2.", "[Myslot: Raider2 - " .. MARK .. "]" }
+local LONG = { "a", " ", "|", "~", "%", "!", "é", "[", "9", ":", "\n" } -- one of them repeated past 255 bytes
+local function ChatText()
+    local r = Rand(10)
+    if r <= 4 then return Junk() end
+    local k = KEYWORDS[Rand(#KEYWORDS)]
+    if r <= 8 then return Rand(2) == 1 and k or k .. " " .. Junk() end
+    return (Rand(3) == 1 and k or "") .. string.rep(LONG[Rand(#LONG)], 300 + Rand(3700))
+end
+local lineID = 0
+local function FireChat(ev, text, from, bn)
+    lineID = lineID + 1
+    local chan, index, base = "", 0, ""
+    if ev == "CHAT_MSG_CHANNEL" then chan, index, base = "1. General - Orgrimmar", 1, "General" end
+    local guid = (from ~= "" and not bn) and string.format("Player-1-%08X", 4096 + lineID % 4096) or ""
+    M.Fire(ev, text, from, "Common", chan, from, "", 0, index, base, 7, lineID, guid, bn or 0, false, false, false, false)
+    M.ChatFilters(ev, text, from, "Common", chan, from, "", 0, index, base, 7, lineID, guid, bn or 0, false, false, false, false)
+end
+-- a Battle.net friend playing a character of my realm, on my game version
+local accountInfo = C_BattleNet and C_BattleNet.GetAccountInfoByID
+C_BattleNet = C_BattleNet or {}
+C_BattleNet.GetAccountInfoByID = function(id)
+    return { gameAccountInfo = { isOnline = true, characterName = string.format("Bnfriend%d", id), wowProjectID = WOW_PROJECT_ID,
+        realmName = M.player.realm } }
+end
+-- bad: what is not allowed, by kind (action, chat line, slow line, missing checkbox)
+local chat = { events = #CHAT_EVENTS, sent = 0, worst = 0, chatOk = 0, actionsOk = 0, bad = {}, badChat = {}, badActions = {}, first = {} }
+report.chatLines = chat
+local cur, acts = {}, {}
+local sensitive = M.Sensitive
+M.Sensitive = function(what)
+    acts[#acts + 1] = { what = what, at = M.now, ev = cur.ev, from = cur.from, char = cur.char, on = cur.on }
+    return sensitive(what)
+end
+local perEvent = math.max(20, math.floor((opts.fuzz or 300) / 3))
+local srFrom, chat0 = {}, #M.chat -- the senders of a whispered "!sr" line while it was on
+for _, on in ipairs({ false, true }) do
+    if on then
+        for _, label in ipairs(SWITCHES) do
+            if not ClickCheck(label, true) then chat.bad[#chat.bad + 1] = "checkbox not found: " .. label end
+        end
+        -- one sender in a hurry: 10 "!sr" and 10 keyword whispers, 10 keyword Battle.net whispers in 2 s (at most 3
+        -- answers and 1 invite each)
+        M.phase = "chat flood (switched on)"
+        for k = 1, 10 do
+            for _, w in ipairs({ { "CHAT_MSG_WHISPER", k % 2 == 0 and "!sr" or "!sr 19019", GUILD[1] }, { "CHAT_MSG_WHISPER", "inv", GUILD[1] },
+                { "CHAT_MSG_BN_WHISPER", "inv", "|Kq1|k", 1 } }) do
+                cur.ev, cur.from, cur.on, cur.char = w[1], w[3], true, w[4] and "Bnfriend1" or nil
+                if w[2]:find("^!sr") then srFrom[w[3]] = true end
+                FireChat(w[1], w[2], w[3], w[4])
+                chat.sent = chat.sent + 1
+            end
+            M.Advance(0.2, 0.2)
+        end
+    end
+    for _, e in ipairs(CHAT_EVENTS) do
+        local ev = e[1]
+        M.phase = "chat " .. ev .. (on and " (switched on)" or "")
+        local text, from, bn
+        local function Blame(e0, i, later)
+            if not chat.first[ev] and Errs() > e0 then chat.first[ev] = { n = i, msg = Lit(text), from = from, err = M.lastError, later = later } end
+        end
+        for i = 1, perEvent do
+            from, bn = "", nil
+            if e[2] == "bn" then bn = Rand(3); from = string.format("|Kq%d|k", bn)
+            elseif e[2] then from = e[2][Rand(#e[2])] end
+            text = ChatText()
+            cur.ev, cur.from, cur.on, cur.char = ev, from, on, bn and string.format("Bnfriend%d", bn) or nil
+            if on and ev == "CHAT_MSG_WHISPER" and text:lower():find("^!sr") then srFrom[from] = true end
+            local e0 = Errs()
+            local t0 = os.clock()
+            FireChat(ev, text, from, bn)
+            local ms = (os.clock() - t0) * 1000
+            if ms > chat.worst then chat.worst, chat.worstEvent = ms, ev end
+            if ms >= 1000 then chat.bad[#chat.bad + 1] = string.format("%s: one line took %.0f ms: %s", ev, ms, Lit(text):sub(1, 200)) end
+            Blame(e0, i)
+            chat.sent = chat.sent + 1
+            if i % 10 == 0 then e0 = Errs(); M.Advance(5, 0.5); Blame(e0, i, true) end
+        end
+        local e0 = Errs()
+        M.Advance(5, 0.5)
+        Blame(e0, perEvent, true)
+    end
+end
+for _, label in ipairs(SWITCHES) do ClickCheck(label, false) end
+cur.ev, cur.from, cur.on, cur.char = "(after the lines)", "?", false, nil
+M.Advance(15, 0.5) -- what is still queued
+M.Sensitive = sensitive
+C_BattleNet.GetAccountInfoByID = accountInfo
+-- actions: InviteUnit of the sender of a whisper while InviteTool is on, 30 s apart per sender (ConvertToRaid before it
+-- for a guild member)
+local inGuild, lastInvite = {}, {}
+for _, n in ipairs(GUILD) do inGuild[n] = true end
+for _, a in ipairs(acts) do
+    local target = a.char or a.from
+    local whisper = a.on and (a.ev == "CHAT_MSG_WHISPER" or a.ev == "CHAT_MSG_BN_WHISPER")
+    local invite = whisper and a.what == "InviteUnit " .. tostring(target)
+    if invite and a.at - (lastInvite[target] or -1e9) >= 29.999 then
+        lastInvite[target] = a.at
+        chat.actionsOk = chat.actionsOk + 1
+    elseif whisper and a.what == "ConvertToRaid" and inGuild[a.from] then
+        chat.actionsOk = chat.actionsOk + 1
+    else
+        chat.badActions[#chat.badActions + 1] = string.format("%s after %s from %s (%s)%s", a.what, tostring(a.ev), tostring(a.from),
+            a.on and "switched on" or "as installed", invite and ": less than 30 s after the last one" or "")
+    end
+end
+-- chat lines: "!sr" answers whispered to whoever whispered "!sr", 3 per 10 s as LootCouncil.lua counts them
+local window = {}
+for i = chat0 + 1, #M.chat do
+    local c = M.chat[i]
+    local ok = c.channel == "WHISPER" and c.target ~= nil and srFrom[c.target]
+    if ok then
+        local w = window[c.target]
+        if not w or c.at - w[1] > 10 then w = { c.at, 0 }; window[c.target] = w end
+        w[2] = w[2] + 1
+        ok = w[2] <= 3
+    end
+    if ok then chat.chatOk = chat.chatOk + 1
+    else chat.badChat[#chat.badChat + 1] = string.format("chat line %s%s: %s", tostring(c.channel), c.target and (" to " .. c.target) or "", Lit(tostring(c.msg)):sub(1, 120)) end
+end
+
+-- pasted text: a profile (Settings), a Myslot profile, a Raid Groups preset, a softres.it CSV, as someone could hand it
+-- over: junk, huge, deeply nested, NaN / inf / 1e309, escape codes in names, separators only, one very long line. Each
+-- is pasted in its box and imported by its button: it takes < 1 s and ends refused, or in the confirmation (profile,
+-- Myslot: never answered here) with the saved data untouched; a preset or a soft-res list (saved by the click itself)
+-- is saved in its checked form only (then removed). A growing case goes 1 KB, 16 KB, 256 KB while the last size took
+-- < 40 ms (code quadratic at 256 KB would freeze the bench too).
+Phase("paste")
+M.Call(W.Hide)
+local function Under(root, test)
+    local stack = { root }
+    while #stack > 0 do
+        local o = table.remove(stack)
+        if test(o) then return o end
+        for _, c in ipairs(o.__children or {}) do stack[#stack + 1] = c end
+    end
+end
+local function Panel(key) for _, m in ipairs(W.modules) do if m.key == key then return m.panel end end end
+local function ButtonIn(root, text)
+    return root and Under(root, function(o) return o.__type == "Button" and o.__text == text and o.__scripts.OnClick ~= nil end)
+end
+local function Click(b) M.Script(b, "OnClick", "LeftButton", false) end
+-- saved data as text (keys sorted), to see whether a paste changed it
+local function Dump(v, out, depth)
+    if type(v) ~= "table" then out[#out + 1] = type(v) .. ":" .. tostring(v); return end
+    if depth > 30 then out[#out + 1] = "{deep}"; return end
+    local keys = {}
+    for k in pairs(v) do keys[#keys + 1] = k end
+    table.sort(keys, function(a, b) return type(a) .. tostring(a) < type(b) .. tostring(b) end)
+    out[#out + 1] = "{"
+    for _, k in ipairs(keys) do
+        out[#out + 1] = type(k) .. ":" .. tostring(k) .. "="
+        Dump(v[k], out, depth + 1)
+        out[#out + 1] = ","
+    end
+    out[#out + 1] = "}"
+end
+local function Saved(names)
+    local out = {}
+    for _, n in ipairs(names) do out[#out + 1] = n .. "="; Dump(rawget(_G, n), out, 0) end
+    return table.concat(out)
+end
+local function Confirming() return rawget(_G, "WLRTConfirm") and WLRTConfirm:IsShown() or false end
+-- where each importer's text goes and the button that imports it
+local function ProfileBox()
+    local import = ButtonIn(Panel("Settings"), W.L("Import"))
+    return import and Under(import.__parent, function(o) return o.__type == "EditBox" end), import
+end
+local MS = W.Space and W.Space("Myslot")
+local function MyslotBox()
+    local f = MS and MS.MainFrame
+    if not f then return nil end
+    return Under(f, function(o) return o.__type == "EditBox" and o.__parent and o.__parent.__type == "ScrollFrame" end), ButtonIn(f, MS.L["Import"])
+end
+local function PopupBox(key, label) -- the text window (W.TextPopup) a button of the module opens
+    return function()
+        local open = ButtonIn(Panel(key), W.L(label))
+        if not open then return nil end
+        Click(open)
+        local f = rawget(_G, "WLRTTextPopup")
+        if not f then return nil end
+        f.nameBox.__text = ""
+        return f.box, f.ok
+    end
+end
+-- pairs as the game walks an array: 1, 2, 3... then the other keys (fengari walks a table constructor's array backwards:
+-- Myslot's base64 encoder, a pairs over the bytes, wrote them reversed and the CRC32 refused its own export)
+local function OrderedPairs(t)
+    local n, i, k = #t, 0, nil
+    return function()
+        if i < n then i = i + 1; return i, t[i] end
+        while true do
+            local v
+            k, v = next(t, k)
+            if k == nil or math.type(k) ~= "integer" or k < 1 or k > n then return k, v end
+        end
+    end, t, nil
+end
+-- a real Myslot export holding a macro whose name and lines carry escape codes, /gquit and Lua code (the action bar
+-- functions it reads, missing from the Forever documentation, answer "empty slot" while it is made)
+local function MyslotCrafted()
+    local stubs = { pairs = OrderedPairs, GetActionInfo = function() end, GetNumMacros = function() return 1, 0 end, GetMacroInfo = function(i)
+        if i == 1 then return TEX .. MARK .. "|Hplayer:" .. MARK .. "|h[x]|h", "INV_Misc_QuestionMark", "/gquit\n/run print(1)\n" .. CODES end
+    end }
+    local kept = {}
+    for k, f in pairs(stubs) do kept[k] = rawget(_G, k); rawset(_G, k, f) end
+    local ok, text = pcall(MS.Export, MS, { ignoreMacros = {}, ignoreActionBars = {}, ignoreBinding = true, ignoreClickBindings = true,
+        ignoreCooldownManager = true, ignorePetActionBar = true })
+    for k in pairs(stubs) do rawset(_G, k, kept[k]) end
+    if not ok then error(text, 0) end
+    return text
+end
+-- a preset / soft-res name as saved: no escape code, control character or separator of our strings, short
+local function BadName(n) return type(n) ~= "string" or n == "" or #n > 60 or n:find("[%c|;,:~]") ~= nil end
+local function Whole(v, a, b) return type(v) == "number" and v % 1 == 0 and v >= a and v <= b end
+local presetsBefore, selected
+local function PresetsBefore()
+    presetsBefore, selected = {}, W.db.raidGroups.selected
+    for k in pairs(W.db.raidGroups.presets) do presetsBefore[k] = true end
+end
+local function PresetsAfter() -- what the import saved, checked, then removed
+    local bad, db = {}, W.db.raidGroups
+    for name, p in pairs(db.presets) do
+        if not presetsBefore[name] then
+            if type(name) ~= "string" or #name > 60 or name:find("[%c|]") then bad[#bad + 1] = "preset name " .. Lit(tostring(name)):sub(1, 60) end
+            local players = type(p) == "table" and type(p.players) == "table" and p.players or {}
+            if #players > 40 then bad[#bad + 1] = #players .. " players" end
+            for _, x in ipairs(players) do
+                if BadName(x.name) then bad[#bad + 1] = "player " .. Lit(tostring(x.name)):sub(1, 60) end
+                if not Whole(x.group, 1, 8) then bad[#bad + 1] = "group " .. tostring(x.group) end
+                if not Whole(x.icon, 0, 8) then bad[#bad + 1] = "mark " .. tostring(x.icon) end
+                if x.class ~= nil and not tostring(x.class):find("^%u+$") then bad[#bad + 1] = "class " .. Lit(tostring(x.class)) end
+            end
+            db.presets[name] = nil
+        end
+    end
+    db.selected = selected
+    return bad
+end
+local srBefore
+local function SoftResBefore()
+    srBefore = {}
+    for id, list in pairs(W.db.loot.sr) do
+        local copy = {}
+        for i, n in ipairs(list) do copy[i] = n end
+        srBefore[id] = copy
+    end
+end
+local function SoftResAfter() -- what the import saved, checked, then the list put back (the same table: the module keeps it)
+    local bad, sr = {}, W.db.loot.sr
+    for id, list in pairs(sr) do
+        if not srBefore[id] and not Whole(id, 1, 9999999) then bad[#bad + 1] = "item id " .. tostring(id) end
+        for _, n in ipairs(type(list) == "table" and list or {}) do
+            if BadName(n) then bad[#bad + 1] = "name " .. Lit(tostring(n)):sub(1, 60) end
+        end
+    end
+    for k in pairs(sr) do sr[k] = nil end
+    for k, v in pairs(srBefore) do sr[k] = v end
+    return bad
+end
+local HEADER = "WLRT1:"
+local IMPORTERS = {
+    { "profile", ProfileBox, saved = { "WarLegendRaidToolDB", "WarLegendRaidTool_PvPDB" }, cases = {
+        { "junk", function(n) return HEADER .. string.rep("x", n) end, grow = true },
+        { "huge", function(n) return HEADER .. "{smain~{sui~{" .. string.rep("sK~T", math.floor(n / 4)) .. "}}}" end, grow = true },
+        { "past the size limit", function() return HEADER .. string.rep("{", 450000) end },
+        { "deep nesting", function(n) return HEADER .. string.rep("{smain~", math.floor(n / 7)) end, grow = true },
+        { "NaN / inf / 1e309", function() return HEADER .. "{smain~{sui~{sa~n1e309~sb~nnan~sc~ninf~sd~n-1e309~}}}" end },
+        { "big numbers", function() return HEADER .. "{smain~{sui~{sscale~n0x7fffffff~sx~n1e12~sy~n-0~}spvp~{}}}" end },
+        { "escape codes in names", function()
+            return HEADER .. "{smain~{sinviteTool~{skeyword~s" .. CODES .. "~}s" .. CODES .. "~{s" .. CODES .. "~T}sinterfaceOptions~{scvars~{s"
+                .. CODES .. "~s1~}}}spvp~{sLeftButtonValue~s/gquit^n" .. CODES .. "^n/cast X~}}"
+        end },
+        { "separators only", function(n) return HEADER .. string.rep("~^{}", math.floor(n / 4)) end, grow = true },
+        { "one very long line", function(n) return HEADER .. "{smain~{sinviteTool~{skeyword~s" .. string.rep("a", n) .. "~}}}" end, grow = true },
+        { "blanks", function(n) return HEADER .. "{smain~{sinviteTool~{skeyword~sa" .. string.rep(" ", n) .. "b~}}}" .. string.rep(" ", n) end, grow = true },
+    } },
+    { "Myslot", MyslotBox, saved = { "MyslotExports", "MyslotSettings" }, cases = {
+        { "junk", function(n) return string.rep("A", n) end, grow = true },
+        { "past the size limit", function() return string.rep("A", 600000) end },
+        { "NaN / inf / 1e309", function() return "nan inf 1e309 -1e309 0x7fffffff" end },
+        { "escape codes in names", MyslotCrafted },
+        { "separators only", function(n) return string.rep("@\n#\n", math.floor(n / 4)) end, grow = true },
+        { "one very long line", function(n) return "# Myslot\n" .. string.rep("=", n) end, grow = true },
+    } },
+    { "Raid Groups preset", PopupBox("RaidGroups", "Import"), before = PresetsBefore, after = PresetsAfter, cases = {
+        { "junk", function(n) return string.rep("x", n) end, grow = true },
+        { "huge", function(n) return "P;" .. string.rep("Raider2,MAGE,1,0,0;", math.floor(n / 19)) end, grow = true },
+        { "NaN / inf / 1e309", function() return "P;Raider2,MAGE,nan,nan,nan;Raider3,MAGE,inf,-inf,1e309;Raider4,MAGE,1e309,0x10,-0;Raider5,mage,-1,9,99" end },
+        { "escape codes in names", function() return CODES .. ";" .. CODES .. ",MAGE,1,0,0;" .. BREAK .. ",PRIEST,2,1,1" end },
+        { "separators only", function(n) return string.rep(";,", math.floor(n / 2)) end, grow = true },
+        { "commas in one player", function(n) return "P;" .. string.rep(",", n) end, grow = true },
+        { "one very long line", function(n) return "P;a" .. string.rep("b", n) .. ",MAGE,1,0,0" end, grow = true },
+        { "blanks", function(n) return "P;a" .. string.rep(" ", n) .. "b,MAGE,1,0,0" end, grow = true },
+    } },
+    { "soft-res CSV", PopupBox("LootCouncil", "Import (softres.it CSV)"), before = SoftResBefore, after = SoftResAfter, cases = {
+        { "junk", function(n) return string.rep("x", n) end, grow = true },
+        { "huge", function(n) return "Name,ItemID\n" .. string.rep("Raider2,19019\n", math.floor(n / 14)) end, grow = true },
+        { "NaN / inf / 1e309", function() return "Name,ItemID\nRaider2,nan\nRaider3,inf\nRaider4,1e309\nRaider5,-1\nRaider6,0x10\nRaider7,1.5\nRaider8,99999999999" end },
+        { "escape codes in names", function() return "Name,ItemID\n" .. CODES .. ",19019\n" .. NBREAK .. ",19020" end },
+        { "separators only", function(n) return string.rep(",", n) end, grow = true },
+        { "quotes", function(n) return '"' .. string.rep('""', math.floor(n / 2)) .. '",19019' end, grow = true },
+        { "one very long line", function(n) return "Name,ItemID\n" .. string.rep("a", n) .. ",19019" end, grow = true },
+        { "blanks", function(n) return "Name,ItemID\na" .. string.rep(" ", n) .. "b,19019" end, grow = true },
+    } },
+}
+report.paste = {}
+local SIZES = { 1024, 16384, 262144 }
+for _, imp in ipairs(IMPORTERS) do
+    for _, case in ipairs(imp.cases) do
+        local r = { importer = imp[1], case = case[1], size = 0, ms = 0 }
+        report.paste[#report.paste + 1] = r
+        local fails = {}
+        for _, n in ipairs(case.grow and SIZES or { 0 }) do
+            local ok, text = pcall(case[2], n)
+            if not ok or type(text) ~= "string" then r.fail = "case not built: " .. tostring(text); break end
+            if Confirming() then WLRTConfirm:Hide() end
+            local box, button = imp[2]()
+            if not (box and button) then r.fail = "text box or import button not found"; break end
+            local saved = imp.saved and Saved(imp.saved)
+            if imp.before then imp.before() end
+            local popups, sens, chats, e0 = M.popups or 0, #M.sensitive, #M.chat, Errs()
+            box.__text = text -- pasted by the player: not a text the addon shows
+            M.phase = "paste " .. imp[1] .. ": " .. case[1]
+            local t0 = os.clock()
+            Click(button)
+            local ms = (os.clock() - t0) * 1000
+            r.size, r.ms = #text, ms
+            local popup = rawget(_G, "WLRTTextPopup") -- left open with the reason when a preset / list is refused
+            r.outcome = (Confirming() or (M.popups or 0) > popups) and "confirmation"
+                or (imp.after and not (popup and popup:IsShown()) and "imported") or "refused"
+            local why = {}
+            if Errs() > e0 then why[#why + 1] = "Lua error " .. tostring(M.lastError) end
+            if ms >= 1000 then why[#why + 1] = string.format("%.0f ms", ms) end
+            if #M.sensitive > sens then why[#why + 1] = "acted: " .. M.sensitive[#M.sensitive] end
+            if #M.chat > chats then why[#why + 1] = "chat line sent" end
+            if saved and Saved(imp.saved) ~= saved then why[#why + 1] = "saved data changed without an answer" end
+            if imp.after then for _, b in ipairs(imp.after()) do why[#why + 1] = "saved " .. b end end
+            if #why > 0 then fails[#fails + 1] = string.format("%d bytes: %s", #text, table.concat(why, "; ")) end
+            if ms > 40 then break end -- the next size could take minutes when this code grows faster than the text
+        end
+        if #fails > 0 and not r.fail then r.fail = table.concat(fails, " | ") end
+    end
+end
+if Confirming() then WLRTConfirm:Hide() end
+if rawget(_G, "WLRTTextPopup") then WLRTTextPopup:Hide() end
+M.Advance(2)
+-- what reached the screen from the hostile pieces (tools/smoke/wow.lua M.Shown): the check ends before the floods
+M.mark = nil
+report.escapes = M.escapes
+report.reached = {}
+for at, n in pairs(M.reached) do report.reached[#report.reached + 1] = { at, n } end
+table.sort(report.reached, function(a, b) return a[1] < b[1] end)
 
 -- cost: event floods in a raid, out of combat, window closed (fengari is slower than the game: compare, do not read as ms in game)
 Phase("perf")

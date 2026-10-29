@@ -703,11 +703,20 @@ function W.BaseName(name)
     return name:match("^([^%-]+)") or name
 end
 
+-- The ends of a text trimmed by a plain loop: the pattern "%s+$" is quadratic on a long run of blanks inside the text
+-- (a pasted preset or soft-res list of 16 KB froze the client for seconds)
+function W.Trim(s)
+    if type(s) ~= "string" then return "" end
+    local a = s:find("%S")
+    if not a then return "" end
+    local b = #s
+    while b > a and s:find("^%s", b) do b = b - 1 end
+    return s:sub(a, b)
+end
+
 function W.SanitizeName(s)
     -- no control character (a line break would start a new macro line), no separator of our strings
-    s = (s or ""):gsub("[%c;,|:~]", "")
-    s = s:gsub("^%s+", ""):gsub("%s+$", "")
-    return s
+    return W.Trim(((s or ""):gsub("[%c;,|:~]", "")))
 end
 
 function W.InRaid()
