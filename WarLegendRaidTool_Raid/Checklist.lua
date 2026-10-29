@@ -104,7 +104,8 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
         -- spread over 2 s: a whole raid must not answer on the same frame
         W.After(0.2 + math.random() * 1.8, function()
             local ans = {}
-            for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. W.ItemCount(e[1]) end
+            -- up to the amount asked: enough or not, and how many short, never my whole stock
+            for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. math.min(W.ItemCount(e[1]), e[2]) end
             W.SendLong(PREFIX, W.Pack("A", table.concat(ans, ",")))
         end, "checklist answer")
     elseif t[1] == "A" and unit and GetTime() - askedAt < 60 then -- someone else's check: not saved here

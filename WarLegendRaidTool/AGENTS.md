@@ -77,6 +77,16 @@ this list; a line that fails it is a blocker, whatever the user asked (explain i
     around: guard it and degrade (`if X then ... end`), never try to get the old behaviour back by another path.
 If a rule cannot be checked from the code alone (API behaviour on Forever), write `UNVERIFIED ToS: <what>` in the report.
 
+**Accepted exceptions** (audit 28/10; opt-in, off by default unless said, the player switched them on: not to flag
+again, but a new one needs the user's yes): rules 7 / 8: InviteTool keyword and Battle.net whisper invites
+(`InviteUnit`, not restricted; once per 30 s per sender, auto-convert for guild members only) and accepting invites
+suggested by the group; AutoPromote on roster events (`PromoteToAssistant` is `HasRestrictions`: UNVERIFIED ToS, may be
+refused outside a click, 5/11); Myslot's import steps run from timers after the confirm click; Focus putting back the
+key binding the player chose, out of combat; QualityOfLife junk selling and quests at the vendor / NPC the player
+opened; Loot Council putting owed items in the trade window on `TRADE_SHOW` (the master looter still clicks Accept);
+Summon's group line (one line, 3 s after the first request). Rule 10: SimExport and the Attendance / loot CSV are the
+player's own data, copied by hand from a text box, never sent anywhere.
+
 ## Load order and files
 `WarLegendRaidTool.toc` lists the files in load order: `Locale.lua`, `Core.lua`, `Lib.lua`, then one file
 per module, `VersionCheck.lua` last. **A new file must be added to the .toc** (before `VersionCheck.lua`)

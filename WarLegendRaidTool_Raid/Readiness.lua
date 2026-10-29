@@ -273,10 +273,15 @@ end
 -- private = answering someone else: gold and item counts are sent as OK / missing only
 local PRIVATE = { gold = true, item = true }
 local function MyResults(reqs, private)
-    local out = {}
+    local out, goldSeen = {}, false
     for i, r in ipairs(reqs) do
         local ok, value = Evaluate(r)
         if private and PRIVATE[r.kind] then value = "" end
+        -- one "gold" line answered per check (the next ones "?"): eight thresholds an ask told a raider's exact gold
+        if private and r.kind == "gold" then
+            if goldSeen then ok = nil end
+            goldSeen = true
+        end
         out[i] = { ok == true and "1" or (ok == false and "0" or "?"), Clean(value) }
     end
     return out
