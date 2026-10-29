@@ -106,7 +106,17 @@ function MySlot:RunAsync(fn, onProgress, onDone)
     end
 
     local co = coroutine.create(fn)
+    local paused = false
     local function step()
+        -- WarLegend: bars, macros and bindings are protected in combat: an import that met a fight waits for its end
+        -- (it went on calling them every frame, blocked, and left the bars half restored)
+        if InCombatLockdown and InCombatLockdown() then
+            if not paused and WLRT and WLRT.Print then WLRT.Print(WLRT.L("Myslot: paused until the end of the fight.")) end
+            paused = true
+            C_Timer.After(0.5, step)
+            return
+        end
+        paused = false
         local ok, progress = coroutine.resume(co)
         if not ok then
             geterrorhandler()(progress)

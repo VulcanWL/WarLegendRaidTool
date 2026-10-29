@@ -26,6 +26,7 @@ W.AddFR({
     ["Myslot: the profile is in the window, click Import to apply it."] =
         "Myslot : le profil est dans la fenêtre, clique sur Importer pour l'appliquer.",
     ["Myslot: clear all your %s? There is no backup."] = "Myslot : effacer tous tes %s ? Il n'y a pas de sauvegarde.",
+    ["Myslot: paused until the end of the fight."] = "Myslot : en pause jusqu'à la fin du combat.",
 })
 
 -- /wl myslot [load name | ...] : the arguments go to Myslot's own /myslot command

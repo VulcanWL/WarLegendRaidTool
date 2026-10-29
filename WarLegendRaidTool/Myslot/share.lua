@@ -496,6 +496,9 @@ end
 
 -- {{{ Requester side
 local function OpenReceived(text, profile, from)
+    -- WarLegend: escape codes out (a profile and its headers never hold "|"; the comment lines are outside the CRC,
+    -- so another player's |T / |H / |c codes were shown live in the box)
+    text = (tostring(text or ""):gsub("|", ""))
     if MySlot.ShowImportText then
         MySlot:ShowImportText(text, ("%s - %s"):format(from, profile))
     end

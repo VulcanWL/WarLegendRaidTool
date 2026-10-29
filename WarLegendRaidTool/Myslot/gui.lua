@@ -603,6 +603,8 @@ do
         local macros, binds, count = {}, {}, 0
         for _, m in pairs(msg.macro or {}) do
             count = count + 1
+            -- every flagged command of the macro, not only the first line: "/s pull in 5" hid a "/gleader X" below it
+            local flagged, seen = {}, {}
             for line in (type(m.body) == "string" and m.body or ""):gmatch("[^\n]+") do
                 local cmd = line:match("^%s*/([%a_]+)") -- "/cast[@mouseover] X" is "cast"
                 local other
@@ -612,9 +614,13 @@ do
                     other = not (line:match("^%s*$") or line:match("^%s*#")) -- the game says it in chat
                 end
                 if other then
-                    macros[#macros + 1] = WLRT.Plain(tostring(m.name or "?"), 20) .. ": " .. WLRT.Plain(line, 60)
-                    break
+                    local what = cmd and ("/" .. cmd:lower()) or WLRT.Plain(line, 40)
+                    if not seen[what] then seen[what] = true; flagged[#flagged + 1] = what end
                 end
+            end
+            if #flagged > 0 then
+                macros[#macros + 1] = WLRT.Plain(tostring(m.name or "?"), 20) .. ": "
+                    .. table.concat(flagged, ", ", 1, math.min(#flagged, 8)) .. (#flagged > 8 and ", ..." or "")
             end
         end
         for _, bind in pairs(msg.bind or {}) do
