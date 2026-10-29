@@ -23,12 +23,15 @@ local allieDefaults15man = {
 	},
 
 	ButtonModules = {
+		-- WarLegend: after the room of the Dispel debuffs (right of the class icon, Modules/Dispel.lua), smaller than
+		-- the enemies' one: no room under the frame here, and the enemy cast bars come from the other side
 		CastBar = {
 			Enabled = false,
+			Scale = 1,
 			Points = {
 				{
 					Point = "LEFT",
-					RelativeFrame = "SpecClassPriorityOne",
+					RelativeFrame = "Dispel",
 					RelativePoint = "RIGHT",
 					OffsetX = 28,
 				},
@@ -305,14 +308,17 @@ Data.defaultSettings = {
 						Enabled = false,
 					},
 					ButtonModules = {
+						-- WarLegend: under the frame, not right of the class icon where the Dispel debuffs are (40 between
+						-- rows here). Offsets are screen units: OffsetX leaves room for its icon, left of the bar
 						CastBar = {
 							Enabled = true,
 							Points = {
 								{
-									Point = "LEFT",
-									RelativeFrame = "SpecClassPriorityOne",
-									RelativePoint = "RIGHT",
-									OffsetX = 28,
+									Point = "TOPLEFT",
+									RelativeFrame = "Button",
+									RelativePoint = "BOTTOMLEFT",
+									OffsetX = 23,
+									OffsetY = -5,
 								},
 							},
 						},
@@ -373,12 +379,14 @@ Data.defaultSettings = {
 						Enabled = true,
 					},
 					ButtonModules = {
+						-- WarLegend: as in allieDefaults15man, after the room of the Dispel debuffs
 						CastBar = {
 							Enabled = false,
+							Scale = 1,
 							Points = {
 								{
 									Point = "LEFT",
-									RelativeFrame = "SpecClassPriorityOne",
+									RelativeFrame = "Dispel",
 									RelativePoint = "RIGHT",
 									OffsetX = 28,
 								}

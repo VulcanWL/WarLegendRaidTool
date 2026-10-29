@@ -6,6 +6,15 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Cadres de champ de bataille : la barre d'incantation d'un allié ne cache plus ses debuffs (sous son cadre à 5 joueurs
+  ou moins ; au-delà, si elle est cochée, après ses debuffs et plus petite).
+- Cadres de champ de bataille : les symboles de dissipation d'un allié restent sur la ligne de son nom à 5 joueurs ou
+  moins (ils ne cachent plus sa vie), et ne mordent plus sur le nom quand l'interface ou les cadres sont agrandis.
+- Cadres de champ de bataille : le nom du porteur du drapeau s'arrête avant l'icône du drapeau.
+- Cadres de champ de bataille : les icônes des debuffs, de tes buffs et des contrôles suivent la taille des cadres quand
+  le nombre de joueurs change (elles gardaient celle du début de partie et débordaient sur les lignes voisines).
+
 ## 1.41.53 (29/10/2026)
 
 ### Corrigé

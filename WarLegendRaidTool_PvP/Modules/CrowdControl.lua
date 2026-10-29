@@ -34,24 +34,28 @@ function crowdControl:AttachToPlayerButton(playerButton)
 	playerButton.CrowdControl = f
 	local NA = WarLegendPvP.NativeAuras
 
+	if NA and NA.Available() then
+		f.native, f.box = NA.Create(f, {
+			{ key = "cc", filter = "HARMFUL|CROWD_CONTROL", max = 1, timer = true },
+		})
+	end
+
 	-- over the class / spec icon, or the left end of the frame
 	local function Place()
 		f:ClearAllPoints()
 		local icon = playerButton.SpecClassPriorityOne
+		local size
 		if icon and icon:IsShown() and icon:GetWidth() > 1 then
 			f:SetAllPoints(icon)
+			size = math.min(icon:GetWidth(), icon:GetHeight())
 		else
 			local h = playerButton:GetHeight() or 20
 			f:SetPoint("LEFT", playerButton, "LEFT")
 			f:SetSize(h, h)
+			size = h
 		end
-	end
-
-	if NA and NA.Available() then
-		f.native = NA.Create(f, {
-			{ key = "cc", filter = "HARMFUL|CROWD_CONTROL", max = 1, timer = true,
-				sizeFn = function() return math.max(12, math.min(f:GetWidth(), f:GetHeight())) end },
-		})
+		-- WarLegend: the client's icon is made once, at one size (NativeAuras.lua): as high as the icon's place now
+		if f.box then NA.SetIconSize(f.box, math.max(12, size)) end
 	end
 
 	-- test mode: a fake polymorph on some players

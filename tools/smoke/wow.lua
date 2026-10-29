@@ -379,6 +379,8 @@ function Widget:GetStringHeight() return 12 end
 function Widget:GetNumLines() return 1 end
 function Widget:SetFont(f, s, fl) self.__font = { f, s, fl }; return true end
 function Widget:GetFont() local f = self.__font or { "Fonts\\FRIZQT__.TTF", 12, "" }; return f[1], f[2], f[3] end
+function Widget:SetJustifyV(j) self.__justifyV = j end
+function Widget:GetJustifyV() return self.__justifyV or "MIDDLE" end
 function Widget:SetFontObject(o) self.__fontObject = o end
 function Widget:GetFontObject() return self.__fontObject or GameFontNormal end
 function Widget:GetTextColor() return 1, 1, 1, 1 end

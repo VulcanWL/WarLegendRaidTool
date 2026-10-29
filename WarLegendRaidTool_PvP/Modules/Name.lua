@@ -24,10 +24,13 @@ local defaultSettings = {
 			OffsetX = 5,
 			OffsetY = -2
 		},
+		-- WarLegend: ends before the flag icon (ObjectiveAndRespawn: as wide as the icon on the flag carrier, nearly
+		-- no width otherwise; the target counter is right of it)
 		{
 			Point = "BOTTOMRIGHT",
-			RelativeFrame = "TargetIndicatorNumeric",
+			RelativeFrame = "ObjectiveAndRespawn",
 			RelativePoint = "BOTTOMLEFT",
+			OffsetX = -2,
 		}
 	},
 	Text = {
