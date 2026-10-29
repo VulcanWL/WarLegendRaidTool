@@ -9,7 +9,6 @@ deprecated shim (guarded) ChatEdit_InsertLink
 deprecated shim (guarded) ChatFrame_SendTell
 legacy (guarded) GetTalentInfo
 legacy (guarded) GetTalentTabInfo
-deprecated shim (guarded) IsEncounterInProgress
 deprecated shim (guarded) IsPlayerSpell
 deprecated shim (guarded) IsSpellKnown
 deprecated shim (guarded) PromoteToAssistant
@@ -73,7 +72,6 @@ legacy (guarded) GetNumSpecGroups
 legacy (guarded) GetNumSubgroupMembers
 legacy (guarded) GetNumTalentTabs
 legacy (guarded) GetNumTalents
-legacy (guarded) GetPOITextureCoords
 legacy (guarded) GetProfessionInfo
 legacy (guarded) GetProfessions
 legacy (guarded) GetReadyCheckStatus
@@ -203,3 +201,16 @@ hook on a missing function (guarded) BankFrameItemButton_Update
 hook on a missing function (guarded) ContainerFrame_Update
 hook on a missing function (guarded) InspectPaperDollFrame_UpdateButtons
 hook on a missing function (guarded) LootFrame_UpdateButton
+# 29/10/2026, "C_ form not tried first" (a global Forever lacks, its C_ form not tried first). Fixed in the addon:
+# IsPlayerSpell / IsSpellKnown (RaidCooldowns, PvP Main / Dispel), IsEncounterInProgress (CombatTimer),
+# GetPOITextureCoords (CapTimers), GetNumSkillLines / GetSkillLineInfo (Guild). Accepted (never reached on Forever):
+# Myslot as upstream (FindBaseSpellByID: guarded fallback; specializations: loops over GetNumSpecializations, nil there;
+# GetSpellBookItemInfo: behind SPELLS_PER_PAGE / BOOKTYPE_PROFESSION, absent there; GetTalentInfo: behind
+# GetNumSpecGroups / MAX_TALENT_TIERS), Core.lua W.ClassicTalents (the old vanilla API, read only when C_Traits gives
+# nothing: W.OwnTalents / W.InspectTalents), PvP PlayerButton IsItemInRange (UpdateRangeViaItem is never called).
+C_ form not tried first FindBaseSpellByID (C_SpellBook.FindBaseSpellByID)
+C_ form not tried first GetSpecialization (C_SpecializationInfo.GetSpecialization)
+C_ form not tried first GetSpecializationInfo (C_SpecializationInfo.GetSpecializationInfo)
+C_ form not tried first GetSpellBookItemInfo (C_SpellBook.GetSpellBookItemInfo)
+C_ form not tried first GetTalentInfo (C_Garrison.GetTalentInfo, C_SpecializationInfo.GetTalentInfo)
+C_ form not tried first IsItemInRange (C_Item.IsItemInRange)

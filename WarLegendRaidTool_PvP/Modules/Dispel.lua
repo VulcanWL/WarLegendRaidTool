@@ -110,7 +110,10 @@ local function SpellIcon(id)
 	return GetSpellTexture and GetSpellTexture(id)
 end
 
+-- WoW Forever: C_SpellBook only (IsPlayerSpell / IsSpellKnown are Blizzard deprecation shims, never loaded there: without
+-- it every buff / dispel of the class counted as known)
 local function Knows(id)
+	if C_SpellBook and C_SpellBook.IsSpellKnown then return C_SpellBook.IsSpellKnown(id) end
 	if IsPlayerSpell then return IsPlayerSpell(id) end
 	if IsSpellKnown then return IsSpellKnown(id) end
 	return true

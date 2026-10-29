@@ -115,10 +115,12 @@ local function HasItem(ids)
     return false
 end
 
+-- WoW Forever has C_SpellBook only: IsPlayerSpell / IsSpellKnown come from Blizzard's deprecation addon, never loaded there
 local function KnownRank(e)
+    local known = C_SpellBook and C_SpellBook.IsSpellKnown
     for i = #e.ids, 1, -1 do
         local id = e.ids[i]
-        if (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id)) then return id end
+        if (known and known(id)) or (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id)) then return id end
     end
 end
 

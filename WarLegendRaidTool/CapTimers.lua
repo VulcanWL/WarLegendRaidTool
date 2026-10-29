@@ -300,9 +300,10 @@ local function StartBar(key, label, secs, color, icon, team)
     bar.bar:SetStatusBarColor(c[1], c[2], c[3])
     bar.bar:SetMinMaxValues(0, secs)
     bar.text:SetText(label)
-    if type(icon) == "table" and icon.poi and GetPOITextureCoords then
+    local poiCoords = (C_Minimap and C_Minimap.GetPOITextureCoords) or GetPOITextureCoords -- WoW Forever: C_Minimap only
+    if type(icon) == "table" and icon.poi and poiCoords then
         bar.icon:SetTexture(POI_ICONS)
-        local l, r, t, b = GetPOITextureCoords(icon.poi)
+        local l, r, t, b = poiCoords(icon.poi)
         if l then bar.icon:SetTexCoord(l, r, t, b) end
     else
         bar.icon:SetTexture(icon or 134400)

@@ -254,10 +254,18 @@ local function OwnProfessions()
             end
         end
     end
-    if #out == 0 and GetNumSkillLines and GetSkillLineInfo then
+    -- WoW Forever: C_SkillInfo (a table per skill line, as its skills frame reads it); older clients: the globals
+    local skills = C_SkillInfo and C_SkillInfo.GetNumSkillLines and C_SkillInfo.GetSkillLineInfo
+    if #out == 0 and (skills or (GetNumSkillLines and GetSkillLineInfo)) then
         local names = ProfByName()
-        for i = 1, GetNumSkillLines() do
-            local name, header, _, rank, _, _, max = GetSkillLineInfo(i)
+        for i = 1, skills and C_SkillInfo.GetNumSkillLines() or GetNumSkillLines() do
+            local name, header, _, rank, _, _, max
+            if skills then
+                local s = C_SkillInfo.GetSkillLineInfo(i)
+                if s then name, header, rank, max = s.name, s.isHeader, s.rank, s.maxRank end
+            else
+                name, header, _, rank, _, _, max = GetSkillLineInfo(i)
+            end
             name = W.Safe(name)
             if name and not header and names[name:lower()] then
                 out[#out + 1] = { n = name, r = W.Safe(rank) or 0, m = W.Safe(max) or 0, id = names[name:lower()] }

@@ -141,7 +141,8 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   does a secret given to `SendAddonMessage` / `SendChatMessage` (the docs: NotAllowed / AllowedWhenUntainted, the addon
   is tainted); a secret written in the saved variables is a problem; a self-test checks it all each run.
   `M.spellCooldowns[id] = { start, duration }` models `C_Spell.GetSpellCooldown` (RaidCooldowns check: a cooldown cast
-  in combat is not answered ready). Limits: frames draw nothing, the server never answers, spells the game flags never
+  in combat is not answered ready); `C_SpellBook.IsSpellKnown` / `IsSpellInSpellBook`: the player knows the spells
+  asked about, but those of `M.unknownSpells`. Limits: frames draw nothing, the server never answers, spells the game flags never
   secret are secret here: it proves the code runs, not that a feature works in game. The fake client follows FrameXML
   where the addon depends on it: pools reuse their objects, the world map is a MapCanvas (no map before its first opening,
   pins from pools), a frame becomes protected when a secure frame is its child or is anchored to it. It follows Lua 5.1 /

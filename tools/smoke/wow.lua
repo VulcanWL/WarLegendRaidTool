@@ -766,6 +766,12 @@ C_Spell.GetSpellCooldown = function(id)
     if cd and M.now < cd[1] + cd[2] then return { startTime = cd[1], duration = cd[2], isEnabled = true, isActive = true, modRate = 1 } end
     return { startTime = 0, duration = 0, isEnabled = true, isActive = false, modRate = 1 }
 end
+-- the player knows the spells the addon asks about (its class's buffs, dispels, range spells, cooldowns), but those
+-- of M.unknownSpells: the documented neutral answer (false) would leave those modules with nothing to do
+M.unknownSpells = {}
+C_SpellBook = C_SpellBook or {}
+C_SpellBook.IsSpellKnown = function(id) return not (type(id) == "number" and M.unknownSpells[id]) end
+C_SpellBook.IsSpellInSpellBook = C_SpellBook.IsSpellKnown
 
 -- The open world, for tools/smoke/openworld.lua (M.SetupWorld before the addons load: HereBeDragons reads the maps
 -- then). Two continents, a few zones (a box on their continent); positions: M.world.player / a unit's map, x, y

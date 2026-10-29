@@ -6,6 +6,12 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- WoW Forever n'a plus les anciennes fonctions des sorts connus : les temps de recharge du raid montrent enfin tes propres
+  sorts, et les cadres de champ de bataille ne comptent que les sorts que tu as appris (portée, dissipations, buffs).
+- Minuteur de combat : un minuteur de boss ne s'arrête plus quand tu sors un instant du combat pendant la rencontre.
+- Minuteurs de capture : l'icône du point (ferme, mine...) s'affiche sur la barre.
+
 ## 1.41.52 (29/10/2026)
 
 ### Corrigé

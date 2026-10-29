@@ -514,7 +514,9 @@ local function rangeSpell(harm)
 	local _, class = UnitClass("player")
 	rangeSpellCache[key] = false
 	for _, id in ipairs(RANGE_SPELLS[key][class] or {}) do
-		local known = (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id))
+		-- WoW Forever: C_SpellBook only (IsPlayerSpell / IsSpellKnown are Blizzard deprecation shims, never loaded there)
+		local known = (C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(id))
+			or (IsPlayerSpell and IsPlayerSpell(id)) or (IsSpellKnown and IsSpellKnown(id))
 		if known then rangeSpellCache[key] = id; break end
 	end
 	return rangeSpellCache[key] or nil

@@ -54,8 +54,10 @@ end
 
 local function Stop(encounterEnd)
     if not startAt then return end
-    -- a boss timer ignores the short out-of-combat moments (death...) while the encounter goes on
-    if isEncounter and not encounterEnd and IsEncounterInProgress and IsEncounterInProgress() then return end
+    -- a boss timer ignores the short out-of-combat moments (death...) while the encounter goes on; WoW Forever has
+    -- C_InstanceEncounter only (IsEncounterInProgress is a Blizzard deprecation shim, never loaded there)
+    local inProgress = (C_InstanceEncounter and C_InstanceEncounter.IsEncounterInProgress) or IsEncounterInProgress
+    if isEncounter and not encounterEnd and inProgress and inProgress() then return end
     if not isEncounter and encounterEnd then return end
     Update()
     startAt = nil
