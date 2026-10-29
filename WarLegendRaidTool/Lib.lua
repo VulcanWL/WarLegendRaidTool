@@ -774,24 +774,35 @@ function W.ConfirmShown()
     return confirm ~= nil and confirm:IsShown()
 end
 
--- A list said in the group chat (on a click): one line a second, max (20) at most, the last one saying how many were
--- left out, each within 255 bytes. Blizzard's policy: no excessive use of the chat (300 soft-reserves in one frame).
-W.AddFR({ ["... and %d more line(s): see the window."] = "... et %d ligne(s) de plus : voir la fenêtre." })
-local sayQueue, saying = {}, false
-local function SayNext()
-    local l = table.remove(sayQueue, 1)
-    if not l then saying = false; return end
-    W.Announce(l[1], l[2])
-    W.After(1, SayNext, "group lines")
-end
+-- A list said in the group chat, only on the player's own clicks (AGENTS.md rule 7: no chat line from a timer): the
+-- click posts 3 lines, then a confirmation posts the next 3 on its own click, and so on; max (20) lines in all, the last
+-- one saying how many were left out, each within 255 bytes. Blizzard's policy: no excessive use of the chat (300
+-- soft-reserves in one frame).
+W.AddFR({
+    ["... and %d more line(s): see the window."] = "... et %d ligne(s) de plus : voir la fenêtre.",
+    ["Post the next %d line(s) in the group chat? (%d left)"] =
+        "Envoyer les %d ligne(s) suivante(s) dans le chat de groupe ? (%d restante(s))",
+})
+local PER_CLICK = 3
 function W.AnnounceLines(lines, channel, max)
     max = max or 20
+    local list = {}
     for i = 1, math.min(#lines, max) do
         local text = lines[i]
         if i == max and #lines > max then text = string.format(L("... and %d more line(s): see the window."), #lines - max + 1) end
-        if #sayQueue < 40 then sayQueue[#sayQueue + 1] = { W.CutUTF8(text, 255), channel } end
+        list[i] = W.CutUTF8(text, 255)
     end
-    if not saying and #sayQueue > 0 then saying = true; SayNext() end
+    local pos = 1
+    local function Post()
+        if pos > 1 and W.Channel() ~= channel then return end -- left the group (or it changed) between two clicks
+        for i = pos, math.min(#list, pos + PER_CLICK - 1) do W.Announce(list[i], channel) end
+        pos = pos + PER_CLICK
+        local left = #list - pos + 1
+        if left > 0 then
+            W.Confirm(string.format(L("Post the next %d line(s) in the group chat? (%d left)"), math.min(PER_CLICK, left), left), Post)
+        end
+    end
+    Post()
 end
 
 -- Reload confirmation. The WoW: Forever client blocks ReloadUI() from addon code, even on a click,

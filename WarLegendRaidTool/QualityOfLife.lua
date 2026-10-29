@@ -187,6 +187,8 @@ W.On("QUEST_GREETING", function()
 end)
 W.On("QUEST_DETAIL", function()
     if not W.FeatureOn(db, "questAccept") or Shift() then return end
+    -- a quest a party member shares waits for the player's own click (accepted only from the NPC the player opened)
+    if UnitIsPlayer("questnpc") or UnitIsPlayer("npc") then return end
     if QuestGetAutoAccept and QuestGetAutoAccept() and AcknowledgeAutoAcceptQuest then
         AcknowledgeAutoAcceptQuest()
     else

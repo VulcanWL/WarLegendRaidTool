@@ -6,6 +6,8 @@ W.AddFR({
     ["Who Pulled"] = "Qui a pull",
     ["Pulled by %s"] = "Pull par %s",
     ["Announce the puller in raid chat"] = "Annoncer le puller dans le canal raid",
+    ["Announce the puller in raid chat (not on WoW Forever: the chat is locked at the pull)"] =
+        "Annoncer le puller dans le canal raid (pas sur WoW Forever : le chat est verrouillé au pull)",
     ["Bosses only"] = "Boss uniquement",
     ["Print in my chat"] = "Afficher dans mon chat",
     ["Time"] = "Heure",
@@ -128,7 +130,9 @@ local function Report(p, boss)
     table.insert(db.log, 1, { t = time(), who = p.who, target = boss or p.target, how = p.how })
     while #db.log > 50 do table.remove(db.log) end
     if db.print then W.Print(text) end
-    if db.announce and W.Channel() then
+    -- WoW Forever: never (the group chat is locked at a boss pull, and a line from an event is no click: AGENTS.md
+    -- rule 7); the puller is printed to me only
+    if db.announce and W.Channel() and not W.FOREVER then
         -- already printed above: send quietly; otherwise show it here if the chat is locked
         if db.print then W.SendChat("[WaR LegenD] " .. text, W.Channel()) else W.Announce("[WaR LegenD] " .. text, W.Channel()) end
     end
@@ -175,8 +179,13 @@ end
 W.RegisterModule("WhoPulled", "Who Pulled", function(p)
     W.Title(p, L("Who Pulled"))
     W.Check(p, L("Print in my chat"), function() return db.print end, function(v) db.print = v end):SetPoint("TOPLEFT", 12, -34)
-    W.Check(p, L("Announce the puller in raid chat"), function() return db.announce end, function(v) db.announce = v end)
-        :SetPoint("TOPLEFT", 12, -58)
+    local ann = W.Check(p, L("Announce the puller in raid chat"), function() return db.announce end, function(v) db.announce = v end)
+    ann:SetPoint("TOPLEFT", 12, -58)
+    if W.FOREVER then -- the game locks the group chat at a boss pull: only the print above works
+        ann:Disable()
+        ann.label:SetText(L("Announce the puller in raid chat (not on WoW Forever: the chat is locked at the pull)"))
+        ann.label:SetTextColor(0.5, 0.5, 0.5)
+    end
     W.Check(p, L("Bosses only"), function() return db.bossOnly end, function(v) db.bossOnly = v end):SetPoint("TOPLEFT", 12, -82)
     local t = W.Label(p, L("Last pulls"), "GameFontNormal")
     t:SetPoint("TOPLEFT", 14, -116)

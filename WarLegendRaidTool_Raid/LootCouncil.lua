@@ -686,11 +686,7 @@ Receive.A = function(t, from, full, channel)
     if not seen and (W.IsMe(full) or LootAuthority(full)) then
         Record({ t = time(), item = item.str, winner = winner, class = c and c.class, resp = t[5], zone = ZoneName(), src = "council", votes = votes, test = S.test or nil })
     end
-    -- a test session (even in a raid) is never announced
-    if not S.test and FromML(W.UnitFullName("player")) and db.announce and W.Channel() then
-        W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), winner,
-            (RESP_BY[t[5]] and RESP_BY[t[5]].text) or t[5]), W.Channel())
-    end
+    -- the award line is said by the master looter's click (LC.AskAward), not here
     RefreshVoteSoon()
 end
 
@@ -1384,6 +1380,14 @@ function LC.AskAward(idx, key)
             item.givenTo = key
         end
         SendFirst("A", S.sid, idx, key, c and c.resp or "")
+        -- the award line goes out from this click (AGENTS.md rule 7: it was sent when my own "A" came back, from the
+        -- addon message handler), once per item; a test session (even in a raid) is never announced
+        if not S.test and not item.announced and db.announce and W.Channel() then
+            item.announced = true
+            local resp = c and c.resp or ""
+            W.Announce(string.format(L("Loot: %s -> %s (%s)"), W.ItemLink(item.str), (c and c.name) or W.BaseName(key),
+                (RESP_BY[resp] and RESP_BY[resp].text) or resp), W.Channel())
+        end
         -- next item without a winner
         for i = 1, S.n do
             if S.items[i] and not S.items[i].winner and i ~= idx then UI.vote.sel = i; break end

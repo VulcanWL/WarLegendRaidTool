@@ -32,6 +32,9 @@ W.AddFR({
     ["All invites sent."] = "Toutes les invitations sont envoyées.",
     ["Waiting for a first player to join to convert to raid..."] = "En attente d'un premier joueur pour passer en raid...",
     ["Invites stopped: nobody joined the party."] = "Invitations arrêtées : personne n'a rejoint le groupe.",
+    ["A first player joined: convert the party to a raid and invite the %d other(s)?"] =
+        "Un premier joueur a rejoint : passer le groupe en raid et inviter les %d autre(s) ?",
+    ["Convert to raid"] = "Passer en raid",
     ["Invites stopped: the party could not be converted to a raid. Convert it, then invite again."] =
         "Invitations arrêtées : le groupe n'a pas pu passer en raid. Passe-le en raid, puis invite à nouveau.",
     ["Invites stopped: you are no longer leader or assistant."] = "Invitations arrêtées : tu n'es plus chef ni assistant.",
@@ -155,7 +158,7 @@ W.OnReady(Watch)
 -- Mass invites: a paced queue
 ---------------------------------------------------------------------------
 local queue = {}
-local sentInParty, pumpPending, waitStarted, convertTries = 0, false, 0, 0
+local sentInParty, pumpPending, waitStarted, convertTries, askedConvert = 0, false, 0, 0, false
 local WAIT_MAX = 60 -- nobody accepted within this: stop
 
 local Pump
@@ -180,15 +183,20 @@ function Pump()
     end
     -- party or alone: the party holds 5, so 4 invites, then convert once someone has joined
     if W.NumParty() > 0 and W.IsLeader() then
-        -- twice at most: when the game refuses the conversion outside a click, this retried every second forever
-        -- (a blocked call a second, the invites stuck at 5, no word)
+        -- the conversion is a restricted call (Forever docs, AGENTS.md rule 7): it runs in the player's click on this
+        -- question, never from the invite timer (it was retried every second, blocked, forever); the invites go on
+        -- once the party is a raid, and stop after 30 s without one
+        if not askedConvert then
+            askedConvert = true
+            W.Confirm(string.format(L("A first player joined: convert the party to a raid and invite the %d other(s)?"), #queue),
+                ConvertToRaidNow, L("Convert to raid"))
+        end
         convertTries = convertTries + 1
-        if convertTries > 2 then
+        if convertTries > 30 then
             wipe(queue)
             W.Print(L("Invites stopped: the party could not be converted to a raid. Convert it, then invite again."))
             return
         end
-        ConvertToRaidNow()
         Schedule(1)
         return
     end
@@ -223,7 +231,7 @@ local function InviteMany(names)
         end
     end
     if #queue == 0 then W.Print(L("Nobody to invite.")); return end
-    sentInParty, waitStarted, convertTries = 0, 0, 0
+    sentInParty, waitStarted, convertTries, askedConvert = 0, 0, 0, false
     W.Print(string.format(L("Inviting %d player(s)..."), #queue))
     Schedule(0)
 end

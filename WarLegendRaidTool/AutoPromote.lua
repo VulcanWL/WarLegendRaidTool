@@ -3,6 +3,11 @@
 local W = WLRT
 local L = W.L
 local db
+
+W.AddFR({
+    ["The game refused to promote %s: promote by hand (right-click on the raid frame)."] =
+        "Le jeu a refusé de promouvoir %s : promeus-le à la main (clic droit sur le cadre de raid).",
+})
 local rankByName, ranks = {}, {}
 local ranksDirty = true -- rebuilt on demand, not on every GUILD_ROSTER_UPDATE
 local promotedAt = {}   -- name -> time: GROUP_ and RAID_ROSTER_UPDATE both fire, ask the server once
@@ -74,8 +79,26 @@ local function Configured()
     return false
 end
 
+-- said once the roster shows it: PromoteToAssistant is restricted in the Forever docs and may be refused outside a
+-- click (accepted exception, AGENTS.md); it printed "promoted" anyway and was tried again at every roster change
+local failures = {} -- full name -> promotions the game did not apply (2: no more tries this raid)
+local function Verify(name)
+    local u = W.UnitByName(name)
+    if not u then return end
+    if UnitIsGroupAssistant and W.Safe(UnitIsGroupAssistant(u)) then
+        failures[name] = nil
+        W.Print(name .. L(" promoted to assistant."))
+        return
+    end
+    failures[name] = (failures[name] or 0) + 1
+    if failures[name] == 2 then
+        W.Print(string.format(L("The game refused to promote %s: promote by hand (right-click on the raid frame)."), name))
+    end
+end
+
 -- not in a battleground: its raid is not ours (and every roster change there read the whole raid)
 local function Check()
+    if db and not W.InRaid() and next(failures) then wipe(failures) end
     if not db or not W.InRaid() or not W.IsLeader() or InCombatLockdown() or W.InPvP() or not Configured() then return end
     RefreshRanks()
     local now = GetTime()
@@ -84,10 +107,10 @@ local function Check()
         name, rank = W.Safe(name), W.Safe(rank)
         if name and rank == 0 then
             name = W.UnitFullName("raid" .. i) or name
-            if now - (promotedAt[name] or 0) > 5 and ShouldPromote(name) then
+            if now - (promotedAt[name] or 0) > 5 and (failures[name] or 0) < 2 and ShouldPromote(name) then
                 promotedAt[name] = now
                 Promote(name)
-                W.Print(name .. L(" promoted to assistant."))
+                W.After(1.5, function() Verify(name) end, "auto promote check")
             end
         end
     end

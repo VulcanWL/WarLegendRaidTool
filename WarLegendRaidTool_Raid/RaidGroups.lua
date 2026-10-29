@@ -423,13 +423,20 @@ function RG.ClearMarkers()
 end
 
 ---------------------------------------------------------------------------
--- Applying groups (one move at a time, like CC RaidTools)
+-- Applying groups: one move per click of the player. SetRaidSubgroup / SwapRaidSubgroup are old globals the Forever
+-- docs do not list, treated as restricted (AGENTS.md rule 7): a move only runs in a click, never from a timer (an
+-- OnUpdate made up to 120 moves after one click). APPLY ALL makes the first move; once the roster shows it, a
+-- confirmation asks for the next one, whose Yes click makes it.
 ---------------------------------------------------------------------------
-local mover = CreateFrame("Frame")
-mover:Hide()
-local state = { steps = 0, timer = 0, moved = 0 }
+W.AddFR({
+    ["|cffff5555The game refused the moves, stopped.|r"] = "|cffff5555Le jeu a refusé les déplacements, arrêté.|r",
+    ["Move the next player? (%d still to place)"] = "Déplacer le joueur suivant ? (%d encore à placer)",
+    ["Next move"] = "Déplacement suivant",
+})
+local state = { moved = 0, stalls = 0 }
 
-local function GroupStep(preset)
+-- countOnly: nothing moved, only how many players are not in their preset group
+local function GroupStep(preset, countOnly)
     local desired = {}
     for _, p in ipairs(preset.players) do
         if p.group then desired[p.name:lower()] = p.group end
@@ -447,9 +454,12 @@ local function GroupStep(preset)
         end
     end
     -- exact preset name first, then the first name (presets saved with first names) when one raider only has it
+    local left = 0
     for _, r in ipairs(roster) do
         r.want = desired[r.key] or (bases[r.base] == 1 and desired[r.base]) or nil
+        if r.want and r.want ~= r.group then left = left + 1 end
     end
+    if countOnly then return nil, left end
     local blocked = false
     for _, r in ipairs(roster) do
         if r.want and r.want ~= r.group then
@@ -476,54 +486,52 @@ local function GroupStep(preset)
 end
 
 local function FinishGroups(msg)
-    mover:Hide()
-    state.preset = nil
+    state.preset, state.waiting = nil, false
     W.Print(msg)
 end
 
-W.AddFR({ ["|cffff5555The game refused the moves, stopped.|r"] = "|cffff5555Le jeu a refusé les déplacements, arrêté.|r" })
-mover:SetScript("OnUpdate", function(_, elapsed)
-    state.timer = state.timer - elapsed
-    if state.timer > 0 then return end
+-- the last move is in the roster (or was refused): ask for the next one; the move itself waits for the Yes click
+local function NextPrompt()
+    local preset = state.preset
+    if not preset then return end
     if not W.InRaid() then FinishGroups(L("No longer in a raid, stopped.")); return end
-    if InCombatLockdown() then FinishGroups(L("|cffff5555Cannot move players in combat.|r")); return end
-    if not W.CanLead() then FinishGroups(L("|cffff5555You must be leader or assistant to move players.|r")); return end
-    if state.steps >= 120 then FinishGroups(L("|cffff5555Stopped: too many steps.|r")); return end
-    -- a move the game refused brings no roster update: 3 in a row and it stops (it went on every 1.5 s for 3 min)
-    if state.waiting and not state.rosterSeen then
-        state.stalls = state.stalls + 1
-        if state.stalls >= 3 then FinishGroups(L("|cffff5555The game refused the moves, stopped.|r")); return end
-    else
-        state.stalls = 0
-    end
-    state.waiting, state.rosterSeen = false, false
-    state.steps = state.steps + 1
-    local res = GroupStep(state.preset)
+    local _, left = GroupStep(preset, true)
+    if left == 0 then FinishGroups(state.moved .. L(" move(s), groups applied.")); return end
+    W.Confirm(string.format(L("Move the next player? (%d still to place)"), left),
+        function() RG.ApplyGroups(preset) end, L("Next move"))
+end
+
+-- one move, in the player's click (APPLY ALL, /wl groups, /wl apply, the minimap, or the "Next move" confirmation)
+function RG.ApplyGroups(preset)
+    if not W.InRaid() then W.Print(L("Groups can only be applied in a raid.")); return end
+    if not W.CanLead() then W.Print(L("|cffff5555You must be leader or assistant to move players.|r")); return end
+    if InCombatLockdown() then W.Print(L("|cffff5555Not possible in combat.|r")); return end
+    if state.waiting and GetTime() - (state.movedAt or 0) < 1.5 then return end -- the last move is not in the roster yet
+    if state.preset ~= preset then state.preset, state.moved, state.stalls = preset, 0, 0 end
+    local res = GroupStep(preset)
     if res == "moved" then
         state.moved = state.moved + 1
-        state.waiting = true
-        state.timer = 1.5 -- max delay if the roster update never arrives
+        state.waiting, state.movedAt = true, GetTime()
+        local at = state.movedAt
+        -- a move the game refused brings no roster update: 3 in a row and it stops
+        W.After(1.6, function()
+            if not state.waiting or state.movedAt ~= at then return end
+            state.waiting = false
+            state.stalls = state.stalls + 1
+            if state.stalls >= 3 then FinishGroups(L("|cffff5555The game refused the moves, stopped.|r")) else NextPrompt() end
+        end, "group move check")
     elseif res == "done" then
         FinishGroups(state.moved .. L(" move(s), groups applied."))
     else
         FinishGroups(L("|cffffaa00Some players could not be placed (more than 5 in a group?).|r"))
     end
-end)
-
-function RG.ApplyGroups(preset)
-    if not W.InRaid() then W.Print(L("Groups can only be applied in a raid.")); return end
-    if not W.CanLead() then W.Print(L("|cffff5555You must be leader or assistant to move players.|r")); return end
-    if InCombatLockdown() then W.Print(L("|cffff5555Not possible in combat.|r")); return end
-    state.preset, state.steps, state.timer, state.moved = preset, 0, 0, 0
-    state.stalls, state.waiting, state.rosterSeen = 0, false, false
-    mover:Show()
 end
 
 local function OnRoster()
-    -- roster update arrived: continue sooner (without spamming the server)
-    if not mover:IsShown() then return end
-    state.rosterSeen = true
-    if state.timer > 0.4 then state.timer = 0.4 end
+    -- the roster shows the move: ask for the next one
+    if not state.waiting then return end
+    state.waiting, state.stalls = false, 0
+    NextPrompt()
 end
 
 ---------------------------------------------------------------------------
