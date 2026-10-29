@@ -414,17 +414,29 @@ W.AddFR({
     ["A loot session is still open: the new one replaces it for everyone (answers not given yet are lost)."] =
         "Une session de butin est encore ouverte : la nouvelle la remplace pour tout le monde (les réponses pas encore données sont perdues).",
     ["Start a test session?"] = "Lancer une session de test ?",
+    ["%s's loot session is open: it is not replaced (ask them to end it)."] =
+        "La session de butin de %s est ouverte : elle n'est pas remplacée (demande-lui de la terminer).",
 })
 
--- said in the question before a new session: one still open is replaced for everyone
+local Held -- set below (needs the loot authority): the open session that a given player may not replace
+
+-- said in the question before a new session: one still open is replaced for everyone, unless I may not replace it
 local function OpenWarning()
     if not S then return "" end
+    if Held(W.UnitFullName("player")) then
+        return "\n\n|cffff5555" .. string.format(L("%s's loot session is open: it is not replaced (ask them to end it)."), S.mlFull or "?") .. "|r"
+    end
     return "\n\n|cffff5555" .. L("A loot session is still open: the new one replaces it for everyone (answers not given yet are lost).") .. "|r"
 end
 
 function LC.StartSession(items, test)
     if not LC.CanRun() then W.Print(L("You must be master looter or raid leader/assist.")); return end
     if #items == 0 then return end
+    -- the receivers would refuse it (Receive.S): say whose session holds instead of "started"
+    if Held(W.UnitFullName("player")) then
+        W.Print(string.format(L("%s's loot session is open: it is not replaced (ask them to end it)."), S.mlFull or "?"))
+        return
+    end
     if #items > SESSION_MAX then
         local kept = {}
         for i = 1, SESSION_MAX do kept[i] = items[i] end
@@ -451,6 +463,7 @@ function LC.EndSession()
 end
 
 local Receive = {}
+local askedAt = 0 -- my last resync ask ("Q"): a whispered session is only taken as its answer
 
 -- Protocol safety: only the master looter or the group leader / an assistant may start a session,
 -- then only that player (full "Name-Realm" name) drives it. Every value is bounded.
@@ -499,10 +512,20 @@ local function FromML(full)
     return W.SameUnit(a, b)
 end
 
+-- a session driven by someone else is not reset by another leader (10 min: one whose end never came); the loot
+-- authority (master looter, else the leader) replaces it, and anyone who may start one replaces a test session
+-- (an assistant's test left open locked the master looter out for 10 minutes)
+Held = function(full)
+    if not S or SameName(S.mlFull, full) or S.test or GetTime() - S.started >= 600 then return false end
+    return not LootAuthority(full)
+end
+
 Receive.S = function(t, from, full, channel)
     if not db.enabled or not MayStart(full, channel) then return end
-    -- a session driven by someone else is not reset by another leader (10 min: one whose end never came)
-    if S and not SameName(S.mlFull, full) and GetTime() - S.started < 600 then return end
+    -- whispered: only the answer to my own resync ask (60 s: the answer waits in the master looter's send queue);
+    -- otherwise an assistant could take one chosen raider out of every session
+    if channel == "WHISPER" and GetTime() - askedAt > 60 then return end
+    if Held(full) then return end
     -- the session I already have (a resync answer for someone else, a repeat): kept as it is
     if S and S.sid == t[2] then return end
     if t[2] and ended[t[2]] then return end -- a session that ended does not open again (old message)
@@ -692,7 +715,7 @@ end
 -- Resync: a player who reloads or joins during a session asks ("Q"); the master looter whispers him the
 -- session, its items, its council and the winners so far (not the others' answers and votes).
 ---------------------------------------------------------------------------
-local askedAt, answeredTo = 0, {}
+local answeredTo = {}
 -- tries: asked again 35 s later while no session came (the master looter answers 3 players per 30 s)
 local function AskSession(tries)
     if S or not db or not db.enabled or not W.InGroup() or W.InPvP() then return end
