@@ -3,7 +3,9 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (27/10/2026)
+## Maintenant (28/10/2026)
+
+- **Audit complet ligne par ligne (28/10, branche `claude/wlrt-november-release-570ae5`, rien corrigé, pas de version)** : 14 auditeurs, ~49 000 lignes (4 addons + DoesItDie + Myslot), chaque constat grave vérifié dans le code et la doc API Forever. Rapport : `docs/audit-2026-10-28.md` (anglais, plan de correction à la fin). **2 critiques** : Readiness (une demande d un chef / assistant fige le jeu de tout le raid, motif `(.-)%s*=` cubique) et Guilde métiers (un message d un membre fige toute la guilde) ; cause commune : motifs Lua sur des textes reçus jusqu à 64 Ko (aussi Checklist). Haut : import Myslot (`/gleader`, `/gquit`, `/tinspect` non signalés), Skyborne (réponse jusqu à 60 messages), taille de décompression à vérifier le 5/11, **`/wl bugs` cassé dès la 1re vraie erreur** (`date()` sur l heure texte de BugGrabber), conversion en raid sans clic probablement refusée sur Forever, PvP en BG (ApplyButtonSettings, Dispel, UpdateUnitID). Aussi : rappel de recrutement qui remplace la question du Loot Council, échange LC par prénom. **Règle 7 d AGENTS.md à corriger** (InviteUnit n est pas restreint ; ConvertToRaid oui). Ajouté avant : contrôle ToS de Blizzard dans AGENTS.md (`aa2de46`, Policy + EULA lus). Vérifié avant l audit : check 0, smoke 3 / 3, open world 39 / 39, BG 15 / 15, wow-api 0 nouveau. **Ensuite** : corriger la liste P1 du rapport avant le 4/11, dans une nouvelle session (celle-ci est longue).
 
 - **Version publiée (27/10)** : 1.41.5 (tag `v1.41.5`) = les finitions d interface d après Taste Skill ci-dessous. **Verrou de release levé par l utilisateur pour cette version** (pas de `/wl verify` avant). **Rien testé en jeu.**
 
