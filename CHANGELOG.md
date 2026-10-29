@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.55 (29/10/2026)
+
 ### Modifié
 - DoesItDie devient un vrai module de l'addon : son onglet à lui (Raid > Combat > DoesItDie) avec un aperçu en direct
   et ses réglages en sous-onglets (en français), plus de fenêtre à part. L'allumer ou l'éteindre prend effet tout de
