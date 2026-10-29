@@ -126,7 +126,11 @@ M.Advance(3)
 Phase("fuzz")
 local seed = opts.seed or 12345
 report.seed = seed
-local function Rand(n) seed = (seed * 1103515245 + 12345) % 2147483648; return (seed % n) + 1 end
+-- Park-Miller "minimal standard" (C++ minstd_rand0): exact in doubles (16807 * 2^31 < 2^53), so the same draws in
+-- fengari and Lua 5.1 (the LCG mod 2^31 used before lost its low bits: Rand(8) gave 1 in 99 % of draws). Floats on
+-- purpose: an integer product wraps at 32 bits in fengari. State in 1 .. 2^31 - 2 (0 would stay 0); a draw is an integer
+seed = seed % 2147483646 + 1.0
+local function Rand(n) seed = seed * 16807.0 % 2147483647.0; return math.floor(seed % n) + 1 end
 local function Errs() return M.errorSeq or 0 end
 -- a text as a Lua string literal (control characters, quotes, bytes past 127 as \ddd), to paste it back
 local function Lit(s) return '"' .. (s:gsub('[%c"\\\128-\255]', function(c) return string.format("\\%03d", c:byte()) end)) .. '"' end
@@ -265,7 +269,7 @@ W.IsGroupLead = function() return true end
 local function SendLongText(prefix, text, sender)
     local esc = text:gsub("~", "~1"):gsub("\n", "~2"):gsub("|", "~3")
     local n = math.max(1, math.ceil(#esc / 220))
-    local id = string.format("%d", 100 + Rand(899)) -- Rand gives floats here (fengari): "523.0" is no id
+    local id = string.format("%d", 100 + Rand(899))
     local function Chunk(i)
         M.Fire("CHAT_MSG_ADDON", prefix, id .. ":" .. i .. ":" .. n .. ":" .. esc:sub((i - 1) * 220 + 1, i * 220), "RAID", sender, sender, 0, 0, "", 0)
     end
