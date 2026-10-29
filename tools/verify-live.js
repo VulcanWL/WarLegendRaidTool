@@ -3,6 +3,8 @@
 // Reads the [WLRT-VERIFY] lines of the client's chat log (<game>\Logs\WoWChatLog.txt, written while the game runs once
 // /wl verify switched it on): the last run only, --all for every run of the file, --follow keeps printing new lines.
 // --saved reads the runs kept in WarLegendRaidTool_DevDB instead (SavedVariables, written at /reload or logout).
+// --decode <file> (or the text on stdin): the report copied from the game's /wl verify window, printed in full (its
+// "WLRTV1:" part is the report deflated + base64 by the client's C_EncodingUtil; a plain report is printed as it is).
 // Only the tagged lines are printed: the rest of the chat log is never shown.
 // Exit code 1 when the last run printed a LOOK line.
 const fs = require("fs");
@@ -13,6 +15,29 @@ const opt = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1
 const GAME = opt("--game") || "C:\\Program Files (x86)\\World of Warcraft\\_forever_";
 const TAG = "[WLRT-VERIFY] ";
 const read = (f) => { try { return fs.readFileSync(f, "utf8").split("\r").join(""); } catch (e) { return null; } };
+
+if (argv.includes("--decode")) {
+    const file = opt("--decode");
+    const text = (file && !file.startsWith("--") ? read(file) : fs.readFileSync(0, "utf8")) || "";
+    const at = text.indexOf("WLRTV1:");
+    if (at < 0) { process.stdout.write(text.split("||").join("|") + "\n"); process.exit(/\bLOOK /.test(text) ? 1 : 0); }
+    const zlib = require("zlib");
+    // the base64 lines only: text pasted after them is not part of the report
+    const b64 = [];
+    for (const line of text.slice(at + 7).split("\n").map((l) => l.trim())) {
+        if (!line && !b64.length) continue;
+        if (!/^[A-Za-z0-9+/=]+$/.test(line)) break;
+        b64.push(line);
+    }
+    const data = Buffer.from(b64.join(""), "base64");
+    let report = null;
+    for (const inflate of [zlib.inflateRawSync, zlib.inflateSync, zlib.gunzipSync]) {
+        try { report = inflate(data).toString("utf8"); break; } catch (e) { /* the next format */ }
+    }
+    if (report === null) { console.log("Not a report: the WLRTV1 part does not inflate (copied in full?)."); process.exit(2); }
+    console.log(text.slice(0, at).trim() + "\n" + report);
+    process.exit(/^LOOK /m.test(report) ? 1 : 0);
+}
 
 function tagged(text) {
     const out = [];

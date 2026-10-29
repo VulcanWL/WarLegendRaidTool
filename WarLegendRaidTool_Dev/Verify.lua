@@ -7,6 +7,8 @@
 -- From login it also watches the session (audit of 29/10, probes for 5/11): name forms the game gives, our chat lines and
 -- whether the server echoes them, our restricted calls and whether they worked, blocked actions. Still sends nothing:
 -- play the session (raid, loot, battleground), then /wl verify quick reports what was seen.
+-- One command: /wl verify runs everything, then opens the whole report (context, every line, modules tested, our Lua
+-- errors with their stack) already selected: Ctrl+C, paste it to Claude. /wl verify copy opens the last report again.
 local W = WLRT
 local L = W.L
 local db
@@ -24,12 +26,17 @@ W.AddFR({
     ["Verify: not in combat."] = "Vérification : pas en combat.",
     ["Verify: done, %d OK, %d to look at, %d skipped. /reload to save the run."] =
         "Vérification : finie, %d OK, %d à regarder, %d sautés. /reload pour enregistrer.",
-    ["Verify: module tests running (about 70 s)..."] = "Vérification : tests des modules en cours (environ 70 s)...",
+    ["Verify: module tests running (about 70 s), then the report opens to copy."] =
+        "Vérification : tests des modules en cours (environ 70 s), puis le rapport s'ouvre pour le copier.",
     ["Verify: chat log switched off."] = "Vérification : journal du chat éteint.",
+    ["WLRT verify report"] = "Rapport de vérification WLRT",
+    ["All selected: Ctrl+C, then paste it to Claude."] = "Tout est sélectionné : Ctrl+C, puis colle-le à Claude.",
+    ["Verify: no report yet. Type /wl verify."] = "Vérification : pas encore de rapport. Tape /wl verify.",
 })
 
 local TAG = "[WLRT-VERIFY] "
-local MAX_LINES, MAX_LEN, MAX_RUNS = 120, 200, 5
+local MAX_LINES, MAX_LEN, MAX_RUNS = 150, 300, 5
+local MAX_ERRORS, STACK_LINES, MAX_ADDONS = 10, 8, 60
 local run, counts
 
 local function Str(v)
@@ -42,7 +49,9 @@ end
 local function Out(status, id, text)
     local line = W.CutUTF8(status .. " " .. id .. ": " .. tostring(text), MAX_LEN)
     W.Print(TAG .. line)
-    if run and #run.lines < MAX_LINES then run.lines[#run.lines + 1] = line end
+    if run then
+        if #run.lines < MAX_LINES then run.lines[#run.lines + 1] = line else run.dropped = (run.dropped or 0) + 1 end
+    end
     if counts and counts[status] then counts[status] = counts[status] + 1 end
 end
 
@@ -675,6 +684,105 @@ local function Errors()
     return n
 end
 
+---------------------------------------------------------------------------
+-- The report to paste to Claude: context, every line, the module tests, our errors in full, the busiest work
+---------------------------------------------------------------------------
+local function Context(out)
+    local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    local version, build = GetBuildInfo()
+    local _, class = UnitClass("player")
+    local _, race = UnitRace("player")
+    local _, kind = IsInInstance()
+    local n = GetNumGroupMembers and GetNumGroupMembers() or 0
+    local group = W.InRaid() and ("raid of " .. n) or W.InGroup() and ("party of " .. n) or "solo"
+    local role = W.IsLeader() and "leader" or (UnitIsGroupAssistant and UnitIsGroupAssistant("player")) and "assistant" or "member"
+    out[#out + 1] = string.format("WLRT %s, client %s build %s, locale %s, %s", Str(meta and meta("WarLegendRaidTool", "Version")),
+        Str(version), Str(build), Str(GetLocale()), date("%Y-%m-%d %H:%M"))
+    out[#out + 1] = string.format("%s %s level %s, guild %s, %s%s, zone %s (%s), combat %s", Str(race), Str(class),
+        Str(UnitLevel("player")), W.IsInGuild() and "yes" or "no", group, W.InGroup() and (" (" .. role .. ")") or "",
+        Str(GetRealZoneText and GetRealZoneText()), Str(kind), InCombatLockdown() and "yes" or "no")
+    local off = {}
+    local ui = W.db and W.db.ui
+    for key, v in pairs(ui and type(ui.off) == "table" and ui.off or {}) do
+        if v then off[#off + 1] = tostring(key) end
+    end
+    table.sort(off)
+    out[#out + 1] = "modules switched off: " .. (#off > 0 and table.concat(off, " ") or "none")
+    -- the other addons loaded: overlaps and conflicts (EllesmereUI, BugGrabber...)
+    local list = {}
+    local num = C_AddOns and C_AddOns.GetNumAddOns and C_AddOns.GetNumAddOns() or 0
+    for i = 1, num do
+        local name = C_AddOns.GetAddOnInfo(i)
+        if type(name) == "string" and C_AddOns.IsAddOnLoaded(i) and name:find("WarLegendRaidTool", 1, true) ~= 1
+            and #list < MAX_ADDONS then
+            list[#list + 1] = name .. " " .. Str(meta and meta(name, "Version"))
+        end
+    end
+    out[#out + 1] = "other addons loaded: " .. (#list > 0 and table.concat(list, ", ") or "none")
+end
+
+-- our errors of this session, message and stack (BugGrabber's list is oldest first)
+local function ErrorLines(out)
+    if not (BugGrabber and BugGrabber.GetDB and BugGrabber.GetSessionId) then
+        out[#out + 1] = "errors: BugGrabber not installed, none listed (install BugGrabber to get them here)"
+        return
+    end
+    local session, n = BugGrabber:GetSessionId(), 0
+    for _, err in ipairs(BugGrabber:GetDB() or {}) do
+        local message, stack = tostring(err.message or ""), tostring(err.stack or "")
+        if err.session == session and (message .. stack):find("WarLegendRaidTool", 1, true) then
+            n = n + 1
+            if n <= MAX_ERRORS then
+                out[#out + 1] = string.format("error %d (x%s): %s", n, Str(err.counter), W.CutUTF8(message, 500))
+                local k = 0
+                for line in stack:gmatch("[^\n]+") do
+                    k = k + 1
+                    if k > STACK_LINES then break end
+                    out[#out + 1] = "    " .. W.CutUTF8(line, 200)
+                end
+            end
+        end
+    end
+    out[#out + 1] = string.format("errors of ours this session: %d%s", n, n > MAX_ERRORS and (", the first " .. MAX_ERRORS .. " above") or "")
+end
+
+local function Report(r)
+    local out = {}
+    Context(out)
+    for _, l in ipairs(r.lines) do out[#out + 1] = l end
+    if r.dropped then out[#out + 1] = r.dropped .. " line(s) over the limit, not kept" end
+    if r.tested then out[#out + 1] = "module tests: " .. r.tested end
+    ErrorLines(out)
+    for _, b in ipairs(W.BusiestWork and W.BusiestWork(8) or {}) do
+        out[#out + 1] = string.format("perf: %s %.1f ms in %d call(s), max %.1f ms", Str(b[1]), tonumber(b[4]) or 0,
+            tonumber(b[3]) or 0, tonumber(b[2]) or 0)
+    end
+    out[#out + 1] = string.format("summary: %d OK, %d LOOK, %d SKIP", r.counts.OK, r.counts.LOOK, r.counts.SKIP)
+    return table.concat(out, "\n")
+end
+
+-- what gets copied: one line anyone can read, then the report deflated + base64 in lines of 76 (node
+-- tools/verify-live.js --decode reads it back); the plain report when the client cannot compress
+local function Pack(r, text)
+    local head = string.format("WLRT verify %s: %d OK, %d LOOK, %d SKIP", date("%Y-%m-%d %H:%M", r.t),
+        r.counts.OK, r.counts.LOOK, r.counts.SKIP)
+    local EU = C_EncodingUtil
+    if EU and EU.CompressString and EU.EncodeBase64 then
+        local ok, packed = pcall(function() return EU.EncodeBase64(EU.CompressString(text)) end)
+        if ok and type(packed) == "string" and packed ~= "" then
+            local parts = { head, "WLRTV1:" }
+            for i = 1, #packed, 76 do parts[#parts + 1] = packed:sub(i, i + 75) end
+            return table.concat(parts, "\n")
+        end
+    end
+    return head .. "\n" .. text
+end
+
+-- the copy box: everything already selected ("|" doubled: an edit box reads it as the start of an escape code)
+local function ShowReport(text)
+    W.TextPopup(L("WLRT verify report"), (text:gsub("|", "||")), { hint = L("All selected: Ctrl+C, then paste it to Claude.") })
+end
+
 local function Finish(before)
     local after = Errors()
     if after == nil then Out("SKIP", "errors", "BugGrabber not installed")
@@ -683,7 +791,12 @@ local function Finish(before)
     Out("INFO", "end", "run finished")
     W.Print(string.format(L("Verify: done, %d OK, %d to look at, %d skipped. /reload to save the run."),
         counts.OK, counts.LOOK, counts.SKIP))
+    local r = run
     run = nil
+    local ok, text = pcall(Report, r)
+    if not ok then text = "report error: " .. tostring(text) .. "\n" .. table.concat(r.lines, "\n") end
+    r.report = Pack(r, text)
+    ShowReport(r.report)
 end
 
 local function Start(tests)
@@ -692,11 +805,12 @@ local function Start(tests)
         LoggingChat(true)
         db.chatLogByUs = true
     end
-    run = { t = time(), lines = {} }
     counts = { OK = 0, LOOK = 0, SKIP = 0, INFO = 0 }
+    run = { t = time(), lines = {}, counts = counts }
     db.runs = type(db.runs) == "table" and db.runs or {}
     table.insert(db.runs, 1, run)
     while #db.runs > MAX_RUNS do table.remove(db.runs) end
+    for i = 2, #db.runs do db.runs[i].report = nil end -- one report kept: the newest
     Out("INFO", "begin", date("%Y-%m-%d %H:%M:%S") .. ", chat log " .. Str(LoggingChat and LoggingChat()))
     local before = Errors()
     for _, p in ipairs(probes) do
@@ -704,15 +818,30 @@ local function Start(tests)
         if not ok then Out("LOOK", p.id, "probe error " .. Str(err)) end
     end
     if not tests then return Finish(before) end
-    W.Print(L("Verify: module tests running (about 70 s)..."))
-    W.TestAll()
+    W.Print(L("Verify: module tests running (about 70 s), then the report opens to copy."))
+    -- what W.TestAll prints (the modules shown, or none switched on) goes in the report too
+    local printed, rawPrint = {}, W.Print
+    W.Print = function(msg)
+        if #printed < 3 then printed[#printed + 1] = tostring(msg) end
+        return rawPrint(msg)
+    end
+    local ok, err = pcall(W.TestAll)
+    W.Print = rawPrint
+    if not ok then Out("LOOK", "tests", "W.TestAll error " .. Str(err)) end
+    run.tested = table.concat(printed, " / ")
     local mine = run
     W.After(70, function() if run == mine then Finish(before) end end)
 end
 
--- /wl verify (probes + module tests), /wl verify quick (probes only), /wl verify stop (chat log back off)
+-- /wl verify (probes + module tests), /wl verify quick (probes only), /wl verify copy (the last report again),
+-- /wl verify stop (chat log back off)
 W.slash.verify = function(rest)
     rest = (rest or ""):lower()
+    if rest:match("^%s*copy") then
+        local last = type(db.runs) == "table" and db.runs[1]
+        if last and last.report then ShowReport(last.report) else W.Print(L("Verify: no report yet. Type /wl verify.")) end
+        return
+    end
     if rest:match("^%s*stop") then
         if db.chatLogByUs and LoggingChat then LoggingChat(false) end
         db.chatLogByUs = false
