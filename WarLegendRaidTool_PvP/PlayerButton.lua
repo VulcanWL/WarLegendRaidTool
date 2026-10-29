@@ -214,13 +214,19 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 
 	function playerButton:UpdateUnitID(unitID, targetUnitID)
 		if not UnitExists(unitID) then return end
+		-- WarLegend: the same unit and target unit again (each roster read for every ally, twice per target switch of
+		-- an ally for the enemy): no full update and no UnitIdUpdate for the modules (the cast bar registers its events
+		-- again, the aura containers are rebuilt); the periodic UpdateAll keeps the values fresh
+		local same = unitID == self.unitID and targetUnitID == self.TargetUnitID
 		self.unitID = unitID
 		self.TargetUnitID = targetUnitID
 		if self.PlayerIsEnemy then
+			if same then return end
 			self:UpdateRaidTargetIcon()
 		elseif self:GetAttribute("unit") ~= unitID and self.config then
 			self:SetBindings() -- an ally's unit changed (raid roster): the unit attribute follows (after combat if needed)
 		end
+		if same then return end
 		self:UpdateAll(unitID)
 		self:DispatchEvent("UnitIdUpdate", unitID)
 	end

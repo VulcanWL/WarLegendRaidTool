@@ -70,6 +70,8 @@ local TYPE_ICONS = {
 -- (the name is cut shorter on its right) when the name box is too narrow to stay readable beside them, and at the
 -- right edge of the health bar when there is no name. Redone when the name, the frame or a symbol changes.
 local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must stay readable beside them
+-- WarLegend: this runs 4 times a second per unit frame: its list is reused, no shift table when there is none
+local NO_SHIFT = { 0, 0 }
 local function LayoutTypeIcons(pb)
 	local list, bar = pb.WLTypeIcons, pb.healthBar
 	if not (list and bar) then return end
@@ -77,7 +79,9 @@ local function LayoutTypeIcons(pb)
 	-- so each one goes through pcall and a refusal just leaves that symbol where it is
 	-- The container's frames may answer "hidden / shown" with a secret value (it cannot even be tested): then
 	-- the symbol slots the container made are all reserved, shown or not, so the name never runs under one.
-	local shown, size, hidden = {}, 0, false
+	local shown, size, hidden = pb.WLTypeShown or {}, 0, false
+	pb.WLTypeShown = shown
+	wipe(shown)
 	for _, it in ipairs(list) do
 		local ok, visible = pcall(it.IsVisible, it)
 		local secret = ok and issecretvalue and issecretvalue(visible)
@@ -89,7 +93,7 @@ local function LayoutTypeIcons(pb)
 		end
 	end
 	if hidden then -- the ones whose answer was a plain "hidden" are reserved too
-		shown = {}
+		wipe(shown)
 		for _, it in ipairs(list) do
 			shown[#shown + 1] = it
 			local okw, w = pcall(it.GetWidth, it)
@@ -101,7 +105,7 @@ local function LayoutTypeIcons(pb)
 	local name = pb.Name
 	local cfg = name and name.config
 	local hasName = name and name.Enabled ~= false and cfg and cfg.Points and name:IsShown() and true or false
-	local old = pb.WLNameShift or { 0, 0 }
+	local old = pb.WLNameShift or NO_SHIFT
 	local sl, sr, mode = 0, 0, "bar"
 	if hasName and n > 0 then
 		local w = name:GetWidth()
@@ -110,10 +114,11 @@ local function LayoutTypeIcons(pb)
 		-- the box width without my own shift; unknown before the first layout: then the symbols stay first
 		if w and w > 0 and (w + old[1] + old[2]) - total < math.min(textW, NAME_MIN) then mode, sl, sr = "after", 0, total end
 	end
-	-- nothing changed since the last pass: nothing to anchor again
-	local sig = mode .. ":" .. n .. ":" .. size .. ":" .. sl .. ":" .. sr
-	if pb.WLTypeSig == sig then return end
-	pb.WLTypeSig = sig
+	-- nothing changed since the last pass: nothing to anchor again (compared value by value, no text made)
+	if pb.WLTypeMode == mode and pb.WLTypeN == n and pb.WLTypeSize == size and pb.WLTypeSL == sl and pb.WLTypeSR == sr then
+		return
+	end
+	pb.WLTypeMode, pb.WLTypeN, pb.WLTypeSize, pb.WLTypeSL, pb.WLTypeSR = mode, n, size, sl, sr
 	-- the name box: its left anchor is pushed right, its right anchor left
 	if hasName and (old[1] ~= sl or old[2] ~= sr) then
 		pb.WLNameShift = { sl, sr }
@@ -149,7 +154,7 @@ function NA.RegisterTypeIcon(pb, item)
 	pb.WLTypeIcons[#pb.WLTypeIcons + 1] = item
 	if pb.WLTypeHooked then return end
 	pb.WLTypeHooked = true
-	local function again() pb.WLTypeSig = nil; LayoutTypeIcons(pb) end
+	local function again() pb.WLTypeMode = nil; LayoutTypeIcons(pb) end
 	if hooksecurefunc then
 		-- SetModulePositions anchors the name again from its settings: my shift is gone, apply it anew
 		pcall(hooksecurefunc, pb, "SetModulePositions", function() pb.WLNameShift = nil; again() end)

@@ -1288,6 +1288,20 @@ function WarLegendPvP:IsUserName(name)
 	return fullName and normalized == normalizeName(fullName) or false
 end
 
+-- WarLegend: my names as normalizeName gives them, for many compares in a row (IsUserName on each of the 40
+-- enemies of the scoreboard made 4 gsub and an API call each)
+function WarLegendPvP:UserNameSet()
+	local set = {}
+	local function add(n)
+		local k = normalizeName(n)
+		if k then set[k] = true end
+	end
+	add(self.UserDetails.PlayerName)
+	add(self.UserDetails.FirstName)
+	add(self:GetReadableUnitName("player"))
+	return set
+end
+
 -- target macro lines for a player name, the forms the client may use for a Forever name
 function WarLegendPvP.GetTargetMacro(name)
 	local first, rest = name:match("^([^%s%-]+)[%s%-](.+)$")
@@ -1306,10 +1320,24 @@ function WarLegendPvP.GetTargetableName(name)
 	return name
 end
 
+-- WarLegend: the button of a group unit (player, partyN, raidN) is kept and checked against the button's own unit
+-- (a roster change moves the units): the hundreds of unit events a second each did a name lookup
+local GROUP_UNIT = { player = true }
+for i = 1, 40 do GROUP_UNIT["raid" .. i] = true end
+for i = 1, 4 do GROUP_UNIT["party" .. i] = true end
+local groupUnitButtons = {}
+
 function WarLegendPvP:GetPlayerbuttonByUnitID(unitID)
+	local group = GROUP_UNIT[unitID]
+	if group then
+		local button = groupUnitButtons[unitID]
+		if button and button.unitID == unitID and button:IsShown() then return button end
+	end
 	local uName = self:GetReadableUnitName(unitID)
 	if not uName then return end
-	return self:GetPlayerbuttonByName(uName)
+	local button = self:GetPlayerbuttonByName(uName)
+	if group then groupUnitButtons[unitID] = button end
+	return button
 end
 
 function WarLegendPvP:GetPlayerbuttonByName(name)
@@ -1643,11 +1671,14 @@ end
 
 
 
--- a scoreboard value as text to compare (UPDATE_BATTLEFIELD_SCORE), "?" for a secret one
+-- a scoreboard value to compare (UPDATE_BATTLEFIELD_SCORE), "?" for a secret one, "" for none
 local function plainValue(v)
 	if issecret(v) then return "?" end
-	return tostring(v)
+	if v == nil then return "" end
+	return v
 end
+-- WarLegend: the values of this scoreboard and of the last one, two arrays swapped (no text made every 2 s)
+local scoreFields, lastScoreFields = {}, {}
 
 function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 	self:Debug("UPDATE_BATTLEFIELD_SCORE")
@@ -1690,28 +1721,41 @@ function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 	self:Debug("battlefieldScores", battlefieldScores)
 
 	--see if our faciton in BG changed
+	local myNames -- WarLegend: read once, for the first enemy entry
 	for i = 1, #battlefieldScores do
 		local score = battlefieldScores[i]
 		local name = score.name
 		local faction = score.faction
 
-		if faction == self.EnemyFaction and self:IsUserName(name) then -- the cheap test first (80 entries every 2 s)
-			self:SetAllyFaction(self.EnemyFaction)
+		if faction == self.EnemyFaction then -- the cheap test first (80 entries every 2 s)
+			myNames = myNames or self:UserNameSet()
+			local normalized = normalizeName(name)
+			if normalized and myNames[normalized] then self:SetAllyFaction(self.EnemyFaction) end
 		end
 	end
 
 	-- WarLegend: the scoreboard is asked for every 2 s; when it holds the same players as the last time (name, side,
-	-- class, race, spec) the frames are not built again from it. A secret value is never compared: "?" in its place.
-	local parts = {}
+	-- class, race, spec) the frames are not built again from it. Compared value by value with the last one (it was a
+	-- text of 4 KB made each time); self.lastScoreboard is its count, nil = build again. A secret value is never
+	-- compared: "?" in its place.
+	local fields, n = scoreFields, 0
 	for i = 1, #battlefieldScores do
 		local score = battlefieldScores[i]
-		parts[i] = plainValue(score.name) .. "\2" .. plainValue(score.faction) .. "\2" .. plainValue(score.classToken)
-			.. "\2" .. plainValue(score.raceName) .. "\2" .. plainValue(score.talentSpec)
+		fields[n + 1], fields[n + 2], fields[n + 3] = plainValue(score.name), plainValue(score.faction), plainValue(score.classToken)
+		fields[n + 4], fields[n + 5] = plainValue(score.raceName), plainValue(score.talentSpec)
+		n = n + 5
 	end
-	parts[#parts + 1] = tostring(self.EnemyFaction)
-	local content = table.concat(parts, "\1")
-	if content == self.lastScoreboard then return end
-	self.lastScoreboard = content
+	n = n + 1
+	fields[n] = plainValue(self.EnemyFaction)
+	local same = self.lastScoreboard == n
+	if same then
+		for i = 1, n do
+			if fields[i] ~= lastScoreFields[i] then same = false; break end
+		end
+	end
+	if same then return end
+	scoreFields, lastScoreFields = lastScoreFields, fields
+	self.lastScoreboard = n
 
 	WarLegendPvP.Enemies:BeforePlayerSourceUpdate(self.consts.PlayerSources.Scoreboard)
 	WarLegendPvP.Allies:BeforePlayerSourceUpdate(self.consts.PlayerSources.Scoreboard)

@@ -117,12 +117,13 @@ local function Knows(id)
 end
 
 -- my buff families, built once: { names = { [name] = true }, icon, missing, mana }
-local myBuffs, myDispels
+-- WarLegend: myMissing = one of them is shown greyed when missing; myNothing = no buff and no dispel to show
+local myBuffs, myDispels, myMissing, myNothing
 local function MyClass()
 	if myBuffs then return myBuffs, myDispels end
 	local class = W.UnitClassToken("player")
 	myDispels = CLASS_DISPELS[class] or {}
-	myBuffs = {}
+	myBuffs, myMissing = {}, false
 	for _, fam in ipairs(CLASS_BUFFS[class] or {}) do
 		local names, known = {}, false
 		for _, id in ipairs(fam.ids) do
@@ -133,8 +134,10 @@ local function MyClass()
 		local icon = SpellIcon(fam.ids[1])
 		if known and icon and next(names) then
 			myBuffs[#myBuffs + 1] = { names = names, icon = icon, missing = fam.missing, mana = fam.mana }
+			if fam.missing then myMissing = true end
 		end
 	end
+	myNothing = #myBuffs == 0 and next(myDispels) == nil
 	return myBuffs, myDispels
 end
 
@@ -170,6 +173,7 @@ end)
 -- Reading one unit (secret-safe: W.AuraByIndex gives false for an aura the client refuses)
 ---------------------------------------------------------------------------
 local MAX_DEBUFFS = 4
+local NONE = {} -- WarLegend: the empty list given to Draw (only read, never filled)
 
 -- missingOnly: the client's aura container already shows the debuffs and my buffs, only the missing ones
 local function ReadUnit(unit, missingOnly)
@@ -355,7 +359,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	end
 
 	function f:Clear()
-		f.lastSig = nil
+		f.lastDebuffs = nil
 		for i = 1, #f.icons do f.icons[i]:Hide() end
 		if tint then tint:Hide() end
 		for i = 1, #typeIcons do typeIcons[i]:Hide() end
@@ -377,18 +381,20 @@ function dispel:AttachToPlayerButton(playerButton)
 		self:SetPoint("LEFT", target, "RIGHT", x, 0)
 	end
 
-	-- WarLegend: what Show_ would draw; Update redraws only when it changes (it runs every 0.2 s per ally in combat)
-	local function Signature(debuffs, buffs, border)
-		local parts = { playerButton:GetHeight() or 0, border and border[1] or "-" }
-		for _, d in ipairs(debuffs) do parts[#parts + 1] = tostring(d.icon) .. (d.dtype or "") end
-		parts[#parts + 1] = "|"
-		for _, b in ipairs(buffs) do parts[#parts + 1] = tostring(b.icon) .. (b.grey and "g" or "") end
-		return table.concat(parts, ",")
+	-- WarLegend: Update redraws only when what Show_ would draw changes (it runs every 0.2 s per ally in combat):
+	-- the lists drawn last are kept and compared item by item (no text built at each read)
+	local function SameList(a, b, key)
+		if #a ~= #b then return false end
+		for i = 1, #a do
+			if a[i].icon ~= b[i].icon or a[i][key] ~= b[i][key] then return false end
+		end
+		return true
 	end
 	function f:Draw(debuffs, buffs, border)
-		local sig = Signature(debuffs, buffs, border)
-		if sig == self.lastSig then return end
-		self.lastSig = sig
+		local h = playerButton:GetHeight() or 0
+		if self.lastDebuffs and h == self.lastH and border == self.lastBorder
+			and SameList(debuffs, self.lastDebuffs, "dtype") and SameList(buffs, self.lastBuffs, "grey") then return end
+		self.lastDebuffs, self.lastBuffs, self.lastBorder, self.lastH = debuffs, buffs, border, h
 		self:Show_(debuffs, buffs, border)
 	end
 
@@ -405,10 +411,15 @@ function dispel:AttachToPlayerButton(playerButton)
 				NA.SetUnit(f.native, unit)
 				if f.leftNative then NA.SetUnit(f.leftNative, unit) end
 			end
+			-- WarLegend: only the missing buffs of my class are drawn here; a class without one has nothing to read
+			MyClass()
+			if not myMissing then return self:Draw(NONE, NONE, nil) end
 			local ok, _, missing = pcall(ReadUnit, unit, true)
-			self:Draw({}, ok and missing or {}, nil)
+			self:Draw(NONE, ok and missing or NONE, nil)
 			return
 		end
+		MyClass()
+		if myNothing then return self:Draw(NONE, NONE, nil) end -- WarLegend: no buff and no dispel of my class
 		local ok, debuffs, buffs, border = pcall(ReadUnit, unit)
 		if not ok then return self:Clear() end
 		self:Draw(debuffs, buffs, border)
@@ -433,7 +444,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:OnTestmodeDisabled() self.testmode = false; self:Clear(); f.nativeUnit = nil end
 	function f:OnTestmodeTick()
 		self.testmode = true
-		self.lastSig = nil
+		self.lastDebuffs = nil
 		if playerButton.PlayerIsEnemy then return end
 		self:Anchor()
 		local buffs = MyClass()
@@ -454,7 +465,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	function f:ApplyAllSettings()
 		if not self.config then return end
 		if playerButton.PlayerIsEnemy then self:Clear(); return end
-		self.lastSig, self.anchorTarget = nil, nil
+		self.lastDebuffs, self.anchorTarget = nil, nil
 		self:Schedule()
 	end
 
@@ -472,8 +483,12 @@ auraFrame:SetScript("OnEvent", function(_, _, unit)
 	-- cheapest test first: outside a battleground nothing else runs
 	if not WarLegendPvP.states or not WarLegendPvP.states.real or not WarLegendPvP.states.real.isInBattleground then return end
 	if not GROUP_UNITS[unit] then return end
-	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit)
-	if ok and btn and not btn.PlayerIsEnemy and btn.Dispel and btn.Dispel.Enabled then btn.Dispel:Schedule() end
+	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit) -- a table lookup for group units
+	local d = ok and btn and not btn.PlayerIsEnemy and btn.Dispel
+	if not (d and d.Enabled) or d.pending then return end
+	-- WarLegend: nothing of my class to read on an aura change (the client's containers draw the rest by themselves)
+	if myBuffs and (myNothing or (d.native and not myMissing)) then return end
+	d:Schedule()
 end)
 if hooksecurefunc and WarLegendPvP.Enable and WarLegendPvP.Disable then
 	hooksecurefunc(WarLegendPvP, "Enable", function() auraFrame:RegisterEvent("UNIT_AURA") end)

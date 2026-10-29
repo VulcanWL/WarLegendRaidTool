@@ -98,6 +98,9 @@ local testEvents = {
 	end
 }
 
+-- WarLegend: the player details that say who the player is (CreateOrUpdatePlayerDetails)
+local IDENTITY_DETAILS = { "PlayerName", "PlayerClass", "PlayerClassColor", "PlayerSpecName", "PlayerRole", "PlayerLevel", "isFakePlayer" }
+
 ---@class MainFrame : Button
 ---@field Players table<string, PlayerButton>
 ---@field CurrentPlayerOrder table<number, PlayerButton>
@@ -120,6 +123,8 @@ local function CreateMainFrame(playerType)
 
     ---@class MainFrame
 	local mainframe = CreateFrame("Button", "WLPvP"..playerType, UIParent, "SecureActionButtonTemplate, SecureHandlerEnterLeaveTemplate")
+	-- WarLegend: raised at each settings change (SortPlayers(true)); a button carries the one it was set up for
+	mainframe.settingsGeneration = 1
 
 	mainframe:SetAttribute("type4", "macro")
 	mainframe:SetAttribute("type5", "macro")
@@ -560,7 +565,11 @@ local function CreateMainFrame(playerType)
 		playerButton.unit = nil
 
 		playerButton.PlayerDetails = playerDetails
-		playerButton:PlayerDetailsChanged()
+		-- WarLegend: a button not set up for the current settings gets its modules and click bindings from the
+		-- ApplyButtonSettings of ButtonPositioning: done once, not twice (40 buttons at the first scoreboard)
+		if playerButton.settingsGeneration == self.settingsGeneration then
+			playerButton:PlayerDetailsChanged()
+		end
 
 		self.Target = nil
 
@@ -730,7 +739,13 @@ local function CreateMainFrame(playerType)
 				playerButton:ClearAllPoints()
 				playerButton:SetPoint(point, self, point, offsetX, offsetY)
 
-				playerButton:ApplyButtonSettings()
+				-- WarLegend: the settings only when they changed or the button never had them; a new order (a player
+				-- joins or leaves, 40 times while a raid forms) only moves the buttons. Marked once the button has a
+				-- place: SetModulePositions waits for one, it is tried again until then
+				if playerButton.settingsGeneration ~= self.settingsGeneration then
+					playerButton:ApplyButtonSettings()
+					if playerButton:GetRect() then playerButton.settingsGeneration = self.settingsGeneration end
+				end
 
 				if row < rowsPerColumn then
 					row = row + 1
@@ -797,21 +812,13 @@ local function CreateMainFrame(playerType)
 			local currentDetails = playerButton.PlayerDetails
 			local detailsChanged = false
 
-			for k, v in pairs(playerDetails) do
-				if v ~= currentDetails[k] then
+			-- WarLegend: only who the player is counts; the unit, GUID and leader / assistant of a raid member move at
+			-- every roster change and are just kept (a change re-applies the modules and click bindings of the button)
+			for i = 1, #IDENTITY_DETAILS do
+				local k = IDENTITY_DETAILS[i]
+				if playerDetails[k] ~= currentDetails[k] then
 					detailsChanged = true
-					-- self:Debug("k changed1", k)
 					break
-				end
-			end
-
-			if not detailsChanged then
-				for k, v in pairs(currentDetails) do
-					if v ~= playerDetails[k] then
-						detailsChanged = true
-						-- self:Debug("k changed2", k)
-						break
-					end
 				end
 			end
 			playerButton.PlayerDetails = playerDetails
@@ -930,6 +937,18 @@ local function CreateMainFrame(playerType)
 				end
 			end
 
+			-- WarLegend: new settings for every button; and a button without the current ones (new, or kept aside while
+			-- they changed) is set up by ButtonPositioning even when the order did not change
+			if forceRepositioning then self.settingsGeneration = self.settingsGeneration + 1 end
+			if not orderChanged then
+				for i = 1, #newPlayerOrder do
+					if newPlayerOrder[i].settingsGeneration ~= self.settingsGeneration then
+						orderChanged = true
+						break
+					end
+				end
+			end
+
 			--[[ 			self:Debug("after sorting")
 			for i = 1, #newPlayerOrder do
 				self:Debug(i, newPlayerOrder[i].PlayerDetails.PlayerName)
@@ -1038,6 +1057,7 @@ end
 
 function WarLegendPvP.Allies:UpdateAllUnitIDs()
 	--it happens that numGroupMembers is higher than the value of the maximal players for that battleground, for example 15 in a 10 man bg, thats why we wipe AllyUnitIDToAllyDetails
+	local sortNeeded = false -- WarLegend: one sort after the loop, not one per ally whose unit changed
 	for allyName, allyButton in pairs(self.Players) do
 		local unitID
 		local targetUnitID
@@ -1066,7 +1086,7 @@ function WarLegendPvP.Allies:UpdateAllUnitIDs()
 				else
 					allyButton.unit = unitID
 					allyButton:SetAttribute('unit', unitID)
-					WarLegendPvP.Allies:SortPlayers()
+					sortNeeded = true
 				end
 			end
 
@@ -1081,6 +1101,7 @@ function WarLegendPvP.Allies:UpdateAllUnitIDs()
 			end
 		end
 	end
+	if sortNeeded then self:SortPlayers() end
 end
 
 -- key = nameplate unitID, value = playerButton; the name of a removed nameplate may no longer be readable
