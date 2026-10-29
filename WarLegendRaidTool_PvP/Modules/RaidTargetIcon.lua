@@ -64,7 +64,7 @@ function raidTargetIcon:AttachToPlayerButton(playerButton)
 
 	function playerButton.RaidTargetIcon:ApplyAllSettings()
 		if not self.config then return end
-		self:UpdateRaidTargetIcon()
+		self:UpdateRaidTargetIcon(playerButton.RaidTargetIconIndex) -- the mark known (was nil: every mark hidden)
 	end
 	return playerButton.RaidTargetIcon
 end

@@ -1083,6 +1083,10 @@ function WarLegendPvP.Allies:UpdateAllUnitIDs()
 		if unitID and targetUnitID then
 			--self.unitID already gets assigned for allies before, info from GROUP_ROSTER_UPDATE
 
+			-- WarLegend: "moved" = a new unit since the last read (the button's own unitID); "changed" = the secure unit
+			-- attribute differs, which in combat stays so until the fight ends: the target reset below used it and ran
+			-- again for every moved ally at every roster read of the fight
+			local moved = allyButton.unitID ~= unitID
 			local changed = allyButton.unit ~= unitID
 			if changed then
 				--ally has a new unitID now
@@ -1101,7 +1105,7 @@ function WarLegendPvP.Allies:UpdateAllUnitIDs()
 
 			-- WarLegend: reset the TargetedByEnemy once the ally's target unit is the new one, so the enemy it targets
 			-- reads that unit (was targetButton:IsNoLongerTarging(targetButton): the enemy button targeted itself)
-			local targetButton = changed and allyButton.Target
+			local targetButton = moved and allyButton.Target
 			if targetButton then
 				allyButton:IsNoLongerTarging(targetButton)
 				allyButton:IsNowTargeting(targetButton)

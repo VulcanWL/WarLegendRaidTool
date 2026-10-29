@@ -195,9 +195,18 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		end
 	end
 
+	-- WarLegend: the modules' settings put a full health bar and no mark: the unit's values are read again (the
+	-- next unit update used to do it; since it stops early for an unchanged unit, a dead ally showed a full bar)
+	function playerButton:RefreshAfterSettings()
+		if not self.unitID then return end -- test mode players keep their made-up values and marks
+		self:UpdateAll(self.unitID)
+		self:UpdateRaidTargetIcon()
+	end
+
 	function playerButton:PlayerDetailsChanged()
 		self:SetBindings()
 		self:ApplyModuleSettings()
+		self:RefreshAfterSettings()
 	end
 
 	function playerButton:UpdateRaidTargetIcon(forceIndex)
@@ -222,11 +231,11 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		self.TargetUnitID = targetUnitID
 		if self.PlayerIsEnemy then
 			if same then return end
-			self:UpdateRaidTargetIcon()
 		elseif self:GetAttribute("unit") ~= unitID and self.config then
 			self:SetBindings() -- an ally's unit changed (raid roster): the unit attribute follows (after combat if needed)
 		end
 		if same then return end
+		self:UpdateRaidTargetIcon() -- allies too: a mark placed before the frames existed showed only at the next change
 		self:UpdateAll(unitID)
 		self:DispatchEvent("UnitIdUpdate", unitID)
 	end
@@ -501,6 +510,7 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		self:SetModulePositions()
 		self:ApplyModuleSettings()
 		self:SetBindings()
+		self:RefreshAfterSettings()
 	end
 
 	do

@@ -1846,6 +1846,9 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 		end
 	end
 	rosterReadAt = GetTime()
+	-- WarLegend: the units move with the roster: looked up by name again (in combat a departed ally's button keeps
+	-- its old unit, so the kept entry passed the check and that unit's health / target went to the departed one)
+	wipe(groupUnitButtons)
 	self.Allies:BeforePlayerSourceUpdate(self.consts.PlayerSources.GroupMembers)
 	self.Allies.groupLeader = nil
 	self.Allies.assistants = {}
