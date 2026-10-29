@@ -17,6 +17,11 @@ The user is French but asked (23/10) for **answers in English** (fewer tokens). 
 - Files are **UTF-8 without BOM, LF line endings, 4-space indentation**. Keep it that way
   (French accents in strings must stay valid UTF-8).
 - Secure frames / protected actions cannot change in combat: check `InCombatLockdown()` first.
+- **Text from other players** (addon message, whisper, chat line, pasted profile) is bounded before any pattern runs on
+  it: a size cap per prefix (`W.OnAddonLong(prefix, fn, max)`, `#field` / `#line` checks), a split with a single class
+  (`gmatch("[^;]+")`) or plain `find(sep, 1, true)`, then anchored patterns on short pieces. Never a pattern with a
+  repeated class before a literal (`(.-)%s*=`, `([^=;]+)=`, `(%d+):(%d+)`) unanchored on a received field: quadratic or
+  cubic, one message froze every client (audit 28/10). `tools/smoke/scenario.lua` "long texts" checks the long prefixes.
 - There are no automated tests. The user tests in game with `/reload`. Say what to test.
 
 ## Blizzard ToS check (every change, every changed line)
@@ -40,12 +45,19 @@ this list; a line that fails it is a blocker, whatever the user asked (explain i
    never in the UI, chat or tooltips.
 6. **Nothing offensive** (Policy 6: rated "T"). Applies to texts, presets, default messages, images.
 7. **No automation, no bot** (EULA "Cheating": bots = code "that allows the automated control of a Game"; client:
-   protected actions need a hardware event). A protected action (cast / use, target, invite / uninvite / convert /
-   promote, raid marks, master loot give, equip, AH, guild rank / removal, macro or binding change) and a chat line on
-   SAY / YELL / a channel outside an instance run only in the call chain of a click or key press: `OnClick`, a secure
-   button, a `W.Confirm` button. Never from `OnUpdate`, `W.After`, a ticker, an event handler or an addon-message
-   handler. One click = one action the player chose (a secure macro run by that same click is fine); nothing goes on
-   acting after it.
+   protected actions need a hardware event). A protected action and a chat line on SAY / YELL / a channel outside an
+   instance run only in the call chain of a click or key press: `OnClick`, a secure button, a `W.Confirm` button. Never
+   from `OnUpdate`, `W.After`, a ticker, an event handler or an addon-message handler. One click = one action the
+   player chose (a secure macro run by that same click is fine); nothing goes on acting after it. Protected =
+   secure-only (cast / use, target, focus: secure buttons and macros) or `HasRestrictions` in Blizzard's Forever API
+   docs (build 1.60.1.70532, `tools/.cache/wow-ui-source`): `C_PartyInfo` ConvertToRaid / ConvertToParty /
+   UninviteUnit / PromoteToAssistant / PromoteToLeader / DemoteAssistant / SetEveryoneIsAssistant / SetLootMethod /
+   DoReadyCheck / DoCountdown; raid marks (SetRaidTarget, PlaceRaidMarker, ClearRaidMarker, RemoveRaidTargets);
+   `C_ChatInfo.SendChatMessage` / `PerformEmote`; `C_GuildInfo` RemoveFromGuild / SetNote / SetMOTD / SetInfoText /
+   SetGuildRankOrder; `C_TradeInfo` money; `C_Macro.RunMacroText`; `C_ClickBindings`; `C_SettingsUtil.OpenSettingsPanel`;
+   `C_Item.DeleteItem`. **Not restricted**: `InviteUnit` (invites queued after one click are standard) and addon
+   messages. Old globals missing from the docs (`SetRaidSubgroup`, `SwapRaidSubgroup`, `GiveMasterLoot`, guild rank
+   changes, AH, equip, macro / binding changes): treated as restricted until a test in game says otherwise.
 8. **Remote input acts on nothing** (follows from 7 and EULA "Disruption / Harassment"). A received addon message,
    whisper or chat line never casts, invites, marks, gives loot or sends a public line by itself: it shows
    information, or a question the local player must click (`W.ConfirmRemote`). A hostile sender must not be able to

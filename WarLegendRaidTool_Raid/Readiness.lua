@@ -64,8 +64,13 @@ local askId -- id of my last check: answers must carry it
 -- Requirements
 ---------------------------------------------------------------------------
 local function ParseLine(line)
-    local body, label = line:match("^%s*(.-)%s*=%s*(.-)%s*$")
-    body = body or line:match("^%s*(.-)%s*$")
+    -- the list can come from another player: a long line is skipped and "=" found as plain text, no pattern
+    -- with a repeated class before a literal (a line of spaces made it cubic: one ask froze the raid)
+    if #line > 200 then return nil end
+    local body, label = line, nil
+    local eq = line:find("=", 1, true)
+    if eq then body, label = line:sub(1, eq - 1), line:sub(eq + 1):match("^%s*(.-)%s*$") end
+    body = body:match("^%s*(.-)%s*$")
     if body == "" or body:sub(1, 2) == "--" then return nil end
     local words = {}
     for w in body:gmatch("%S+") do words[#words + 1] = w:lower() end
@@ -98,6 +103,7 @@ local function Parse(text)
     for line in ((text or "") .. "\n"):gmatch("(.-)\n") do
         local r = ParseLine(line)
         if r and #list < MAX_REQ then list[#list + 1] = r end
+        if #list >= MAX_REQ then break end
     end
     return list
 end
@@ -324,7 +330,7 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
     if GetTime() - lastAnswered < 5 then return end
     lastAnswered = GetTime()
     local id, list = text:match("^(%d+)\n(.*)$")
-    if not id then return end
+    if not id or #list > 2000 then return end -- the asker's box holds 2000 letters
     -- "free": my saved instances are asked for first, the answer is read once they had time to arrive
     if RequestRaidInfo then RequestRaidInfo() end
     W.After(1 + math.random() * 2, function()
@@ -342,7 +348,7 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
             W.Print(string.format(L("Readiness check from %s: you are ready."), W.Sender(from, full)))
         end
     end)
-end)
+end, 2100) -- id + the 2000-letter box
 
 W.OnAddon(PREFIX_ANS, function(msg, from, _, full)
     if askedAt == 0 or GetTime() - askedAt > 120 then return end -- only answers to my own recent check

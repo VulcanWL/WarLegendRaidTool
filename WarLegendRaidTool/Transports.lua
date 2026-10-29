@@ -167,7 +167,17 @@ local function Share(own)
     end
     if #parts > 0 and GetTime() - lastShare > 5 then
         lastShare = GetTime()
-        W.Send(PREFIX, table.concat(parts, ";"), "GUILD")
+        -- an addon message holds 255 bytes (about 8 schedules): the rest goes in the next ones, never one refused send
+        local msg = parts[1]
+        for i = 2, #parts do
+            if #msg + 1 + #parts[i] > 250 then
+                W.Send(PREFIX, msg, "GUILD")
+                msg = parts[i]
+            else
+                msg = msg .. ";" .. parts[i]
+            end
+        end
+        W.Send(PREFIX, msg, "GUILD")
     end
 end
 

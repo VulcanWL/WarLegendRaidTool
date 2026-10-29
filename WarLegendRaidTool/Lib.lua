@@ -328,13 +328,18 @@ local PARTS_TTL = 60 -- an incomplete message (lost chunk, sender left) is dropp
 local MAX_CHUNKS = 64 -- 14 KB: far above a raid note or a profession list, refuses absurd senders
 local MAX_OPEN_PER_SENDER = 4 -- messages one sender may have half-received at once (per prefix)
 local MAX_OPEN = 120 -- all senders together (per prefix): a 40-player raid sending 3 each
-function W.OnAddonLong(prefix, fn)
+-- max: the longest text this prefix needs (default MAX_PLAIN). A longer one is dropped before fn reads it:
+-- the receiver's patterns never see more than its own use can send.
+function W.OnAddonLong(prefix, fn, max)
+    max = max or MAX_PLAIN
+    -- chunks a text of max bytes can take: escaping at most doubles it, compressed + Base64 is shorter
+    local maxChunks = math.min(MAX_CHUNKS, math.ceil(2 * max / CHUNK) + 1)
     local parts = {}
     W.OnAddon(prefix, function(msg, from, channel, full)
         local id, i, n, chunk = msg:match("^(z?%d+):(%d+):(%d+):(.*)$")
         if not id then return end
         i, n = tonumber(i), tonumber(n)
-        if not i or not n or n < 1 or n > MAX_CHUNKS or i < 1 or i > n then return end
+        if not i or not n or n < 1 or n > maxChunks or i < 1 or i > n then return end
         local who = full or from
         local key = who .. id
         if parts[key] and parts[key].n ~= n then return end -- chunks of one message all say the same count
@@ -360,11 +365,12 @@ function W.OnAddonLong(prefix, fn)
             parts[key] = nil
             local text = table.concat(p, "", 1, p.n)
             if id:sub(1, 1) == "z" then
-                local plain = W.Inflate(text, MAX_PLAIN)
+                local plain = W.Inflate(text, max)
                 if not plain then return end
                 text = plain
             else
                 text = text:gsub("~3", "|"):gsub("~2", "\n"):gsub("~1", "~")
+                if #text > max then return end
             end
             fn(text, from, channel, full)
         end
@@ -752,6 +758,11 @@ function W.ConfirmRemote(text, onYes, yesText)
         return
     end
     return W.Confirm(text, onYes, yesText)
+end
+
+-- A question is open: a prompt nobody asked for (a timer's) waits instead of replacing it
+function W.ConfirmShown()
+    return confirm ~= nil and confirm:IsShown()
 end
 
 -- Reload confirmation. The WoW: Forever client blocks ReloadUI() from addon code, even on a click,

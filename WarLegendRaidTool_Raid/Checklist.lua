@@ -71,11 +71,15 @@ local function Encode(items)
     return table.concat(t, ",")
 end
 local MAX_ITEMS = 100 -- a shared list: at most this many items, ids and quantities within sane bounds
-local function Decode(s)
+local MAX_TEXT = 2000 -- 100 "id:count" fit: a longer field is refused before any pattern runs on it
+-- split on "," then an anchored pattern: "(%d+):(%d+)" unanchored is quadratic on a long run of digits
+local function Decode(s, maxN)
     local out = {}
-    for id, n in (s or ""):gmatch("(%d+):(%d+)") do
+    if not s or #s > MAX_TEXT then return out end
+    for e in s:gmatch("[^,]+") do
         if #out >= MAX_ITEMS then break end
-        id, n = W.Int(id, 1, 999999), W.Int(n, 0, 9999)
+        local id, n = e:match("^(%d+):(%d+)$")
+        id, n = W.Int(id, 1, 999999), W.Int(n, 0, maxN or 9999)
         if id and n then out[#out + 1] = { id, n } end
     end
     return out
@@ -106,15 +110,11 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
     elseif t[1] == "A" and unit and GetTime() - askedAt < 60 then -- someone else's check: not saved here
         -- answers keyed by full identity: two "Arthur" in the raid stay two rows
         local r = { name = W.UnitDisplayName(unit) or from, class = class, counts = {} }
-        local nCounts = 0
-        for id, n in (t[2] or ""):gmatch("(%d+):(%d+)") do
-            id, n = W.Int(id, 1, 999999), W.Int(n, 0, 99999999)
-            if id and n and nCounts < MAX_ITEMS then r.counts[id] = n; nCounts = nCounts + 1 end
-        end
+        for _, e in ipairs(Decode(t[2], 99999999)) do r.counts[e[1]] = e[2] end
         db.raid[W.UnitKey(unit) or from] = r
         CL.RefreshRaid()
     end
-end)
+end, 2100) -- "L^" / "Q^" / "A^" + 100 items
 
 -- Panel
 local UI = {}

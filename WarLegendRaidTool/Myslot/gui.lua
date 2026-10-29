@@ -589,35 +589,49 @@ do
     local clearOpt  = {}
     local forceImport = false
 
-    -- WLRT: a profile pasted by someone else can hold a /run macro put on a bar or a key: its macros that run Lua
-    -- code and its key bindings that click a button or run a macro are listed before the import
-    local RUN = { ["/run"] = true, ["/script"] = true, ["/dump"] = true }
-    local function Names(list)
+    -- WLRT: a profile pasted by someone else can put on a bar or a key a macro that runs Lua code (/run, /tinspect),
+    -- hands the guild over (/gleader) or leaves it (/gquit). An allow list, not a block list (WLRT.MACRO_CMDS: the
+    -- targeting / casting commands, Settings.lua): every macro with another command or a chat line (no "/") is
+    -- listed with that line before the import, and the key bindings that click a button or run a macro
+    local function Shown(list, max)
         local shown = {}
-        for i = 1, math.min(5, #list) do shown[i] = WLRT.Plain(list[i], 40) end
-        return table.concat(shown, ", ") .. (#list > 5 and ", ..." or "")
+        for i = 1, math.min(max, #list) do shown[i] = list[i] end
+        return table.concat(shown, "\n") .. (#list > max and "\n..." or "")
     end
-    local function RiskyText(msg)
-        local macros, binds = {}, {}
+    local function RiskyText(msg, max)
+        local allowed = WLRT.MACRO_CMDS or {}
+        local macros, binds, count = {}, {}, 0
         for _, m in pairs(msg.macro or {}) do
+            count = count + 1
             for line in (type(m.body) == "string" and m.body or ""):gmatch("[^\n]+") do
-                local cmd = line:match("^%s*(/%a+)")
-                if cmd and RUN[cmd:lower()] then macros[#macros + 1] = tostring(m.name or "?"); break end
+                local cmd = line:match("^%s*/([%a_]+)") -- "/cast[@mouseover] X" is "cast"
+                local other
+                if cmd then
+                    other = not allowed[cmd:lower()]
+                else
+                    other = not (line:match("^%s*$") or line:match("^%s*#")) -- the game says it in chat
+                end
+                if other then
+                    macros[#macros + 1] = WLRT.Plain(tostring(m.name or "?"), 20) .. ": " .. WLRT.Plain(line, 60)
+                    break
+                end
             end
         end
         for _, bind in pairs(msg.bind or {}) do
             local cmd = bind.id == 0xFFFF and type(bind.command) == "string" and bind.command or "" -- 0xFFFF: free command
-            if cmd:match("^CLICK ") or cmd:match("^MACRO ") then binds[#binds + 1] = cmd end
+            if cmd:match("^CLICK ") or cmd:match("^MACRO ") then binds[#binds + 1] = WLRT.Plain(cmd, 60) end
         end
-        local out = {}
+        local out = { string.format(WLRT.L("Macros in this profile: %d."), count) }
         if #macros > 0 then
-            out[#out + 1] = string.format(WLRT.L("Macros that run Lua code (%d): %s"), #macros, Names(macros))
+            out[#out + 1] = string.format(WLRT.L("Macros with a command that is not targeting or casting (code, guild, chat...) (%d):"), #macros)
+            out[#out + 1] = Shown(macros, max)
         end
         if #binds > 0 then
-            out[#out + 1] = string.format(WLRT.L("Key bindings that click a button or run a macro (%d): %s"), #binds, Names(binds))
+            out[#out + 1] = string.format(WLRT.L("Key bindings that click a button or run a macro (%d):"), #binds)
+            out[#out + 1] = Shown(binds, max)
         end
-        if #out == 0 then return nil end
-        return table.concat(out, "\n") .. "\n" .. WLRT.L("Import only a profile you trust.")
+        out[#out + 1] = WLRT.L("Import only a profile you trust.")
+        return table.concat(out, "\n"), #macros + #binds > 0
     end
 
     local b = CreateFrame("Button", nil, f, "GameMenuButtonTemplate")
@@ -658,12 +672,10 @@ do
 
         local text = L["Are you SURE to import ?"]
         if warning then text = text .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(warning) end
-        -- WLRT: what the profile would run as code, said before the import (also printed in full)
-        local risk = RiskyText(msg)
-        if risk then
-            MySlot:Print(risk)
-            text = text .. "\n\n" .. RED_FONT_COLOR:WrapTextInColorCode(risk)
-        end
+        -- WLRT: what the profile would do besides targeting / casting, said before every import (all of it in the chat)
+        MySlot:Print((RiskyText(msg, 1000)))
+        local risk, flagged = RiskyText(msg, 5)
+        text = text .. "\n\n" .. (flagged and RED_FONT_COLOR:WrapTextInColorCode(risk) or risk)
         StaticPopupDialogs["MYSLOT_MSGBOX"].text = text
 
         StaticPopupDialogs["MYSLOT_MSGBOX"].OnAccept = function()

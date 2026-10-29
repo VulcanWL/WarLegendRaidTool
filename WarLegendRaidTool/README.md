@@ -127,10 +127,11 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 
 ## Sécurité
 
-- Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées).
+- Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées, taille de chaque message long avant de le lire).
 - Import de profil : confirmation qui liste tout ce qui sera changé ; les macros des clics PvP sont filtrées par liste blanche (ciblage et sorts seulement : jamais `/gquit`, `/logout`, `/run`...). Les macros que tu écris toi-même dans les réglages ne sont pas filtrées : tu en es responsable.
+- Import Myslot : la confirmation donne le nombre de macros du profil et liste, avec la ligne en cause, chaque macro qui fait autre chose que cibler ou lancer un sort (`/run`, `/gleader`, `/gquit`, ligne de chat...) et les raccourcis qui cliquent un bouton ou lancent une macro.
 - Actions automatiques (invitations, promotions) éteintes par défaut, promotions hors combat seulement ; les annonces publiques partent sur un clic ou une confirmation ; aucun code reçu n'est exécuté.
-- Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; ce qui y arrive est borné (nombres finis, 200 signalements et 100 épingles par carte) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
+- Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; ce qui y arrive est borné (nombres finis, 200 signalements et 100 épingles par carte), une réponse à une demande tient en 2 messages (mes signalements d'abord) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
 - Valeurs « secrètes » du jeu (vie, GUID, cible en combat...) : jamais comparées ni envoyées ; une valeur illisible est traitée comme absente.
 - Aucune action protégée en combat : les marques, le placement des groupes, le `/reload` et le ciblage PvP passent par des boutons sécurisés préparés hors combat.
 - Essais de guilde, banque de guilde, statistiques de BG, tri du butin, améliorations dans les sacs, objectif d'or, temps de chargement, Myslot et DoesItDie n'envoient rien.

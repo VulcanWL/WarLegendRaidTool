@@ -177,6 +177,44 @@ for _, a in ipairs(samples) do
         chat = #M.chat - chatBefore, sensitive = #M.sensitive - sensBefore }
 end
 
+-- pathological long texts (audit 28/10) on the prefixes read by W.OnAddonLong: one character repeated, no separator.
+-- A pattern with a repeated class before a literal ("(.-)%s*=", "([^=;]+)=", "(%d+):(%d+)") is quadratic / cubic on
+-- it: one message froze every client. Each case, within its prefix's size cap and past it, must stay fast. The sender
+-- is a guild mate made group lead, so the texts reach the parsers. The fake compression has no size gain: 64 chunks
+-- of 220 (14 KB) is the most the transport carries here (in the game 64 KB of one letter deflates into one chunk).
+Phase("long texts")
+M.Advance(6) -- Readiness answers one ask per 5 s
+local isLead = W.IsGroupLead
+W.IsGroupLead = function() return true end
+local function SendLongText(prefix, text, sender)
+    local esc = text:gsub("~", "~1"):gsub("\n", "~2"):gsub("|", "~3")
+    local n = math.max(1, math.ceil(#esc / 220))
+    local id = string.format("%d", 100 + Rand(899)) -- Rand gives floats here (fengari): "523.0" is no id
+    local function Chunk(i)
+        M.Fire("CHAT_MSG_ADDON", prefix, id .. ":" .. i .. ":" .. n .. ":" .. esc:sub((i - 1) * 220 + 1, i * 220), "RAID", sender, sender, 0, 0, "", 0)
+    end
+    for i = 1, n - 1 do
+        Chunk(i)
+        if i % 30 == 0 then M.Advance(5.5) end -- the per-sender limit of Dispatch (40 in 5 s; 5 ends a hair short)
+    end
+    local t0 = os.clock()
+    Chunk(n)
+    M.Advance(3) -- Readiness reads the list 1-3 s after the ask
+    return (os.clock() - t0) * 1000
+end
+for _, c in ipairs({
+    { "WLRT_RDYQ", "123456\n", " ", 2000 }, { "WLRT_RDYQ", "123456\n", " ", 14000 },
+    { "WLRT_CON", "L^", "7", 2000 }, { "WLRT_CON", "L^", "7", 14000 }, { "WLRT_CON", "Q^", "7", 2000 },
+    { "WLRT_PROF", "D^", "a", 14000 }, { "WLRT_PROF", "D^^", "a", 14000 }, { "WLRT_PROF", "D^^^", "a", 14000 },
+}) do
+    M.phase = "long " .. c[1]
+    local ms = SendLongText(c[1], c[2] .. string.rep(c[3], c[4]), string.format("Guildie%d-Forever", Rand(20) + 1))
+    Check(string.format("%s '%s' + %d x '%s' handled in < 1 s", c[1], (c[2]:gsub("\n", "\\n")), c[4], c[3]), ms < 1000,
+        string.format("%.0f ms", ms))
+end
+W.IsGroupLead = isLead
+M.Advance(5)
+
 -- cost: event floods in a raid, out of combat, window closed (fengari is slower than the game: compare, do not read as ms in game)
 Phase("perf")
 M.Call(W.Hide) -- the commands may have left the window open: measured closed

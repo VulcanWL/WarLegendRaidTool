@@ -1039,38 +1039,30 @@ end
 function WarLegendPvP.Allies:UpdateAllUnitIDs()
 	--it happens that numGroupMembers is higher than the value of the maximal players for that battleground, for example 15 in a 10 man bg, thats why we wipe AllyUnitIDToAllyDetails
 	for allyName, allyButton in pairs(self.Players) do
+		local unitID
+		local targetUnitID
 		if allyButton then
-			local unitID
-			local targetUnitID
 			if allyButton.PlayerDetails.unitID ~= "player" then
-				local unit = allyButton.PlayerDetails.unitID
-				if not unit then return end
-
-				unitID = unit
-				targetUnitID = unitID .. "target"
+				-- WarLegend: an ally without a unit yet is skipped, the loop goes on (it returned: the others kept
+				-- their old unit)
+				unitID = allyButton.PlayerDetails.unitID
+				targetUnitID = unitID and unitID .. "target"
 			else
 				unitID = "player"
 				targetUnitID = "target"
 				WarLegendPvP.UserButton = allyButton
 			end
-			if not (unitID and targetUnitID) then return end
-
-
+		end
+		if unitID and targetUnitID then
 			--self.unitID already gets assigned for allies before, info from GROUP_ROSTER_UPDATE
 
-			if allyButton.unit ~= unitID then
+			local changed = allyButton.unit ~= unitID
+			if changed then
 				--ally has a new unitID now
-				--self:Debug("player", groupMember.PlayerName, "has a new unit and targeted something")
-
-				local targetButton = allyButton.Target
-				if targetButton then
-					--reset the TargetedByEnemy
-					targetButton:IsNoLongerTarging(targetButton)
-					targetButton:IsNowTargeting(targetButton)
-				end
-
-				if InCombatLockdown() then --if we are in combat we go get to set the stuff below later since GROUP_ROSTER_UPDATE also has a combat check and will get called after combat
-					return WarLegendPvP:QueueForUpdateAfterCombat(WarLegendPvP[allyButton.PlayerType], "UpdateAllUnitIDs")
+				-- WarLegend: in combat only the secure part waits (unit attribute, order); the loop goes on, so every
+				-- ally's range, power, auras and target follow its new unit now, not after the fight
+				if InCombatLockdown() then --GROUP_ROSTER_UPDATE also has a combat check and will get called after combat
+					WarLegendPvP:QueueForUpdateAfterCombat(WarLegendPvP[allyButton.PlayerType], "UpdateAllUnitIDs")
 				else
 					allyButton.unit = unitID
 					allyButton:SetAttribute('unit', unitID)
@@ -1079,6 +1071,14 @@ function WarLegendPvP.Allies:UpdateAllUnitIDs()
 			end
 
 			allyButton:UpdateUnitID(unitID, targetUnitID)
+
+			-- WarLegend: reset the TargetedByEnemy once the ally's target unit is the new one, so the enemy it targets
+			-- reads that unit (was targetButton:IsNoLongerTarging(targetButton): the enemy button targeted itself)
+			local targetButton = changed and allyButton.Target
+			if targetButton then
+				allyButton:IsNoLongerTarging(targetButton)
+				allyButton:IsNowTargeting(targetButton)
+			end
 		end
 	end
 end

@@ -517,26 +517,36 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
     elseif t[1] == "D" then
         local e = { t = time(), profs = {}, rec = {}, links = {} }
         local count = 0 -- a forged message of thousands of tiny fields stops here, not after a long loop
+        -- split on the separator first, then plain find / anchored patterns on items of bounded size: an unanchored
+        -- pattern like "([^=;]+)=" is quadratic on a long field with no "=" (one message froze the guild)
         for item in (t[2] or ""):gmatch("[^;]+") do
             count = count + 1
             if count > 40 then break end
-            local n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$")
+            local n, r, m, id
+            if #item <= 64 then n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$") end
             if n and #n <= 40 and #e.profs < 20 then
                 n = W.Plain(n, 40)
                 e.profs[#e.profs + 1] = { n = n, r = W.Int(r, 0, 1000), m = W.Int(m, 0, 1000), id = tonumber(ProfKey(n, tonumber(id))) }
             end
         end
-        for prof, list in (t[3] or ""):gmatch("([^=;]+)=([%d,]+)") do
+        for item in (t[3] or ""):gmatch("[^;]+") do
             count = count + 1
             if count > 80 then break end
-            prof = prof:gsub("[%z\1-\31|]", "") -- a name, never colour / link codes
-            if prof ~= "" and #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
+            local eq = #item <= 20050 and item:find("=", 1, true)
+            local list = eq and item:sub(eq + 1)
+            if list and list:find("^[%d,]+$") then
+                local prof = item:sub(1, eq - 1):gsub("[%z\1-\31|]", "") -- a name, never colour / link codes
+                if prof ~= "" and #prof <= 40 and #list <= 20000 then e.rec[prof] = list end -- kept as compact text
+            end
         end
-        for prof, link in (t[4] or ""):gmatch("([^\30\31]+)\31([^\30]+)") do
+        for item in (t[4] or ""):gmatch("[^\30]+") do
             count = count + 1
             if count > 120 then break end
-            prof = prof:gsub("[%z\1-\31|]", "")
-            if prof ~= "" and #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
+            local sep = #item <= 4050 and item:find("\31", 1, true)
+            if sep then
+                local prof, link = item:sub(1, sep - 1):gsub("[%z\1-\31|]", ""), item:sub(sep + 1)
+                if prof ~= "" and #prof <= 40 and #link <= 4000 and TradeRef(link) then e.links[prof] = link end
+            end
         end
         local key, name = W.Key(who), W.FullName(who)
         -- nothing readable sent (their client gave no skill yet): what we already have from them stays
@@ -712,7 +722,10 @@ local ticking = false
 local function Tick()
     if not db or not db.remind or not W.IsInGuild() or W.IsOff("Guild") or not W.Allowed() then ticking = false; return end
     W.After(30, Tick)
-    if time() - (db.last or 0) >= (db.interval or 15) * 60 and not (InCombatLockdown and InCombatLockdown()) then
+    -- not in combat or an instance, and never over an open question (the Loot Council's "Give X to Y?": its Yes
+    -- would post this line and the award would be lost): tried again 30 s later
+    if time() - (db.last or 0) >= (db.interval or 15) * 60 and not (InCombatLockdown and InCombatLockdown())
+        and not IsInInstance() and not W.ConfirmShown() then
         db.last = time() -- one reminder per interval, even if ignored
         W.Confirm(L("Time to post your recruitment message.") .. "\n\n|cffaaaaaa" .. Fill(db.msgs[db.sel]) .. "|r", G.Post, L("Post"))
     end

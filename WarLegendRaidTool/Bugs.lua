@@ -42,10 +42,12 @@ end
 local function Format(err)
     local gameVersion, build = GetBuildInfo()
     local zone = W.Safe(GetRealZoneText and GetRealZoneText()) or "?"
+    -- BugGrabber stores the time as text ("2026/11/05 20:31:12"): date() would raise on it
+    local when = type(err.time) == "number" and date("%Y-%m-%d %H:%M", err.time) or tostring(err.time or date("%Y-%m-%d %H:%M"))
     local lines = {
         ("[WaR LegenD %s | Raid %s | PvP %s | WoW %s (%s) | %s | %s] x%d"):format(W.version,
             AddonVersion("WarLegendRaidTool_Raid"), AddonVersion("WarLegendRaidTool_PvP"), tostring(gameVersion),
-            tostring(build), zone, date("%Y-%m-%d %H:%M", err.time or time()), err.counter or 1),
+            tostring(build), zone, when, tonumber(err.counter) or 1),
         Plain(err.message),
     }
     local n = 0
@@ -78,7 +80,7 @@ local function Collect()
     if not (BugGrabber and BugGrabber.GetDB and BugGrabber.GetSessionId) then return end
     local session = BugGrabber:GetSessionId()
     for _, err in ipairs(BugGrabber:GetDB() or {}) do
-        if err.session == session then Remember(err) end
+        if err.session == session then pcall(Remember, err) end -- one odd entry must not leave the box empty
     end
 end
 

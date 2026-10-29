@@ -33,8 +33,10 @@ local MAX_SWAPS = 10         -- channel swaps allowed per join (the game has abo
 -- the channel is public (anyone on the megarealm can write to it): what a stranger can make us keep or send is capped
 local MAX_REPORTS = 200      -- sightings (and "not there"s) kept per map
 local MAX_QUEUE = 60         -- messages waiting to be sent
+local OWN_SLOTS = 10         -- of those, places answers can't take: our own sightings still go out
 local ANSWER_GAP = 60        -- one answer per phase a minute, however many Q arrive
 local MAX_ANSWERS = 5        -- and 5 answers a minute in all: Q for many made-up phases can't make us flood the channel
+local MAX_SENT = 2 * MAX_PER_REPLY -- entries per answer (2 messages): a phase stuffed with entries can't make us send 60
 
 local reports = {}           -- this faction's: reports[mapID] = { { phase, x, y, t, first }, ... }
 local allReports = {}        -- db.crowdReports = { A = reports, H = reports }: an alt of the other faction
@@ -128,8 +130,8 @@ local function Drain()
     end
 end
 
-local function Send(msg)
-    if not Enabled() or #queue >= MAX_QUEUE then return end
+local function Send(msg, answer)
+    if not Enabled() or #queue >= MAX_QUEUE - (answer and OWN_SLOTS or 0) then return end
     queue[#queue + 1] = msg
     if not sending then
         sending = true
@@ -356,25 +358,39 @@ local function Covered(covered, mapID, x, y)
     end
 end
 
+-- our own sightings first, then the newest
+local function Before(a, b)
+    if (a.mine and 1 or 0) ~= (b.mine and 1 or 0) then return a.mine and true or false end
+    return a.t > b.t
+end
+
 local function SendReply(p)
     local covered = pending[p]
     if not covered then return end
     pending[p] = nil
     answeredAt[p] = GetTime()
-    local entries = {}
+    -- the MAX_SENT best entries, kept in order while reading: strangers can stuff a phase, the answer stays 2 messages
+    local best = {}
     for mapID, list in pairs(reports) do
         Prune(list)
         for _, r in ipairs(list) do
-            if r.phase == p and not Covered(covered, mapID, r.x, r.y) then
-                entries[#entries + 1] = format("%d,%d,%d,%d", mapID,
-                    math.floor(r.x * 10000 + 0.5), math.floor(r.y * 10000 + 0.5), r.t)
+            if r.phase == p and (#best < MAX_SENT or Before(r, best[#best].r))
+                and not Covered(covered, mapID, r.x, r.y) then
+                local i = #best + 1
+                while i > 1 and Before(r, best[i - 1].r) do best[i] = best[i - 1]; i = i - 1 end
+                best[i] = { mapID = mapID, r = r }
+                best[MAX_SENT + 1] = nil
             end
         end
+    end
+    local entries = {}
+    for i, e in ipairs(best) do
+        entries[i] = format("%d,%d,%d,%d", e.mapID, math.floor(e.r.x * 10000 + 0.5), math.floor(e.r.y * 10000 + 0.5), e.r.t)
     end
     if #entries == 0 then Debug("answer for phase %s not sent: other answers covered it", p) end
     for i = 1, #entries, MAX_PER_REPLY do
         Send(format("S:%s:%s:%s:%s", VERSION, FactionTag(), p,
-            table.concat(entries, ";", i, math.min(i + MAX_PER_REPLY - 1, #entries))))
+            table.concat(entries, ";", i, math.min(i + MAX_PER_REPLY - 1, #entries))), true)
     end
 end
 
@@ -398,16 +414,17 @@ local function OnMessage(text, sender)
         -- Whoever made a sighting for the phase answers first (1-3 s); the rest wait 4-12 s and then send only
         -- the nodes no answer heard meanwhile had, so a first answer holding only some of them doesn't hide the rest.
         if pending[p] or GetTime() - (answeredAt[p] or -1000) < ANSWER_GAP then return end
+        local now = GetTime()
+        if now - answersFrom > 60 then answersFrom, answers = now, 0 end
+        if answers >= MAX_ANSWERS then return end -- before reading every entry
         local have, mine = false, false
         for _, list in pairs(reports) do
             for _, r in ipairs(list) do
                 if r.phase == p then have, mine = true, mine or r.mine end
             end
         end
-        if not have then return end
-        local now = GetTime()
-        if now - answersFrom > 60 then answersFrom, answers = now, 0 end
-        if answers >= MAX_ANSWERS then return end
+        -- our phase, or one we made a sighting in: strangers' entries of a phase we never saw are not ours to repeat
+        if not have or not (mine or p == phase) then return end
         answers = answers + 1
         pending[p] = {}
         C_Timer.After(mine and 1 + math.random() * 2 or 4 + math.random() * 8, function() SendReply(p) end)

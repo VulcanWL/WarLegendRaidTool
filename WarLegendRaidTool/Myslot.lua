@@ -16,9 +16,11 @@ W.AddFR({
     ["If the original Myslot addon is installed, disable it: it uses the same saved file."] =
         "Si l'addon Myslot d'origine est installé, désactive-le : il utilise le même fichier de données.",
     -- said by the import confirmation of Myslot/gui.lua
-    ["Macros that run Lua code (%d): %s"] = "Macros qui lancent du code Lua (%d) : %s",
-    ["Key bindings that click a button or run a macro (%d): %s"] =
-        "Raccourcis qui cliquent un bouton ou lancent une macro (%d) : %s",
+    ["Macros in this profile: %d."] = "Macros dans ce profil : %d.",
+    ["Macros with a command that is not targeting or casting (code, guild, chat...) (%d):"] =
+        "Macros avec une commande qui ne cible ni ne lance de sort (code, guilde, chat...) (%d) :",
+    ["Key bindings that click a button or run a macro (%d):"] =
+        "Raccourcis qui cliquent un bouton ou lancent une macro (%d) :",
     ["Import only a profile you trust."] = "N'importe qu'un profil de confiance.",
 })
 

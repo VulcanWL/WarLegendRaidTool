@@ -400,7 +400,18 @@ local function CouncilList()
 end
 
 local SESSION_MAX = 30 -- the receivers refuse more (MAX_ITEMS): never announce a session they drop
-W.AddFR({ ["Only the first %d items are put in the session."] = "Seuls les %d premiers objets sont mis dans la session." })
+W.AddFR({
+    ["Only the first %d items are put in the session."] = "Seuls les %d premiers objets sont mis dans la session.",
+    ["A loot session is still open: the new one replaces it for everyone (answers not given yet are lost)."] =
+        "Une session de butin est encore ouverte : la nouvelle la remplace pour tout le monde (les réponses pas encore données sont perdues).",
+    ["Start a test session?"] = "Lancer une session de test ?",
+})
+
+-- said in the question before a new session: one still open is replaced for everyone
+local function OpenWarning()
+    if not S then return "" end
+    return "\n\n|cffff5555" .. L("A loot session is still open: the new one replaces it for everyone (answers not given yet are lost).") .. "|r"
+end
 
 function LC.StartSession(items, test)
     if not LC.CanRun() then W.Print(L("You must be master looter or raid leader/assist.")); return end
@@ -480,6 +491,8 @@ Receive.S = function(t, from, full, channel)
     local n = W.Int(t[3]) or 0
     if n < 1 or n > MAX_ITEMS or not t[2] or #t[2] > 12 then return end
     local timeout = W.Finite(t[4], 10, 300) or 60
+    -- the rows of the session it replaces must not stay clickable: the window opens again once the new items are here
+    if S and UI.loot then UI.loot:Hide() end
     S = { sid = t[2], ml = from, mlFull = full, n = n, timeout = timeout, started = GetTime(),
         items = {}, council = {}, acks = {}, answered = {} }
     -- a test (Test button, or a session alone): its awards are shown but never saved in the loot log
@@ -771,8 +784,9 @@ end)
 ---------------------------------------------------------------------------
 local function Answer(idx, key, note)
     if not S or S.answered[idx] then return end
-    S.answered[idx] = true
     local item = S.items[idx]
+    if not item then return end -- a row of the session before (a new one started, its items not all here yet)
+    S.answered[idx] = true
     local g1, g2 = MyGear(item.str)
     Send("R", S.sid, idx, key, g1 or "", g2 or "", AvgIlvl())
     if note and note ~= "" then Send("N", S.sid, idx, note) end
@@ -1224,8 +1238,12 @@ end
 
 W.On("TRADE_SHOW", function()
     if #owed == 0 or not db or not db.enabled or not (ClickTradeButton and PickupItem and CursorHasItem) then return end
-    local partner = W.Safe(UnitName("NPC"))
-    local unit = partner and W.UnitByName(partner)
+    -- the partner ("NPC") found in the group by unit, never by name: on Forever UnitName is the first name only,
+    -- a "Jean Martin" outside the raid must not be handed what "Jean Dupont" won
+    local unit
+    for _, u in ipairs(W.GroupUnits()) do
+        if W.SameUnit("NPC", u) then unit = u; break end
+    end
     local key = unit and W.UnitKey(unit)
     if not key or CursorHasItem() then return end
     local used, placed, shown = {}, {}, 0
@@ -1359,7 +1377,7 @@ W.On("LOOT_OPENED", function()
         lines[#lines + 1] = W.ItemLink(str) .. (sr and ("  |cff00ccffSR: " .. table.concat(sr, ", ") .. "|r") or "")
         if sr then W.Print(L("Soft-res: ") .. W.ItemLink(str) .. " -> " .. table.concat(sr, ", ")) end
     end
-    W.Confirm(L("Start a loot session with these items?") .. "\n\n" .. table.concat(lines, "\n"), function()
+    W.Confirm(L("Start a loot session with these items?") .. "\n\n" .. table.concat(lines, "\n") .. OpenWarning(), function()
         LC.StartSession(items)
     end, L("Start session"))
 end)
@@ -1579,7 +1597,9 @@ local function BuildSession(p)
     p.status:SetJustifyV("TOP")
     W.Button(p, L("Open voting window"), 170, 22, LC.ShowVote):SetPoint("TOPRIGHT", -16, -4)
     W.Button(p, L("End session"), 170, 22, LC.EndSession):SetPoint("TOPRIGHT", -16, -30)
-    W.Button(p, L("Test session (your gear)"), 170, 22, function() LC.Test() end):SetPoint("TOPRIGHT", -16, -56)
+    W.Button(p, L("Test session (your gear)"), 170, 22, function()
+        if S then W.Confirm(L("Start a test session?") .. OpenWarning(), LC.Test, L("Start session")) else LC.Test() end
+    end):SetPoint("TOPRIGHT", -16, -56)
     local lbl = W.Label(p, L("Items for the next session (shift-click an item in the box):"), "GameFontNormalSmall")
     lbl:SetPoint("TOPLEFT", 14, -250)
     local box = W.EditBox(p, 260, 255)
@@ -1594,9 +1614,12 @@ local function BuildSession(p)
     W.Button(p, L("Add item"), 110, 22, add):SetPoint("LEFT", box, "RIGHT", 8, 0)
     W.Button(p, L("Start session"), 120, 22, function()
         if #db.pending == 0 then return end
-        if not LC.StartSession(db.pending) then return end -- refused: the list is kept
-        db.pending = {}
-        LC.RefreshSession()
+        local function start()
+            if not LC.StartSession(db.pending) then return end -- refused: the list is kept
+            db.pending = {}
+            LC.RefreshSession()
+        end
+        if S then W.Confirm(L("Start a loot session with these items?") .. OpenWarning(), start, L("Start session")) else start() end
     end):SetPoint("LEFT", box, "RIGHT", 124, 0)
     W.Button(p, L("Clear list"), 100, 22, function() db.pending = {}; LC.RefreshSession() end)
         :SetPoint("LEFT", box, "RIGHT", 250, 0)
