@@ -11,7 +11,6 @@
 
 Libs\LibStub.lua
 Libs\CallbackHandler-1.0.lua
-Libs\LibRangeCheck-3.0.lua
 Libs\HereBeDragons-2.0.lua
 Libs\HereBeDragons-Pins-2.0.lua
 Locale.lua

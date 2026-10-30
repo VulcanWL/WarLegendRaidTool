@@ -153,7 +153,7 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 - Voix du décompte **Amy**, **David**, **Jim** et police **Noto Sans** : reprises de [BigWigs](https://github.com/BigWigsMods/BigWigs)
   (licences CC BY-NC 3.0 / CC0 / SIL OFL, détail dans `Media/Sounds/Countdown/README.txt` et `Media/Fonts/Noto_license.txt`).
 - Scintillements du butin (Options > Interface) : idée de ForeverLootSparkles (Ashtar Senior, GPL-3.0) ; seules les variables de console sont reprises, aucun code.
-- Cadres de champ de bataille : basés sur BattleGroundEnemies (Bullsei) ; portée de secours par la librairie LibRangeCheck-3.0 (mitch0 et WoWUIDev Community, licence MIT), détail dans `Libs/README.txt`.
+- Cadres de champ de bataille : basés sur BattleGroundEnemies (Bullsei) ; portée de secours par la librairie LibRangeCheck-3.0 (mitch0 et WoWUIDev Community, licence MIT), détail dans `WarLegendRaidTool_PvP/Libs/README.txt`.
 - Myslot (Options > Petits automatismes) : basé sur **Myslot** 6.2.1 de Boshi Lian (licence Apache 2.0, texte dans `Myslot/LICENSE`) ; même format d'export, réécrit en module de l'addon le 29/10/2026.
 - Améliorations dans les sacs, mode « poids des caractéristiques » (Options > Petits automatismes, éteint par défaut : le niveau d'objet
   reste la règle) : poids par classe et arbre de talents, noms des caractéristiques et valeurs des armes repris de **Wowdee** 0.35.11

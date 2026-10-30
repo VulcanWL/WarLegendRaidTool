@@ -14,9 +14,11 @@ Read only the part about the file you are changing. The rules that always apply 
   can dispel and give; `Modules/CrowdControl.lua`: the CC on the class icon. Both use `Modules/NativeAuras.lua`: Blizzard's
   `CreateFrame("AuraContainer")` (Forever 12.1 aura system) shows the auras itself, also the secret ones.
   Trinket / DR tracking is NOT possible in battlegrounds (the client hides that data there).
-  No `Libs/` of its own: LibStub, CallbackHandler and LibRangeCheck-3.0 (38, Forever spell lists) come from the main
-  addon's `Libs/` (one copy for the four addons, `Libs/README.txt`); a library added for any addon goes there, in the main
-  `.toc`. Range: the game's own checks first (`WarLegendPvP.GameRangeCheck`), LibRangeCheck when they give no answer.
+  LibStub and CallbackHandler come from the main addon's `Libs/` (one copy for the four addons, `Libs/README.txt`); a
+  library added for several addons goes there, in the main `.toc`. A library only this addon uses stays in its own
+  `Libs/` (its `.toc`), so it costs nothing until the addon loads: LibRangeCheck-3.0 (38, Forever spell lists; it reads
+  the spellbook again at every `SPELLS_CHANGED` and keeps a 5 s ticker). Range: the game's own checks first
+  (`WarLegendPvP.GameRangeCheck`), LibRangeCheck when they give no answer.
   Work per frame (Alterac, 80 buttons): no OnUpdate per button. `WarLegendPvP.Spread(parent, period, getList, fn)` (`Main.lua`)
   runs fn for each item every `period` s from ONE OnUpdate that spreads the items over the frames (round robin): the range /
   `UpdateAll` of each side's buttons (`Mainframe.lua`, 0.2 s in combat, 0.4 s out of combat), the ally power read

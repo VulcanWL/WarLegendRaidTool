@@ -39,12 +39,12 @@
         },
         {
             "name": "LibRangeCheck-3.0",
-            "why": "range of the battleground frames (PvP addon, fallback after the game's own checks); in the main addon's Libs, its two do-not-package blocks removed as its packager does.",
+            "why": "range of the battleground frames (PvP addon, fallback after the game's own checks); in the PvP addon's Libs (loaded with it), its two do-not-package blocks removed as its packager does.",
             "kind": "text",
             "url": "https://raw.githubusercontent.com/WeakAuras/LibRangeCheck-3.0/master/LibRangeCheck-3.0/LibRangeCheck-3.0.lua",
             "pattern": "local MINOR_VERSION = (\\d+)",
             "reviewed": "38",
-            "local": { "file": "WarLegendRaidTool/Libs/LibRangeCheck-3.0.lua", "pattern": "local MINOR_VERSION = (\\d+)" }
+            "local": { "file": "WarLegendRaidTool_PvP/Libs/LibRangeCheck-3.0.lua", "pattern": "local MINOR_VERSION = (\\d+)" }
         },
         {
             "name": "BattleGroundEnemies",

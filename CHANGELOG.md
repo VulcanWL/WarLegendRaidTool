@@ -6,6 +6,10 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- La librairie de portée des cadres de champ de bataille (LibRangeCheck) ne se charge plus qu'avec eux : rien à la
+  connexion ni en raid pour qui ne fait pas de champ de bataille.
+
 ### Corrigé
 - Cadres de champ de bataille : la portée de secours (quand le jeu ne répond pas) est mise à jour pour WoW Forever
   (LibRangeCheck 38 : sorts de Forever, plus d'ancienne fonction appelée à son chargement).
