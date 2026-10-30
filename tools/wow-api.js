@@ -189,8 +189,9 @@ function model(wus) {
         void i;
     });
     // names the game's own Lua / XML defines (FrameXML): functions, tables, named frames, mixins; only the files
-    // Forever loads (loadedFiles). Blizzard_Deprecated* apart: those shims load only while the CVar
-    // loadDeprecationFallbacks is on.
+    // Forever loads (loadedFiles). Deprecation shims apart: files that return at once unless the CVar
+    // loadDeprecationFallbacks is on (the Blizzard_Deprecated* ones, Deprecated_PaperDoll's GetInventorySlotInfo; not
+    // Blizzard_Deprecated_ArenaUI, real frames despite its name).
     // A shim's body names Blizzard's replacement (IsPlayerSpell calls C_SpellBook.IsSpellKnown): kept in replacement.
     // blizzCalls: global functions the rest of that code calls (the game has them, documented or not)
     const frameXML = new Set(), deprecated = new Set(), replacement = {}, blizzCalls = new Set();
@@ -198,7 +199,7 @@ function model(wus) {
         if (f.includes("Blizzard_APIDocumentation")) continue;
         const src = fs.readFileSync(f, "latin1");
         if (f.endsWith(".lua")) {
-            const shim = /[\\/]Blizzard_Deprecated[^\\/]*[\\/]/.test(f);
+            const shim = /^\s*if\s+not\s+GetCVarBool\(\s*"loadDeprecationFallbacks"\s*\)\s+then\s+return/m.test(src);
             const into = shim ? deprecated : frameXML;
             for (const x of src.matchAll(/^\s*function\s+([A-Za-z_]\w*)\s*\(/gm)) into.add(x[1]);
             for (const x of src.matchAll(/^\s*([A-Za-z_]\w*)\s*=[^=]/gm)) into.add(x[1]);
@@ -274,6 +275,23 @@ function luaFiles(dir, out) {
     }
     return out;
 }
+// The files of an addon's Libs folders its .toc loads, directly or through an .xml (not their tests or own .toc files):
+// upstream code kept unchanged, with branches for other game flavours, so listed apart ("lib ..." lines)
+function libFiles(dir) {
+    const out = new Set(), seen = new Set();
+    const add = (base, rel) => {
+        const p = path.join(base, rel.replace(/\\/g, "/"));
+        if (seen.has(p) || !fs.existsSync(p)) return;
+        seen.add(p);
+        if (p.endsWith(".xml")) {
+            const src = fs.readFileSync(p, "utf8").replace(/<!--[\s\S]*?-->/g, "");
+            for (const x of src.matchAll(/<(?:Script|Include)\s+file="([^"]+)"/gi)) add(path.dirname(p), x[1]);
+        } else if (p.endsWith(".lua") && path.relative(dir, p).split(path.sep).includes("Libs")) out.add(p);
+    };
+    const toc = path.join(dir, path.basename(dir) + ".toc");
+    if (fs.existsSync(toc)) for (const l of fs.readFileSync(toc, "utf8").split(/\r?\n/)) if (l.trim() && !l.startsWith("#")) add(dir, l.trim());
+    return [...out];
+}
 
 // Does any ancestor test this name (if NAME / NAME and / or NAME / pcall(...)) or an earlier "if" of the block?
 function mentions(node, name) {
@@ -345,8 +363,9 @@ function triedFirst(forms, node, parents, anywhere) {
 // What the addon uses that the build does not document: C_X.Y, Enum.X, Constants.X, and direct calls of
 // globals that neither the documentation nor the game's Lua define (old C functions: they may exist, unverified)
 function check(m) {
-    const found = new Map(); // "kind name" -> [where]
-    const add = (k, where) => { if (!found.has(k)) found.set(k, []); found.get(k).push(where); };
+    const found = new Map(); // "kind name" -> [where]; "lib kind name" for the files of the Libs folders
+    let lib = "";
+    const add = (k, where) => { k = lib + k; if (!found.has(k)) found.set(k, []); found.get(k).push(where); };
     // Forever loads none of Blizzard's deprecation fallbacks: an undocumented global that Blizzard's own code no longer
     // calls and whose replacement is documented (C_X.Name, or the C_ function its Blizzard_Deprecated shim calls) is
     // likely nil there. The code must try the C_ form first, above it in the same function ("C_X and C_X.Name(...) or
@@ -363,9 +382,9 @@ function check(m) {
     };
     const own = new Set(); // names the addon itself assigns at global scope
     const asts = [];
-    for (const a of ADDONS) for (const f of luaFiles(path.join(REPO, a), [])) {
+    for (const a of ADDONS) for (const [f, l] of [...luaFiles(path.join(REPO, a), []).map((f) => [f, ""]), ...libFiles(path.join(REPO, a)).map((f) => [f, "lib "])]) {
         const ast = luaparse.parse(fs.readFileSync(f, "utf8"), { luaVersion: "5.1", locations: true, scope: true });
-        asts.push([path.relative(REPO, f).replace(/\\/g, "/"), ast]);
+        asts.push([path.relative(REPO, f).replace(/\\/g, "/"), ast, l]);
         (function v(n) {
             if (!n || typeof n !== "object") return;
             if (Array.isArray(n)) { n.forEach(v); return; }
@@ -374,16 +393,18 @@ function check(m) {
             for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
         })(ast);
     }
-    for (const [rel, ast] of asts) {
+    for (const [rel, ast, l] of asts) {
+        lib = l;
         (function visit(n, parents) {
             if (!n || typeof n !== "object") return;
             if (Array.isArray(n)) { n.forEach((c) => visit(c, parents)); return; }
             const where = n.loc ? rel + ":" + n.loc.start.line : rel;
-            if (n.type === "MemberExpression" && n.base.type === "Identifier" && n.base.isLocal === false) {
+            // a local C_X is taken for an alias of the global (local C_Item = C_Item, as the libraries do)
+            if (n.type === "MemberExpression" && n.base.type === "Identifier" && (n.base.isLocal === false || /^C_/.test(n.base.name))) {
                 const b = n.base.name, id = n.identifier.name;
                 if (/^C_/.test(b) && !(b + "." + id in m.fn) && !m.frameXML.has(b)) add("undocumented " + b + "." + id, where);
-                if (b === "Enum" && !(id in m.enums)) add("undocumented Enum." + id, where);
-                if (b === "Constants" && !(id in m.consts)) add("undocumented Constants." + id, where);
+                if (n.base.isLocal === false && b === "Enum" && !(id in m.enums)) add("undocumented Enum." + id, where);
+                if (n.base.isLocal === false && b === "Constants" && !(id in m.consts)) add("undocumented Constants." + id, where);
             }
             // hooksecurefunc("Name", fn): the game raises an error when Name is not a function, a guarded hook on a
             // missing one never runs (the feature it feeds is dead on Forever)
@@ -430,13 +451,18 @@ if (require.main === module) {
     const baseFile = path.join(TOOLS, "api-baseline.txt");
     const base = new Set(fs.existsSync(baseFile) ? fs.readFileSync(baseFile, "utf8").split(/\r?\n/).map((s) => s.trim()).filter((s) => s && !s.startsWith("#")) : []);
     const found = check(m);
-    let fresh = 0;
-    for (const [k, where] of [...found].sort()) {
-        if (base.has(k)) continue;
-        fresh++;
-        console.log(k + "  " + where.slice(0, 3).join(", ") + (where.length > 3 ? " +" + (where.length - 3) : ""));
+    let fresh = 0, libs = 0;
+    for (const inLib of [false, true]) { // the addon's code, then the libraries' ("lib ..." lines) under their own title
+        let title = inLib;
+        for (const [k, where] of [...found].filter(([k]) => k.startsWith("lib ") === inLib).sort()) {
+            if (inLib) libs++;
+            if (base.has(k)) continue;
+            if (title) { console.log("Libs (upstream code kept unchanged: lines of other game flavours' branches too):"); title = false; }
+            fresh++;
+            console.log(k + "  " + where.slice(0, 3).join(", ") + (where.length > 3 ? " +" + (where.length - 3) : ""));
+        }
     }
     for (const k of base) if (!found.has(k)) console.log("(baseline entry no longer found, can be removed: " + k + ")");
-    console.log(found.size + " name(s) not documented, " + fresh + " new (not in tools/api-baseline.txt).");
+    console.log(found.size + " name(s) not documented (" + libs + " in Libs), " + fresh + " new (not in tools/api-baseline.txt).");
     process.exit(fresh ? 1 : 0);
 }

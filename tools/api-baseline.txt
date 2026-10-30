@@ -196,3 +196,14 @@ hook on a missing function (guarded) LootFrame_UpdateButton
 # specializations, the old spellbook) left with its retail parts on 29/10.
 C_ form not tried first GetTalentInfo (C_Garrison.GetTalentInfo, C_SpecializationInfo.GetTalentInfo)
 C_ form not tried first IsItemInRange (C_Item.IsItemInRange)
+# 29/10/2026, Libs (the files of the Libs folders the .toc files load; upstream code kept unchanged, "lib ..." lines).
+# Forever's path looked at: LibRangeCheck 38 takes its isEra / isForever branches (interface 16000-19999) and tries
+# C_PaperDollInfo.GetInventorySlotInfo before the shim; HereBeDragons 35 knows Forever (WOW_PROJECT_CAMELOT).
+# GetInventoryItemLink, InCombatLockdown: old C functions Blizzard's own loaded code calls. GetMinimapShape: set by
+# minimap addons, tested first. LibStub: set through _G[...] by LibStub.lua. LibRangeCheck 28 (the PvP addon's copy
+# before 29/10) called GetInventorySlotInfo at load with no C_ form first: not accepted here, it comes back if it returns.
+lib deprecated shim (guarded) GetInventorySlotInfo
+lib legacy (guarded) GetMinimapShape
+lib legacy (guarded) InCombatLockdown
+lib legacy (local alias) GetInventoryItemLink
+lib legacy (no guard) LibStub

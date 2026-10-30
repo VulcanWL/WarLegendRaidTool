@@ -161,8 +161,11 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   a problem; a luac of another Lua is refused.
 - `tools/wow-api.js`: model of the game's API from Blizzard_APIDocumentationGenerated in Gethe/wow-ui-source, branch
   `forever` (cloned into `tools/.cache`, 50 MB). `check` lists the C_ functions / Enum / Constants the addon uses that
-  the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
-  Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). `C_ form not tried first X (C_Y.X)`:
+  the build does not document (also through a local alias, `local C_Item = C_Item`), and the old globals called directly
+  (with or without a guard; `deprecated shim` = only a Blizzard file that returns at once unless the CVar
+  loadDeprecationFallbacks is on defines it: the Blizzard_Deprecated* ones and Deprecated_PaperDoll). The files of the
+  `Libs` folders a .toc loads (directly or through an .xml) are checked too, listed apart under "Libs" (`lib ...` lines):
+  upstream code kept unchanged, so a finding there is reported, never fixed in the library. `C_ form not tried first X (C_Y.X)`:
   a global Blizzard's own loaded code no longer calls, with a documented replacement (`C_Y.X`, or the C_ function its
   shim calls: `IsPlayerSpell` -> `C_SpellBook.IsSpellKnown`), called without trying the C_ form first (above it in the
   same function, or as the fallback of an `if` testing `C_Y`): Forever loads no deprecation fallback, so likely nil there.
