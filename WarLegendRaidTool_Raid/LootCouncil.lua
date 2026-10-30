@@ -1142,10 +1142,13 @@ W.AddFR({
     ["The voting window is for the loot council."] = "La fenêtre de vote est réservée au conseil de butin.",
 })
 
--- every vote, voter and note: for the council and the master looter (in S.council) only, as RCLootCouncil does by default
+-- every vote, voter and note: for the council and the master looter only, as RCLootCouncil does by default (who started
+-- the session is in the council; the game's master looter may not be, when an assistant started it)
+local function MaySeeVotes() return IsCouncil() or LC.IsML() end
+
 function LC.ShowVote()
     if not S then W.Print(L("No session running.")); return end
-    if not IsCouncil() then W.Print(L("The voting window is for the loot council.")); return end
+    if not MaySeeVotes() then W.Print(L("The voting window is for the loot council.")); return end
     if not UI.vote then BuildVote() end
     UI.vote:Show()
     LC.RefreshVote()
@@ -1155,7 +1158,7 @@ function LC.RefreshVote()
     LC.RefreshSession()
     local f = UI.vote
     if not f or not f:IsShown() then return end
-    if not S or not IsCouncil() then f:Hide(); return end -- a new session whose council I am not in (or not yet)
+    if not S or not MaySeeVotes() then f:Hide(); return end -- a new session whose council I am not in (or not yet)
     for i = 1, S.n do
         local item = S.items[i]
         local b = ItemTab(i)

@@ -64,8 +64,8 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
 - Names: on Forever the short name (`W.BaseName`) is only the first name, shared by strangers. Anything that grants
   trust (promotion, auto-accept, leader checks) matches the full name (`W.FullName`, `W.GuildMember`), a short name only
   for the one guild member who has it. Prompts from other players show the sender with `W.Sender` (full name, flags "not in
-  guild"); `W.ConfirmRemote` holds one back while a question is open and shows it 0.5 s after that one closes (its Yes is in the
-  same place: a double click on my own Yes accepted it unread).
+  guild"); `W.ConfirmRemote` holds one back while a question is open, and its Yes answers only 0.5 s after it shows (`safeAt`:
+  it comes up at a moment the sender chooses, in the place of my own Yes: a double click accepted it unread).
 - Who a prefix is taken from: `TRUST` in `Core.lua`, checked in `Dispatch` before any handler or buffer and before the raid
   addon is loaded. `INSTANCE_CHAT` is refused for every prefix (nothing of ours sends on it; it is how a battleground's random
   leader reaches us). "guildchan": the guild channel only; "guild": a guild member; "group": my group, a whisper only from a
@@ -74,8 +74,9 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   everyone at N keys let N + 1 senders reset every limit.
 - Answers about my character go to the asker alone: Checklist's raid check to a lead of my guild, whispered, up to `MAX_ASKED`
   of an item (the answer is the smaller of what I have and what was asked: above 100 the lead sees "missing" for everyone, no real
-  list asks that); Readiness: one line per item and one gold line per check. The vote window (`LC.ShowVote`) is for `S.council`,
-  the master looter being in it; votes still travel on the raid channel, so a modified client can read them.
+  list asks that); Readiness: one line per item and one gold line per check. The vote window (`LC.ShowVote`) is for `S.council` and
+  the game's master looter (`LC.IsML`: not always in the council when an assistant started the session); votes still travel
+  on the raid channel, so a modified client can read them.
 
 ## Interface modules
 - `MoveFrames.lua` (`/wl move`): the safe part of MoveAny. It never moves a protected frame (`IsProtected()`), only hooks
@@ -220,7 +221,7 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
   256 KB, a valid export cut at 20 places), long texts, the hardening of the master audit (phase "hardening": who each
   prefix is taken from, as `Dispatch` tells the audit log; Raid Buffs popup limit; both prompts; a forged stream of empty
   deflate blocks; Skyborne's channel, cap and debug text; answers about my character; the vote window; limiters past 200
-  senders; the waiting prompt), event floods. Verdicts: a chat line < 1 s, no chat line and no
+  senders; the Yes of a remote prompt), event floods. Verdicts: a chat line < 1 s, no chat line and no
   action but AGENTS.md's accepted exceptions (keyword invite 1 per 30 s per sender, `!sr` answers 3 per 10 s); a paste
   < 1 s, refused or in the confirmation with the saved data untouched (a preset / soft-res list: saved in a checked
   form), stopped by a watchdog past 3e8 Lua instructions (`debug.sethook`: an endless loop fails its case instead of

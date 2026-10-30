@@ -39,8 +39,8 @@ Releases et les tags git.
 - Le chef de hasard d'un champ de bataille ne peut plus ouvrir de fenêtres de butin ou de vote ni de questions chez toi, et
   les outils de raid ne prennent plus rien du canal de guilde (un seul message y chargeait les outils de raid chez toute la
   guilde).
-- Une question d'un autre joueur qui attendait la fin de la tienne arrive 0,5 s après ta réponse : un double clic sur ton
-  Oui ne l'accepte plus sans la lire.
+- Une question envoyée par un autre joueur : son Oui ne répond qu'après 0,5 s. Un double clic sur ton propre Oui, ou un clic
+  au moment où elle arrive, ne l'accepte plus sans la lire.
 - Un message compressé truqué (des centaines de blocs vides) est refusé dès sa lecture, avant de coûter quoi que ce soit.
 - Invitation par mot-clé et réponses `!sr` : 201 expéditeurs d'affilée ne remettent plus leurs limites à zéro.
 - Skyborne : seuls les messages de son canal sont lus, 2 000 signalements gardés en tout (un inconnu pouvait en faire garder

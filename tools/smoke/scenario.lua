@@ -1167,11 +1167,18 @@ do
     local opened = VoteShown()
     local said = Printed(function() M.Call(W.slash.loot, "vote") end)
     local refused = not VoteShown() and tContains(said, W.L("The voting window is for the loot council."))
+    -- the game's master looter (an assistant started this session): the window opens without being in the council
+    local lootMethod0 = rawget(C_PartyInfo, "GetLootMethod")
+    C_PartyInfo.GetLootMethod = function() return "master", 0, 1 end -- raid1: me
+    M.Call(W.slash.loot, "vote")
+    local asML = VoteShown()
+    if VoteShown() then WLRTVoteFrame:Hide() end
+    C_PartyInfo.GetLootMethod = lootMethod0
     Loot("C", "77771", "Smoketest-Forever")
     M.Advance(1)
     local asCouncil = VoteShown()
-    Check("the vote window opens for the council only", not opened and refused and asCouncil,
-        string.format("out of the council: opened %s, refused %s; in it: %s", tostring(opened), tostring(refused), tostring(asCouncil)))
+    Check("the vote window opens for the council and the master looter only", not opened and refused and asML and asCouncil,
+        string.format("out of the council: opened %s, refused %s; as master looter: %s; in the council: %s", tostring(opened), tostring(refused), tostring(asML), tostring(asCouncil)))
     -- a new session whose council I am not in closes it
     Loot("S", "77772", 1, 60, "")
     Loot("I", "77772", 1, ITEM_STR)
@@ -1231,20 +1238,33 @@ do
         string.format("%d answer(s) within 10 s, %d lines in all, %d after them", stays, lines, afterWindow))
 end
 
--- 13: a prompt from another player kept waiting does not show under the second click of a double click on my own Yes
+-- 13: the Yes of a prompt from another player answers 0.5 s after it shows: the second click of a double click on my own
+-- Yes, or a click when one comes up with nothing open, accepts nothing unread; my own questions answer at once
 do
     M.Advance(2)
+    local theirs, mine = 0, 0
     W.Confirm("my own question", function() end)
-    W.ConfirmRemote("a shared list", function() end)
+    W.ConfirmRemote("a shared list", function() theirs = theirs + 1 end)
     local held = PromptText() == "my own question"
     Click(WLRTConfirm.yes)
     M.Advance(0.1)
-    local nextFrame = Confirming()
+    local shown = PromptText() == "a shared list"
+    Click(WLRTConfirm.yes) -- the double click's second one
+    local byDouble, stayed = theirs, Confirming()
     M.Advance(0.6)
-    local later = PromptText()
+    Click(WLRTConfirm.yes)
+    local byHand = theirs
+    M.Advance(1)
+    W.ConfirmRemote("another list", function() theirs = theirs + 1 end)
+    Click(WLRTConfirm.yes)
+    local byChance = theirs - byHand
+    WLRTConfirm:Hide()
+    W.Confirm("my next question", function() mine = mine + 1 end) -- right after it: the wait is not carried over
+    Click(WLRTConfirm.yes)
     ClosePrompt()
-    Check("a waiting prompt from another player shows 0.5 s after my Yes, not on the next frame", held and not nextFrame and later == "a shared list",
-        string.format("kept waiting: %s, shown on the next frame: %s, later: %q", tostring(held), tostring(nextFrame), later))
+    Check("the Yes of a prompt from another player answers after 0.5 s, mine at once", held and shown and stayed and byDouble == 0 and byHand == 1 and byChance == 0 and mine == 1,
+        string.format("kept waiting: %s, shown: %s; by a double click: %d, left open: %s; by hand: %d; by a click as it came: %d; mine: %d",
+        tostring(held), tostring(shown), byDouble, tostring(stayed), byHand, byChance, mine))
 end
 M.group[4].assist = nil
 M.Fire("GROUP_ROSTER_UPDATE")

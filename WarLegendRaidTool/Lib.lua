@@ -777,31 +777,38 @@ function W.Confirm(text, onYes, yesText)
         confirm.no = W.Button(confirm, L("No"), 110, 22, function() confirm:Hide() end)
         confirm.no:SetPoint("BOTTOMLEFT", confirm, "BOTTOM", 6, 14)
         tinsert(UISpecialFrames, "WLRTConfirm")
-        -- a prompt from another player kept waiting (W.ConfirmRemote) shows once this one is closed, 0.5 s later: its Yes
-        -- is in the same place, a double click on my own Yes would accept it unread
+        -- a prompt from another player kept waiting (W.ConfirmRemote) shows once this one is closed
         confirm:HookScript("OnHide", function()
             local w = remoteWaiting
             if not w then return end
             remoteWaiting = nil
-            W.After(0.5, function() W.ConfirmRemote(w[1], w[2], w[3]) end)
+            W.After(0, function() W.ConfirmRemote(w[1], w[2], w[3]) end)
         end)
     end
     confirm.text:SetText(text)
     confirm:SetHeight(math.max(130, (confirm.text:GetStringHeight() or 0) + 96)) -- a long text (profile import) stays inside
     confirm.yes:SetText(yesText or L("Yes"))
-    confirm.yes:SetScript("OnClick", function() confirm:Hide(); onYes() end)
+    confirm.safeAt = 0
+    confirm.yes:SetScript("OnClick", function()
+        if GetTime() < confirm.safeAt then return end -- W.ConfirmRemote
+        confirm:Hide(); onYes()
+    end)
     confirm:Show()
     return confirm
 end
 
 -- A prompt sent by another player (shared list, preset): it never replaces the question that is open (its Yes would
 -- then run the other player's action, and mine would be lost). It waits, only the newest one, until that one closes.
+-- Its Yes answers 0.5 s after it shows: it comes up at a moment the sender chooses, in the place of my own Yes, and a
+-- double click on that one (or any click there) would accept it unread.
 function W.ConfirmRemote(text, onYes, yesText)
     if confirm and confirm:IsShown() then
         remoteWaiting = { text, onYes, yesText }
         return
     end
-    return W.Confirm(text, onYes, yesText)
+    local f = W.Confirm(text, onYes, yesText)
+    f.safeAt = GetTime() + 0.5
+    return f
 end
 
 -- A question is open: a prompt nobody asked for (a timer's) waits instead of replacing it
