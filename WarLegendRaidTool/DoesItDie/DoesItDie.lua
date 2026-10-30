@@ -210,6 +210,11 @@ local MAX_TRACE_LINES = 300 -- about 25 KB in the saved file
 local db
 local dotsByTarget = {}     -- targetKey -> { [spellName] = dot }
 local warnedSecretGuid = false
+local EMPTY = {}            -- a shared empty table, never written: "no DoT" without a new table each time
+-- Each nameplate's token <-> the unitKey of its mob, read once when the plate comes (NAME_PLATE_UNIT_ADDED, or a look at
+-- the plates when the module comes on or the world loads). A plate keeps its mob until it is removed, and a GUID is
+-- secret or not for the whole zone (SecretWhenUnitIdentityRestricted): the key stays right while the plate is up.
+local keyOfPlate, plateOfKey = {}, {}
 
 ---------------------------------------------------------------------------
 -- Helpers
@@ -255,6 +260,9 @@ end
 -- The same hit arrives for target, nameplateN and focus, and their GUIDs may not all be readable, so a hidden GUID
 -- only affects that one unit token.
 local function unitKey(unit)
+    -- a plate's mob: read when its plate came (no pcall for each hit on it)
+    local known = keyOfPlate[unit]
+    if known then return known end
     local ok, guid = pcall(UnitGUID, unit)
     if ok and not isSecret(guid) then return guid end
     local token = plateTokenFor(unit)
@@ -272,6 +280,30 @@ local function unitKey(unit)
             .. " (turn on enemy nameplates to track several mobs)")
     end
     return "target"
+end
+
+local function plateRemoved(token)
+    local key = keyOfPlate[token]
+    if key == nil then return end
+    if plateOfKey[key] == token then plateOfKey[key] = nil end
+    keyOfPlate[token] = nil
+end
+
+local function plateAdded(token)
+    plateRemoved(token) -- the token showed another mob before
+    local key = unitKey(token)
+    if key then keyOfPlate[token], plateOfKey[key] = key, token end
+end
+
+-- The plates already on screen: the module came on, or the world loaded (their events came while nobody listened).
+local PLATE_TOKENS = {}
+for i = 1, 40 do PLATE_TOKENS[i] = "nameplate" .. i end
+local function readPlates()
+    wipe(keyOfPlate)
+    wipe(plateOfKey)
+    for _, token in ipairs(PLATE_TOKENS) do
+        if UnitExists(token) then plateAdded(token) end
+    end
 end
 
 local function spellNameAndDescription(spellID)
@@ -408,8 +440,23 @@ local lastBuilder    -- { key, points, at }: builder whose outcome isn't known y
 -- IMMUNE (a bleed on a mob immune to bleeds). So a cast whose direct part hit stays pending (landedAt) for the
 -- rest of its window, and only an IMMUNE can still remove its DoT.
 local lastDotCast    -- { key, name, dot, previous, at, landedAt }: DoT cast whose outcome isn't known yet
-local lastOutcome    -- { key, avoided, action, school, at, immune }: most recent outcome on a mob; a hit keeps
-                     -- an IMMUNE just before it in .immune
+-- The most recent outcome on each mob, by unitKey: { avoided, action, school, at, immune }; a hit keeps an IMMUNE just
+-- before it in .immune. One per mob: a single one for every unit was replaced by any other unit's hit (a raider, the
+-- next mob), so in a group a mob's avoid that came just before the cast event was lost (audit 29/10 b, M1). Only the
+-- look-back reads it: past 50 mobs, the outcomes older than a second go.
+local lastOutcomes, outcomeCount = {}, 0
+local function setOutcome(key, outcome)
+    if lastOutcomes[key] == nil then
+        outcomeCount = outcomeCount + 1
+        if outcomeCount > 50 then
+            outcomeCount = 1
+            for k, o in pairs(lastOutcomes) do
+                if outcome.at - o.at > 1 then lastOutcomes[k] = nil else outcomeCount = outcomeCount + 1 end
+            end
+        end
+    end
+    lastOutcomes[key] = outcome
+end
 local armedTrap      -- { spellID, name, total, school, duration, interval, placedAt, expiresAt }: see TRAP_DOTS
 -- The mob each cast was aimed at, by cast GUID, taken when the cast is sent. An instant DoT's
 -- UNIT_SPELLCAST_SUCCEEDED comes a server round trip later, and a player who tabs to the next mob straight
@@ -532,10 +579,11 @@ end
 -- includeImmune, also an IMMUNE followed by a hit (a DoT's direct part landed, the DoT didn't); builders leave
 -- it out, since their direct part landing awarded the points.
 local function avoidJustBefore(key, includeImmune)
-    if not lastOutcome or lastOutcome.key ~= key then return nil end
+    local outcome = key and lastOutcomes[key]
+    if not outcome then return nil end
     local now = GetTime()
-    if lastOutcome.avoided and now - lastOutcome.at <= OUTCOME_LOOKBACK then return lastOutcome end
-    local immune = includeImmune and lastOutcome.immune
+    if outcome.avoided and now - outcome.at <= OUTCOME_LOOKBACK then return outcome end
+    local immune = includeImmune and outcome.immune
     if immune and now - immune.at <= OUTCOME_LOOKBACK then return immune end
 end
 
@@ -588,7 +636,9 @@ end
 
 local function onAvoided(key, action, school)
     local now = GetTime()
-    lastOutcome = { key = key, avoided = true, action = action, school = school, at = now }
+    local outcome = lastOutcomes[key] or {} -- the mob's own table, reused (see onHit)
+    outcome.avoided, outcome.action, outcome.school, outcome.at, outcome.immune = true, action, school, now, nil
+    setOutcome(key, outcome)
     if lastBuilder and lastBuilder.key == key then
         if now - lastBuilder.at <= OUTCOME_WINDOW then
             countedPoints = math.max(0, countedPoints - lastBuilder.points)
@@ -616,11 +666,17 @@ end
 -- someone else's.
 local function onHit(key, school)
     local now = GetTime()
-    local prior = lastOutcome
-    lastOutcome = { key = key, avoided = false, at = now }
-    if prior and prior.key == key and prior.action == "IMMUNE" and now - prior.at <= OUTCOME_LOOKBACK then
-        lastOutcome.immune = prior
+    local prior = lastOutcomes[key]
+    local outcome
+    if prior and prior.action == "IMMUNE" and now - prior.at <= OUTCOME_LOOKBACK then
+        outcome = { immune = prior } -- a new table: the IMMUNE one is kept in .immune
+    else
+        -- the mob's own table, reused: in a raid fight a mob is hit many times a second
+        outcome = prior or {}
+        outcome.action, outcome.school, outcome.immune = nil, nil, nil
     end
+    outcome.avoided, outcome.at = false, now
+    setOutcome(key, outcome)
     if lastBuilder and lastBuilder.key == key then lastBuilder = nil end
     -- UNIT_COMBAT can hand out a secret school; this runs before the amount/school guard, so never compare it.
     local schoolKnown = not isSecret(school)
@@ -984,15 +1040,26 @@ local function onUnitCombat(unit, action, flag, amount, school)
     if not key then return end
     if AVOIDED_ACTIONS[action] then return onAvoided(key, action, school) end
     if action == "WOUND" or absorbed then onHit(key, school) end
+    -- a mob without a DoT of ours (and no armed trap): its hits are other players' (left before reading their values)
+    if not dotsByTarget[key] and not armedTrap then return end
     if isSecret(amount) or isSecret(school) or type(amount) ~= "number" then return end
     local isCrit = not isSecret(flag) and flag == "CRITICAL"
-    if not dotsByTarget[key] and not armedTrap then return end
-    local dots = dotsByTarget[key] or {}
+    local dots = dotsByTarget[key] or EMPTY
+    -- A school none of the mob's DoTs (nor the armed trap) has is another player's hit: nothing to match. Its HIT line is
+    -- only written while debugging (below): in a raid those lines were most of the work and filled the trace log
+    -- (audit 29/10 b, M2).
+    if not db.debug and not (armedTrap and armedTrap.school == school) then
+        local same = false
+        for _, dot in pairs(dots) do
+            if dot.school == school then same = true; break end
+        end
+        if not same then return end
+    end
 
     -- The same hit fires for target, nameplateN, softenemy...: handle it once (see combatFrameHits above).
     local now = GetTime()
     if combatFrameAt ~= now then
-        combatFrameHits = {}
+        wipe(combatFrameHits)
         combatFrameAt = now
     end
     local signature = key .. ":" .. amount .. ":" .. school
@@ -1043,8 +1110,10 @@ local function onUnitCombat(unit, action, flag, amount, school)
         end
         -- Returned like a waiting DoT's first tick: the trap's DoT shows (and flashes) from now.
         if springTrap(key, unit, amount, school, isCrit, now) then return key end
-        trace(string.format("HIT %d%s school %d on %s not matched to a DoT", amount, isCrit and " (crit)" or "",
-            school, unit))
+        if db.debug then
+            trace(string.format("HIT %d%s school %d on %s not matched to a DoT", amount, isCrit and " (crit)" or "",
+                school, unit))
+        end
         return
     end
 
@@ -1062,11 +1131,7 @@ end
 -- Its DoTs used to be dropped as "never ticked", which lost every earlier mob when chain pulling.
 local function isObservable(key)
     if unitKey("target") == key or unitKey("focus") == key then return true end
-    for i = 1, 40 do
-        local unit = "nameplate" .. i
-        if UnitExists(unit) and unitKey(unit) == key then return true end
-    end
-    return false
+    return plateOfKey[key] ~= nil -- a plate on screen (the nameplate events keep the list)
 end
 
 local function housekeep(now)
@@ -1110,12 +1175,13 @@ end
 
 -- Remaining damage per DoT on a mob (by unitKey), oldest application first. DoTs still waiting for their first
 -- tick are left out. A DoT being cast on the mob replaces the one of the same name it would refresh.
+local function byApplied(a, b) return a.appliedAt < b.appliedAt end
 local function dotBreakdown(key)
     local dots = key and dotsByTarget[key]
     local cast = key and castInProgress and castInProgress.key == key and castInProgress or nil
+    if not dots and not cast then return EMPTY end -- (the callers only read the list)
     local list = {}
-    if not dots and not cast then return list end
-    for name, dot in pairs(dots or {}) do
+    for name, dot in pairs(dots or EMPTY) do
         if not isWaiting(dot) and not (cast and name == cast.name) then
             table.insert(list, { name = name, school = dot.school, appliedAt = dot.appliedAt,
                 damage = remainingDamage(dot) })
@@ -1125,17 +1191,18 @@ local function dotBreakdown(key)
         table.insert(list, { name = cast.name, school = cast.dot.school, appliedAt = cast.dot.appliedAt,
             damage = remainingDamage(cast.dot), provisional = true })
     end
-    table.sort(list, function(a, b) return a.appliedAt < b.appliedAt end)
+    table.sort(list, byApplied)
     return list
 end
 
--- Returns what the target's DoTs still have to deal, how many DoTs count toward it, and the per-DoT
--- breakdown (see dotBreakdown).
+-- Returns what the target's DoTs still have to deal, how many DoTs count toward it, the per-DoT
+-- breakdown (see dotBreakdown) and the target's key.
 local function targetRemainingDamage()
-    local list = dotBreakdown(unitKey("target"))
+    local key = unitKey("target")
+    local list = dotBreakdown(key)
     local total = 0
     for _, entry in ipairs(list) do total = total + entry.damage end
-    return math.floor(total + 0.5), #list, list
+    return math.floor(total + 0.5), #list, list, key
 end
 
 ---------------------------------------------------------------------------
@@ -1154,6 +1221,19 @@ function ns.dotBreakdownForUnit(unit)
     local total = 0
     for _, entry in ipairs(list) do total = total + entry.damage end
     return list, total
+end
+
+-- The tokens of the plates showing a mob with a DoT or a cast estimate, into `out` (wiped first): the only plates the
+-- nameplate pass (Nameplates.lua) has to draw.
+function ns.dottedPlates(out)
+    wipe(out)
+    for key in pairs(dotsByTarget) do
+        local token = plateOfKey[key]
+        if token then out[#out + 1] = token end
+    end
+    local castKey = castInProgress and castInProgress.key
+    if castKey and not dotsByTarget[castKey] and plateOfKey[castKey] then out[#out + 1] = plateOfKey[castKey] end
+    return out
 end
 ns.print = print
 ns.trace = trace
@@ -1284,7 +1364,9 @@ end
 local function forgetAll()
     wipe(dotsByTarget)
     wipe(sentTargets)
-    castInProgress, armedTrap, lastDotCast, lastOutcome = nil, nil, nil, nil
+    wipe(lastOutcomes)
+    outcomeCount = 0
+    castInProgress, armedTrap, lastDotCast = nil, nil, nil
     comboAtSend = nil
     resetComboCount()
 end
@@ -1297,6 +1379,7 @@ function ns.SetActive(on)
     if on then
         for _, event in ipairs(EVENTS) do pcall(frame.RegisterEvent, frame, event) end
         for _, event in ipairs(PLAYER_EVENTS) do pcall(frame.RegisterUnitEvent, frame, event, "player") end
+        readPlates()
         trace("===== tracking on =====")
         if not ns.display.attach(true) and not portraitWarned then
             portraitWarned = true
@@ -1318,6 +1401,7 @@ local function OnEvent(self, event, ...)
     if not ns.Allowed() then return ns.SetActive(false) end
 
     if event == "PLAYER_ENTERING_WORLD" then
+        readPlates() -- a loading screen took the plates away (and GUIDs may be secret here, or no longer)
         ns.display.attach()
 
     elseif event == "PLAYER_TARGET_CHANGED" then
@@ -1355,13 +1439,16 @@ local function OnEvent(self, event, ...)
         if appliedTo and not waiting and appliedTo == unitKey("target") then ns.playFlash() end
 
     elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
-        -- A plate token goes to the next mob that gets a plate: DoTs keyed by it belonged to the old one.
         local token = ...
-        if type(token) == "string" and not isSecret(token) and dotsByTarget["plate:" .. token] then
-            dotsByTarget["plate:" .. token] = nil
-            trace("PLATE " .. token .. (event == "NAME_PLATE_UNIT_REMOVED" and " removed" or " reused")
-                .. ": its DoTs were for the mob it showed before")
-            ns.refresh()
+        if type(token) == "string" and not isSecret(token) then
+            if event == "NAME_PLATE_UNIT_ADDED" then plateAdded(token) else plateRemoved(token) end
+            -- A plate token goes to the next mob that gets a plate: DoTs keyed by it belonged to the old one.
+            if dotsByTarget["plate:" .. token] then
+                dotsByTarget["plate:" .. token] = nil
+                trace("PLATE " .. token .. (event == "NAME_PLATE_UNIT_REMOVED" and " removed" or " reused")
+                    .. ": its DoTs were for the mob it showed before")
+                ns.refresh()
+            end
         end
 
     elseif event == "UNIT_COMBAT" then
@@ -1373,7 +1460,24 @@ local function OnEvent(self, event, ...)
     end
     if not idle() then ns.Wake() end
 end
-frame:SetScript("OnEvent", W.Timed("DoesItDie events", OnEvent))
+-- UNIT_COMBAT comes for every unit token, the raid's included: hundreds a second in a raid fight. Only the tokens that
+-- can show an enemy mob go on; the others cost one table lookup (they cost ~0.05 ms each in the bench, and replaced the
+-- mob's outcome: audit 29/10 b, M1). "mouseover" and the boss frames add nothing the target, focus and plate tokens
+-- don't bring (where a boss has a frame its GUID is secret, and its plate token keys it).
+local MOB_UNITS = { target = true, focus = true, softenemy = true }
+local function mobUnit(unit)
+    local mob = MOB_UNITS[unit]
+    if mob == nil and type(unit) == "string" then
+        mob = unit:find("^nameplate%d+$") ~= nil
+        MOB_UNITS[unit] = mob
+    end
+    return mob
+end
+local TimedOnEvent = W.Timed("DoesItDie events", OnEvent)
+frame:SetScript("OnEvent", function(self, event, unit, ...)
+    if event == "UNIT_COMBAT" and not mobUnit(unit) then return end
+    TimedOnEvent(self, event, unit, ...)
+end)
 
 ---------------------------------------------------------------------------
 -- Commands: /wl did <command> (also /did). No command opens the tab (../DoesItDie.lua).

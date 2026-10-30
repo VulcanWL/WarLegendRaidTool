@@ -6,6 +6,15 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- DoesItDie allumé coûte bien moins en raid : il ignore les coups reçus par les membres du groupe, ne lit plus que les
+  barres de nom des mobs qui portent tes DoT, et son journal de suivi ne note plus les coups des autres joueurs (seulement
+  avec `/wl did debug`).
+
+### Corrigé
+- DoesItDie, en groupe : un DoT esquivé ou résisté juste avant le départ du sort n'est plus compté. Un coup reçu au même
+  moment par un autre joueur ou un autre mob effaçait l'esquive, et l'icône de mort pouvait s'afficher pour un DoT absent.
+
 ## 1.41.55 (29/10/2026)
 
 ### Modifié

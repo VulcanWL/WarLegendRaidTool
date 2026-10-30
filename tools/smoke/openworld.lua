@@ -3,7 +3,8 @@
 -- [1 frames] the enemy player frames of the danger alert (40 at most, secure buttons changed out of combat only, combat
 --   in and out while enemies come and go), the other frames shown in a raid in the open world;
 -- [2 cost] the raid forming, unit events of 10 vs 40 players, the PvP addon once loaded, addon messages from 39 raiders
---   and 119 guild mates, the OnUpdate scripts at rest, the addon's own /wl perf (W.BusiestWork);
+--   and 119 guild mates, the OnUpdate scripts at rest, DoesItDie switched on (the raid's UNIT_COMBAT, 40 mob
+--   nameplates, its 10 Hz passes), the addon's own /wl perf (W.BusiestWork);
 -- [3 map] the guild members on the world map and the minimap (GuildPositions, GuildMap's messages made from the addon's
 --   own line), map closed / open, pins, the minimap library at work, stale positions.
 -- fengari ms only compare with each other here: they are not ms in game.
@@ -560,6 +561,149 @@ Line("%d OnUpdate script(s) running: %s; %.1f calls per frame; %d timer(s) pendi
 CostsLines(4)
 LineWork(b2, 4)
 sending = false
+
+---------------------------------------------------------------------------
+-- [2 cost] DoesItDie switched on (off by default): every unit's UNIT_COMBAT reaches its frame, and while a DoT is
+-- tracked it draws the target, the nameplates and the focus 10 times a second (audit of 29/10 b, M1-M3)
+---------------------------------------------------------------------------
+Section("[2 cost] DoesItDie on: raid of 40, 40 mob nameplates (UNIT_COMBAT of every unit, the 10 Hz passes)")
+Phase("[2 cost] DoesItDie on")
+-- the fake client has no nameplate frames and no spell text: a plate per mob (Blizzard's UnitFrame.healthBar) and the
+-- description of one DoT, for this section only
+local did = W.Space("DoesItDie")
+local savedPlates, savedName, savedDesc = C_NamePlate, C_Spell.GetSpellName, C_Spell.GetSpellDescription
+local plateFrames = {}
+C_NamePlate = { GetNamePlateForUnit = function(u) return M.units[u] and plateFrames[u] or nil end }
+local CORRUPTION = 172
+C_Spell.GetSpellName = function(id)
+    if id == CORRUPTION then return "Corruption" end
+    if savedName then return savedName(id) end
+    return GetSpellInfo and (GetSpellInfo(id)) or nil
+end
+C_Spell.GetSpellDescription = function(id)
+    if id == CORRUPTION then return "Corrupts the target, causing 90 Shadow damage over 18 sec." end
+    return savedDesc and savedDesc(id) or nil
+end
+local function Mob(i)
+    local unit = "nameplate" .. i
+    M.units[unit] = { name = "Mob" .. i, class = "WARRIOR", guid = string.format("Creature-0-1-2-3-%d-%08X", 1000 + i, i),
+        enemy = true, npc = true, hp = 3000, hpMax = 4000, level = 60 }
+    if not plateFrames[unit] then
+        local plate = CreateFrame("Frame", nil, UIParent)
+        plate.namePlateUnitToken = unit
+        plate.UnitFrame = CreateFrame("Frame", nil, plate)
+        plate.UnitFrame.healthBar = CreateFrame("StatusBar", nil, plate.UnitFrame)
+        plateFrames[unit] = plate
+    end
+    M.Fire("NAME_PLATE_UNIT_ADDED", unit)
+end
+local function Unmob(i)
+    M.Fire("NAME_PLATE_UNIT_REMOVED", "nameplate" .. i)
+    M.units["nameplate" .. i] = nil
+end
+-- DoesItDie's marker on a plate: a shown StatusBar right under the plate frame (Blizzard's bar is under its UnitFrame)
+local function MarkerShown(i)
+    local plate = plateFrames["nameplate" .. i]
+    for _, f in ipairs(M.frames) do
+        if f.__parent == plate and f.__type == "StatusBar" and f:IsVisible() then return true end
+    end
+    return false
+end
+local N = 2000
+local function Stream(unitOf, amountOf, school)
+    return Clock(function()
+        for i = 1, N do M.Fire("UNIT_COMBAT", unitOf(i), "WOUND", "", amountOf(i), school) end
+    end)
+end
+local function Raider(i) return "raid" .. (i % 39 + 2) end
+local function Small(i) return 100 + i % 7 end
+local function DotsOnTarget() return #did.dotBreakdownForUnit("target") end
+
+-- raiders taking hits: with nothing to do there, the module must cost about what an empty handler does
+local tOff = Stream(Raider, Small, 1)
+local empty = CreateFrame("Frame")
+empty:RegisterEvent("UNIT_COMBAT")
+empty:SetScript("OnEvent", function() end)
+local tEmpty = Stream(Raider, Small, 1)
+empty:UnregisterEvent("UNIT_COMBAT")
+W.db.doesItDie.enabled = true
+did.Apply()
+Check("DoesItDie: switched on from its setting", did.IsActive())
+local tOn = Stream(Raider, Small, 1)
+Line("raid2..40 taking hits (UNIT_COMBAT x%d): no handler %.0f ms, an empty handler %.0f ms, DoesItDie on %.0f ms (%+.4f ms per event over the empty one)",
+    N, tOff, tEmpty, tOn, (tOn - tEmpty) / N)
+Check("DoesItDie: a raider's UNIT_COMBAT costs about an empty handler (it never reaches the tracker)",
+    tOn - tOff <= 2 * (tEmpty - tOff) + 5, string.format("%.0f ms over no handler, an empty handler %.0f ms", tOn - tOff, tEmpty - tOff))
+
+-- 40 mobs on nameplates, none with a DoT yet
+for i = 1, 40 do Mob(i) end
+local tMobs = Stream(function(i) return "nameplate" .. (i % 40 + 1) end, Small, 1)
+Line("mobs without a DoT taking hits (nameplate1..40, x%d): %.0f ms (%+.4f ms per event over no handler)", N, tMobs, (tMobs - tOff) / N)
+
+-- the cast's own result can come just before its cast event: a resist then, with raiders and other mobs hit in
+-- between, still drops the DoT (the one outcome kept for every unit used to lose it)
+M.units.target = M.units.nameplate1
+M.Fire("PLAYER_TARGET_CHANGED")
+M.Fire("UNIT_SPELLCAST_SENT", "player", "Mob1", "Cast-1", CORRUPTION)
+M.Fire("UNIT_COMBAT", "nameplate1", "RESIST", "", 0, 32)
+for i = 2, 11 do M.Fire("UNIT_COMBAT", "raid" .. i, "WOUND", "", 300, 1) end
+for i = 5, 7 do M.Fire("UNIT_COMBAT", "nameplate" .. i, "WOUND", "", 300, 1) end
+M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-1", CORRUPTION)
+Check("DoesItDie: a DoT resisted just before its cast event is dropped, raiders and other mobs hit in between", DotsOnTarget() == 0, DotsOnTarget())
+local function Cast(guid)
+    M.Fire("UNIT_SPELLCAST_SENT", "player", "Mob1", guid, CORRUPTION)
+    M.Fire("UNIT_SPELLCAST_SUCCEEDED", "player", guid, CORRUPTION)
+end
+M.Advance(1.5) -- the global cooldown: the resist above is out of the look-back (0.25 s)
+Cast("Cast-2")
+Check("DoesItDie: a DoT that lands is tracked", DotsOnTarget() == 1, DotsOnTarget())
+
+-- the raiders' own hits on that mob (Physical, never the DoT's tick)
+local tDot = Stream(function() return "nameplate1" end, function(i) return 200 + i % 50 end, 1)
+local tPlain = Stream(function() return "nameplate2" end, function(i) return 200 + i % 50 end, 1)
+local log, hits, cast = W.db.doesItDie.log, 0, false
+for _, l in ipairs(log) do
+    if l:find(" HIT ", 1, true) then hits = hits + 1 end
+    if l:find(" CAST Corruption", 1, true) then cast = true end
+end
+Line("raiders' hits on the mob with the DoT (x%d): %.0f ms, on a mob without one: %.0f ms (%+.4f ms per hit); trace log %d lines, %d \"HIT\"",
+    N, tDot, tPlain, (tDot - tPlain) / N, #log, hits)
+Check("DoesItDie: other players' hits on the mob write no trace line (debug off), the cast stays in the log", hits == 0 and cast,
+    hits .. " HIT line(s), cast line " .. (cast and "kept" or "gone"))
+
+-- the 10 Hz passes
+did.refreshPlates()
+Check("DoesItDie: the marker shows on the plate of the mob with the DoT, not on the others", MarkerShown(1) and not MarkerShown(2))
+local p40 = Clock(function() for _ = 1, 200 do did.refreshPlates() end end)
+for i = 2, 40 do Unmob(i) end
+local p1 = Clock(function() for _ = 1, 200 do did.refreshPlates() end end)
+local pTarget = Clock(function() for _ = 1, 200 do did.refresh() end end)
+local pFocus = Clock(function() for _ = 1, 200 do did.refreshFocus() end end)
+Line("10 Hz passes: nameplates %.3f ms with 40 plates, %.3f ms with only the one carrying the DoT; target %.3f ms; focus (none) %.3f ms",
+    p40 / 200, p1 / 200, pTarget / 200, pFocus / 200)
+Check("DoesItDie: the nameplate pass costs the plates with a DoT, not every plate on screen", p40 <= p1 * 1.5 + 2,
+    string.format("%.0f ms with 40 plates, %.0f ms with 1", p40, p1))
+
+-- switched off then on again with the plates already up: a new DoT still shows on its plate
+for i = 2, 40 do Mob(i) end
+W.db.doesItDie.enabled = false
+did.Apply()
+did.refreshPlates()
+Check("DoesItDie: switched off, nothing tracked and no marker left", not did.IsActive() and DotsOnTarget() == 0 and not MarkerShown(1))
+W.db.doesItDie.enabled = true
+did.Apply()
+Cast("Cast-3")
+did.refreshPlates()
+Check("DoesItDie: on again with the plates already up, the marker shows on the plate with the DoT", MarkerShown(1) and not MarkerShown(3))
+
+W.db.doesItDie.enabled = false
+did.Apply()
+for i = 1, 40 do Unmob(i) end
+M.units.target = nil
+M.Fire("PLAYER_TARGET_CHANGED")
+C_NamePlate, C_Spell.GetSpellName, C_Spell.GetSpellDescription = savedPlates, savedName, savedDesc
+M.Advance(1)
+
 Section("[2 cost] /wl perf over the whole run (W.BusiestWork, total ms / count)")
 for _, b in ipairs(W.BusiestWork(10)) do Line("%-52s %8.1f ms / %d (max %.1f ms)", b[1], b[4], b[3], b[2]) end
 

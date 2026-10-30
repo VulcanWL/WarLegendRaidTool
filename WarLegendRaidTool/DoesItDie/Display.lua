@@ -168,7 +168,7 @@ skull:SetPoint("RIGHT", skullBar:GetStatusBarTexture(), "RIGHT")
 
 local skullPulse = skull:CreateAnimationGroup()
 skullPulse:SetLooping("BOUNCE")
--- (Setup-only locals go in do ... end blocks: the file is close to Lua's 200 top-level locals limit.)
+-- (Setup-only locals go in do ... end blocks: they keep the top-level locals down, Lua 5.1 allows 200 in a file.)
 do
     local skullPulseAlpha = skullPulse:CreateAnimation("Alpha")
     skullPulseAlpha:SetFromAlpha(1)
@@ -633,8 +633,10 @@ end
 
 -- Shows and colors one segment per entry ({ name, school, damage }), or hides them all when entries is nil.
 -- Returns the running totals to pass to setMarkerValue.
+local cumulative = {} -- the running totals, reused at each pass (setMarkerValue reads them at once)
 local function updateSegments(entries)
-    local cumulative, running = {}, 0
+    wipe(cumulative)
+    local running = 0
     local count = entries and math.min(#entries, MAX_SEGMENTS) or 0
     local alpha = db.fillOpacity / 100
     for i, segment in ipairs(segments) do
@@ -657,15 +659,25 @@ local function updateSegments(entries)
 end
 
 -- "DoTs: Corruption 60 · Immolate 45", each name in its segment's color.
+local function colorByte(v) return math.floor(v * 255 + 0.5) end
 local function breakdownText(entries)
     local parts = {}
     for _, entry in ipairs(entries) do
         local color = dotColor(entry)
-        local function byte(v) return math.floor(v * 255 + 0.5) end
-        table.insert(parts, string.format("|cff%02x%02x%02x%s %d|r", byte(color[1]), byte(color[2]),
-            byte(color[3]), entry.name, math.floor(entry.damage + 0.5)))
+        table.insert(parts, string.format("|cff%02x%02x%02x%s %d|r", colorByte(color[1]), colorByte(color[2]),
+            colorByte(color[3]), entry.name, math.floor(entry.damage + 0.5)))
     end
     return L("DoTs: ") .. table.concat(parts, " · ")
+end
+
+-- The label's text: built only while the label shows (off by default: it was built 10 times a second for nothing) and
+-- set only when it changed (audit 29/10 b, L8).
+local labelText
+local function setLabel(text)
+    if text ~= labelText then
+        labelText = text
+        label:SetText(text)
+    end
 end
 
 local function playFlash()
@@ -780,6 +792,7 @@ end
 
 -- Keeps our marker and skull above everything on the target frame. Checked while displaying (throttled)
 -- because Blizzard can re-layer the frame at any time.
+local LAYERED = { remainingBar, fillLayer, clipLayer, outlineLayer, sparkLayer, skullWindow, skullBar }
 local layerCheckedAt, lastStrata, lastLevel, layerErrorLogged = 0, nil, nil, false
 local function updateLayering(now)
     if now - layerCheckedAt < LAYER_CHECK_INTERVAL then return end
@@ -799,14 +812,14 @@ local function updateLayering(now)
         end
         return
     end
-    for i, frame in ipairs({ remainingBar, fillLayer, clipLayer, outlineLayer, sparkLayer, skullWindow, skullBar }) do
+    -- set again only when the top changed (it was set every second: a strata set also resets the levels)
+    if strata == lastStrata and level == lastLevel then return end
+    lastStrata, lastLevel = strata, level
+    for i, frame in ipairs(LAYERED) do
         frame:SetFrameStrata(strata)
         frame:SetFrameLevel(level + i)
     end
-    if strata ~= lastStrata or level ~= lastLevel then
-        lastStrata, lastLevel = strata, level
-        trace(string.format("LAYER target frame top is %s/%d; marker and skull placed above it", strata, level))
-    end
+    trace(string.format("LAYER target frame top is %s/%d; marker and skull placed above it", strata, level))
 end
 
 local function hideMarkers()
@@ -860,6 +873,17 @@ local function targetIsDead()
     return ok and not isSecret(dead) and dead
 end
 
+-- The target's (secret) health into the kill icon's bar and the marker's scale, with the damage still to come; run
+-- under pcall by refresh: a value the widgets refuse must not break the display. totals: the per-DoT running totals.
+local function feedTarget(damage, key, totals)
+    skullBar:SetMinMaxValues(0, UnitHealth("target"))
+    skullBar:SetValue(damage)
+    if healthBar then
+        setMarkerScale(UnitHealthMax("target"))
+        setMarkerValue(damage, key, totals)
+    end
+end
+
 local updateErrorShown = false
 local lastTracedDamage
 local function refresh()
@@ -896,7 +920,9 @@ local function refresh()
         setMarkerScale(100)
         local perDot = db.dotColors ~= "single"
         setMarkerValue(total, "preview", updateSegments(perDot and entries or nil))
-        label:SetText(perDot and breakdownText(entries) or L("DoTs: %d"):format(math.floor(total + 0.5)))
+        if db.showLabel then
+            setLabel(perDot and breakdownText(entries) or L("DoTs: %d"):format(math.floor(total + 0.5)))
+        end
         showMarkers()
         return
     end
@@ -907,7 +933,7 @@ local function refresh()
         local ok, visible = pcall(visibilityFrame.IsVisible, visibilityFrame)
         if ok and not isSecret(visible) and not visible then return hideAll() end
     end
-    local damage, count, breakdown = ns.tracking.targetRemainingDamage()
+    local damage, count, breakdown, key = ns.tracking.targetRemainingDamage()
     if damage ~= lastTracedDamage then
         lastTracedDamage = damage
         trace(string.format("ESTIMATE %d remaining from %d DoT(s)", damage, count))
@@ -915,14 +941,7 @@ local function refresh()
     if count == 0 then return hideAll() end
 
     local perDot = db.dotColors ~= "single"
-    local ok, err = pcall(function()
-        skullBar:SetMinMaxValues(0, UnitHealth("target"))
-        skullBar:SetValue(damage)
-        if healthBar then
-            setMarkerScale(UnitHealthMax("target"))
-            setMarkerValue(damage, ns.tracking.unitKey("target"), updateSegments(perDot and breakdown or nil))
-        end
-    end)
+    local ok, err = pcall(feedTarget, damage, key, healthBar and updateSegments(perDot and breakdown or nil))
     if not ok then
         if not updateErrorShown then
             updateErrorShown = true
@@ -933,7 +952,7 @@ local function refresh()
 
     skullWindow:SetShown(db.showSkull)
     if healthBar then
-        label:SetText(perDot and breakdownText(breakdown) or L("DoTs: %d"):format(damage))
+        if db.showLabel then setLabel(perDot and breakdownText(breakdown) or L("DoTs: %d"):format(damage)) end
         showMarkers()
     else
         hideMarkers()

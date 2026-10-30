@@ -502,6 +502,7 @@ end
 -- another file draws on with these widgets (Focus.lua), which shows and hides them itself.
 local seenHosts = {}
 local pinnedHosts = {}
+local dotted = {} -- the plates to draw (ns.dottedPlates), reused at each pass
 
 -- A dead mob keeps its plate for a moment, and its DoTs stay tracked until they expire.
 local function unitIsDead(unit)
@@ -554,14 +555,13 @@ local function refreshPlates()
         updatePreviewPlate(db)
     end
     if db and db.nameplateMode ~= "off" and C_NamePlate and C_NamePlate.GetNamePlateForUnit then
-        for i = 1, MAX_PLATES do
-            local unit = "nameplate" .. i
-            if UnitExists(unit) then
-                local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
-                local forbidden = ok and plate and plate.IsForbidden and plate:IsForbidden()
-                if ok and plate and not forbidden then
-                    updatePlate(unit, plate, db)
-                end
+        -- only the plates showing a mob with a DoT (DoesItDie.lua keeps them from the nameplate events): the pass read
+        -- the 40 plate tokens, 2 to 4 pcalls each, 10 times a second (audit 29/10 b, M3)
+        for _, unit in ipairs(ns.dottedPlates(dotted)) do
+            local ok, plate = pcall(C_NamePlate.GetNamePlateForUnit, unit)
+            local forbidden = ok and plate and plate.IsForbidden and plate:IsForbidden()
+            if ok and plate and not forbidden then
+                updatePlate(unit, plate, db)
             end
         end
     end

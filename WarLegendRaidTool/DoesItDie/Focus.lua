@@ -40,18 +40,25 @@ local function blizzardFocusBar()
         or (ff and ff.healthbar)
 end
 
--- The bar to draw on (EllesmereUI's focus frame, else Blizzard's), and a description of it for the tab.
+-- The bar to draw on and its addon's name: EllesmereUI's focus frame, looked up by name at most once a second (it was
+-- looked up 10 times a second; it may be built late), else Blizzard's (no name).
+local knownBar, knownOwner, knownAt = nil, nil, -math.huge
 local function focusBar()
-    local known, owner = ns.knownFocusFrame()
-    if known then return known, L("%s focus frame"):format(owner) end
-    local blizzard = blizzardFocusBar()
-    if blizzard then return blizzard, L("Blizzard's focus frame") end
-    return nil, "|cffff6666" .. L("no focus frame found") .. "|r"
+    local now = GetTime()
+    if now - knownAt >= 1 then
+        knownAt = now
+        knownBar, knownOwner = ns.knownFocusFrame()
+    end
+    if knownBar then return knownBar, knownOwner end
+    return blizzardFocusBar()
 end
 
 -- What the focus marker is attached to (the tab).
 function ns.focusStatus()
-    return select(2, focusBar())
+    local bar, owner = focusBar()
+    if owner then return L("%s focus frame"):format(owner) end
+    if bar then return L("Blizzard's focus frame") end
+    return "|cffff6666" .. L("no focus frame found") .. "|r"
 end
 
 -- The focus look: the nameplate widgets read plate* (and nameplateMode, nameplateIcon*) settings; this view
@@ -111,6 +118,7 @@ local STRATA_RANK = {
 }
 local LAYER_CHECK_INTERVAL = 1
 local layerCheckedAt, topStrata, topLevel, layerBar = -math.huge, nil, nil, nil
+local appliedStrata, appliedLevel, appliedBar -- what the widgets were put in last (a new bar re-anchors them)
 
 local function topLayer(root)
     local bestStrata, bestLevel = "BACKGROUND", 0
@@ -144,7 +152,11 @@ local function updateLayering(bar, now)
             ns.trace(string.format("LAYER focus frame top is %s/%d; focus marker placed above it", strata, level))
         end
     end
-    if topStrata then ns.barMarker.layer(widgets, topStrata, topLevel) end
+    -- only on a change (it was set 10 times a second): a strata set also resets the levels
+    if topStrata and (topStrata ~= appliedStrata or topLevel ~= appliedLevel or bar ~= appliedBar) then
+        appliedStrata, appliedLevel, appliedBar = topStrata, topLevel, bar
+        ns.barMarker.layer(widgets, topStrata, topLevel)
+    end
 end
 
 local function dead()

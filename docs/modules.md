@@ -85,6 +85,13 @@ preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and Fren
   original DoesItDie addon loaded. `ns.SetActive` registers / unregisters the events (a frame of its own: the spell cast
   events for the player only, `UNIT_COMBAT` for every unit, too frequent for `W.On`) and forgets every DoT. `W.On` of the
   module file (target change, entering world, combat) switch it back on after Settings > Modules.
+- **Only the mobs**: `UNIT_COMBAT` comes for every unit token (the raid's: hundreds a second in a fight); a wrapper in front
+  of the timed handler drops every token but `target`, `focus`, `softenemy` and `nameplateN` (`mobUnit`, one table
+  lookup). The last outcome (hit / avoid, for the cast's look-back) is kept per mob (`lastOutcomes`): another unit's hit
+  never hides a mob's avoid. Each plate's token <-> its mob's key is read once on `NAME_PLATE_UNIT_ADDED` (and when the
+  module comes on or the world loads: `readPlates`): `unitKey` answers a plate token without a pcall, the 10 Hz nameplate
+  pass draws only the plates of mobs with a DoT (`ns.dottedPlates`), `isObservable` needs no loop. Measured by the
+  "DoesItDie on" phase of `smoke.js --open-world` (audit of 29/10 b).
 - **One driver**: the target marker, the nameplates and the focus are drawn 10 times a second by one `OnUpdate`, shown only
   while a DoT is tracked, a cast estimate runs, the tab's preview is on or the kill icon test runs (`ns.Wake`; it hides
   itself after the pass that hides everything). At rest, switched on: 0 ms. The look is applied again only when a setting
@@ -92,7 +99,8 @@ preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and Fren
 - **Secret values**: target health, mob GUIDs (instances) can be secret: health only ever goes into StatusBar min / max (the
   widget compares), GUIDs fall back to the nameplate token. Never `COMBAT_LOG_EVENT_UNFILTERED` (Forever forbids it).
 - **Saved**: options = scalars of `W.db.doesItDie` (profiles); `ticks` (learned tick sizes) and `log` (300 trace lines) are
-  data. `ns.Sanitize` puts back a number out of its slider's range or an id out of its list (imported profile).
+  data. A hit that matches no DoT writes its "HIT" line only with `/wl did debug` (in a group, other players' hits filled
+  the 300 lines within seconds). `ns.Sanitize` puts back a number out of its slider's range or an id out of its list (imported profile).
   1.37.0-1.41.54 saved in `DoesItDieDB` (the original's name): migration 3 copies it, then it is set to nil; it stays in the
   .toc for that move (drop it from `## SavedVariables` a version later). With the original addon loaded, its table is
   given back and ours stays off.
