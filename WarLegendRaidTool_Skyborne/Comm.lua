@@ -225,6 +225,27 @@ local function Room(all, mapID)
     return n < MAX_MAPS
 end
 
+-- And entries in all (WLRT): 200 on each of 40 maps, for sightings and "not there"s, let one stranger stuffing made-up
+-- phases make us keep and save 16,000 a faction. At the cap, what has expired goes first, once a minute at most (Find
+-- only prunes the map it reads). Ours and those of the zone and phase I am in still get in: they are what the map shows.
+local MAX_KEPT = 2000
+local prunedAt = -1000
+local function Kept(all)
+    local n = 0
+    for _, list in pairs(all) do n = n + #list end
+    return n
+end
+local function Full()
+    local n = Kept(reports) + Kept(gone)
+    if n >= MAX_KEPT and GetTime() - prunedAt > 60 then
+        prunedAt = GetTime()
+        for _, list in pairs(reports) do Prune(list) end
+        for _, list in pairs(gone) do Prune(list) end
+        n = Kept(reports) + Kept(gone)
+    end
+    return n >= MAX_KEPT
+end
+
 -- A sighting. For a node and phase the newest report wins, sighting or "not there".
 -- sender: who reported it (nil for ours): a new location is learned once 2 players reported it (Main.lua)
 local function Add(p, mapID, x, y, t, mine, sender)
@@ -245,7 +266,7 @@ local function Add(p, mapID, x, y, t, mine, sender)
         r.first = math.min(r.first or r.t, t)
         if t > r.t then r.x, r.y, r.t = x, y, t end
         r.mine = r.mine or mine
-    elseif #list < MAX_REPORTS then
+    elseif #list < MAX_REPORTS and (mine or (p == phase and mapID == phaseMap) or not Full()) then
         list[#list + 1] = { phase = p, x = x, y = y, t = t, first = t, mine = mine }
     end
     Refresh(p, mapID)
@@ -266,7 +287,7 @@ local function AddGone(p, mapID, x, y, t)
     local _, g = Find(list, p, mapID, x, y)
     if g then
         if t > g.t then g.t = t end
-    elseif #list < MAX_REPORTS then
+    elseif #list < MAX_REPORTS and ((p == phase and mapID == phaseMap) or not Full()) then
         list[#list + 1] = { phase = p, x = x, y = y, t = t }
     end
     Refresh(p, mapID)
@@ -404,7 +425,8 @@ end
 
 local function OnMessage(text, sender)
     local kind, v, fac, p, rest = strsplit(":", text, 5)
-    Debug("<< %s: %s%s", sender, text, p and p == phase and " |cff00ff00<< your phase|r" or "")
+    -- WLRT: a stranger's text on my screen (the debug setting is saved): as plain text, never its escape codes
+    if debug then Debug("<< %s: %s%s", W.Plain(sender, 60), W.Plain(text, 255), p and p == phase and " |cff00ff00<< your phase|r" or "") end
     -- a phase is a zone uid: 20 digits at most (any number of digits made as many phases as a stranger wanted)
     if v ~= VERSION or fac ~= FactionTag() or not (p and #p <= 20 and p:match("^%d+$")) then return end
 
@@ -704,8 +726,11 @@ end
 events:SetScript("OnEvent", function(_, event, ...)
     if not started then return end
     if event == "CHAT_MSG_ADDON" then
-        local prefix, text, _, sender = ...
+        local prefix, text, channel, sender = ...
         if Clean(prefix) ~= PREFIX then return end -- every addon's message comes here: one test for the others
+        -- WLRT: the shared channel only (the same text on a whisper, the guild channel or a raid was taken too)
+        channel = Clean(channel)
+        if channel ~= "CHANNEL" then Debug("<< not on the channel: %s", tostring(channel)); return end
         text, sender = Clean(text), Clean(sender)
         if type(text) ~= "string" or type(sender) ~= "string" or not Enabled() then return end
         -- WLRT: nothing read in an instance or a fight (strangers' traffic, parsed and compared there for nothing)

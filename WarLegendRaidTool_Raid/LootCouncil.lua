@@ -808,7 +808,7 @@ W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload)
 end)
 
 -- loot messages travel in the group (or come back to me when I am alone); a resync comes whispered
-local LOOT_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, LOCAL = true }
+local LOOT_CHANNELS = { RAID = true, PARTY = true, LOCAL = true }
 local WHISPERED = { S = true, I = true, C = true, A = true }
 W.OnAddon(PREFIX, function(msg, from, channel, full)
     if #msg > 255 then return end
@@ -1138,8 +1138,14 @@ local function ItemTab(i)
     return b
 end
 
+W.AddFR({
+    ["The voting window is for the loot council."] = "La fenêtre de vote est réservée au conseil de butin.",
+})
+
+-- every vote, voter and note: for the council and the master looter (in S.council) only, as RCLootCouncil does by default
 function LC.ShowVote()
     if not S then W.Print(L("No session running.")); return end
+    if not IsCouncil() then W.Print(L("The voting window is for the loot council.")); return end
     if not UI.vote then BuildVote() end
     UI.vote:Show()
     LC.RefreshVote()
@@ -1149,7 +1155,7 @@ function LC.RefreshVote()
     LC.RefreshSession()
     local f = UI.vote
     if not f or not f:IsShown() then return end
-    if not S then f:Hide(); return end
+    if not S or not IsCouncil() then f:Hide(); return end -- a new session whose council I am not in (or not yet)
     for i = 1, S.n do
         local item = S.items[i]
         local b = ItemTab(i)
@@ -1515,8 +1521,16 @@ local function Reply(to, text)
     local now, r = GetTime(), replies[to]
     if not r or now - r[1] > REPLY_WINDOW then
         if not r then
+            -- stays small over an evening: only the windows that ended go (forgetting them all let 201 senders reset every
+            -- limit); 200 windows still running: no answer to a newcomer
+            if repliesCount >= 200 then
+                repliesCount = 0
+                for k, old in pairs(replies) do
+                    if now - old[1] > REPLY_WINDOW then replies[k] = nil else repliesCount = repliesCount + 1 end
+                end
+                if repliesCount >= 200 then return end
+            end
             repliesCount = repliesCount + 1
-            if repliesCount > 200 then wipe(replies); repliesCount = 1 end -- stays small over an evening
         end
         r = { now, 0 }
         replies[to] = r

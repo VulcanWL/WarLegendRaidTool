@@ -72,6 +72,7 @@ local function Encode(items)
 end
 local MAX_ITEMS = 100 -- a shared list: at most this many items, ids and quantities within sane bounds
 local MAX_TEXT = 2000 -- 100 "id:count" fit: a longer field is refused before any pattern runs on it
+local MAX_ASKED = 100 -- a quantity asked by another player is read up to this: a real list's amounts, not a whole stock
 -- split on "," then an anchored pattern: "(%d+):(%d+)" unanchored is quadratic on a long run of digits
 local function Decode(s, maxN)
     local out = {}
@@ -92,21 +93,22 @@ W.OnAddonLong(PREFIX, function(msg, from, channel, full)
     local isMe = unit and W.UnitIsMe(unit)
     if t[1] == "L" and not isMe and W.IsGroupLead(full or from, channel) then
         local items = Decode(t[2])
-        local who = unit and W.UnitDisplayName(unit) or from
-        W.ConfirmRemote(string.format(L("%s shares a consumables list (%d items). Replace your list?"), who, #items), function()
+        W.ConfirmRemote(string.format(L("%s shares a consumables list (%d items). Replace your list?"), W.Sender(from, full), #items), function()
             db.items = items
             CL.Refresh()
         end, L("Replace"))
-    elseif t[1] == "Q" and W.IsGroupLead(full or from, channel) then
+    elseif t[1] == "Q" and W.IsGroupLead(full or from, channel) and (isMe or W.GuildMember(full or from)) then
         if GetTime() - lastAnswer < 10 then return end -- one answer per 10 s whoever asks
         lastAnswer = GetTime()
-        local items = Decode(t[2])
+        local items = Decode(t[2], MAX_ASKED)
         -- spread over 2 s: a whole raid must not answer on the same frame
         W.After(0.2 + math.random() * 1.8, function()
             local ans = {}
             -- up to the amount asked: enough or not, and how many short, never my whole stock
             for _, e in ipairs(items) do ans[#ans + 1] = e[1] .. ":" .. math.min(W.ItemCount(e[1]), e[2]) end
-            W.SendLong(PREFIX, W.Pack("A", table.concat(ans, ",")))
+            -- to the asker alone: the raid does not read my bags (my own check comes back to me directly)
+            local answer = W.Pack("A", table.concat(ans, ","))
+            if isMe then W.SendLong(PREFIX, answer, "LOCAL") else W.SendLong(PREFIX, answer, "WHISPER", full or from) end
         end, "checklist answer")
     elseif t[1] == "A" and unit and GetTime() - askedAt < 60 then -- someone else's check: not saved here
         -- answers keyed by full identity: two "Arthur" in the raid stay two rows

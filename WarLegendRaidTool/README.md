@@ -104,7 +104,7 @@ décompresser dans `AddOns`. Avec **WowUp** : *Obtenir des addons → Installer 
 | `/rc` | Lance un vrai ready check (chef / assistant), sinon ouvre la fenêtre de vérification. |
 | `/wl rc` | Ouvre la fenêtre de vérification (prêt, durabilité). |
 | `/wl loot` | Ouvre le Loot Council. |
-| `/wl loot vote` | Ouvre la fenêtre de vote. |
+| `/wl loot vote` | Ouvre la fenêtre de vote (conseil et maître du butin seulement). |
 | `/wl loot add [objet]` | Ajoute un objet (lien) à la liste des objets à attribuer. |
 | `/wl loot test` | Lance une session de test. |
 | `/wl sr` | Ouvre l'onglet des soft-res. |
@@ -139,11 +139,13 @@ Les erreurs éventuelles s'affichent dans BugSack. Version actuelle : voir `WarL
 
 ## Sécurité
 
-- Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées, taille de chaque message long avant de le lire).
+- Messages entre addons acceptés seulement du groupe ou de la guilde ; les chuchotements d'inconnus sont refusés, et chaque valeur reçue est bornée (nombres finis, longueurs, nombre d'entrées, taille de chaque message long avant de le lire). Chaque sorte de message n'est prise que là où elle est envoyée : les outils de raid du groupe seulement, jamais du canal de guilde ni en champ de bataille ; le canal d'instance n'est pas lu (le chef de hasard d'un champ de bataille n'ouvre rien chez toi).
+- Ce que les autres lisent de ton personnage : une vérification de consommables n'est répondue qu'à un chef ou assistant de ta guilde, par chuchotement, jusqu'à 100 d'un objet ; la préparation des raiders répond une seule ligne par objet et une seule ligne d'or par vérification. Votes, votants et notes du Loot Council : dans la fenêtre du conseil et du maître du butin seulement (ces messages passent quand même sur le canal de raid : un client modifié pourrait les lire).
+- Une question envoyée par un autre joueur (liste de consommables, preset) donne son nom complet et dit s'il n'est pas de ta guilde ; si une de tes questions est ouverte, elle attend, puis arrive 0,5 s après ta réponse (un double clic sur ton Oui ne l'accepte pas sans la lire).
 - Import de profil : confirmation qui liste tout ce qui sera changé ; les macros des clics PvP sont filtrées par liste blanche (ciblage et sorts seulement : jamais `/gquit`, `/logout`, `/run`...). Les macros que tu écris toi-même dans les réglages ne sont pas filtrées : tu en es responsable. Seules les options du jeu d'Options > Interface sont reprises d'un profil ; positions et tailles des fenêtres vérifiées (une valeur absurde est ignorée).
 - Import Myslot : un texte collé de 500 Ko au plus, refusé s'il a plus d'entrées qu'un vrai profil, ses entrées invalides ignorées et le nom de ses macros sans code ; la confirmation donne le nombre de macros du profil et liste, avec la ligne en cause, chaque macro qui fait autre chose que cibler ou lancer un sort (`/run`, `/gleader`, `/gquit`, ligne de chat...) et les raccourcis qui cliquent un bouton ou lancent une macro ; l'import se fait dans le clic de la confirmation, refusé en combat.
 - Actions automatiques (invitations, promotions) éteintes par défaut, promotions hors combat seulement ; les annonces publiques partent sur un clic ou une confirmation ; aucun code reçu n'est exécuté.
-- Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; ce qui y arrive est borné (nombres finis, 200 signalements et 100 épingles par carte), une réponse à une demande tient en 2 messages (mes signalements d'abord) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
+- Exception : Skyborne partage ses épingles sur le canal caché d'origine (`SLLCM`, ouvert à tous) ; seuls les messages de ce canal sont lus, et ce qui y arrive est borné (nombres finis, 200 signalements par carte et 2 000 en tout, 100 épingles par carte), une réponse à une demande tient en 2 messages (mes signalements d'abord) et le partage se coupe dans les réglages de Skyborne (`/wl sk`).
 - Valeurs « secrètes » du jeu (vie, GUID, cible en combat...) : jamais comparées ni envoyées ; une valeur illisible est traitée comme absente.
 - Aucune action protégée en combat : les marques, le placement des groupes, le `/reload` et le ciblage PvP passent par des boutons sécurisés préparés hors combat.
 - Essais de guilde, banque de guilde, statistiques de BG, tri du butin, améliorations dans les sacs, objectif d'or, temps de chargement, Myslot et DoesItDie n'envoient rien.

@@ -273,7 +273,7 @@ end
 -- private = answering someone else: gold and item counts are sent as OK / missing only
 local PRIVATE = { gold = true, item = true }
 local function MyResults(reqs, private)
-    local out, goldSeen = {}, false
+    local out, goldSeen, itemSeen = {}, false, {}
     for i, r in ipairs(reqs) do
         local ok, value = Evaluate(r)
         if private and PRIVATE[r.kind] then value = "" end
@@ -281,6 +281,11 @@ local function MyResults(reqs, private)
         if private and r.kind == "gold" then
             if goldSeen then ok = nil end
             goldSeen = true
+        end
+        -- one line per item, the same way: eight thresholds told how many I carry
+        if private and r.kind == "item" and r.id then
+            if itemSeen[r.id] then ok = nil end
+            itemSeen[r.id] = true
         end
         out[i] = { ok == true and "1" or (ok == false and "0" or "?"), Clean(value) }
     end

@@ -345,7 +345,31 @@ function W.AddonOff(prefix) return offFiles[addonFiles[prefix]] and true or fals
 -- addon message (and any addon can reuse our prefixes): a whisper must come from a group or guild
 -- member. Handlers get (msg, short name for display / state, channel, full "Name-Realm" name).
 -- The full name is the one to trust: two players can share a short name on different realms.
-local GROUP_CHANNELS = { RAID = true, PARTY = true, INSTANCE_CHAT = true, GUILD = true, OFFICER = true }
+-- No INSTANCE_CHAT: nothing of ours sends on it, and it is how a battleground's strangers (its random leader) reach us.
+local GROUP_CHANNELS = { RAID = true, PARTY = true, GUILD = true, OFFICER = true }
+local GUILD_CHANNELS = { GUILD = true, OFFICER = true }
+-- Who each prefix is taken from, checked before any handler or buffer (the chunks of a long text are kept and opened
+-- before its handler reads them). "guildchan": the guild channel only. "guild": a member of my guild. "group": my group
+-- (a whisper from a group member), never the guild channel: one message there made the whole guild load the raid addon
+-- and answer in its groups. "raid": the same, not in a battleground / arena (the raid tools have nothing to do there).
+-- Leader / assistant checks stay in the handlers (they need the unit). A new prefix goes here too; WLRT_VER (group and
+-- guild) is not listed.
+local TRUST = {
+    WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
+    GuildMapEx1 = "guildchan", WLRT_PROF = "guild",
+    WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group", WLRT_CD2 = "group",
+    WLRT_RDYA = "group",
+    WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid",
+}
+local function Trusted(prefix, channel, full)
+    local kind = TRUST[prefix]
+    if not kind then return true end
+    if kind == "guildchan" then return GUILD_CHANNELS[channel] or false end
+    if kind == "guild" then return W.GuildMember(full) ~= nil end
+    if GUILD_CHANNELS[channel] then return false end
+    if channel == "WHISPER" and not W.UnitByName(full) then return false end
+    return kind ~= "raid" or not W.InPvP()
+end
 
 ---------------------------------------------------------------------------
 -- Load-on-demand raid modules (the way BigWigs loads its zone modules)
@@ -492,12 +516,13 @@ function Dispatch(prefix, msg, channel, sender, replay)
         if lodPrefix[prefix] and not W.raidLoaded and not loadFailed and W.access == true and not OffKey(LOD_MODULE[prefix] or "") then
             local who = W.Safe(sender)
             if type(who) ~= "string" or who == "" then return end
+            local full = W.FullName(who)
             if not GROUP_CHANNELS[channel] then
                 if channel ~= "WHISPER" then return end
-                local full = W.FullName(who)
                 if not (W.UnitByName(full) or W.GuildMember(full)) then return end
             end
-            if Flooding(W.FullName(who)) then return end
+            if not Trusted(prefix, channel, full) then return end
+            if Flooding(full) then return end
             if #pendingMsgs < 50 then pendingMsgs[#pendingMsgs + 1] = { prefix, msg, channel, sender } end
             if InCombatLockdown() then waitCombat = true; return end -- loaded after the fight, messages kept
             W.LoadRaid()
@@ -526,6 +551,10 @@ function Dispatch(prefix, msg, channel, sender, replay)
             if audit then audit("stranger", prefix, channel, full, #msg) end
             return
         end
+    end
+    if not Trusted(prefix, channel, full) then
+        if audit then audit("untrusted", prefix, channel, full, #msg) end
+        return
     end
     if not replay and Flooding(full) then
         if audit then audit("flood", prefix, channel, full, #msg) end

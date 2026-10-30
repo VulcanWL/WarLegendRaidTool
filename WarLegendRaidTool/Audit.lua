@@ -78,7 +78,7 @@ local function Rate(prefix)
 end
 
 -- Called by Core.lua (Dispatch). kind: "ok" (handler called), "time" (handler done, ms in len),
--- or a refusal reason ("stranger", "bad-channel", "bad-sender", "module-off", "waiting", "flood").
+-- or a refusal reason ("stranger", "bad-channel", "bad-sender", "module-off", "waiting", "untrusted", "flood").
 -- the record is running (/wl audit on): Dispatch skips its two calls per message otherwise
 function W.AuditOn() return cfg ~= nil and cfg.on and cur ~= nil end
 

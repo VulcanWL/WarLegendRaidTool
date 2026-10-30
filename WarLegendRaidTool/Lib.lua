@@ -257,10 +257,16 @@ do
         return size <= max and size or nil
     end
 
+    -- a real stream of at most 64 KB has a few blocks (zlib: 5 at most at its usual settings). A forged one fits about
+    -- 1,400 empty dynamic blocks in one 64-chunk message: tables built for each on every online guild member, to open to nothing
+    local MAX_BLOCKS = 32
+
     local function Walk(data, start, max)
         src, pos, buf, cnt = data, start, 0, 0
-        local size, last = 0, 0
+        local size, last, blocks = 0, 0, 0
         while last == 0 and size do
+            blocks = blocks + 1
+            if blocks > MAX_BLOCKS then src = nil; return nil end
             last = Bits(1)
             local kind = last and Bits(2)
             if kind == 0 then size = Stored(size, max)
@@ -425,9 +431,10 @@ function W.CutUTF8(s, max)
     return s:sub(1, i)
 end
 
--- The sender of a received prompt, as shown to me: plain name, flagged when not in my guild
+-- The sender of a received prompt, as shown to me: plain full name (two players can share a first name), flagged when
+-- not in my guild
 function W.Sender(from, full)
-    local name = W.Plain(from, 40)
+    local name = W.Plain(full or from, 40)
     if W.GuildMember(full or from) then return name end
     return name .. " |cffff8040(" .. L("not in guild") .. ")|r"
 end
@@ -770,12 +777,13 @@ function W.Confirm(text, onYes, yesText)
         confirm.no = W.Button(confirm, L("No"), 110, 22, function() confirm:Hide() end)
         confirm.no:SetPoint("BOTTOMLEFT", confirm, "BOTTOM", 6, 14)
         tinsert(UISpecialFrames, "WLRTConfirm")
-        -- a prompt from another player kept waiting (W.ConfirmRemote) shows once this one is closed
+        -- a prompt from another player kept waiting (W.ConfirmRemote) shows once this one is closed, 0.5 s later: its Yes
+        -- is in the same place, a double click on my own Yes would accept it unread
         confirm:HookScript("OnHide", function()
             local w = remoteWaiting
             if not w then return end
             remoteWaiting = nil
-            W.After(0, function() W.ConfirmRemote(w[1], w[2], w[3]) end)
+            W.After(0.5, function() W.ConfirmRemote(w[1], w[2], w[3]) end)
         end)
     end
     confirm.text:SetText(text)

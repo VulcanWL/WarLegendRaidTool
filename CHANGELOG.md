@@ -19,6 +19,14 @@ Releases et les tags git.
   introuvables, macros), au lieu d'une ligne par entrée.
 - Myslot : les profils enregistrés sont limités à 4 Mo en tout (un vrai profil fait de 5 à 70 Ko) ; au-delà, Enregistrer
   demande d'en supprimer un.
+- Loot Council : la fenêtre de vote (votes, votants, notes) est réservée au conseil et au maître du butin. Les autres
+  raiders répondent toujours dans leur fenêtre de butin.
+- Consommables : une vérification de raid n'est répondue qu'à un chef ou assistant de ta guilde, par chuchotement, jusqu'à
+  100 d'un objet : le raid ne lit plus tes sacs.
+- Préparation des raiders : une seule ligne par objet est répondue par vérification : plus de compte exact en une demande.
+- Une liste de consommables ou un preset partagé donne le nom complet de l'expéditeur et dit s'il n'est pas de ta guilde ;
+  nom complet aussi dans la fenêtre des buffs et les lignes de préparation.
+- Raid Buffs : une fenêtre de buffs toutes les 10 s au plus (une liste corrigée juste après arrive à la fin des 10 s).
 
 ### Corrigé
 - DoesItDie, en groupe : un DoT esquivé ou résisté juste avant le départ du sort n'est plus compté. Un coup reçu au même
@@ -28,6 +36,15 @@ Releases et les tags git.
 - Myslot : le nom d'une macro collée ne peut plus afficher une image ou un code sur les barres d'action.
 - Myslot : l'export et l'import ne s'arrêtent plus si le jeu n'a pas l'un des textes de l'en-tête de l'export (joueur,
   classe, talents, niveau).
+- Le chef de hasard d'un champ de bataille ne peut plus ouvrir de fenêtres de butin ou de vote ni de questions chez toi, et
+  les outils de raid ne prennent plus rien du canal de guilde (un seul message y chargeait les outils de raid chez toute la
+  guilde).
+- Une question d'un autre joueur qui attendait la fin de la tienne arrive 0,5 s après ta réponse : un double clic sur ton
+  Oui ne l'accepte plus sans la lire.
+- Un message compressé truqué (des centaines de blocs vides) est refusé dès sa lecture, avant de coûter quoi que ce soit.
+- Invitation par mot-clé et réponses `!sr` : 201 expéditeurs d'affilée ne remettent plus leurs limites à zéro.
+- Skyborne : seuls les messages de son canal sont lus, 2 000 signalements gardés en tout (un inconnu pouvait en faire garder
+  et sauvegarder 16 000), et le mode debug n'affiche plus les codes d'un inconnu.
 
 ## 1.41.55 (29/10/2026)
 

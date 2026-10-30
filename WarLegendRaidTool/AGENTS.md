@@ -109,7 +109,7 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - `Lib.lua` — addon-message queue, item/name helpers, extra widgets (SubTabs, Table, Confirm...).
 - One file per module (`AutoLog.lua`, `Focus.lua`, `CombatTimer.lua` are small, good examples).
 - **Raid addon** `../WarLegendRaidTool_Raid` (raid modules, load-on-demand via `W.LoadRaid`; a new addon-message prefix
-  goes in `lodPrefix` too) and **PvP addon** `../WarLegendRaidTool_PvP` (battleground frames, `W.LoadPvP`; trinket / DR
+  goes in `lodPrefix` too, and any new prefix in `TRUST` of `Core.lua`: who it is taken from) and **PvP addon** `../WarLegendRaidTool_PvP` (battleground frames, `W.LoadPvP`; trinket / DR
   tracking is NOT possible in battlegrounds). Each lists its files in ITS `.toc`.
 - `Roster.lua`, `GuildBank.lua`, `BGStats.lua` are **personal only: no addon messages** (the user's choice).
   `GuildPositions.lua` does send to the GUILD with GuildMap's prefix `GuildMapEx1`: keep that format.

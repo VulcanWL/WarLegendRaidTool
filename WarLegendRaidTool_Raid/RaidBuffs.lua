@@ -209,18 +209,8 @@ end
 
 -- Popup on the caster's screen
 local popup, popupId
-W.OnAddon(PREFIX, function(msg, from, channel, full)
-    local t = W.Unpack(msg)
-    if t[1] ~= "A" or not W.IsGroupLead(full or from, channel) then return end
-    -- full name match; a bare first name (older version of the addon) still matches mine
-    local target = (t[2] or ""):lower()
-    if target ~= (W.UnitDisplayName("player") or ""):lower()
-        and (W.HasFullPart(t[2] or "") or target ~= (W.Safe(UnitName("player")) or ""):lower()) then return end
-    -- the lines are separated by " | ": split first, then every line is plain text
-    local lines = {}
-    for line in ((t[3] or "") .. " | "):gmatch("(.-) | ") do lines[#lines + 1] = W.Plain(line, 120) end
-    local shown = string.format(L("From %s"), W.Sender(from, full)) .. "\n" .. table.concat(lines, "\n")
-    db.mine = table.concat(lines, " | ")
+local function ShowBuffs(shown, mine)
+    db.mine = mine
     if not popup then
         popup = W.Window("WLRTBuffPopup", 420, 90, L("Your buffs"))
         popup:SetPoint("TOP", 0, -140)
@@ -235,6 +225,38 @@ W.OnAddon(PREFIX, function(msg, from, channel, full)
     popupId = (popupId or 0) + 1
     local id = popupId
     W.After(30, function() if popupId == id then popup:Hide() end end)
+end
+
+-- one popup per 10 s: a leader or assistant repeating it cannot keep it on my screen and fill my chat. What comes
+-- meanwhile waits, the newest only (a corrected list sent right after the first one still arrives).
+local POPUP_GAP = 10
+local popupAt, popupNext = -POPUP_GAP, nil
+W.OnAddon(PREFIX, function(msg, from, channel, full)
+    local t = W.Unpack(msg)
+    if t[1] ~= "A" or not W.IsGroupLead(full or from, channel) then return end
+    -- full name match; a bare first name (older version of the addon) still matches mine
+    local target = (t[2] or ""):lower()
+    if target ~= (W.UnitDisplayName("player") or ""):lower()
+        and (W.HasFullPart(t[2] or "") or target ~= (W.Safe(UnitName("player")) or ""):lower()) then return end
+    -- the lines are separated by " | ": split first, then every line is plain text
+    local lines = {}
+    for line in ((t[3] or "") .. " | "):gmatch("(.-) | ") do lines[#lines + 1] = W.Plain(line, 120) end
+    local shown = string.format(L("From %s"), W.Sender(from, full)) .. "\n" .. table.concat(lines, "\n")
+    local mine = table.concat(lines, " | ")
+    local wait = popupAt + POPUP_GAP - GetTime()
+    if wait <= 0 then
+        popupAt = GetTime()
+        ShowBuffs(shown, mine)
+        return
+    end
+    if not popupNext then
+        W.After(wait, function()
+            local n = popupNext
+            popupNext, popupAt = nil, GetTime()
+            ShowBuffs(n[1], n[2])
+        end, "raid buffs popup")
+    end
+    popupNext = { shown, mine }
 end)
 
 -- A player too far (not visible, out of range) gives no aura data: unknown, never reported as missing.

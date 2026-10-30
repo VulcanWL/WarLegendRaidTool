@@ -16,6 +16,9 @@ Phase("login")
 M.version = opts.version
 M.player.race = opts.race
 M.LoadAddOn("WarLegendRaidTool")
+-- not preloaded at this login: the first check below needs the raid addon out of memory (a message then loads it)
+local preload0 = WLRT and WLRT.db and WLRT.db.ui.preloadRaid
+if WLRT and WLRT.db then WLRT.db.ui.preloadRaid = false end
 M.loggedIn = true
 M.Fire("PLAYER_LOGIN")
 M.Fire("PLAYER_ENTERING_WORLD", true, false)
@@ -26,6 +29,24 @@ M.Advance(35)
 local W = WLRT
 if not W then return report end
 report.access = W.access
+
+-- a raid prefix on the guild channel, INSTANCE_CHAT or in a battleground loads nothing (master audit of 29/10, item 8: one
+-- message on GUILD loaded the raid addon on the whole guild); on the raid channel it does. The rest of that audit: phase "hardening"
+local raidAtLogin = W.raidLoaded
+M.Fire("CHAT_MSG_ADDON", "WLRT_INSQ", "1", "GUILD", "Guildie1-Forever", "Guildie1-Forever", 0, 0, "", 0)
+local byGuild = W.raidLoaded
+M.Fire("CHAT_MSG_ADDON", "WLRT_BUFF", "A^Smoketest^x", "INSTANCE_CHAT", "Raider2-Forever", "Raider2-Forever", 0, 0, "", 0)
+local byInstance = W.raidLoaded
+M.instance = "pvp"
+M.Fire("CHAT_MSG_ADDON", "WLRT_BUFF", "A^Smoketest^x", "RAID", "Raider2-Forever", "Raider2-Forever", 0, 0, "", 0)
+local byBattleground = W.raidLoaded
+M.instance = nil
+M.Fire("CHAT_MSG_ADDON", "WLRT_INSQ", "1", "RAID", "Raider2-Forever", "Raider2-Forever", 0, 0, "", 0)
+Check("a raid prefix loads the raid addon from the raid channel, not the guild channel, INSTANCE_CHAT or a battleground",
+    not (raidAtLogin or byGuild or byInstance or byBattleground) and W.raidLoaded, string.format("at login %s, by the guild channel %s, by INSTANCE_CHAT %s, in a battleground %s, by the raid channel %s",
+    tostring(raidAtLogin), tostring(byGuild), tostring(byInstance), tostring(byBattleground), tostring(W.raidLoaded)))
+W.db.ui.preloadRaid = preload0
+M.Advance(1)
 
 -- every /wl command, without argument (as typed alone); again later in a raid
 local function Commands(label)
@@ -799,6 +820,436 @@ end
 if Confirming() then WLRTConfirm:Hide() end
 if rawget(_G, "WLRTTextPopup") then WLRTTextPopup:Hide() end
 M.Advance(2)
+
+-- security hardening (master audit of 29/10, P2: items 8 to 13); each check was seen failing with its fix removed. The
+-- raid of 10, Raider4 its assistant (out of my guild first). What the phases before left is cleared first.
+Phase("hardening")
+M.group[4].assist = true
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(11)
+local ASSIST, MATE, GUILDIE = "Raider4-Forever", "Raider3-Forever", "Guildie1-Forever"
+local EU = C_EncodingUtil
+local function Addon(prefix, msg, channel, from) M.Fire("CHAT_MSG_ADDON", prefix, msg, channel, from, from, 0, 0, "", 0) end
+local function SentSince(from, prefix) -- what the addon sent on a prefix since M.addon[from]
+    local out = {}
+    for i = from + 1, #M.addon do if M.addon[i].prefix == prefix then out[#out + 1] = M.addon[i] end end
+    return out
+end
+local function Printed(fn) -- what W.Print says while fn runs
+    local lines, print0 = {}, W.Print
+    W.Print = function(s, ...) lines[#lines + 1] = tostring(s); return print0(s, ...) end
+    fn()
+    W.Print = print0
+    return lines
+end
+local function PromptText() return Confirming() and WLRTConfirm.text.__text or "" end
+local function ClosePrompt() if Confirming() then WLRTConfirm:Hide() end M.Advance(1) end
+ClosePrompt()
+
+-- 8: who each prefix is taken from, as Dispatch decides it (what it tells the audit log: "ok" = the handler runs)
+do
+    local on, note, said = W.AuditOn, W.AuditNote, nil
+    W.AuditOn = function() return true end
+    W.AuditNote = function(kind) if kind ~= "time" then said = kind end end
+    local function Says(prefix, channel, from) said = nil; Addon(prefix, "x", channel, from); return said end
+    local KINDS = { WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
+        GuildMapEx1 = "guildchan", WLRT_PROF = "guild", WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group",
+        WLRT_CD2 = "group", WLRT_RDYA = "group", WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid" }
+    local function All(v) return { guildchan = v, guild = v, group = v, raid = v } end
+    local CASES = {
+        { "GUILD", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted" } },
+        { "OFFICER", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted" } },
+        { "WHISPER", GUILDIE, { guildchan = "untrusted", guild = "ok", group = "untrusted", raid = "untrusted" } }, -- out of my group
+        { "RAID", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } }, -- out of my guild
+        { "PARTY", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } },
+        { "WHISPER", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } },
+        { "INSTANCE_CHAT", MATE, All("bad-channel") },
+        { "WHISPER", "Stranger-Other", All("stranger") },
+    }
+    local wrong = {}
+    local function Want(prefix, channel, from, want)
+        local got = Says(prefix, channel, from)
+        if got ~= want then wrong[#wrong + 1] = string.format("%s on %s from %s: %s, not %s", prefix, channel, from, tostring(got), want) end
+    end
+    for prefix, kind in pairs(KINDS) do
+        for _, c in ipairs(CASES) do Want(prefix, c[1], c[2], c[3][kind]) end
+        M.Advance(1, 0.25) -- under the per-sender limit of Dispatch
+    end
+    Want("WLRT_VER", "GUILD", GUILDIE, "ok")
+    Want("WLRT_VER", "RAID", MATE, "ok")
+    -- in a battleground: the raid tools take nothing, what the group answers still passes
+    local inst = M.instance
+    M.instance = "pvp"
+    for prefix, kind in pairs(KINDS) do
+        if kind == "raid" then Want(prefix, "RAID", MATE, "untrusted") elseif kind == "group" then Want(prefix, "RAID", MATE, "ok") end
+    end
+    M.instance = inst
+    W.AuditOn, W.AuditNote = on, note
+    M.Advance(2)
+    Check("who each addon prefix is taken from (TRUST of Core.lua)", #wrong == 0, #wrong .. " wrong: " .. table.concat(wrong, ", ", 1, math.min(#wrong, 6)))
+end
+
+-- 8: a raid prefix on the guild channel makes nobody answer in their group, on the raid channel it does
+M.Advance(11) -- RaidInspect answers once per 10 s
+local sent0 = #M.addon
+Addon("WLRT_INSQ", "1", "GUILD", GUILDIE)
+M.Advance(3)
+local onGuild = #SentSince(sent0, "WLRT_INSD")
+M.Advance(11)
+sent0 = #M.addon
+Addon("WLRT_INSQ", "1", "RAID", MATE)
+M.Advance(3)
+local onRaid = #SentSince(sent0, "WLRT_INSD")
+Check("a raid inspect request on the guild channel gets no report, on the raid channel it does", onGuild == 0 and onRaid == 1,
+    string.format("guild channel: %d, raid channel: %d", onGuild, onRaid))
+
+-- 8: a long text from outside my guild on a guild prefix is not kept nor opened (it was, before Guild.lua dropped it)
+do
+    local inflate0, opened = W.Inflate, 0
+    W.Inflate = function(...) opened = opened + 1; return inflate0(...) end
+    local text = EU.EncodeBase64(EU.CompressString("D^^^"))
+    Addon("WLRT_PROF", "z777:1:1:" .. text, "RAID", MATE)
+    local byMate = opened
+    Addon("WLRT_PROF", "z778:1:1:" .. text, "GUILD", GUILDIE)
+    W.Inflate = inflate0
+    Check("a long text on a guild prefix from outside the guild is not opened", byMate == 0 and opened == 1,
+        string.format("from outside the guild: %d, from a guild mate: %d", byMate, opened - byMate))
+end
+
+-- 8: Raid Buffs: one popup per 10 s, the newest one waiting; nothing from INSTANCE_CHAT
+do
+    local function Shown() local p = rawget(_G, "WLRTBuffPopup"); return p and p.text.__text or "" end
+    local function Buffs(text, channel) Addon("WLRT_BUFF", "A^Smoketest^" .. text, channel or "RAID", ASSIST) end
+    M.Advance(11)
+    local onInstance, first, during, after
+    local lines = Printed(function()
+        Buffs("hard one", "INSTANCE_CHAT")
+        onInstance = Shown()
+        Buffs("hard two")
+        first = Shown()
+        for i = 3, 7 do M.Advance(0.2); Buffs("hard " .. i) end
+        during = Shown()
+        M.Advance(10)
+        after = Shown()
+    end)
+    local printed = 0
+    for _, l in ipairs(lines) do if l:find("hard", 1, true) then printed = printed + 1 end end
+    Check("Raid Buffs: one popup per 10 s, the newest after them, none from INSTANCE_CHAT", not onInstance:find("hard one", 1, true) and
+        first:find("hard two", 1, true) ~= nil and during:find("hard two", 1, true) ~= nil and after:find("hard 7", 1, true) ~= nil and printed == 2,
+        string.format("%d line(s) printed, shown at the end: %q", printed, after))
+end
+
+-- 8: both prompts from a lead name the sender in full and flag one out of my guild
+do
+    local tag = W.L("not in guild")
+    Addon("WLRT_CON", "101:1:1:L^13444:5", "RAID", ASSIST)
+    local list = PromptText()
+    ClosePrompt()
+    local preset = EU.EncodeBase64(EU.CompressString(W.RaidGroups.Serialize("Shared", { players = { { name = "Raider5", class = "MAGE", group = 1, icon = 0, ma = 0 } } })))
+    Addon("WLRT_RG", "Z:12345:1:1:" .. preset, "RAID", ASSIST)
+    local shared = PromptText()
+    ClosePrompt()
+    local function Names(text) return text:find("Raider4 Forever", 1, true) ~= nil and text:find(tag, 1, true) ~= nil end
+    Check("a shared consumables list names its sender in full, flagged out of the guild", Names(list), list)
+    Check("a shared preset names its sender in full, flagged out of the guild", Names(shared), shared)
+end
+
+-- 9: a stream of many empty deflate blocks is refused when read, before DecompressString; real ones have a few blocks
+do
+    local function Dynamic(n) -- n - 1 empty dynamic blocks (only the end-of-block symbol has a code), then a last empty one
+        local bits = {}
+        local function Put(v, count) for _ = 1, count do bits[#bits + 1] = v % 2; v = math.floor(v / 2) end end
+        local LENGTH = { [18] = 1, [0] = 2, [1] = 2 } -- code lengths of the code lengths: "0", "10", "11"
+        for _ = 1, n - 1 do
+            Put(0, 1); Put(2, 2) -- not the last, dynamic
+            Put(0, 5); Put(0, 5); Put(14, 4) -- 257 + 1 codes, 18 code lengths
+            for _, s in ipairs({ 16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1 }) do Put(LENGTH[s] or 0, 3) end
+            Put(0, 1); Put(127, 7) -- 138 zeros
+            Put(0, 1); Put(107, 7) -- 118 zeros
+            Put(1, 1); Put(1, 1) -- end of block: length 1
+            Put(1, 1); Put(0, 1) -- no distance code: length 0
+            Put(0, 1) -- the block's end of block
+        end
+        Put(1, 1); Put(1, 2); Put(0, 7) -- last, fixed codes, end of block
+        local out = {}
+        for i = 1, #bits, 8 do
+            local b = 0
+            for j = 7, 0, -1 do b = b * 2 + (bits[i + j] or 0) end
+            out[#out + 1] = string.char(math.floor(b))
+        end
+        return table.concat(out)
+    end
+    local function Stored(n, size) -- n stored blocks of size bytes, what a real encoder writes for data it cannot shrink
+        local out = {}
+        for i = 1, n do
+            out[i] = string.char(i == n and 1 or 0, size % 256, math.floor(size / 256), (65535 - size) % 256, math.floor((65535 - size) / 256)) .. string.rep("a", size)
+        end
+        return table.concat(out)
+    end
+    local atCap, past = W.InflatedSize(Dynamic(32), 65536), W.InflatedSize(Dynamic(33), 65536)
+    local storedAtCap, storedPast = W.InflatedSize(Stored(32, 100), 65536), W.InflatedSize(Stored(33, 100), 65536)
+    Check("deflate: 32 blocks are read, 33 are refused (dynamic and stored)", atCap == 0 and past == nil and storedAtCap == 3200 and storedPast == nil,
+        string.format("dynamic %s / %s, stored %s / %s", tostring(atCap), tostring(past), tostring(storedAtCap), tostring(storedPast)))
+    local forged = EU.EncodeBase64(Dynamic(700))
+    local decompress0, opened = EU.DecompressString, 0
+    EU.DecompressString = function(...) opened = opened + 1; return decompress0(...) end
+    local n = math.ceil(#forged / 220)
+    M.Advance(6)
+    for i = 1, n do
+        Addon("WLRT_PROF", string.format("z779:%d:%d:%s", i, n, forged:sub((i - 1) * 220 + 1, i * 220)), "GUILD", GUILDIE)
+        if i % 30 == 0 then M.Advance(5.5, 0.5) end -- the per-sender limit of Dispatch
+    end
+    EU.DecompressString = decompress0
+    Check("deflate: a forged guild message of 700 empty blocks is never opened", n <= 64 and opened == 0, string.format("%d chunks, opened %d time(s)", n, opened))
+end
+
+-- 10, 12: Skyborne (its characters only): strangers' text in debug mode, the shared channel only, 2,000 entries in all
+if opts.race == "Skyborne" then
+    local sky = rawget(_G, "WarLegendRaidTool_SkyborneDB")
+    if not (sky and sky.crowdReports and sky.crowdReports.A) then
+        Check("Skyborne started on a Skyborne character", false, "no saved reports: its checks did not run")
+    else
+        local mapKeys, mapSaved = { "GetMapInfo", "GetWorldPosFromMapPos", "GetBestMapForUnit" }, {}
+        for _, k in ipairs(mapKeys) do mapSaved[k] = rawget(C_Map, k) end
+        C_Map.GetMapInfo = function(id) return { mapID = id, mapType = Enum.UIMapType.Zone } end
+        C_Map.GetWorldPosFromMapPos = function(_, pos) return 0, CreateVector2D(pos.x * 2000, pos.y * 2000) end
+        C_Map.GetBestMapForUnit = function() return 1411 end
+        local inst = M.instance
+        M.instance = nil
+        M.Fire("PLAYER_ENTERING_WORLD", false, false)
+        M.Advance(1)
+        local function Sky(text, channel, from) M.Fire("CHAT_MSG_ADDON", "SLLCM", text, channel or "CHANNEL", from, from, 0, 0, "", 0) end
+        local function Count(all) local n = 0; for _, list in pairs(all) do n = n + #list end return n end
+        local reports, gone = sky.crowdReports.A, sky.crowdGone.A
+        local function Sighting(phase, map, kind) return string.format("%s:1:A:%d:%d:5000:5000:%d", kind or "R", phase, map, GetServerTime()) end
+        for k in pairs(reports) do reports[k] = nil end
+        for k in pairs(gone) do gone[k] = nil end
+        -- 10: debug mode (its setting is saved): the text of a stranger reaches the chat with its escape codes dead
+        M.Call(W.slash.sk, "share debug")
+        local lines = Printed(function()
+            Sky("R:1:A:77:" .. CODES, "CHANNEL", "Skyd-Forever")
+            Sky("R:1:A:77:x", "WHISPER", "Skyd-Forever")
+        end)
+        M.Call(W.slash.sk, "share debug")
+        local reached, live, refused = 0, 0, 0
+        for _, l in ipairs(lines) do
+            if l:find(MARK, 1, true) then reached = reached + 1 end
+            if M.LiveCode(l, true) then live = live + 1 end
+            if l:find("not on the channel: WHISPER", 1, true) then refused = refused + 1 end
+        end
+        Check("Skyborne debug mode shows a stranger's text with its escape codes dead, and says what came off the channel",
+            reached >= 1 and live == 0 and refused == 1, string.format("%d line(s) with the text, %d with a live code, %d about the whisper", reached, live, refused))
+        -- 12: heard on the shared channel only
+        local wrongChannel = 0
+        for _, c in ipairs({ "WHISPER", "GUILD", "OFFICER", "RAID", "PARTY", "INSTANCE_CHAT" }) do
+            Sky(Sighting(100, 5000), c, "Skyc-Forever")
+            wrongChannel = wrongChannel + Count(reports)
+        end
+        Sky(Sighting(100, 5000), "CHANNEL", "Skyc-Forever")
+        Check("Skyborne takes a sighting on its channel only", wrongChannel == 0 and Count(reports) == 1,
+            string.format("%d kept on other channels, %d on the channel", wrongChannel, Count(reports)))
+        for k in pairs(reports) do reports[k] = nil end
+        -- 12: 12 maps x 200 made-up phases, from 120 senders (20 messages in 10 s each): 2,000 kept in all
+        local sent = 0
+        for m = 1, 12 do
+            for i = 1, 200 do
+                Sky(Sighting(1000000 + m * 1000 + i, 5000 + m), "CHANNEL", string.format("Sky%d-Forever", math.floor(sent / 20)))
+                sent = sent + 1
+            end
+        end
+        local kept = Count(reports)
+        for i = 1, 5 do Sky(Sighting(1000000 + i, 5001, "XM"), "CHANNEL", "Skyg-Forever") end
+        local goneKept = Count(gone)
+        -- what is in the zone and phase I am in still gets in, another phase there does not (two kinds of NPC: a new phase)
+        M.units.nameplate1, M.units.nameplate2 = { guid = "Creature-0-1-1-7777-1234-1" }, { guid = "Creature-0-1-1-7777-1235-1" }
+        M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+        M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+        M.units.nameplate1, M.units.nameplate2 = nil, nil
+        Sky(Sighting(7777, 1411), "CHANNEL", "Skym-Forever")
+        Sky(Sighting(8888, 1411), "CHANNEL", "Skym-Forever")
+        Sky(string.format("XM:1:A:7777:1411:1000:1000:%d", GetServerTime()), "CHANNEL", "Skym-Forever")
+        Sky(string.format("XM:1:A:8888:1411:1000:1000:%d", GetServerTime()), "CHANNEL", "Skym-Forever")
+        local here, goneHere = reports[1411] or {}, gone[1411] or {}
+        Check("Skyborne keeps 2,000 entries in all, those of my zone and phase past it", kept == 2000 and goneKept == 0 and #here == 1 and here[1].phase == "7777"
+            and #goneHere == 1 and goneHere[1].phase == "7777",
+            string.format("%d sightings kept of %d, %d \"not there\", in my zone %d and %d", kept, sent, goneKept, #here, #goneHere))
+        -- at the cap what has expired goes first (a map nobody reports on any more), then a new entry gets in (on a map
+        -- with room: the 2,000 filled the first ten maps)
+        for _, e in ipairs(reports[5001] or {}) do e.t = e.t - 6000 end
+        M.Advance(61, 1)
+        Sky(Sighting(9999, 5011), "CHANNEL", "Skym-Forever")
+        local pruned, newest = #(reports[5001] or {}), false
+        for _, e in ipairs(reports[5011] or {}) do if e.phase == "9999" then newest = true end end
+        for k in pairs(reports) do reports[k] = nil end
+        for k in pairs(gone) do gone[k] = nil end
+        Check("Skyborne at its cap drops what has expired first", pruned == 0 and newest, string.format("%d expired left on the map, new entry kept: %s", pruned, tostring(newest)))
+        M.Call(W.slash.sk, "share forget")
+        for _, k in ipairs(mapKeys) do C_Map[k] = mapSaved[k] end
+        M.instance = inst
+        M.Fire("PLAYER_ENTERING_WORLD", false, false)
+        M.Advance(1)
+    end
+end
+
+-- 11: Checklist: a raid check is answered to a lead of my guild only, whispered to them, up to 100 of an item
+do
+    M.Advance(11)
+    local itemCount0 = W.ItemCount
+    W.ItemCount = function() return 250 end
+    local before = #M.addon
+    Addon("WLRT_CON", "102:1:1:Q^13444:5,13446:500", "RAID", ASSIST)
+    M.Advance(3)
+    local outOfGuild = #SentSince(before, "WLRT_CON")
+    M.guild[#M.guild + 1] = { name = ASSIST, class = "ROGUE", online = true, rank = 1, level = 60 }
+    M.Fire("GUILD_ROSTER_UPDATE", false)
+    before = #M.addon
+    Addon("WLRT_CON", "103:1:1:Q^13444:5,13446:500", "RAID", ASSIST)
+    M.Advance(3)
+    local sent = SentSince(before, "WLRT_CON")
+    local a = sent[1] or {}
+    Check("Checklist answers a lead of my guild only, whispered, up to 100 of an item", outOfGuild == 0 and #sent == 1 and a.channel == "WHISPER" and a.target == "Raider4 Forever"
+        and tostring(a.msg):find("A^13444:5,13446:100", 1, true) ~= nil,
+        string.format("out of the guild: %d answer(s); in it: %d, %s to %s: %s", outOfGuild, #sent, tostring(a.channel), tostring(a.target), tostring(a.msg)))
+    -- my own check: my answer comes back to me directly, nothing whispered; a raider's whispered answer is read
+    local cl = W.db.checklist
+    local items0 = cl.items
+    cl.items = { { 13444, 5 } }
+    M.Advance(11)
+    before = #M.addon
+    Click(ButtonIn(Panel("Checklist"), W.L("Raid check")))
+    M.Advance(1)
+    local asked = SentSince(before, "WLRT_CON")[1]
+    before = #M.addon
+    if asked then Addon("WLRT_CON", asked.msg, "RAID", "Smoketest-Forever") end
+    M.Advance(3)
+    local out = SentSince(before, "WLRT_CON")
+    local mine = cl.raid[W.UnitKey("player")]
+    Addon("WLRT_CON", "104:1:1:A^13444:3", "WHISPER", MATE)
+    local mate = cl.raid[W.UnitKey(W.UnitByName(MATE))]
+    Check("Checklist: my own check reads my answer without a whisper, and a raider's whispered one", asked ~= nil and #out == 0
+        and mine ~= nil and mine.counts[13444] == 5 and mate ~= nil and mate.counts[13444] == 3,
+        string.format("asked: %s, sent after it: %d, my row: %s, the raider's: %s", tostring(asked ~= nil), #out, tostring(mine ~= nil), tostring(mate ~= nil)))
+    cl.items = items0
+    wipe(cl.raid)
+    W.ItemCount = itemCount0
+end
+
+-- 11: Readiness: one line answered per item per check (eight thresholds told how many I carry), as for gold
+do
+    M.Advance(6)
+    local before = #M.addon
+    Addon("WLRT_RDYQ", "105:1:1:654321~2item 13444 1~2item 13444 2~2item 13444 3~2item 13446 1~2gold 1~2gold 2", "RAID", ASSIST)
+    M.Advance(4)
+    local a = SentSince(before, "WLRT_RDYA")[1] or {}
+    local shape = {}
+    for s in (tostring(a.msg):match("^654321#(.*)$") or ""):gmatch("([01%?]),") do shape[#shape + 1] = s == "?" and "?" or "x" end
+    shape = table.concat(shape)
+    Check("Readiness answers one line per item and gold per check", shape == "x??xx?", shape .. " (" .. tostring(a.channel) .. ")")
+end
+
+-- 11: Loot Council: the vote window is for the council and the master looter; 8: no loot message from INSTANCE_CHAT
+do
+    local LC = W.LootCouncil
+    local left = LC.Session()
+    if left then left.test, left.started = true, -1e9 end -- what the hostile messages left open can be replaced
+    local function VoteShown() local f = rawget(_G, "WLRTVoteFrame"); return f ~= nil and f:IsShown() end
+    if VoteShown() then WLRTVoteFrame:Hide() end
+    local function Loot(...) Addon("WLRT_LC", W.Pack(...), "RAID", ASSIST) end
+    local ITEM_STR = "item:19019::::::::60:::::"
+    -- behind Dispatch, which refuses that channel already
+    M.Call(W.AddonHandler("WLRT_LC"), W.Pack("S", "77770", 1, 60, ""), "Raider4", "INSTANCE_CHAT", "Raider4 Forever")
+    local s = LC.Session()
+    Check("Loot Council takes no session from INSTANCE_CHAT", not (s and s.sid == "77770"))
+    Loot("S", "77771", 1, 60, "")
+    Loot("I", "77771", 1, ITEM_STR)
+    Loot("C", "77771", ASSIST)
+    M.Advance(1)
+    local opened = VoteShown()
+    local said = Printed(function() M.Call(W.slash.loot, "vote") end)
+    local refused = not VoteShown() and tContains(said, W.L("The voting window is for the loot council."))
+    Loot("C", "77771", "Smoketest-Forever")
+    M.Advance(1)
+    local asCouncil = VoteShown()
+    Check("the vote window opens for the council only", not opened and refused and asCouncil,
+        string.format("out of the council: opened %s, refused %s; in it: %s", tostring(opened), tostring(refused), tostring(asCouncil)))
+    -- a new session whose council I am not in closes it
+    Loot("S", "77772", 1, 60, "")
+    Loot("I", "77772", 1, ITEM_STR)
+    Loot("C", "77772", ASSIST)
+    Addon("WLRT_LC", W.Pack("R", "77772", 1, "pass", "", "", 100), "RAID", MATE)
+    M.Advance(1)
+    Check("the vote window closes in a session whose council I am not in", not VoteShown())
+    Loot("E", "77772")
+    M.Advance(1)
+end
+
+-- 12: the limits per sender forget only what is over: 201 senders in a row must not reset them
+do
+    local function Invites(name, from)
+        local n = 0
+        for i = from + 1, #M.sensitive do if M.sensitive[i]:find("InviteUnit " .. name, 1, true) then n = n + 1 end end
+        return n
+    end
+    M.Advance(31, 1)
+    ClickCheck("Invite on keyword whisper", true)
+    local before = #M.sensitive
+    FireChat("CHAT_MSG_WHISPER", "inv", "Caller0-Other")
+    for i = 1, 205 do FireChat("CHAT_MSG_WHISPER", "inv", "Caller" .. i .. "-Other") end
+    FireChat("CHAT_MSG_WHISPER", "inv", "Caller0-Other")
+    local again, all = Invites("Caller0-Other", before), Invites("Caller", before)
+    M.Advance(31, 1)
+    FireChat("CHAT_MSG_WHISPER", "inv", "Caller0-Other")
+    FireChat("CHAT_MSG_WHISPER", "inv", "Caller999-Other")
+    local later, newcomer = Invites("Caller0-Other", before), Invites("Caller999-Other", before)
+    ClickCheck("Invite on keyword whisper", false)
+    Check("InviteTool: 201 senders do not reset the 30 s per sender, 200 at most, the ones past it are forgotten", again == 1 and all == 200 and later == 2 and newcomer == 1,
+        string.format("invited %d time(s) within 30 s, %d senders in all, %d after them, newcomer %d", again, all, later, newcomer))
+
+    local function Answers(name, from)
+        local n = 0
+        for i = from + 1, #M.chat do if M.chat[i].target == name then n = n + 1 end end
+        return n
+    end
+    local srLabel = "Accept \"!sr [item]\" whispers"
+    M.SetGuild(500)
+    M.Fire("GUILD_ROSTER_UPDATE", false)
+    M.Advance(11, 1)
+    ClickCheck(srLabel, true)
+    local chat0 = #M.chat
+    for _ = 1, 4 do FireChat("CHAT_MSG_WHISPER", "!sr", GUILDIE) end
+    for i = 2, 206 do FireChat("CHAT_MSG_WHISPER", "!sr", "Guildie" .. i .. "-Forever") end
+    FireChat("CHAT_MSG_WHISPER", "!sr", GUILDIE)
+    local stays, lines = Answers(GUILDIE, chat0), #M.chat - chat0
+    M.Advance(11, 1)
+    FireChat("CHAT_MSG_WHISPER", "!sr", GUILDIE)
+    local afterWindow = Answers(GUILDIE, chat0)
+    ClickCheck(srLabel, false)
+    M.SetGuild(30)
+    M.Fire("GUILD_ROSTER_UPDATE", false)
+    -- 3 to the first sender, 1 to each of the 199 others the 200 windows hold
+    Check("!sr: 201 senders do not reset the 3 answers per 10 s, 200 windows at most, a window that ended does", stays == 3 and lines == 202 and afterWindow == 4,
+        string.format("%d answer(s) within 10 s, %d lines in all, %d after them", stays, lines, afterWindow))
+end
+
+-- 13: a prompt from another player kept waiting does not show under the second click of a double click on my own Yes
+do
+    M.Advance(2)
+    W.Confirm("my own question", function() end)
+    W.ConfirmRemote("a shared list", function() end)
+    local held = PromptText() == "my own question"
+    Click(WLRTConfirm.yes)
+    M.Advance(0.1)
+    local nextFrame = Confirming()
+    M.Advance(0.6)
+    local later = PromptText()
+    ClosePrompt()
+    Check("a waiting prompt from another player shows 0.5 s after my Yes, not on the next frame", held and not nextFrame and later == "a shared list",
+        string.format("kept waiting: %s, shown on the next frame: %s, later: %q", tostring(held), tostring(nextFrame), later))
+end
+M.group[4].assist = nil
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
+
 -- what reached the screen from the hostile pieces (tools/smoke/wow.lua M.Shown): the check ends before the floods
 M.mark = nil
 report.escapes = M.escapes

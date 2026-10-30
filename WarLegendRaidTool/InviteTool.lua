@@ -95,8 +95,16 @@ local function InviteFromKeyword(name)
     local key, now = W.Key(name) or name, GetTime()
     if now - (keywordAt[key] or -1000) < 30 then return end
     if not keywordAt[key] then
+        -- many senders: only the ones past their 30 s are forgotten (forgetting them all let 201 senders reset every limit);
+        -- 200 senders in 30 s: no invite for a newcomer
+        if keywordN >= 200 then
+            keywordN = 0
+            for k, at in pairs(keywordAt) do
+                if now - at >= 30 then keywordAt[k] = nil else keywordN = keywordN + 1 end
+            end
+            if keywordN >= 200 then return end
+        end
         keywordN = keywordN + 1
-        if keywordN > 200 then wipe(keywordAt); keywordN = 1 end -- many senders: forgotten all at once
     end
     keywordAt[key] = now
     -- party full: convert to raid automatically if we are leader, for a guild member only
