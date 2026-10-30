@@ -13,11 +13,9 @@ W.AddFR({
         "Myslot : l'emplacement %d contient un « %s », que Myslot ne sauvegarde pas : laissé de côté.",
     ["Myslot: key binding with the modifier \"%s\" left out (unknown to Myslot)."] =
         "Myslot : raccourci avec le modificateur « %s » laissé de côté (inconnu de Myslot).",
-    ["Myslot: macro \"%s\" not created: no free macro slot."] = "Myslot : macro « %s » pas créée : plus de place pour une macro.",
-    ["Myslot: unknown macro (id %s) left out."] = "Myslot : macro inconnue (id %s) laissée de côté.",
-    ["Myslot: spell %s not known by this character, left out."] = "Myslot : sort %s inconnu de ce personnage, laissé de côté.",
-    ["Myslot: item %s not found, left out."] = "Myslot : objet %s introuvable, laissé de côté.",
-    ["Myslot: slot %d left as it was (error: %s)."] = "Myslot : emplacement %d laissé tel quel (erreur : %s).",
+    ["Myslot: left out: %d spell(s) not known, %d item(s) not found, %d macro(s), %d invalid entry(ies)."] =
+        "Myslot : laissés de côté : %d sort(s) inconnu(s), %d objet(s) introuvable(s), %d macro(s), %d entrée(s) invalide(s).",
+    ["First error: %s"] = "Première erreur : %s",
     ["Myslot: profile imported."] = "Myslot : profil importé.",
     ["This text is not a Myslot profile."] = "Ce texte n'est pas un profil Myslot.",
     ["This Myslot profile is damaged (wrong checksum): copy it again."] =
@@ -34,7 +32,12 @@ W.AddFR({
 
 local MAX_TEXT = 500000 -- a pasted text past it is no profile (it is decoded whole)
 ns.MAX_TEXT = MAX_TEXT
+ns.MAX_SAVED = 4000000 -- the saved profiles, all together (a real export: 5 to 70 KB)
 local MAX_SLOT = 180     -- 15 pages of 12 action slots
+-- what a pasted profile may hold (ns.Parse). The game's macro window counts letters, not bytes (an accent takes 2):
+-- letters="16" for the name (SharedUIPanelTemplates.xml), letters="255" for the text (Blizzard_MacroUI.xml)
+local MAX_MACRO_NAME, MAX_MACRO_BODY = 16, 255
+local MAX_BINDS, MAX_PET_SLOTS, MAX_CLICKS = 1000, 10, 100
 local CUSTOM_BIND = 0xFFFF
 local SLOT = ns.SLOT
 local SLOT_TYPE = {
@@ -214,10 +217,10 @@ end
 function ns.Export(skip)
     local header = { "Myslot", "Wow Version: " .. (GetBuildInfo()),
         "Addon Version: " .. (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata("WarLegendRaidTool", "Version") or "?"),
-        L("Time") .. ": " .. date(), PLAYER .. ": " .. (UnitName("player") or "?"), CLASS .. ": " .. (UnitClass("player") or "?") }
+        L("Time") .. ": " .. date(), (PLAYER or "Player") .. ": " .. (UnitName("player") or "?"), (CLASS or "Class") .. ": " .. (UnitClass("player") or "?") }
     local talents = W.OwnTalents and W.TalentText and W.TalentText(W.OwnTalents())
-    if talents then header[#header + 1] = TALENTS .. ": " .. talents end
-    header[#header + 1] = LEVEL .. ": " .. (UnitLevel("player") or "?")
+    if talents then header[#header + 1] = (TALENTS or "Talents") .. ": " .. talents end
+    header[#header + 1] = (LEVEL or "Level") .. ": " .. (UnitLevel("player") or "?")
     local sep = IsWindowsClient and IsWindowsClient() and "\r\n" or "\n"
     local msg = ns.Read(skip)
     return ns.Armor(ns.Encode(msg), header, sep), msg
@@ -227,8 +230,26 @@ end
 -- Reading a pasted text
 ---------------------------------------------------------------------------
 local function Empty(t) return t == nil or next(t) == nil end
+local function Count(t) return t and #t or 0 end
 
--- the message of a text, or nil and why (a sentence for the player)
+-- the entries of a slot list whose id is a slot (1 to max), once each; how many were left out
+local function KeepSlots(list, max)
+    local kept, seen = {}, {}
+    for _, s in ipairs(list or {}) do
+        if s.id >= 1 and s.id <= max and not seen[s.id] then
+            seen[s.id] = true
+            kept[#kept + 1] = s
+        end
+    end
+    return kept, Count(list) - #kept
+end
+
+-- at most max letters (bytes that only continue a letter count for none: 4 bytes per letter at most)
+local function FitsLetters(s, max) return #s <= max * 4 and strlenutf8(s) <= max end
+
+-- the message of a text, or nil and why (a sentence for the player). The import does it all in the confirmation's click:
+-- a text with more entries than a real export (ns.Read) is no profile; an entry the game could refuse with an error is
+-- left out and counted (msg.leftOut, told once by ns.Restore)
 function ns.Parse(text)
     if type(text) ~= "string" then return nil, L("This text is not a Myslot profile.") end
     if #text > MAX_TEXT then return nil, L("The text is too long to be a Myslot profile (500 KB at most).") end
@@ -237,6 +258,20 @@ function ns.Parse(text)
     if not crcOk then return nil, L("This Myslot profile is damaged (wrong checksum): copy it again.") end
     local ok, msg = pcall(ns.Decode, payload)
     if not ok or type(msg) ~= "table" then return nil, L("This text is not a Myslot profile.") end
+    if Count(msg.slot) > MAX_SLOT or Count(msg.petslot) > MAX_PET_SLOTS or Count(msg.macro) > MAX_ACCOUNT + MAX_CHARACTER
+        or Count(msg.bind) > MAX_BINDS or Count(msg.clickBinding) > MAX_CLICKS then
+        return nil, L("This text is not a Myslot profile.")
+    end
+    local slotsOut, petsOut
+    msg.slot, slotsOut = KeepSlots(msg.slot, MAX_SLOT)
+    msg.petslot, petsOut = KeepSlots(msg.petslot, MAX_PET_SLOTS)
+    local macros = {}
+    for _, m in ipairs(msg.macro or {}) do
+        m.name = m.name:gsub("[%c|]", "") -- the bars show it: a |T...|t code would draw a texture over them
+        if FitsLetters(m.name, MAX_MACRO_NAME) and FitsLetters(m.body, MAX_MACRO_BODY) then macros[#macros + 1] = m end
+    end
+    msg.leftOut = slotsOut + petsOut + Count(msg.macro) - #macros
+    msg.macro = macros
     if Empty(msg.slot) and Empty(msg.bind) and Empty(msg.macro) and Empty(msg.clickBinding)
         and (msg.cooldownManager == nil or msg.cooldownManager == "") then
         return nil, L("This Myslot profile holds nothing to import.")
@@ -332,13 +367,12 @@ local function FindOrCreateMacro(m, index)
     if perChar ~= nil then
         local icon = m.icon
         if strsub(body, 0, 12) == "#showtooltip" then icon = "INV_Misc_QuestionMark" end
-        local id = CreateMacro(m.name, icon, body, perChar)
-        if id then
+        local ok, id = pcall(CreateMacro, m.name, icon, body, perChar) -- refused by the game: left out, the import goes on
+        if ok and id then
             index[m.name .. "_" .. body], index[body] = id, id
             return id
         end
     end
-    ns.Print(L("Myslot: macro \"%s\" not created: no free macro slot."):format(W.Plain(tostring(m.name), 30)))
 end
 
 local function Mounts()
@@ -353,8 +387,8 @@ local function Mounts()
     return mounts
 end
 
--- picks up what a slot of the profile holds (the cursor holds it after, or nothing)
-local function PickUp(s, overrides, flyouts, mounts)
+-- picks up what a slot of the profile holds (the cursor holds it after, or nothing; left counts what it could not find)
+local function PickUp(s, overrides, flyouts, mounts, left)
     local PickupSpell = C_Spell and C_Spell.PickupSpell or _G.PickupSpell
     local PickupItem = C_Item and C_Item.PickupItem or _G.PickupItem
     local t, index, name = s.type, s.index, s.strindex
@@ -369,14 +403,14 @@ local function PickUp(s, overrides, flyouts, mounts)
             local base = not GetCursorInfo() and FindBase and FindBase(index)
             if base then PickupSpell(base) end
         end
-        if not GetCursorInfo() then ns.Print(L("Myslot: spell %s not known by this character, left out."):format(tostring(index))) end
+        if not GetCursorInfo() then left.spell = left.spell + 1 end
     elseif t == SLOT.FLYOUT then
         local flyout = flyouts[index]
         if flyout and C_SpellBook and C_SpellBook.PickupSpellBookItem then C_SpellBook.PickupSpellBookItem(flyout, Enum.SpellBookSpellBank.Player) end
-        if not GetCursorInfo() then ns.Print(L("Myslot: spell %s not known by this character, left out."):format(tostring(index))) end
+        if not GetCursorInfo() then left.spell = left.spell + 1 end
     elseif t == SLOT.ITEM then
         PickupItem(index)
-        if not GetCursorInfo() then ns.Print(L("Myslot: item %s not found, left out."):format(tostring(index))) end
+        if not GetCursorInfo() then left.item = left.item + 1 end
     elseif t == SLOT.SUMMONPET then
         if name and C_PetJournal and C_PetJournal.PickupPet then
             C_PetJournal.PickupPet(name, false)
@@ -443,6 +477,16 @@ function ns.Restore(msg, skip)
     skip = skip or {}
     local bars = skip.bars or {}
     local overrides, flyouts, mounts = SpellOverrides(), Flyouts(), Mounts()
+    -- what is left out, told in one line at the end (a line per entry: thousands for a made-up profile)
+    local left = { spell = 0, item = 0, macro = 0, invalid = msg.leftOut or 0 }
+    -- a value of the profile the game refuses with an error: counted, the import goes on
+    local function Guard(fn, ...)
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            ClearCursor()
+            left.invalid, left.err = left.invalid + 1, left.err or err
+        end
+    end
 
     -- macros, then the slots that show them
     local macroSlots, macroIds = {}, {}
@@ -469,7 +513,7 @@ function ns.Restore(msg, skip)
                 end
             end
         else
-            ns.Print(L("Myslot: unknown macro (id %s) left out."):format(tostring(m.id)))
+            left.macro = left.macro + 1
         end
     end
 
@@ -481,17 +525,13 @@ function ns.Restore(msg, skip)
         inProfile[slot] = true
         if not bars[Page(slot)] and s.type ~= SLOT.MACRO and s.type ~= SLOT.EMPTY then
             local kind, current = GetActionInfo(slot)
-            local ok, err = pcall(function()
+            Guard(function()
                 if current ~= s.index or SLOT_TYPE[kind or ""] ~= s.type then
-                    PickUp(s, overrides, flyouts, mounts)
+                    PickUp(s, overrides, flyouts, mounts, left)
                     if GetCursorInfo() then PlaceAction(slot) end
                     ClearCursor()
                 end
             end)
-            if not ok then
-                ClearCursor()
-                ns.Print(L("Myslot: slot %d left as it was (error: %s)."):format(slot, tostring(err)))
-            end
         end
     end
     for slot = 1, MAX_SLOT do
@@ -517,16 +557,18 @@ function ns.Restore(msg, skip)
             if isToken then tokens[name] = i end
         end
         for _, p in ipairs(msg.petslot or {}) do
-            if p.strindex then
-                if tokens[p.strindex] then
-                    PickupPetAction(tokens[p.strindex])
+            Guard(function()
+                if p.strindex then
+                    if tokens[p.strindex] then
+                        PickupPetAction(tokens[p.strindex])
+                        PickupPetAction(p.id)
+                    end
+                elseif p.index then
+                    PickupPetSpell(p.index)
                     PickupPetAction(p.id)
                 end
-            elseif p.index then
-                PickupPetSpell(p.index)
-                PickupPetAction(p.id)
-            end
-            ClearCursor()
+                ClearCursor()
+            end)
         end
     end
 
@@ -541,9 +583,14 @@ function ns.Restore(msg, skip)
                 profile[#profile + 1] = { type = c.type, actionID = action, button = c.button, modifiers = c.modifiers or 0 }
             end
         end
-        C_ClickBindings.SetProfileByInfo(profile)
+        Guard(C_ClickBindings.SetProfileByInfo, profile)
     end
     ns.Print(L("Myslot: profile imported."))
+    if left.spell + left.item + left.macro + left.invalid > 0 then
+        local line = L("Myslot: left out: %d spell(s) not known, %d item(s) not found, %d macro(s), %d invalid entry(ies)."):format(left.spell, left.item, left.macro, left.invalid)
+        if left.err then line = line .. " " .. L("First error: %s"):format(W.Plain(tostring(left.err), 120)) end
+        ns.Print(line)
+    end
 end
 
 -- "ACTION" (the pages of bars true in pages), "MACRO" (general and / or character macros), "BINDING" (every key

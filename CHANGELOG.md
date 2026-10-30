@@ -15,10 +15,19 @@ Releases et les tags git.
   manquant peut s'afficher jusqu'à 1 s plus tard.
 - Métiers de la guilde : apprendre plusieurs recettes d'un coup n'envoie ta liste à la guilde qu'une fois, une minute plus
   tard.
+- Myslot : à la fin d'un import, une seule ligne de chat compte ce qui est laissé de côté (sorts inconnus, objets
+  introuvables, macros), au lieu d'une ligne par entrée.
+- Myslot : les profils enregistrés sont limités à 4 Mo en tout (un vrai profil fait de 5 à 70 Ko) ; au-delà, Enregistrer
+  demande d'en supprimer un.
 
 ### Corrigé
 - DoesItDie, en groupe : un DoT esquivé ou résisté juste avant le départ du sort n'est plus compté. Un coup reçu au même
   moment par un autre joueur ou un autre mob effaçait l'esquive, et l'icône de mort pouvait s'afficher pour un DoT absent.
+- Myslot : un texte collé impossible (plus d'entrées qu'un vrai profil) est refusé ; une entrée invalide (emplacement qui
+  n'existe pas, macro trop longue) est ignorée, et l'import ne s'arrête plus à moitié.
+- Myslot : le nom d'une macro collée ne peut plus afficher une image ou un code sur les barres d'action.
+- Myslot : l'export et l'import ne s'arrêtent plus si le jeu n'a pas l'un des textes de l'en-tête de l'export (joueur,
+  classe, talents, niveau).
 
 ## 1.41.55 (29/10/2026)
 

@@ -592,11 +592,13 @@ local function PopupBox(key, label) -- the text window (W.TextPopup) a button of
         return f.box, f.ok
     end
 end
--- a valid Myslot export (Myslot/Codec.lua) holding a macro whose name and lines carry escape codes, /gquit and Lua code,
--- on an action slot, with a key binding that clicks a button
+-- a valid Myslot export (Myslot/Codec.lua) holding macros whose names and lines carry escape codes, /gquit and Lua code
+-- (the first name is past the game's 16 letters, the second within them), on action slots, with a key binding that
+-- clicks a button
 local function MyslotCrafted()
-    local msg = { ver = 42, name = "Raider2", slot = { { id = 1, type = MS.SLOT.MACRO, index = 1 } },
-        macro = { { id = 1, name = TEX .. MARK .. "|Hplayer:" .. MARK .. "|h[x]|h", icon = "INV_MISC_QUESTIONMARK", body = "/gquit\n/run print(1)\n" .. CODES } },
+    local msg = { ver = 42, name = "Raider2", slot = { { id = 1, type = MS.SLOT.MACRO, index = 1 }, { id = 2, type = MS.SLOT.MACRO, index = 2 } },
+        macro = { { id = 1, name = TEX .. MARK .. "|Hplayer:" .. MARK .. "|h[x]|h", icon = "INV_MISC_QUESTIONMARK", body = "/gquit\n/run print(1)\n" .. CODES },
+            { id = 2, name = "|T" .. MARK .. ":4|t", icon = "INV_MISC_QUESTIONMARK", body = "/gquit\n/run print(1)\n" .. CODES } },
         bind = { { id = 0xFFFF, command = "CLICK " .. CODES .. ":LeftButton", key1 = { key = 1, mod = 0 } } } }
     return MS.Armor(MS.Encode(msg), { "Myslot" }, "\n")
 end

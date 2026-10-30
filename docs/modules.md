@@ -129,12 +129,19 @@ action | macro | binding`); `Myslot/` = Myslot 6.2.1 by Boshi Lian (Apache-2.0, 
   the import run in the click of Export / the confirmation's Yes, in one go (no coroutine or timer: the old import was
   driven by `C_Timer`); refused in combat at the click and again at the Yes. The deletions (`ns.Clear`) only from a
   `W.Confirm`.
-- **Untrusted text**: a paste of 500 KB at most (`ns.MAX_TEXT`), decoded with bounded reads (`pcall`); before the
-  question, `ns.Risky` lists every macro command off `W.MACRO_CMDS` (Settings.lua) and every chat line, and the key
-  bindings that click a button or run a macro (`W.Plain` on names and lines). Paste only: no addon message, nothing
-  received from other players.
+- **Untrusted text**: a paste of 500 KB at most (`ns.MAX_TEXT`), decoded with bounded reads (`pcall`). `ns.Parse` then
+  refuses a text with more entries than a real export (180 slots, 10 pet slots, 150 macros, 1000 bindings, 100 click
+  bindings) and leaves out, counted in `msg.leftOut`, slot ids that do not exist or come twice and macros past the game's
+  limits; a macro name loses its `[%c|]` (the bars show it). Those limits count **letters**, as the game's macro window
+  (`letters="16"` for the name, `letters="255"` for the text: an accent takes 2 bytes), with 4 bytes per letter at most.
+  Before the question, `ns.Risky` lists every macro command off `W.MACRO_CMDS` (Settings.lua) and every chat line, and
+  the key bindings that click a button or run a macro (`W.Plain` on names and lines). In `ns.Restore`, a value the game
+  refuses with an error is counted and the import goes on (`CreateMacro` and each slot, pet slot and the click bindings
+  under `pcall`); what is left out is told in **one** chat line at the end, never a line per entry. Paste only: no addon
+  message, nothing received from other players.
 - **Saved**: `W.db.myslot`: options `allowClear`, `sort`, `myClass` (scalars, in profiles); data `exports` (100 at most,
-  { name, value, class }) and `backups` (3, { value, time }), checked at login. 1.37.0-1.41.54 saved in `MyslotExports` /
+  4 MB in all, `ns.MAX_SAVED`, checked by the tab's Save and at login, { name, value, class }) and `backups` (3, { value,
+  time }; not in the 4 MB, their growth must not remove a profile at login), checked at login. 1.37.0-1.41.54 saved in `MyslotExports` /
   `MyslotSettings` (per character): migration 4 copies them, then they are set to nil; they stay in the .toc for that move
   (drop them from `## SavedVariables` a version later). With the original addon loaded, its tables are given back and it
   keeps `/myslot`.
@@ -224,7 +231,11 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   back to the same bytes and come out of the module's Export of the same setups; 300 random messages of every field
   round-trip; cut payloads and texts never raise an error; the tab's Import changes nothing before the confirmation's
   Yes, nothing in combat, then puts the profile back (exported again: the same bytes) after saving a backup;
-  `/wl myslot clear macro` asks, then deletes in the Yes.
+  `/wl myslot clear macro` asks, then deletes in the Yes. Also: each list at its limit read whole, one entry more refused,
+  a paste of 460 KB with 38,000 slots refused (English pass only: 8 s in fengari); a made-up profile through the tab (slot
+  ids 500, 501 and 0, a macro, a spell, a pet spell and click bindings the model refuses with an error, spells and items
+  not known): no Lua error, the import goes to its end, one line for all; the 4 strings of the export's header hidden (the bench's `_G` reads any ALL_CAPS global as its
+  own name: the phase swaps its `__index`): Export and Import work; Save and the login check stop at 4 MB.
 - `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
   120 and a raid of 40 outside instances (`M.SetupWorld`: two continents, a few zones, positions for HereBeDragons).
   [1] enemy player frames of the danger alert (40 at most, clicks right after combat, nothing secure changed in combat),

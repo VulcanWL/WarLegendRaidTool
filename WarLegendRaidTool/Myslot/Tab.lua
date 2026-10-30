@@ -79,6 +79,7 @@ W.AddFR({
     ["Replace the profile \"%s\" with the text of the box?"] = "Remplacer le profil « %s » par le texte de la case ?",
     ["Profile \"%s\" saved."] = "Profil « %s » enregistré.",
     ["100 profiles at most: delete one first."] = "100 profils au plus : supprimes-en un d'abord.",
+    ["4 MB of saved profiles at most: delete one first."] = "4 Mo de profils enregistrés au plus : supprimes-en un d'abord.",
     ["Select a profile in the list first."] = "Choisis d'abord un profil dans la liste.",
     ["Delete the profile \"%s\"?"] = "Supprimer le profil « %s » ?",
     ["Myslot: the profile is in the box of the Myslot tab, click Import to apply it."] =
@@ -191,14 +192,17 @@ local function SaveAs()
         Status(L("Profile \"%s\" saved."):format(name))
         RefreshSaved()
     end
+    local size, same = #text, nil -- the profiles once this one is saved
     for _, e in ipairs(exports) do
-        if e.name == name then
-            W.Confirm(L("Replace the profile \"%s\" with the text of the box?"):format(name), function()
-                e.value, e.class = text, select(2, UnitClass("player"))
-                Saved()
-            end, L("Save"))
-            return
-        end
+        if e.name == name and not same then same = e else size = size + #e.value end
+    end
+    if size > ns.MAX_SAVED then Status(L("4 MB of saved profiles at most: delete one first."), true); return end
+    if same then
+        W.Confirm(L("Replace the profile \"%s\" with the text of the box?"):format(name), function()
+            same.value, same.class = text, select(2, UnitClass("player"))
+            Saved()
+        end, L("Save"))
+        return
     end
     if #exports >= MAX_PROFILES then Status(L("100 profiles at most: delete one first."), true); return end
     exports[#exports + 1] = { name = name, value = text, class = select(2, UnitClass("player")) }
