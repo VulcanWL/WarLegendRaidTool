@@ -15,6 +15,8 @@ W.AddFR({
     ["Myslot: no profile named \"%s\" (Saved profiles)."] = "Myslot : aucun profil nommé « %s » (Profils enregistrés).",
     ["Myslot: /wl myslot [load name | clear action | clear macro | clear binding]"] =
         "Myslot : /wl myslot [load nom | clear action | clear macro | clear binding]",
+    ["Myslot: %d saved profile(s) removed: 100 profiles and 4 MB at most, all together."] =
+        "Myslot : %d profil(s) enregistré(s) retiré(s) : 100 profils et 4 Mo au plus, en tout.",
 })
 
 -- The original addon, when enabled, loads before us (alphabetical order): it keeps its /myslot and its saved tables.
@@ -48,15 +50,22 @@ W.Migration(4, "myslot", function(saved)
     end
 end)
 
--- saved data checked once at login (a damaged file): strings only, names without escape codes, the list sizes bounded
+-- saved data checked once at login (a damaged file, an old list): strings only, names without escape codes, the sizes
+-- bounded (the Tab's Save stops at the same limits)
 local function Sanitize(t)
-    local exports, backups = {}, {}
+    local exports, backups, size, dropped = {}, {}, 0, 0
     for _, e in ipairs(type(t.exports) == "table" and t.exports or {}) do
-        if type(e) == "table" and type(e.value) == "string" and #e.value <= ns.MAX_TEXT and #exports < 100 then
-            local name = W.CutUTF8(strtrim((tostring(e.name or "?"):gsub("[%c|]", " "))), 60)
-            exports[#exports + 1] = { name = name ~= "" and name or "?", value = e.value, class = type(e.class) == "string" and e.class:match("^%u+$") or nil }
+        if type(e) == "table" and type(e.value) == "string" and #e.value <= ns.MAX_TEXT then
+            if #exports < 100 and size + #e.value <= ns.MAX_SAVED then
+                size = size + #e.value
+                local name = W.CutUTF8(strtrim((tostring(e.name or "?"):gsub("[%c|]", " "))), 60)
+                exports[#exports + 1] = { name = name ~= "" and name or "?", value = e.value, class = type(e.class) == "string" and e.class:match("^%u+$") or nil }
+            else
+                dropped = dropped + 1
+            end
         end
     end
+    if dropped > 0 then W.Print(L("Myslot: %d saved profile(s) removed: 100 profiles and 4 MB at most, all together."):format(dropped)) end
     for _, b in ipairs(type(t.backups) == "table" and t.backups or {}) do
         if type(b) == "table" and type(b.value) == "string" and #b.value <= ns.MAX_TEXT then
             backups[#backups + 1] = { value = b.value, time = tonumber(b.time) or 0 }
@@ -65,6 +74,7 @@ local function Sanitize(t)
     while #backups > 3 do table.remove(backups, 1) end
     t.exports, t.backups = exports, backups
 end
+ns.Sanitize = Sanitize
 
 W.OnReady(function()
     db = W.DB("myslot", { allowClear = false, sort = "date", myClass = false })

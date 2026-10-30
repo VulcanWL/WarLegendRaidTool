@@ -158,7 +158,6 @@ undocumented Enum.SendChatMessageResult
 legacy (guarded) GetActionInfo
 legacy (guarded) GetFlyoutInfo
 legacy (guarded) IsPetActive
-legacy (guarded) PlaceAction
 legacy (no guard) DeleteMacro
 legacy (no guard) GetActionInfo
 legacy (no guard) GetBinding

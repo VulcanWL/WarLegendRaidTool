@@ -10,10 +10,19 @@ Releases et les tags git.
 - DoesItDie allumé coûte bien moins en raid : il ignore les coups reçus par les membres du groupe, ne lit plus que les
   barres de nom des mobs qui portent tes DoT, et son journal de suivi ne note plus les coups des autres joueurs (seulement
   avec `/wl did debug`).
+- Myslot : à la fin d'un import, une seule ligne de chat compte ce qui est laissé de côté (sorts inconnus, objets
+  introuvables, macros), au lieu d'une ligne par entrée.
+- Myslot : les profils enregistrés sont limités à 4 Mo en tout (un vrai profil fait de 5 à 70 Ko) ; au-delà, Enregistrer
+  demande d'en supprimer un.
 
 ### Corrigé
 - DoesItDie, en groupe : un DoT esquivé ou résisté juste avant le départ du sort n'est plus compté. Un coup reçu au même
   moment par un autre joueur ou un autre mob effaçait l'esquive, et l'icône de mort pouvait s'afficher pour un DoT absent.
+- Myslot : un texte collé impossible (plus d'entrées qu'un vrai profil) est refusé ; une entrée invalide (emplacement qui
+  n'existe pas, macro trop longue) est ignorée, et l'import ne s'arrête plus à moitié.
+- Myslot : le nom d'une macro collée ne peut plus afficher une image ou un code sur les barres d'action.
+- Myslot : l'export et l'import ne s'arrêtent plus si le jeu n'a pas l'un des textes de l'en-tête de l'export (joueur,
+  classe, talents, niveau).
 
 ## 1.41.55 (29/10/2026)
 
