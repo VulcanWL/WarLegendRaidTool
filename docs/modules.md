@@ -255,6 +255,16 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
   ids 500, 501 and 0, a macro, a spell, a pet spell and click bindings the model refuses with an error, spells and items
   not known): no Lua error, the import goes to its end, one line for all; the 4 strings of the export's header hidden (the bench's `_G` reads any ALL_CAPS global as its
   own name: the phase swaps its `__index`): Export and Import work; Save and the login check stop at 4 MB.
+  Phase "Dev verify" (`tools/smoke/verify.lua`, last: the session watch stays on once loaded): the only phase that loads
+  `WarLegendRaidTool_Dev/Verify.lua`, with a fake `C_Secrets`. A whisper, an invite, addon messages, a quest window, a fight and a
+  chat line, then `/wl verify quick`, `copy` and the full run: one line per probe, no probe error, no other player's name in the
+  lines or the report, nothing sent, the report reads back, refused in combat.
+- `WarLegendRaidTool_Dev/Verify.lua` (`/wl verify`, never in the zip): for the first night in the game. From login it watches what
+  only the session shows, and sends nothing: name forms of whispers and invites, our chat lines and their echo, our restricted calls
+  and whether they worked, blocked actions, the channel and sender form of our addon messages, a quest giver's unit, cooldown fields
+  after a cast, `C_Secrets` and the reads that come back secret 2 s into the first fight of each kind of place. `/wl verify` also
+  runs its probes and the module tests, then opens one report (context, every line, our errors with their stack, the busiest work)
+  to copy: paste it to Claude, `node tools/verify-live.js --decode` reads it. `quick` skips the tests, `copy` opens the last one.
 - `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
   120 and a raid of 40 outside instances (`M.SetupWorld`: two continents, a few zones, positions for HereBeDragons).
   [1] enemy player frames of the danger alert (40 at most, clicks right after combat, nothing secure changed in combat),

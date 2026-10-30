@@ -143,8 +143,9 @@ or WoW will not load it. Other files in the folder (like this one) are ignored b
 - Release commit: with the `## Version:` bump, rename `## Prochaine version` of `CHANGELOG.md` to `## X.Y.Z (dd/mm/yyyy)`
   and put a new empty `## Prochaine version` above it. `check.js` refuses a `## Version:` without notes in its section;
   the release workflow copies that section into the GitHub release notes (above the compare link).
-- **Release gate (since 24/10)**: no tag before the first in-game session on Forever (planned 5 November) has run
-  `/wl verify` and its results were read (`node tools/verify-live.js`, `--follow` while the game runs, `--saved` after a
+- **Release gate (since 24/10)**: no tag before the first in-game session on Forever (5 November: the game opens at 00:00 CET
+  that night, nothing runs in game before) has run `/wl verify` and its results were read (the report it opens, pasted by the
+  user: `node tools/verify-live.js --decode`; or `node tools/verify-live.js`, `--follow` while the game runs, `--saved` after a
   `/reload`) and every `LOOK` line was fixed or accepted by the user. Gated items: audit M1 (master loot candidates
   without surname, `LootCouncil.lua` `IsCandidate`), slot 18, compression on the client's own deflate, and the module
   tests with 0 new Lua error. Until then, a release request: say this gate is open and ask before tagging.

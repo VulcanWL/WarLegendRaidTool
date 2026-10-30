@@ -1322,6 +1322,15 @@ table.sort(costs, function(a, b) return a[2] > b[2] end)
 report.frameCosts = { table.unpack(costs, 1, math.min(#costs, 10)) }
 M.costs = nil
 
+-- /wl verify, the Dev addon (tools/smoke/verify.lua). Last: its session watch stays on once loaded
+Phase("Dev verify")
+do
+    local chunk, err = load(SMOKE_READ(M.smokeDir .. "/verify.lua"), "@tools/smoke/verify.lua")
+    local ok
+    if chunk then ok, err = pcall(chunk, M, Check) end
+    if not ok then M.Error(err) end
+end
+
 -- leave: the game writes the saved variables
 Phase("logout")
 M.group = {}
