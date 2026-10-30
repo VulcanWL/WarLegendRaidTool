@@ -459,6 +459,40 @@ do
     Check("Myslot limits: a |T code in a macro name is cleaned", kept[2] and kept[2].name == "T134400:0tX", tostring(kept[2] and kept[2].name))
 end
 
+-- the limit is on the text the game gets: a saved text can end with a line break, and it takes no letter there
+do
+    local A = "\195\169"
+    local msg = MS.Parse(Text(Profile("macro", {
+        { id = 1, name = "M1", body = A:rep(255) .. "\n", icon = "I" },
+        { id = 2, name = "M2", body = "\r\n" .. ("/cast X\r\n"):rep(28) .. "/use Y\r\n", icon = "I" }, -- 230 letters without the \r
+        { id = 3, name = "M3", body = A:rep(256) .. "\n", icon = "I" },
+        { id = 4, name = "M4", body = (" "):rep(3000) .. "/cast X", icon = "I" }, -- past the bound that comes before the patterns
+    })))
+    local kept = msg and msg.macro or {}
+    Check("Myslot limits: a line break and \\r take no letter (255 letters kept), 256 letters or a text past the bound left out",
+        #kept == 2 and kept[1].id == 1 and kept[2].id == 2 and msg.leftOut == 2, #kept .. " kept, left out: " .. tostring(msg and msg.leftOut))
+    local _, box, import = TabWidgets()
+    if not (box and import and MS.db) then
+        Check("Myslot limits: a macro of 255 letters saved with a line break", false, "no text box / Import button in the tab")
+    else
+        local backups, before = MS.db.backups, {}
+        for i, b in ipairs(backups) do before[i] = b end
+        Install({})
+        box.__text = Text({ ver = 42, name = "x", slot = { { id = 2, type = MS.SLOT.MACRO, index = 1 } },
+            macro = { { id = 1, name = "M1", body = A:rep(255) .. "\n", icon = "I" } } })
+        Click(import)
+        Yes()
+        local a = model.actions[2]
+        local made = a and model.macros[a[2]]
+        Check("Myslot limits: a macro of 255 letters saved with a line break goes whole on its slot", made and made[3] == A:rep(255),
+            made and (#made[3] .. " bytes") or "macro not on its slot")
+        Uninstall()
+        for k in pairs(backups) do backups[k] = nil end
+        for i, b in ipairs(before) do backups[i] = b end
+    end
+    M.Call(W.Hide)
+end
+
 -- 8. through the tab, a made-up profile: slot ids that do not exist (for a macro: its PlaceAction is under no pcall), a
 -- macro and values the game refuses with an error, spells and items not known: nothing before the Yes or in combat, no
 -- Lua error, the import goes to its end (key bindings, pet bar, click bindings), one line for all

@@ -134,6 +134,8 @@ action | macro | binding`); `Myslot/` = Myslot 6.2.1 by Boshi Lian (Apache-2.0, 
   bindings) and leaves out, counted in `msg.leftOut`, slot ids that do not exist or come twice and macros past the game's
   limits; a macro name loses its `[%c|]` (the bars show it). Those limits count **letters**, as the game's macro window
   (`letters="16"` for the name, `letters="255"` for the text: an accent takes 2 bytes), with 4 bytes per letter at most.
+  The text's limit is on what the game gets (`Unify`: no `\r`, no blank at either end; a saved text may end with a line
+  break), after a bound of 8 bytes per letter on the saved one.
   Before the question, `ns.Risky` lists every macro command off `W.MACRO_CMDS` (Settings.lua) and every chat line, and
   the key bindings that click a button or run a macro (`W.Plain` on names and lines). In `ns.Restore`, a value the game
   refuses with an error is counted and the import goes on (`CreateMacro` and each slot, pet slot and the click bindings
@@ -232,7 +234,8 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   round-trip; cut payloads and texts never raise an error; the tab's Import changes nothing before the confirmation's
   Yes, nothing in combat, then puts the profile back (exported again: the same bytes) after saving a backup;
   `/wl myslot clear macro` asks, then deletes in the Yes. Also: each list at its limit read whole, one entry more refused,
-  a paste of 460 KB with 38,000 slots refused (English pass only: 8 s in fengari); a made-up profile through the tab (slot
+  a paste of 460 KB with 38,000 slots refused (English pass only: 8 s in fengari); a macro of 255 letters saved with a line
+  break goes whole on its slot; a made-up profile through the tab (slot
   ids 500, 501 and 0, a macro, a spell, a pet spell and click bindings the model refuses with an error, spells and items
   not known): no Lua error, the import goes to its end, one line for all; the 4 strings of the export's header hidden (the bench's `_G` reads any ALL_CAPS global as its
   own name: the phase swaps its `__index`): Export and Import work; Save and the login check stop at 4 MB.

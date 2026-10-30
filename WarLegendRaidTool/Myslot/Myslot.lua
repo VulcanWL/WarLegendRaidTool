@@ -247,6 +247,13 @@ end
 -- at most max letters (bytes that only continue a letter count for none: 4 bytes per letter at most)
 local function FitsLetters(s, max) return #s <= max * 4 and strlenutf8(s) <= max end
 
+-- a macro's text as the game gets it
+local function Unify(body) return strtrim((gsub(body or "", "\r", ""))) end
+
+-- the limit is on that text: a saved one may end with a line break, which takes no letter there. 8 bytes per letter bound
+-- the saved one before the patterns (4 per letter and a \r after each)
+local function BodyFits(body) return #body <= MAX_MACRO_BODY * 8 and FitsLetters(Unify(body), MAX_MACRO_BODY) end
+
 -- the message of a text, or nil and why (a sentence for the player). The import does it all in the confirmation's click:
 -- a text with more entries than a real export (ns.Read) is no profile; an entry the game could refuse with an error is
 -- left out and counted (msg.leftOut, told once by ns.Restore)
@@ -268,7 +275,7 @@ function ns.Parse(text)
     local macros = {}
     for _, m in ipairs(msg.macro or {}) do
         m.name = m.name:gsub("[%c|]", "") -- the bars show it: a |T...|t code would draw a texture over them
-        if FitsLetters(m.name, MAX_MACRO_NAME) and FitsLetters(m.body, MAX_MACRO_BODY) then macros[#macros + 1] = m end
+        if FitsLetters(m.name, MAX_MACRO_NAME) and BodyFits(m.body) then macros[#macros + 1] = m end
     end
     msg.leftOut = slotsOut + petsOut + Count(msg.macro) - #macros
     msg.macro = macros
@@ -330,8 +337,6 @@ end
 ---------------------------------------------------------------------------
 -- Restoring (in the click of the import's confirmation, out of combat: bars, macros and bindings are protected in combat)
 ---------------------------------------------------------------------------
-local function Unify(body) return strtrim((gsub(body or "", "\r", ""))) end
-
 -- the character's macros by "name_body" and by body, read once per import
 local function MacroIndex()
     local index = {}
