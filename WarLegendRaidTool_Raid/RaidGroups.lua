@@ -1390,7 +1390,7 @@ local function BuildFreePanel(parent)
 
     local filter = W.EditBox(p, 120)
     filter:SetPoint("TOPLEFT", 16, -32)
-    filter:SetScript("OnTextChanged", function() UI.RefreshFree() end)
+    filter:SetScript("OnTextChanged", W.Debounce(0.15, function() UI.RefreshFree() end))
     UI.filterBox = filter
     W.Label(p, L("Filter"), "GameFontDisableSmall"):SetPoint("BOTTOMLEFT", filter, "TOPLEFT", -4, 0)
 
@@ -1478,9 +1478,24 @@ function UI.RefreshFree()
     if source == "guild" then UI.offlineCheck:Show() else UI.offlineCheck:Hide() end
 
     local query = W.SanitizeName(UI.filterBox:GetText()):lower()
+    -- the preset's names and each member's label read once per refresh (a guild of 300 comes here on each roster update)
+    local inPreset, labels, keys = {}, {}, {}
+    if preset then
+        for _, p in ipairs(preset.players) do inPreset[p.name:lower()] = true end
+    end
+    local function keyOf(m)
+        local key = keys[m]
+        if not key then
+            labels[m] = RG.MemberLabel(m)
+            key = labels[m]:lower()
+            keys[m] = key
+        end
+        return key
+    end
     local function keep(m)
-        if preset and RG.FindPlayer(preset, PName(m.full or m.name) or m.name) then return false end
-        if query ~= "" and not RG.MemberLabel(m):lower():find(query, 1, true) then return false end
+        local key = keyOf(m)
+        if inPreset[key] then return false end
+        if query ~= "" and not key:find(query, 1, true) then return false end
         return true
     end
 
@@ -1494,14 +1509,14 @@ function UI.RefreshFree()
                 if m.online or db.showOffline then
                     total = total + 1
                     -- the guild list is shared and cached: always overwrite (nil when not in the raid)
-                    local rm = inRaid[(PName(m.full or m.name) or m.name):lower()]
+                    local rm = inRaid[keyOf(m)]
                     m.unit, m.group = rm and rm.unit, rm and rm.group
                     if keep(m) then list[#list + 1] = m end
                 end
             end
             table.sort(list, function(a, b)
                 if a.online ~= b.online then return a.online end
-                return RG.MemberLabel(a) < RG.MemberLabel(b)
+                return labels[a] < labels[b]
             end)
             if total == 0 then hint = L("Loading guild roster...")
             elseif #list == 0 then hint = L("Everyone is already in the preset.") end
@@ -1524,10 +1539,10 @@ function UI.RefreshFree()
         r.member = m
         local r1, g1, b1 = W.ClassColor(m.class)
         if m.online == false then
-            r.text:SetText(RG.MemberLabel(m) .. L(" |cff666666offline|r"))
+            r.text:SetText(labels[m] .. L(" |cff666666offline|r"))
             r.text:SetTextColor(r1 * 0.55, g1 * 0.55, b1 * 0.55)
         else
-            r.text:SetText(RG.MemberLabel(m) .. (m.group and (" |cff888888G" .. m.group .. "|r") or ""))
+            r.text:SetText(labels[m] .. (m.group and (" |cff888888G" .. m.group .. "|r") or ""))
             r.text:SetTextColor(r1, g1, b1)
         end
     end

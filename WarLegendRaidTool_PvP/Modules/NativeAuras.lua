@@ -70,7 +70,7 @@ local TYPE_ICONS = {
 -- (the name is cut shorter on its right) when the name box is too narrow to stay readable beside them, and at the
 -- right edge of the health bar when there is no name. Redone when the name, the frame or a symbol changes.
 local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must stay readable beside them
--- WarLegend: this runs 4 times a second per unit frame: its list is reused, no shift table when there is none
+-- WarLegend: this runs twice a second per unit frame: its list is reused, no shift table when there is none
 local NO_SHIFT = { 0, 0 }
 local function LayoutTypeIcons(pb)
 	local list, bar = pb.WLTypeIcons, pb.healthBar
@@ -145,7 +145,7 @@ end
 NA.LayoutTypeIcons = LayoutTypeIcons
 
 -- item: a frame or texture placed by LayoutTypeIcons. No script is set on it (the container's frames refuse
--- HookScript, and whether one is shown can be secret: no event says it): the unit frame is looked at again 4 times a
+-- HookScript, and whether one is shown can be secret: no event says it): the unit frame is looked at again twice a
 -- second while it is shown, by one OnUpdate per side for all its unit frames (WarLegendPvP.Spread)
 local typeIconFrames = {} -- [parent of the unit frames] = { unit frame, ... }
 local function LayoutAgain(pb) if pb:IsVisible() then LayoutTypeIcons(pb) end end
@@ -165,7 +165,7 @@ function NA.RegisterTypeIcon(pb, item)
 	if not list then
 		list = {}
 		typeIconFrames[parent] = list
-		WarLegendPvP.Spread(parent, 0.25, function() return list end, LayoutAgain)
+		WarLegendPvP.Spread(parent, 0.5, function() return list end, LayoutAgain)
 	end
 	list[#list + 1] = pb
 end

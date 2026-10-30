@@ -355,6 +355,8 @@ W.OnAddonLong(PREFIX_ASK, function(text, from, channel, full)
     end)
 end, 2100) -- id + the 2000-letter box
 
+-- a raid's answers arrive in a burst: the table is drawn 4 times a second at most
+local RefreshTableSoon = W.Coalesce(0.25, RefreshTable)
 W.OnAddon(PREFIX_ANS, function(msg, from, _, full)
     if askedAt == 0 or GetTime() - askedAt > 120 then return end -- only answers to my own recent check
     local id, body = msg:match("^(%d+)#(.*)$")
@@ -365,7 +367,7 @@ W.OnAddon(PREFIX_ANS, function(msg, from, _, full)
         res[#res + 1] = { s, W.Plain(v, 20) }
     end
     results[W.UnitKey(W.UnitByName(full or from))] = res -- the answering unit's full identity
-    RefreshTable()
+    RefreshTableSoon()
 end)
 
 ---------------------------------------------------------------------------

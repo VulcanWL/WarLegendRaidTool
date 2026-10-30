@@ -198,13 +198,20 @@ end
 ---------------------------------------------------------------------------
 -- Events (only while the option is on)
 ---------------------------------------------------------------------------
--- the bags priced again once per second at most (looting, selling and sorting fire this many times in a row)
+-- the bags priced again once per second at most (looting, selling and sorting fire this many times in a row), and
+-- after the fight when they change during one
 local RebuildSoon = W.Coalesce(1, function() Rebuild() end)
-local evBags = W.On("BAG_UPDATE_DELAYED", RebuildSoon, nil, true)
+local bagsChanged = false
+local evBags = W.On("BAG_UPDATE_DELAYED", function()
+    if InCombatLockdown() then bagsChanged = true else RebuildSoon() end
+end, nil, true)
+local evRegen = W.On("PLAYER_REGEN_ENABLED", function()
+    if bagsChanged then bagsChanged = false; RebuildSoon() end
+end, nil, true)
 local evLoot = W.On("LOOT_OPENED", Rebuild, nil, true)
 local function Apply()
     local on = db and db.enabled and not W.IsOff("LootTriage") and true or false
-    W.Activate(evBags, on); W.Activate(evLoot, on)
+    W.Activate(evBags, on); W.Activate(evRegen, on); W.Activate(evLoot, on)
     if on then Rebuild() else wipe(rank); cheapest = nil; bagsFull = false end -- switched off: no bag scan
     if not (on and On("bags")) then for _, fs in pairs(marks) do fs:Hide() end end -- numbers already on the bags
 end

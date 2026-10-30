@@ -339,6 +339,7 @@ local function Unlist(ev, f)
 end
 function Widget:RegisterEvent(ev)
     self.__events = self.__events or {}
+    if self.__unitEvents then self.__unitEvents[ev] = nil end
     if not self.__events[ev] then
         self.__events[ev] = true
         local l = byEvent[ev] or {}
@@ -347,7 +348,17 @@ function Widget:RegisterEvent(ev)
     end
     return true
 end
-function Widget:RegisterUnitEvent(ev) return Widget.RegisterEvent(self, ev) end
+-- for these units only, as the game: M.Dispatch gives the frame the event of no other unit
+function Widget:RegisterUnitEvent(ev, ...)
+    Widget.RegisterEvent(self, ev)
+    if select("#", ...) > 0 then
+        local units = {}
+        for i = 1, select("#", ...) do units[(select(i, ...))] = true end
+        self.__unitEvents = self.__unitEvents or {}
+        self.__unitEvents[ev] = units
+    end
+    return true
+end
 function Widget:UnregisterEvent(ev) if self.__events and self.__events[ev] then self.__events[ev] = nil; Unlist(ev, self) end end
 function Widget:UnregisterAllEvents()
     for ev in pairs(self.__events or {}) do Unlist(ev, self) end
@@ -485,9 +496,10 @@ function CreateFrame(kind, name, parent, template, id)
     end
     if id then o.__id = id end
     for i = 2, 6 do
-        local info = debug.getinfo(i, "Sl")
+        local info = debug.getinfo(i, "Sln")
         if not info then break end
-        if info.source:find("Interface/AddOns/", 1, true) then o.__where = info.source:match("([^/]+%.lua)$") .. ":" .. info.currentline; break end
+        -- the drivers of WarLegendPvP.Spread are told apart by who asks for them
+        if info.source:find("Interface/AddOns/", 1, true) and info.name ~= "Spread" then o.__where = info.source:match("([^/]+%.lua)$") .. ":" .. info.currentline; break end
     end
     frames[#frames + 1] = o
     return o
@@ -642,6 +654,24 @@ function UnitCanAttack(a, b) return Hostile(a, b) end
 function UnitIsPVP(u) local p = Who(u); return p ~= nil and p.pvp or false end
 function UnitOnTaxi() return false end
 function UnitInRange(u) return Who(u) ~= nil, true end
+-- Auras: none unless a scenario gives them (M.auras = { helpful = n, harmful = n, buffAt = i, buffName = name }: that buff
+-- on every other unit). A new table per read, as the game: the cost of a scan is what this is for.
+C_UnitAuras = {
+    GetAuraDataByIndex = function(unit, i, filter)
+        local a = M.auras
+        if not a or not Who(unit) then return nil end
+        M.auraReads = (M.auraReads or 0) + 1
+        local harmful = type(filter) == "string" and filter:find("HARMFUL", 1, true) ~= nil
+        if i > (harmful and a.harmful or a.helpful) then return nil end
+        local name = (harmful and "Debuff " or "Buff ") .. i
+        if not harmful and i == a.buffAt and (UnitIndex(unit) or 0) % 2 == 0 then name = a.buffName end
+        return { name = name, icon = 135000 + i, spellId = 1000 + i, auraInstanceID = i, applications = 0, duration = 0,
+            expirationTime = 0, sourceUnit = unit, dispelName = harmful and "Curse" or nil }
+    end,
+    GetAuraDataByAuraInstanceID = function() return nil end,
+    GetAuraDataBySpellName = function() return nil end,
+    GetPlayerAuraBySpellID = function() return nil end,
+}
 function CheckInteractDistance(u) return Who(u) ~= nil end
 function UnitName(u)
     local p = Who(u)
@@ -1149,7 +1179,8 @@ function M.Dispatch(event, ...)
     for _, list in ipairs({ byEvent[event] or {}, byEvent["*"] or {} }) do
         local copy = { table.unpack(list) }
         for _, f in ipairs(copy) do
-            if not got[f] and f.__events and (f.__events[event] or f.__allEvents) then
+            local units = f.__unitEvents and f.__unitEvents[event]
+            if not got[f] and f.__events and (f.__events[event] or f.__allEvents) and (not units or units[(...)]) then
                 got[f] = true
                 local fn = f.__scripts.OnEvent
                 if fn then

@@ -177,12 +177,29 @@ end)
 ---------------------------------------------------------------------------
 local MAX_DEBUFFS = 4
 local NONE = {} -- WarLegend: the empty list given to Draw (only read, never filled)
+-- WarLegend: what a read fills, the same tables for every read (every 0.2 s per ally in a fight); f:Draw keeps a copy,
+-- made only when what it shows changes
+local readDebuffs, readShown, readHave = {}, {}, {}
+local function ListEntry(list, n)
+	local e = list[n]
+	if not e then e = {}; list[n] = e end
+	return e
+end
+local function TrimList(list, n)
+	for i = #list, n + 1, -1 do list[i] = nil end
+end
+local function CopyList(list)
+	if #list == 0 then return NONE end
+	local copy = {}
+	for i, e in ipairs(list) do copy[i] = { icon = e.icon, color = e.color, dtype = e.dtype, grey = e.grey } end
+	return copy
+end
 
 -- missingOnly: the client's aura container already shows the debuffs and my buffs, only the missing ones
 local function ReadUnit(unit, missingOnly)
 	local buffs, dispels = MyClass()
 	-- an aura the client keeps secret is skipped (never shown as "?"); a run of secret ones stops the scan
-	local debuffs, border, secretRun = {}, nil, 0
+	local border, secretRun, count = nil, 0, 0
 	for i = 1, missingOnly and 0 or 40 do
 		local a = W.AuraByIndex(unit, i, "HARMFUL|RAID")
 		if a == nil then break end
@@ -195,11 +212,16 @@ local function ReadUnit(unit, missingOnly)
 			if icon and (not dtype or dispels[dtype]) then -- type unreadable: the filter said I can remove it
 				local color = DISPEL_COLOR[dtype or "Unknown"] or DISPEL_COLOR.Unknown
 				border = border or color
-				if #debuffs < MAX_DEBUFFS then debuffs[#debuffs + 1] = { icon = icon, color = color, dtype = dtype } end
+				count = count + 1
+				local e = ListEntry(readDebuffs, count)
+				e.icon, e.color, e.dtype = icon, color, dtype
+				if count >= MAX_DEBUFFS then break end -- the border is set and no more would be shown
 			end
 		end
 	end
-	local have, allReadable = {}, true
+	TrimList(readDebuffs, count)
+	wipe(readHave)
+	local allReadable, found = true, 0
 	if #buffs > 0 then
 		secretRun = 0
 		for i = 1, 40 do
@@ -213,21 +235,31 @@ local function ReadUnit(unit, missingOnly)
 			else
 				secretRun = 0
 				for f, fam in ipairs(buffs) do
-					if fam.names[name] then have[f] = true end
+					if not readHave[f] and fam.names[name] then
+						readHave[f] = true
+						found = found + 1
+					end
 				end
+				if found == #buffs then break end -- all of them there: nothing left to look for
 			end
 		end
 	end
-	local power = W.Safe(UnitPowerType(unit))
-	local shown = {}
+	local power, powerRead
+	count = 0
 	for f, fam in ipairs(buffs) do
-		if have[f] then
-			if not missingOnly then shown[#shown + 1] = { icon = fam.icon } end
-		elseif fam.missing and allReadable and not (fam.mana and power ~= 0) then
-			shown[#shown + 1] = { icon = fam.icon, grey = true }
+		local grey
+		if not readHave[f] and fam.missing and allReadable then
+			if fam.mana and not powerRead then power, powerRead = W.Safe(UnitPowerType(unit)), true end
+			grey = not (fam.mana and power ~= 0)
+		end
+		if grey or (readHave[f] and not missingOnly) then
+			count = count + 1
+			local e = ListEntry(readShown, count)
+			e.icon, e.grey = fam.icon, grey or nil
 		end
 	end
-	return debuffs, shown, border
+	TrimList(readShown, count)
+	return readDebuffs, readShown, border
 end
 
 ---------------------------------------------------------------------------
@@ -397,14 +429,19 @@ function dispel:AttachToPlayerButton(playerButton)
 		local h = playerButton:GetHeight() or 0
 		if self.lastDebuffs and h == self.lastH and border == self.lastBorder
 			and SameList(debuffs, self.lastDebuffs, "dtype") and SameList(buffs, self.lastBuffs, "grey") then return end
-		self.lastDebuffs, self.lastBuffs, self.lastBorder, self.lastH = debuffs, buffs, border, h
-		self:Show_(debuffs, buffs, border)
+		self.lastDebuffs, self.lastBuffs, self.lastBorder, self.lastH = CopyList(debuffs), CopyList(buffs), border, h
+		self:Show_(self.lastDebuffs, self.lastBuffs, border)
 	end
 
 	function f:Update()
 		self.pending = false
 		if not self.Enabled or playerButton.PlayerIsEnemy then return end
-		self:Anchor()
+		-- WarLegend: the class icon moves with the settings (they clear anchorTarget): looked at again every 10th read
+		self.anchorReads = (self.anchorReads or 0) + 1
+		if not self.anchorTarget or self.anchorReads >= 10 then
+			self.anchorReads = 0
+			self:Anchor()
+		end
 		if self.testmode then return end
 		local unit = playerButton:GetUnitID()
 		if not unit or not UnitExists(unit) then return self:Clear() end
@@ -430,9 +467,10 @@ function dispel:AttachToPlayerButton(playerButton)
 
 	-- UNIT_AURA can fire many times in a row: one read per button every 0.2 s at most
 	function f:Schedule()
-		if self.pending then return end
+		if self.pending or playerButton.PlayerIsEnemy then return end -- an enemy button reads nothing here
 		self.pending = true
-		C_Timer.After(0.2, self.runUpdate)
+		-- the client's containers show the debuffs at once: here only a missing buff, which can wait a second
+		C_Timer.After(f.native and 1 or 0.2, self.runUpdate)
 	end
 	f.runUpdate = function() f:Update() end -- made once per button, not on every schedule
 
@@ -483,7 +521,9 @@ for i = 1, 40 do GROUP_UNITS["raid" .. i] = true end
 for i = 1, 4 do GROUP_UNITS["party" .. i] = true end
 local auraFrame = CreateFrame("Frame")
 auraFrame:SetScript("OnEvent", function(_, _, unit)
-	-- cheapest test first: outside a battleground nothing else runs
+	-- cheapest tests first: a class with nothing to read stops here, and outside a battleground nothing else runs
+	-- (the event's payload cannot tell a new aura from a refreshed one in a fight: it is secret there)
+	if myBuffs and myNothing then return end
 	if not WarLegendPvP.states or not WarLegendPvP.states.real or not WarLegendPvP.states.real.isInBattleground then return end
 	if not GROUP_UNITS[unit] then return end
 	local ok, btn = pcall(WarLegendPvP.GetPlayerbuttonByUnitID, WarLegendPvP, unit) -- a table lookup for group units

@@ -947,6 +947,13 @@ RequestFrame:Hide()
 do
 	local TimeSinceLastOnUpdate = 0
 	local UpdatePeroid = 2                   --update every second
+	-- WarLegend: every 2 s while the board changes, every 6 s after 3 unchanged boards (80 entries read each time); the
+	-- raid changing and a new battleground ask for it every 2 s again
+	local unchangedBoards = 0
+	function WarLegendPvP.ScoreboardSeen(changed)
+		unchangedBoards = changed and 0 or unchangedBoards + 1
+		UpdatePeroid = unchangedBoards >= 3 and 6 or 2
+	end
 	local function RequestTicker(self, elapsed) --OnUpdate runs if the frame RequestFrame is shown
 		TimeSinceLastOnUpdate = TimeSinceLastOnUpdate + elapsed
 		if TimeSinceLastOnUpdate > UpdatePeroid then
@@ -1367,15 +1374,29 @@ for i = 1, 40 do GROUP_UNIT["raid" .. i] = true end
 for i = 1, 4 do GROUP_UNIT["party" .. i] = true end
 local groupUnitButtons = {}
 
-function WarLegendPvP:GetPlayerbuttonByUnitID(unitID)
+-- WarLegend: only players have a button: an NPC (most plates and targets in Alterac) is not looked up by name
+function WarLegendPvP.NotAPlayer(unitID)
+	local isPlayer = UnitIsPlayer(unitID)
+	return not issecret(isPlayer) and not isPlayer
+end
+
+-- alliesFirst: an enemy's target is mostly an ally, and a name missing from a side costs a match and 2 new texts
+function WarLegendPvP:GetPlayerbuttonByUnitID(unitID, alliesFirst)
 	local group = GROUP_UNIT[unitID]
 	if group then
 		local button = groupUnitButtons[unitID]
 		if button and button.unitID == unitID and button:IsShown() then return button end
+	elseif WarLegendPvP.NotAPlayer(unitID) then
+		return
 	end
 	local uName = self:GetReadableUnitName(unitID)
 	if not uName then return end
-	local button = self:GetPlayerbuttonByName(uName)
+	local button
+	if alliesFirst then
+		button = findPlayerInTable(self.Allies.Players, uName) or findPlayerInTable(self.Enemies.Players, uName)
+	else
+		button = self:GetPlayerbuttonByName(uName)
+	end
 	if group then groupUnitButtons[unitID] = button end
 	return button
 end
@@ -1795,6 +1816,7 @@ function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 			if fields[i] ~= lastScoreFields[i] then same = false; break end
 		end
 	end
+	WarLegendPvP.ScoreboardSeen(not same or #battlefieldScores == 0) -- an empty board: the first answers are still to come
 	if same then return end
 	scoreFields, lastScoreFields = lastScoreFields, fields
 	self.lastScoreboard = n
@@ -1826,6 +1848,36 @@ end
 
 
 local rosterReadAt, rosterAgain = 0, false
+-- WarLegend: the events come in bursts and a read rebuilds the side (40 detail tables, a sort, 40 units): a read that finds
+-- the same members in the same places as the last one stops. Compared value by value, as the scoreboard; self.lastRoster
+-- is their count, nil = read again. A secret value is never compared: "?" in its place.
+local rosterFields, lastRosterFields = {}, {}
+local function ReadRosterFields(self)
+	local fields, count, raid = rosterFields, GetNumGroupMembers(), IsInRaid()
+	fields[1], fields[2] = plainValue(count), raid and true or false
+	fields[3], fields[4] = plainValue(UnitIsGroupLeader("player")), plainValue(UnitIsGroupAssistant("player"))
+	local n = 4
+	for i = 1, count do
+		local name, rank, class, _
+		if raid then
+			name, rank, _, _, _, class = GetRaidRosterInfo(i)
+		else
+			local unit = "party" .. i
+			name, _, class = self:GetReadableUnitName(unit), UnitClass(unit)
+			rank = plainValue(UnitIsGroupLeader(unit))
+		end
+		fields[n + 1], fields[n + 2], fields[n + 3] = plainValue(name), plainValue(rank), plainValue(class)
+		n = n + 3
+	end
+	local same = self.lastRoster == n
+	if same then
+		for i = 1, n do
+			if fields[i] ~= lastRosterFields[i] then same = false; break end
+		end
+	end
+	if not same then rosterFields, lastRosterFields = lastRosterFields, fields end
+	return same, n
+end
 -- force: read now (the direct calls of PLAYER_ENTERING_WORLD in a battleground and EnableTestMode; the events have no payload)
 function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 	if not force then
@@ -1846,6 +1898,10 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 		end
 	end
 	rosterReadAt = GetTime()
+	local same, rosterCount = ReadRosterFields(self)
+	if same and not force then return end
+	if not same then WarLegendPvP.ScoreboardSeen(true) end
+	self.lastRoster = nil -- (a read stopped by an error is done again)
 	-- WarLegend: the units move with the roster: looked up by name again (in combat a departed ally's button keeps
 	-- its old unit, so the kept entry passed the check and that unit's health / target went to the departed one)
 	wipe(groupUnitButtons)
@@ -1896,6 +1952,7 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 		self.UserDetails.isGroupAssistant, self.UserDetails.PlayerClass, "player")
 	self.Allies:AfterPlayerSourceUpdate()
 	self.Allies:UpdateAllUnitIDs()
+	self.lastRoster = rosterCount
 end
 
 WarLegendPvP.PARTY_LEADER_CHANGED = WarLegendPvP.GROUP_ROSTER_UPDATE
@@ -1912,6 +1969,7 @@ function WarLegendPvP:PLAYER_ENTERING_WORLD()
 	self.Enemies:RemoveAllPlayersFromAllSources()
 	self.Allies:RemoveAllPlayersFromSource(self.consts.PlayerSources.Scoreboard)
 	self.lastScoreboard = nil -- the next scoreboard builds the frames again
+	WarLegendPvP.ScoreboardSeen(true)
 	local _, zone = IsInInstance()
 	self:Debug("zone", zone)
 	if zone == "pvp" then

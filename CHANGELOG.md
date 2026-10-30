@@ -10,6 +10,11 @@ Releases et les tags git.
 - DoesItDie allumé coûte bien moins en raid : il ignore les coups reçus par les membres du groupe, ne lit plus que les
   barres de nom des mobs qui portent tes DoT, et son journal de suivi ne note plus les coups des autres joueurs (seulement
   avec `/wl did debug`).
+- Cadres de champ de bataille plus légers : à l'entrée en BG (les cadres se préparent sur quelques images au lieu d'une
+  seule), en combat et quand le raid change. Le tableau des scores est relu toutes les 6 s quand rien ne change, et un buff
+  manquant peut s'afficher jusqu'à 1 s plus tard.
+- Métiers de la guilde : apprendre plusieurs recettes d'un coup n'envoie ta liste à la guilde qu'une fois, une minute plus
+  tard.
 
 ### Corrigé
 - DoesItDie, en groupe : un DoT esquivé ou résisté juste avant le départ du sort n'est plus compté. Un coup reçu au même

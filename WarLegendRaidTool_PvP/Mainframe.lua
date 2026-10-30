@@ -494,7 +494,11 @@ local function CreateMainFrame(playerType)
 	end
 
 	function mainframe:UpdatePlayerCountText()
-		self.PlayerCount:ApplyFontStringSettings(WarLegendPvP.db.profile.PlayerCount.Text)
+		-- WarLegend: the font only after a settings change (this runs several times per scoreboard and roster read)
+		if self.playerCountFont ~= self.settingsGeneration then
+			self.playerCountFont = self.settingsGeneration
+			self.PlayerCount:ApplyFontStringSettings(WarLegendPvP.db.profile.PlayerCount.Text)
+		end
 		local maxNumPlayers = math_max(self.RealPlayerCount or 0, self.NumPlayers or 0)
 
 
@@ -507,7 +511,11 @@ local function CreateMainFrame(playerType)
 
 		if self.playerCountConfig and self.playerCountConfig.PlayerCount.Enabled then
 			self.PlayerCount:Show()
-			self.PlayerCount:SetText(format(isEnemy == (WarLegendPvP.EnemyFaction == 0) and PLAYER_COUNT_HORDE or PLAYER_COUNT_ALLIANCE, maxNumPlayers))
+			local text = format(isEnemy == (WarLegendPvP.EnemyFaction == 0) and PLAYER_COUNT_HORDE or PLAYER_COUNT_ALLIANCE, maxNumPlayers)
+			if text ~= self.playerCountText then
+				self.playerCountText = text
+				self.PlayerCount:SetText(text)
+			end
 		else
 			self.PlayerCount:Hide()
 		end
@@ -515,6 +523,7 @@ local function CreateMainFrame(playerType)
 
 	-- WoW Forever: the unit name can be secret or come in another form (see FindPlayerInTable in Main.lua)
 	function mainframe:GetPlayerbuttonByUnitID(unitID)
+		if WarLegendPvP.NotAPlayer(unitID) then return end
 		return WarLegendPvP.FindPlayerInTable(self.Players, WarLegendPvP:GetReadableUnitName(unitID))
 	end
 
@@ -659,14 +668,22 @@ local function CreateMainFrame(playerType)
 		--self:Debug("SetUpBindings", self.PlayerType)
 		local maxPlayers = #self.CurrentPlayerOrder
 		self:SetAttribute("maxUnits", maxPlayers)
+		-- WarLegend: written only when it changed (each new order of 40 players, while a raid forms)
+		self.playerMacros = self.playerMacros or {}
 		for j = 1, #self.CurrentPlayerOrder do
-			self:SetAttribute("playerMacro"..j, WarLegendPvP.GetTargetMacro(self.CurrentPlayerOrder[j].PlayerDetails.PlayerName))
+			local macro = WarLegendPvP.GetTargetMacro(self.CurrentPlayerOrder[j].PlayerDetails.PlayerName)
+			if self.playerMacros[j] ~= macro then
+				self.playerMacros[j] = macro
+				self:SetAttribute("playerMacro"..j, macro)
+			end
 		end
 
 		self:SetAttribute("playerIndex",1)
 
-
-		if WarLegendPvP.db.profile.EnableMouseWheelPlayerTargeting then
+		local wheel = WarLegendPvP.db.profile.EnableMouseWheelPlayerTargeting and true or false
+		if self.wheelBindings == wheel then return end
+		self.wheelBindings = wheel
+		if wheel then
 			--SecureHandlerEnterLeaveTemplate ads _onenter and _onleave functionality
 			mainframe:EnableMouseWheel(true)
 			mainframe:SetAttribute("_onenter",[[
@@ -690,7 +707,8 @@ local function CreateMainFrame(playerType)
 		--button:SetAttribute("type1", "macro")
 	end
 
-	function mainframe:ButtonPositioning()
+	-- nextButtons: the same round of settings goes on (below)
+	function mainframe:ButtonPositioning(nextButtons)
 		self:Debug("ButtonPositioning")
 		local orderedPlayers = self.CurrentPlayerOrder
 
@@ -725,6 +743,8 @@ local function CreateMainFrame(playerType)
 
 		local column = 1
 		local row = 1
+		if not nextButtons then self.settingsRound = (self.settingsRound or 0) + 1 end
+		local applied, more = 0, false
 
 		for i = 1, playerCount do
 			local playerButton = orderedPlayers[i]
@@ -743,15 +763,26 @@ local function CreateMainFrame(playerType)
 				end
 
 
-				playerButton:ClearAllPoints()
-				playerButton:SetPoint(point, self, point, offsetX, offsetY)
+				-- WarLegend: anchored again only when the place changed (a new order of 40 buttons, while a raid forms)
+				if playerButton.anchorPoint ~= point or playerButton.anchorX ~= offsetX or playerButton.anchorY ~= offsetY then
+					playerButton.anchorPoint, playerButton.anchorX, playerButton.anchorY = point, offsetX, offsetY
+					playerButton:ClearAllPoints()
+					playerButton:SetPoint(point, self, point, offsetX, offsetY)
+				end
 
 				-- WarLegend: the settings only when they changed or the button never had them; a new order (a player
 				-- joins or leaves, 40 times while a raid forms) only moves the buttons. Marked once the button has a
-				-- place: SetModulePositions waits for one, it is tried again until then
-				if playerButton.settingsGeneration ~= self.settingsGeneration then
-					playerButton:ApplyButtonSettings()
-					if playerButton:GetRect() then playerButton.settingsGeneration = self.settingsGeneration end
+				-- place: SetModulePositions waits for one, it is tried again at the next new order. 4 buttons a frame: the
+				-- first scoreboard makes 40 at once (the worst frame of a battleground); each button once per round
+				if playerButton.settingsGeneration ~= self.settingsGeneration and playerButton.settingsRound ~= self.settingsRound then
+					if applied < 4 then
+						applied = applied + 1
+						playerButton.settingsRound = self.settingsRound
+						playerButton:ApplyButtonSettings()
+						if playerButton:GetRect() then playerButton.settingsGeneration = self.settingsGeneration end
+					else
+						more = true
+					end
 				end
 
 				if row < rowsPerColumn then
@@ -777,6 +808,17 @@ local function CreateMainFrame(playerType)
 				bottomButton = firstButton
 			end
 			self:SetSize(barWidth, topButton:GetTop() - bottomButton:GetBottom())
+		end
+		-- the next buttons on the next frame, or after the fight if one started
+		if more and not self.positioningAgain then
+			self.positioningAgain = true
+			C_Timer.After(0, function()
+				self.positioningAgain = false
+				if InCombatLockdown() then
+					return WarLegendPvP:QueueForUpdateAfterCombat(self, "AfterPlayerSourceUpdate")
+				end
+				self:ButtonPositioning(true)
+			end)
 		end
 	end
 
@@ -1127,9 +1169,10 @@ function WarLegendPvP.Enemies:NAME_PLATE_UNIT_ADDED(unitID)
 end
 
 function WarLegendPvP.Enemies:NAME_PLATE_UNIT_REMOVED(unitID)
-	local enemyButton = self.NameplateButtons[unitID] or self:GetPlayerbuttonByUnitID(unitID)
+	local enemyButton = self.NameplateButtons[unitID] -- a plate not kept when it came has no button
+	if not enemyButton then return end
 	self.NameplateButtons[unitID] = nil
-	if enemyButton and enemyButton.UnitIDs and enemyButton.UnitIDs.Nameplate == unitID then
+	if enemyButton.UnitIDs and enemyButton.UnitIDs.Nameplate == unitID then
 		enemyButton:UpdateEnemyUnitID("Nameplate", false)
 	end
 end

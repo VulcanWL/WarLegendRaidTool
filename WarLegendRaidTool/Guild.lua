@@ -364,6 +364,8 @@ end
 local SCAN_GAP, SKILL_SEND_GAP = 30, 600
 local lastScanOf, announced = {}, {}
 local lastSkillSend = -SKILL_SEND_GAP
+-- my whole list goes to the guild: 5 recipes learned at a trainer send it once, a minute later (and at each login)
+local BroadcastSoon = W.Coalesce(60, function() G.Broadcast() end)
 local function ScanRecipes(force)
     local T = C_TradeSkillUI
     if not T or not T.GetAllRecipeIDs then return end
@@ -428,7 +430,7 @@ local function ScanRecipes(force)
     end
     if recipesChanged or (skillChanged and GetTime() - lastSkillSend >= SKILL_SEND_GAP) then
         lastSkillSend = GetTime()
-        G.Broadcast()
+        BroadcastSoon()
     end
     if G.RefreshProfs then G.RefreshProfs() end
     return true
@@ -790,7 +792,7 @@ local function BuildInactive(p)
     p:SetScript("OnShow", function() W.RequestGuildRoster(); G.RefreshInactive() end)
 end
 
-local recipeNames, recipeLower = {}, {}
+local recipeNames, recipeLower, recipeUnknown = {}, {}, {}
 local function RecipeName(id)
     local n = recipeNames[id]
     if not n then n = W.SpellName(id); recipeNames[id] = n end
@@ -799,10 +801,11 @@ end
 
 -- lowercase name, cached: the search runs on every key press over every member's recipes
 local function RecipeLower(id)
-    local n = recipeLower[id]
+    local n = recipeLower[id] or recipeUnknown[id]
     if not n then
         n = RecipeName(id):lower()
-        if recipeNames[id] then recipeLower[id] = n end -- not cached while the name is unknown
+        -- a name still unknown is asked again after the next roster update, not on every key press (ids come from others)
+        if recipeNames[id] then recipeLower[id] = n else recipeUnknown[id] = n end
     end
     return n
 end
@@ -944,13 +947,21 @@ local function InGuild(name, rosterKnown)
     return not rosterKnown or W.GuildMember(name) ~= nil
 end
 
--- Number of recipes received for one profession, nil when that window was never opened by the member
+-- Number of recipes received for one profession, nil when that window was never opened by the member.
+-- Counted once per list: gsub copies the list (20 KB at most) and every row of every refresh comes here.
+local countOfList, listsCounted = {}, 0
 local function RecipeCount(e, key)
     for prof, list in pairs(e.rec or {}) do
         if ProfKey(prof) == key then
             if type(list) == "table" then return #list end
-            local _, commas = list:gsub(",", "")
-            return list ~= "" and commas + 1 or 0
+            local count = countOfList[list]
+            if not count then
+                local _, commas = list:gsub(",", "")
+                count = list ~= "" and commas + 1 or 0
+                if listsCounted >= 500 then wipe(countOfList); listsCounted = 0 end
+                countOfList[list], listsCounted = count, listsCounted + 1
+            end
+            return count
         end
     end
 end
@@ -1407,7 +1418,8 @@ end)
 local consolidated = false
 W.On("GUILD_ROSTER_UPDATE", function()
     if not consolidated and db and #W.GuildMembers() > 0 then consolidated = true; G.Consolidate() end
-    if W.IsShown("Guild") then G.RefreshInactive(); G.RefreshProfs() end
+    wipe(recipeUnknown)
+    if W.IsShown("Guild") then G.RefreshInactive(); RefreshProfsSoon() end
 end)
 
 -- /wl craft <name or item link>: who can craft it, in the chat; alone: the Professions tab

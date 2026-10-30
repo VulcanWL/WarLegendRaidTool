@@ -851,7 +851,7 @@ function WarLegendPvP:CreatePlayerButton(mainframe, num)
 		local newTargetPlayerButton
 
 		if self.TargetUnitID then
-			newTargetPlayerButton = WarLegendPvP:GetPlayerbuttonByUnitID(self.TargetUnitID)
+			newTargetPlayerButton = WarLegendPvP:GetPlayerbuttonByUnitID(self.TargetUnitID, self.PlayerIsEnemy)
 		end
 
 

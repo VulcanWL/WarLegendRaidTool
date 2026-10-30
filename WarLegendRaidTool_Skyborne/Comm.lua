@@ -705,8 +705,9 @@ events:SetScript("OnEvent", function(_, event, ...)
     if not started then return end
     if event == "CHAT_MSG_ADDON" then
         local prefix, text, _, sender = ...
-        prefix, text, sender = Clean(prefix), Clean(text), Clean(sender)
-        if prefix ~= PREFIX or type(text) ~= "string" or type(sender) ~= "string" or not Enabled() then return end
+        if Clean(prefix) ~= PREFIX then return end -- every addon's message comes here: one test for the others
+        text, sender = Clean(text), Clean(sender)
+        if type(text) ~= "string" or type(sender) ~= "string" or not Enabled() then return end
         -- WLRT: nothing read in an instance or a fight (strangers' traffic, parsed and compared there for nothing)
         if inInstance or InCombatLockdown() then return end
         sender = Ambiguate(sender, "none")

@@ -504,6 +504,7 @@ end)
 ---------------------------------------------------------------------------
 local WIN_WINDOW = 45
 local scoreWidgets, samples, winText = nil, { {}, {} }, nil
+local scoreSearchAt = 0
 
 -- the two score counters: { kind = "text" | "double", ids }
 local function FindScoreWidgets()
@@ -534,7 +535,10 @@ end
 -- Alliance score, Horde score, max score
 local function ReadScores()
     local UI = C_UIWidgetManager
-    if not scoreWidgets then scoreWidgets = FindScoreWidgets() end
+    if not scoreWidgets and GetTime() >= scoreSearchAt then -- a map without them (Alterac): looked for every 5 s only
+        scoreSearchAt = GetTime() + 5
+        scoreWidgets = FindScoreWidgets()
+    end
     local w = scoreWidgets
     if not w then return end
     if w.kind == "double" then
@@ -629,6 +633,7 @@ local function Zone()
     local winOn = inBG and db.win and not (ESTIMATOR_ZONES[inBG] and CappingLoaded()) and true or false
     W.Activate(winEv, winOn)
     scoreWidgets, samples, winText = nil, { {}, {} }, nil
+    scoreSearchAt = 0
     StopMatching("win")
     local id = db and db.enabled and InstanceID()
     local on = id and not (CAPPING_ZONES[id] and CappingLoaded())

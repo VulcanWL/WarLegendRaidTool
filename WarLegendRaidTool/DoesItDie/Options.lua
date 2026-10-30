@@ -291,6 +291,8 @@ local function changed()
     ns.reattach() -- the look is applied again, then the display redrawn
     refreshControls()
 end
+-- a slider's drag sends 20 to 60 steps a second: the whole pass above runs 10 times a second at most
+local changedSoon = W.Coalesce(0.1, changed)
 
 ---------------------------------------------------------------------------
 -- Preview
@@ -489,7 +491,7 @@ local function slider(parent, key, labelText, opts)
         function() return db()[key] end,
         function(value)
             db()[key] = value
-            changed()
+            changedSoon()
         end, opts)
 end
 

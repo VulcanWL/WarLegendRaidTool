@@ -136,12 +136,15 @@ local function Overlay(button)
     end
     o:SetFrameLevel(button:GetFrameLevel() + 2)
     local pos = OFFSETS[db.position] and db.position or "TOPRIGHT"
-    o.level:ClearAllPoints()
-    o.level:SetPoint(pos, OFFSETS[pos][1], OFFSETS[pos][2])
-    o.up:ClearAllPoints()
-    o.up:SetPoint(pos == "TOPLEFT" and "TOPRIGHT" or "TOPLEFT", pos == "TOPLEFT" and -2 or 2, -2)
-    o.miss:ClearAllPoints()
-    o.miss:SetPoint("BOTTOMLEFT", 2, 2)
+    if o.pos ~= pos then -- every paint of every slot comes here: anchored again only when the option changed
+        o.pos = pos
+        o.level:ClearAllPoints()
+        o.level:SetPoint(pos, OFFSETS[pos][1], OFFSETS[pos][2])
+        o.up:ClearAllPoints()
+        o.up:SetPoint(pos == "TOPLEFT" and "TOPRIGHT" or "TOPLEFT", pos == "TOPLEFT" and -2 or 2, -2)
+        o.miss:ClearAllPoints()
+        o.miss:SetPoint("BOTTOMLEFT", 2, 2)
+    end
     return o
 end
 

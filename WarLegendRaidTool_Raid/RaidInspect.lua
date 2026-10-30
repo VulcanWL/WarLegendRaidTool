@@ -227,6 +227,8 @@ W.OnAddon(REQ_PREFIX, function(_, from, _, full)
     if not W.IsMe(full or from) then lastReport = GetTime(); W.After(math.random() * 2, SelfReport) end
 end)
 
+-- a raid's reports arrive in a burst: the table is drawn 4 times a second at most
+local RefreshSoon = W.Coalesce(0.25, function() if UI.Refresh then UI.Refresh() end end)
 W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
     local unit = W.UnitByName(full or from)
     if not unit or W.UnitIsMe(unit) then return end
@@ -252,7 +254,7 @@ W.OnAddon(DATA_PREFIX, function(msg, from, _, full)
     rec.read, rec.far, rec.state, rec.hasAddon, rec.loading = Now(), false, "ready", true, false
     Keep(rec, unit)
     if pending == guid then pending = nil end
-    if UI.Refresh then UI.Refresh() end
+    RefreshSoon()
 end)
 
 ---------------------------------------------------------------------------

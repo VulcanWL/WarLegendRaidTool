@@ -17,12 +17,19 @@ Read only the part about the file you are changing. The rules that always apply 
   Work per frame (Alterac, 80 buttons): no OnUpdate per button. `WarLegendPvP.Spread(parent, period, getList, fn)` (`Main.lua`)
   runs fn for each item every `period` s from ONE OnUpdate that spreads the items over the frames (round robin): the range /
   `UpdateAll` of each side's buttons (`Mainframe.lua`, 0.2 s in combat, 0.4 s out of combat), the ally power read
-  (`Power.lua`, 0.25 s), the dispel type symbols (`NativeAuras.lua`, 0.25 s: the container's frames have no event).
+  (`Power.lua`, 0.25 s), the dispel type symbols (`NativeAuras.lua`, 0.5 s: the container's frames have no event).
   `GROUP_ROSTER_UPDATE` is not read outside a battleground / the test mode (`PLAYER_ENTERING_WORLD` in a battleground and
-  `EnableTestMode` read it with `force`); in a battleground a burst is read at once, then once more 0.2 s later at most.
-  `UPDATE_BATTLEFIELD_SCORE` (asked every 2 s) rebuilds nothing when the scoreboard holds the same players (name, side,
-  class, race, spec; secret values never compared); `lastScoreboard` is cleared at each loading screen. The player sort
-  reads the role order once per setting (`RoleOrder`), `FindPlayerInSource` uses an index per source update.
+  `EnableTestMode` read it with `force`); in a battleground a burst is read at once, then once more 0.2 s later at most, and
+  a read that finds the same members in the same places rebuilds nothing (`ReadRosterFields`, `lastRoster`).
+  `UPDATE_BATTLEFIELD_SCORE` (asked every 2 s, every 6 s after 3 unchanged boards: `ScoreboardSeen`, back to 2 s when the raid
+  changes or at a loading screen) rebuilds nothing when the scoreboard holds the same players (name, side, class, race, spec;
+  secret values never compared); `lastScoreboard` is cleared at each loading screen. The player sort reads the role order
+  once per setting (`RoleOrder`), `FindPlayerInSource` uses an index per source update. `ButtonPositioning` anchors a button
+  only when its place changed and sets up 4 buttons a frame (the first scoreboard makes 40; the next ones on the next frame,
+  or after the fight); `SetUpBindings` writes only the macros that changed. `GetPlayerbuttonByUnitID`: an NPC is not looked up
+  by name (`NotAPlayer`), an enemy's target looks among the allies first. `Dispel`: a read fills the same lists for every
+  button (`ReadUnit`), `f:Draw` copies them only when what it shows changes; the scan of the buffs stops once they are all
+  found; with the client's containers only a missing buff is read here, 1 s after the aura change (0.2 s without them).
 
 ## Guild-side modules (personal only, no addon messages)
 `Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank, `/wl trials`), `GuildBank.lua`
@@ -231,8 +238,10 @@ The folder is in `.gitignore`'s allow list, `tools/sync.sh`, `tools/check.js` an
   scoreboard read by `C_PvP.GetScoreInfo`, `M.bgFaction`; `RequestBattlefieldScoreData` answers with
   `UPDATE_BATTLEFIELD_SCORE`). `M.frameStats` gives the cost of each simulated frame (one step of 1/20 s: only the time in
   the addons' code; an event the scenario fires between two steps counts in the next one), reported as average,
-  percentiles, worst frame and what it did (`M.costs` on: handlers, OnUpdate, timers by the file:line of their callback).
-  Phases: the raid forming (39 joins, 3 roster events each), rest at the start, a fight (20 enemies on nameplates, about 280
+  percentiles, worst frame and what it did (`M.costs` on: handlers, OnUpdate, timers by the file:line of their callback; a
+  `Spread` driver by the file:line that asked for it). The auras are read as a mage's frames read them (`M.auras`: 12 buffs and
+  2 curses on each ally, readable, the worst case; `C_UnitAuras` gives a new table per read, nothing without `M.auras`).
+  `RegisterUnitEvent` keeps to its units, as the game. Phases: the raid forming (39 joins, 3 roster events each), rest at the start, a fight (20 enemies on nameplates, about 280
   UNIT_HEALTH, 160 UNIT_POWER_FREQUENT, 160 UNIT_AURA a second, targets, mouseover), combat in / out with players coming and
   going, dead at the graveyard, roster / scoreboard floods, back outside (PvP frames hidden, roster cost), the test mode
   before any battleground and after one (my own button shown), the next battleground and a fight in it. Fails on a Lua

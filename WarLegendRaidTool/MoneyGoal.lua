@@ -59,11 +59,17 @@ local card, money, junk
 -- on: the option, the access and Settings > Modules (the first refresh comes from a timer, not an event)
 local function Active() return db.enabled and W.Allowed() and not W.IsOff("MoneyGoal") end
 
+local junkStale = false
 local function Refresh()
     if not card then return end
     local need = (tonumber(db.goal) or 0) * 10000
     if not Active() or need <= 0 then card:Hide(); return end
-    money, junk = GetMoney() or 0, JunkValue()
+    money = GetMoney() or 0
+    if junk and InCombatLockdown() then -- the bags are read after the fight
+        junkStale = true
+    else
+        junk, junkStale = JunkValue(), false
+    end
     local have = money + junk
     card.title:SetText(db.label ~= "" and db.label or L("Goal"))
     card.bar:SetValue(math.min(1, have / need))
@@ -125,10 +131,11 @@ local function Queue()
 end
 local evMoney = W.On("PLAYER_MONEY", Queue, nil, true)
 local evBags = W.On("BAG_UPDATE_DELAYED", Queue, nil, true)
+local evRegen = W.On("PLAYER_REGEN_ENABLED", function() if junkStale then Queue() end end, nil, true)
 
 local function Apply()
     local on = Active() and true or false
-    W.Activate(evMoney, on); W.Activate(evBags, on)
+    W.Activate(evMoney, on); W.Activate(evBags, on); W.Activate(evRegen, on)
     Refresh()
 end
 W.OnReady(function()

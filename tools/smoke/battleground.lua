@@ -142,6 +142,12 @@ local function TestMode(when)
     Check("test mode " .. when .. ", off again: the frames are hidden", Buttons("Allies").shown == 0 and Buttons("Enemies").shown == 0, Buttons("Allies").shown)
 end
 
+-- the auras of the fight as a mage's frames read them (readable, the worst case: the game can keep them secret in a
+-- battleground): 12 buffs and 2 curses on each ally, Arcane Intellect at the 5th place on every other one
+C_Spell.GetSpellName = function(id) return "Spell " .. id end
+C_Spell.GetSpellTexture = function(id) return 100000 + id end
+M.auras = { helpful = 12, harmful = 2, buffAt = 5, buffName = "Spell 1459" }
+
 -- the PvP addon is loaded when the queue pops (outside, out of combat), then the loading screen
 Section("[1 enter] the queue pops, Alterac Valley: the raid of 40 forms in the battleground")
 local b0 = Work()
@@ -355,6 +361,116 @@ local tScore = Flood(50, function() M.Fire("UPDATE_BATTLEFIELD_SCORE") end)
 Line("UPDATE_BATTLEFIELD_SCORE x50 (80 on the scoreboard): %.0f ms (%.2f ms each)", tScore, tScore / 50)
 local tHealth = Flood(2000, function(i) M.Fire("UNIT_HEALTH", "raid" .. ((i % 40) + 1)) end)
 Line("UNIT_HEALTH x2000 (raid1..40): %.0f ms", tHealth)
+
+-- what the frames' shortcuts must not change (audit of 29/10): a reason each, so a shortcut that goes wrong is seen here
+local notSet = 0
+for _, side in ipairs({ "Allies", "Enemies" }) do
+    for _, b in pairs(PvP[side].Players) do
+        if b.settingsGeneration ~= PvP[side].settingsGeneration then notSet = notSet + 1 end
+    end
+end
+Check("every button has its settings (set up 4 a frame at the first scoreboard)", notSet == 0, notSet)
+
+-- buttons the client has not placed yet: each one tried once, the others still get theirs, and the rounds end
+local tried, kept = 0, {}
+for _, b in pairs(PvP.Enemies.Players) do
+    local apply = b.ApplyButtonSettings
+    kept[b] = apply
+    b.ApplyButtonSettings = function(...) tried = tried + 1; return apply(...) end
+    b.GetRect = function() return nil end
+end
+PvP.Enemies:SortPlayers(true)
+M.Advance(1)
+local triedOnce = tried
+M.Advance(1)
+Check("buttons without a place yet: each one tried once, then it stops", triedOnce == 40 and tried == 40, triedOnce .. " then " .. tried)
+for b, apply in pairs(kept) do b.ApplyButtonSettings, b.GetRect = apply, nil end
+PvP.Enemies:SortPlayers(true)
+M.Advance(1)
+notSet = 0
+for _, b in pairs(PvP.Enemies.Players) do
+    if b.settingsGeneration ~= PvP.Enemies.settingsGeneration then notSet = notSet + 1 end
+end
+Check("placed again: every button has its settings", notSet == 0, notSet)
+
+local rebuilt, afterRoster = 0, PvP.Allies.AfterPlayerSourceUpdate
+PvP.Allies.AfterPlayerSourceUpdate = function(...) rebuilt = rebuilt + 1; return afterRoster(...) end
+M.Advance(1)
+rebuilt = 0
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
+Check("the same raid again: the roster read rebuilds nothing", rebuilt == 0, rebuilt)
+
+local boards, seenBoard = 0, PvP.UPDATE_BATTLEFIELD_SCORE
+PvP.UPDATE_BATTLEFIELD_SCORE = function(...) boards = boards + 1; return seenBoard(...) end
+M.Advance(12) -- 3 unchanged boards
+boards = 0
+M.Advance(24)
+Check("the same scoreboard: asked for every 6 s", boards >= 2 and boards <= 5, boards)
+
+local boardsKept = M.scores
+M.scores = {} -- no answer yet: the board is asked for every 2 s
+M.Advance(12)
+boards = 0
+M.Advance(10)
+Check("an empty scoreboard: still asked for every 2 s", boards >= 4, boards)
+M.scores = boardsKept
+M.Advance(3)
+
+rebuilt = 0
+local gone = table.remove(M.group)
+BuildScores()
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
+Check("a raid member leaves: the side is rebuilt", rebuilt >= 1, rebuilt)
+boards = 0
+M.Advance(6)
+Check("a raid member leaves: the scoreboard is asked for every 2 s again", boards >= 2, boards)
+M.group[#M.group + 1] = gone
+BuildScores()
+M.Fire("GROUP_ROSTER_UPDATE")
+M.Advance(1)
+PvP.Allies.AfterPlayerSourceUpdate, PvP.UPDATE_BATTLEFIELD_SCORE = afterRoster, seenBoard
+Check("the raid member is back: one button per member", Buttons("Allies").shown == #M.group, Buttons("Allies").shown)
+
+local nameReads, readName = 0, PvP.GetReadableUnitName
+PvP.GetReadableUnitName = function(...) nameReads = nameReads + 1; return readName(...) end
+M.units.nameplate21 = { name = "Guard-Forever", class = "WARRIOR", npc = true, enemy = true, hp = 100, hpMax = 100, level = 60 }
+M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate21")
+M.Fire("UNIT_HEALTH", "nameplate21")
+M.Fire("NAME_PLATE_UNIT_REMOVED", "nameplate21")
+M.units.nameplate21 = nil
+PvP.GetReadableUnitName = readName
+Check("an NPC on a plate: its name is not read, no button", nameReads == 0 and PvP.Enemies.NameplateButtons.nameplate21 == nil, nameReads)
+
+-- a read fills one list for all the buttons: each button keeps its own copy of what it shows
+local greyOn, plainOn, shared, listsSeen, even = 0, 0, false, {}, nil
+for _, b in pairs(PvP.Allies.Players) do
+    local kept = b.Dispel and b.Dispel.lastBuffs
+    if kept and kept[1] then
+        if kept[1].grey then greyOn = greyOn + 1 else plainOn = plainOn + 1 end
+        if listsSeen[kept] then shared = true end
+        listsSeen[kept] = true
+    end
+    if b.unitID == "raid6" then even = b end
+end
+Check("Dispel: my buff shown on some allies and missing on others, each with its own list", greyOn > 0 and plainOn > 0 and not shared,
+    greyOn .. " missing, " .. plainOn .. " there, shared: " .. tostring(shared))
+M.auraReads = 0
+if even then even.Dispel:Update() end
+Check("Dispel: the scan of the buffs stops at my buff (2 curses + the end of them, then 5 buffs)", M.auraReads == 8, M.auraReads)
+
+-- W.UnitByName keeps what it found until the raid changes: a kept unit that changed hands is never returned
+local kept3 = W.UnitFullName("raid3")
+Check("W.UnitByName finds a raid member", W.UnitByName(kept3) == "raid3", W.UnitByName(kept3))
+M.group[3], M.group[4] = M.group[4], M.group[3] -- 2 members swap places: the event is not here yet
+Check("W.UnitByName: a kept unit that changed hands, before the event", W.UnitByName(kept3) == "raid4", W.UnitByName(kept3))
+M.Fire("GROUP_ROSTER_UPDATE")
+Check("W.UnitByName: after the event", W.UnitByName(kept3) == "raid4", W.UnitByName(kept3))
+M.group[3], M.group[4] = M.group[4], M.group[3]
+M.Fire("GROUP_ROSTER_UPDATE")
+Check("W.UnitByName: a name not in the raid is no member", W.UnitByName("Nobody Here") == nil, W.UnitByName("Nobody Here"))
+M.Advance(1)
 
 ---------------------------------------------------------------------------
 -- [7] back in the open world, the raid of 40 still together, the PvP addon in memory

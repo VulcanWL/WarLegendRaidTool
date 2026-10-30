@@ -29,13 +29,14 @@ W.AddFR({
 })
 
 -- Delivers a message to ourselves when we are alone (tests / solo), like the game does in a group
+local LOOPBACK_LABEL = "timer Lib.lua loopback"
 local function Loopback(prefix, msg)
     local fn = W.AddonHandler(prefix)
     if fn and not W.AddonOff(prefix) then
         W.After(0, function()
             local full = W.UnitFullName("player") -- same arguments as Dispatch: short name, channel, full name
             fn(msg, W.BaseName(full), "LOCAL", full)
-        end)
+        end, LOOPBACK_LABEL)
     end
 end
 
@@ -100,10 +101,11 @@ end
 -- Search boxes: fn runs once typing pauses for delay seconds, not on every key (big tables rebuilt once)
 function W.Debounce(delay, fn)
     local gen = 0
+    local label = "timer " .. W.Where(2) -- built once: a debugstack per key press otherwise
     return function()
         gen = gen + 1
         local mine = gen
-        W.After(delay, function() if mine == gen then fn() end end)
+        W.After(delay, function() if mine == gen then fn() end end, label)
     end
 end
 
@@ -515,8 +517,25 @@ end
 -- A full name ("Name-Realm", Forever "First Surname") matches that exact character. A short name
 -- (display input), or a full name whose other side has no surname / realm (client formats differ),
 -- matches on the short name, and only if nobody else in the group has it.
+-- What the walk found is kept until the group changes: every receiver asks for its sender, and a raid's messages would
+-- walk the 40 units each. A kept unit is checked against its name (one call), so a token that changed hands before the
+-- event is never returned. A name not found is not kept. 200 names at most (they can come from received messages).
+local unitOfName, lowOfName, namesKept = {}, {}, 0
+local function ForgetNames()
+    if namesKept == 0 then return end
+    wipe(unitOfName)
+    wipe(lowOfName)
+    namesKept = 0
+end
+W.On("GROUP_ROSTER_UPDATE", ForgetNames, true)
+
 function W.UnitByName(name)
     if not name then return nil end
+    local kept = unitOfName[name]
+    if kept then
+        local n = UnitExists(kept) and W.Safe(UnitName(kept))
+        if n and n:lower() == lowOfName[name] then return kept, W.UnitClassToken(kept) end
+    end
     -- Forever: "First-Surname" (an event's name) is a full name too, never matched on its first name only
     local full = W.FullName(name)
     local wantFull = (W.HasFullPart(name) or (W.FOREVER and W.HasFullPart(full))) and full:lower()
@@ -534,12 +553,20 @@ function W.UnitByName(name)
     end
     local raid = W.InRaid()
     local units = raid and W.RAID_UNITS or W.PARTY_UNITS
+    local found
     for i = 1, raid and W.NumRaid() or 4 do
         local u = units[i]
-        if UnitExists(u) and check(u) then return u, W.UnitClassToken(u) end
+        if UnitExists(u) and check(u) then found = u; break end
     end
-    if not raid and check("player") then return "player", W.UnitClassToken("player") end
-    if looseCount == 1 then return loose, W.UnitClassToken(loose) end
+    if not found and not raid and check("player") then found = "player" end
+    if not found and looseCount == 1 then found = loose end
+    if not found then return nil end
+    if not kept then
+        if namesKept >= 200 then ForgetNames() end
+        namesKept = namesKept + 1
+    end
+    unitOfName[name], lowOfName[name] = found, low
+    return found, W.UnitClassToken(found)
 end
 
 -- true when a sender is me. Pass the full sender name when there is one: a bare first name
