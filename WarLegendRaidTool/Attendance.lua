@@ -50,28 +50,6 @@ local NIGHT_GAP = 4 * 3600   -- a new night starts after 4 hours without seeing 
 local LATE = 15 * 60         -- late / left early threshold
 local MAX_NIGHTS, MAX_PULLS = 150, 100
 
--- Old format (one entry per day: players + bosses, no times) -> nights. Old nights have no
--- per-pull data: they count for "% of nights" but not for "% of pulls".
-W.Migration(1, "attendance", function(all)
-    local a = all.attendance
-    if type(a) ~= "table" or type(a.raids) ~= "table" or a.nights then return end
-    local nights = {}
-    for _, r in ipairs(a.raids) do
-        if type(r) == "table" and type(r.players) == "table" then
-            local t = tonumber(r.t) or 0
-            local n = { day = r.day, zone = r.zone, t = t, e = t, players = {}, pulls = {} }
-            for name, class in pairs(r.players) do
-                n.players[name] = { c = type(class) == "string" and class or nil, f = t, l = t, s = "" }
-            end
-            for boss, killed in pairs(type(r.bosses) == "table" and r.bosses or {}) do
-                n.pulls[#n.pulls + 1] = { b = boss, t = t, k = killed and true or false, old = true }
-            end
-            nights[#nights + 1] = n
-        end
-    end
-    a.nights, a.raids = nights, nil
-end)
-
 W.OnReady(function()
     db = W.DB("attendance", { onBoss = true, onReadyCheck = true, guildOnly = true, range = 10 })
     if type(db.nights) ~= "table" then db.nights = {} end
@@ -101,7 +79,7 @@ end
 
 -- Everyone connected in the raid right now: name -> class
 -- Players are keyed by full identity (W.UnitKey): two raiders sharing a first name stay apart.
--- p.n keeps the name to show. Old records (keyed by first name) are matched in AT.Stats.
+-- p.n keeps the name to show.
 local present, presentNames = {}, {}
 local function Present()
     wipe(present); wipe(presentNames)
@@ -201,20 +179,11 @@ function AT.Stats()
     local stats, totalPulls = {}, 0
     for i = 1, n do
         local night = db.nights[i]
-        local pulls = 0
-        for _, p in ipairs(night.pulls) do if not p.old then pulls = pulls + 1 end end
-        totalPulls = totalPulls + pulls
+        totalPulls = totalPulls + #night.pulls
         local nightEnd = night.e or night.t
-        for rawKey, p in pairs(night.players) do
-            -- old records are keyed by a first name: joined to the guild member who has it only when
-            -- that first name is unique in the guild, otherwise kept apart (never merged blindly)
-            local key, shown = rawKey, p.n
-            if not W.HasFullPart(rawKey) then
-                local m = W.GuildMember(rawKey)
-                if m and m.full then key, shown = m.full:lower(), shown or (W.FOREVER and m.full or m.name) end
-            end
+        for key, p in pairs(night.players) do
             local s = stats[key]
-            if not s then s = { key = key, name = shown or rawKey, nights = 0, bench = 0, pulls = 0, late = 0, left = 0 }; stats[key] = s end
+            if not s then s = { key = key, name = p.n or key, nights = 0, bench = 0, pulls = 0, late = 0, left = 0 }; stats[key] = s end
             if p.n then s.name = p.n end
             if p.c then s.class = p.c end
             if p.bench then
@@ -283,12 +252,12 @@ local function Detail(night)
         for _, name in ipairs(names) do
             local p = night.players[name]
             if not p.bench then
-                if (p.s or ""):sub(i, i) == "1" then count = count + 1 elseif not pull.old then missing[#missing + 1] = shown(name) end
+                if (p.s or ""):sub(i, i) == "1" then count = count + 1 else missing[#missing + 1] = shown(name) end
             end
         end
         out[#out + 1] = date("%H:%M", pull.t) .. "  " .. pull.b .. "  (" .. (pull.k and L("kill") or L("wipe")) .. ")"
-            .. (pull.old and "" or ("  " .. string.format(L("%d present"), count)
-            .. (#missing > 0 and ("  " .. string.format(L("absent: %s"), table.concat(missing, ", "))) or "")))
+            .. "  " .. string.format(L("%d present"), count)
+            .. (#missing > 0 and ("  " .. string.format(L("absent: %s"), table.concat(missing, ", "))) or "")
     end
     out[#out + 1] = ""
     for _, name in ipairs(names) do

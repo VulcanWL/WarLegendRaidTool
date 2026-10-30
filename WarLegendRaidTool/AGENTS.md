@@ -167,8 +167,10 @@ W.AddFR({
 })
 ```
 - **Saved data**: `W.OnReady(function() db = W.DB("moduleKey", { option = false }) end)`.
-  Defaults are scalars only. SavedVariables is `WarLegendRaidToolDB` (`W.db`). Changing the format of
-  existing saved data needs `W.Migration(version, key, fn)`.
+  Defaults are scalars only. SavedVariables is `WarLegendRaidToolDB` (`W.db`). **No player has saved data from
+  before (the user's decision, 30/10)**: a change of format needs no migration, and nothing reads an old format, an old key or
+  another addon's saved data. `W.Migration(version, key, fn)` (`Core.lua`, next number 5) stays for the day the user says
+  players have data to keep.
 - **Events**: `W.On("EVENT_NAME", fn)` (one shared frame). Returns a handler; pass `inactive = true`
   (4th arg) to start it off and switch with `W.Activate(handler, on)`. Handlers only run once the
   player is confirmed in the War Legend guild (`W.Allowed()`), except core ones with `always = true`.

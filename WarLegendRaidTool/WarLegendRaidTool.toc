@@ -5,9 +5,8 @@
 ## Version: 1.41.56
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 ## Notes-frFR: Outils de raid et de guilde WaR LegenD : groupes, loot council (style RCLootCouncil), loot log, soft-res, buffs, checklist conso, présences, qui a pull, ready check, inspect, suivi d'auras, CD de raid, préparation, rerolls, métiers/inactifs/recrutement de guilde. /wl
-## SavedVariables: WarLegendRaidToolDB, MyslotExports, DoesItDieDB
-## SavedVariablesPerCharacter: MyslotSettings
-## OptionalDeps: RaidPresets, EllesmereUI, Blizzard_MapCanvas, Blizzard_WorldMap
+## SavedVariables: WarLegendRaidToolDB
+## OptionalDeps: EllesmereUI, Blizzard_MapCanvas, Blizzard_WorldMap
 
 Libs\LibStub.lua
 Libs\CallbackHandler-1.0.lua

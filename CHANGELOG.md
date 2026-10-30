@@ -6,6 +6,11 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- Les données sauvegardées par d'anciennes versions ne sont plus reprises : anciens réglages de Myslot et de DoesItDie,
+  anciens relevés de présences et de métiers, presets de l'addon RaidPresets. Seules les données de la version actuelle
+  sont lues.
+
 ## 1.41.56 (30/10/2026)
 
 ### Modifié

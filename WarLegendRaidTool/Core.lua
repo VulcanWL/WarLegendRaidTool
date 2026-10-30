@@ -654,8 +654,8 @@ function W.OnReady(fn)
     if W.db then fn() else readyFns[#readyFns + 1] = fn end
 end
 
--- DB sub-table with default values (scalars only). A value of the wrong type (damaged file,
--- old format) is put back to its default instead of breaking the module.
+-- DB sub-table with default values (scalars only). A value of the wrong type (damaged file) is put
+-- back to its default instead of breaking the module.
 function W.DB(key, defaults)
     local t = W.db[key]
     if type(t) ~= "table" then t = {}; W.db[key] = t end
@@ -670,6 +670,7 @@ end
 -- Saved data format versions. A module changing its saved format registers a migration
 -- (W.Migration(version, fn)); they run once each, in order, before the modules start.
 -- A failing migration resets only the data it was working on, never the whole file.
+-- None now: no player has saved data from before (AGENTS.md). 1 to 4 are used up: the next one is 5.
 local migrations = {}
 function W.Migration(version, key, fn)
     migrations[#migrations + 1] = { v = version, key = key, fn = fn }

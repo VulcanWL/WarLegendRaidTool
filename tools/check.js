@@ -20,7 +20,7 @@ const DEV = "WarLegendRaidTool_Dev"; // internal testing addon, never in the rel
 
 // Globals the addon may create (anything else written at global scope is an accident).
 // ClickCastFrames: Clique's shared table (PvP frames register there).
-const OK_WRITE = /^([A-Z0-9_]+|WLRT\w*|WarLegend\w*|ClickCastFrames|Myslot[A-Za-z]*|DoesItDieDB)$/;
+const OK_WRITE = /^([A-Z0-9_]+|WLRT\w*|WarLegend\w*|ClickCastFrames)$/;
 // Lowercase globals that exist in the WoW Lua environment.
 const OK_READ = new Set((
     "_G assert collectgarbage error getmetatable setmetatable ipairs pairs next pcall xpcall print rawequal rawget " +

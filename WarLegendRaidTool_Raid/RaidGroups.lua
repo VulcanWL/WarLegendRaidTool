@@ -20,35 +20,12 @@ local function InitDB()
     db.presets = db.presets or {}
     db.sortGroups = db.sortGroups or { true, true, true, true, true, true, true, true }
     if db.poolSource ~= "raid" and db.poolSource ~= "guild" then db.poolSource = "guild" end
-    -- old French name of the live preset
-    if db.presets["Raid actuel"] then db.presets["Raid actuel"] = nil end
-    if db.selected == "Raid actuel" then db.selected = nil end
-    -- Import presets from the old RaidPresets addon (if still enabled)
-    if not db.migrated and type(RaidPresetsDB) == "table" and type(RaidPresetsDB.presets) == "table" then
-        local n = 0
-        for name, p in pairs(RaidPresetsDB.presets) do
-            if not db.presets[name] and type(p) == "table" and type(p.players) == "table" and not p.live then
-                local copy = { players = {} }
-                for _, pl in ipairs(p.players) do
-                    copy.players[#copy.players + 1] = { name = pl.name, class = pl.class, group = pl.group or 1, icon = pl.icon or 0 }
-                end
-                db.presets[name] = copy
-                n = n + 1
-            end
-        end
-        db.migrated = true
-        if n > 0 then W.Print(n .. L(" preset(s) imported from RaidPresets. You can disable RaidPresets.")) end
-    end
-    -- presets saved before marks were unique: the first player keeps a doubled mark
-    for _, p in pairs(db.presets) do
-        if type(p) == "table" and type(p.players) == "table" then RG.UniqueIcons(p) end
-    end
 end
 W.OnReady(InitDB)
 
 -- Names in presets: "First Surname" on WoW: Forever (many players share a first name), the name
--- without realm elsewhere (as before). Maps also answer to a first name nobody else has, so the
--- presets saved with first names keep working.
+-- without realm elsewhere (as before). Maps also answer to a first name nobody else has, so a
+-- preset written with first names works.
 local function PName(name)
     if not name then return nil end
     return W.FOREVER and W.FullName(name) or W.BaseName(name)
@@ -453,7 +430,7 @@ local function GroupStep(preset, countOnly)
             counts[sub] = counts[sub] + 1
         end
     end
-    -- exact preset name first, then the first name (presets saved with first names) when one raider only has it
+    -- exact preset name first, then the first name (a preset written with first names) when one raider only has it
     local left = 0
     for _, r in ipairs(roster) do
         r.want = desired[r.key] or (bases[r.base] == 1 and desired[r.base]) or nil
@@ -759,7 +736,7 @@ function RG.Deserialize(str)
                 c = (c and #c <= 12 and c:match("^%u+$")) and c or nil
                 preset.players[#preset.players + 1] = {
                     name = n, class = c, group = g, icon = i,
-                    -- 5th field = main assist number (old RaidPresets strings had x,y floats here)
+                    -- 5th field = main assist number
                     ma = (ma and ma:match("^[1-8]$")) and tonumber(ma) or nil }
             end
         end
@@ -877,7 +854,7 @@ end
 
 function RG.Import()
     W.TextPopup(L("Import a preset"), "", {
-        showName = true, hint = L("Paste a WaR LegenD (or RaidPresets) string."),
+        showName = true, hint = L("Paste a WaR LegenD string."),
         onConfirm = function(text, wanted)
             -- line breaks of the paste only: Forever names ("First Surname") and preset names keep their spaces
             text = W.Trim(((text or ""):gsub("[\r\n\t]", "")))

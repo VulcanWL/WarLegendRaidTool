@@ -121,9 +121,7 @@ preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and Fren
 - **Saved**: options = scalars of `W.db.doesItDie` (profiles); `ticks` (learned tick sizes) and `log` (300 trace lines) are
   data. A hit that matches no DoT writes its "HIT" line only with `/wl did debug` (in a group, other players' hits filled
   the 300 lines within seconds). `ns.Sanitize` puts back a number out of its slider's range or an id out of its list (imported profile).
-  1.37.0-1.41.54 saved in `DoesItDieDB` (the original's name): migration 3 copies it, then it is set to nil; it stays in the
-  .toc for that move (drop it from `## SavedVariables` a version later). With the original addon loaded, its table is
-  given back and ours stays off.
+  With the original addon loaded, ours stays off.
 - Removed from the original: its own window and Blizzard settings page, the custom frame paths and the pick mode, the
   other 5 languages, the window language.
 
@@ -156,9 +154,7 @@ action | macro | binding`); `Myslot/` = Myslot 6.2.1 by Boshi Lian (Apache-2.0, 
   message, nothing received from other players.
 - **Saved**: `W.db.myslot`: options `allowClear`, `sort`, `myClass` (scalars, in profiles); data `exports` (100 at most,
   4 MB in all, `ns.MAX_SAVED`, checked by the tab's Save and at login, { name, value, class }) and `backups` (3, { value,
-  time }; not in the 4 MB, their growth must not remove a profile at login), checked at login. 1.37.0-1.41.54 saved in `MyslotExports` /
-  `MyslotSettings` (per character): migration 4 copies them, then they are set to nil; they stay in the .toc for that move
-  (drop them from `## SavedVariables` a version later). With the original addon loaded, its tables are given back and it
+  time }; not in the 4 MB, their growth must not remove a profile at login), checked at login. With the original addon loaded, it
   keeps `/myslot`.
 - Removed from the original: its window, minimap button (LibDBIcon / LibDataBroker), Blizzard settings page, chat-link
   sharing (`share.lua`), lua-pb, locales, the retail parts (talent loadouts, Cooldown Manager, the pre-11.0 spellbook),

@@ -907,7 +907,6 @@ BINDING_HEADER_WARLEGENDRAIDTOOL = "WaR LegenD RaidTool"
 W.AddFR({ ["Reload the interface"] = "Recharger l'interface" })
 W.OnReady(function()
     _G["BINDING_NAME_CLICK WLRTReloadKey:LeftButton"] = L("Reload the interface")
-    W.DB("ui").rlAlias = nil -- the old "/rl" alias of /reload (removed: it rewrote another addon's slash command)
 end)
 
 -- BigWigs-like countdown: a spoken number (Media/Sounds/Countdown/<fr|en>/<1-5>.mp3, Windows voices) and the

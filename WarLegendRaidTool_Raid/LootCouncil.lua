@@ -141,18 +141,9 @@ W.OnReady(function()
         srWhisper = false, srMax = 1,
     })
     -- the loot history has its own key (WarLegendRaidToolDB.lootHistory), apart from the module options
-    if type(W.db.lootHistory) ~= "table" then
-        W.db.lootHistory = type(db.history) == "table" and db.history or {} -- moved once from loot.history
-    end
-    db.history = nil
+    if type(W.db.lootHistory) ~= "table" then W.db.lootHistory = {} end
     hist = W.db.lootHistory
     if type(db.sr) ~= "table" then db.sr = {} end
-    -- "!sr" whispers are for whoever collects the soft-res: off by default now (every raider answered them and kept a
-    -- list); switched off once here, unless this player already holds a list
-    if not db.srChecked then
-        db.srChecked = true
-        if next(db.sr) == nil then db.srWhisper = false end
-    end
     if type(db.pending) ~= "table" then db.pending = {} end
 end)
 

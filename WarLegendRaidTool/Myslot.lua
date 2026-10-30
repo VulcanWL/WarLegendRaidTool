@@ -19,38 +19,9 @@ W.AddFR({
         "Myslot : %d profil(s) enregistré(s) retiré(s) : 100 profils et 4 Mo au plus, en tout.",
 })
 
--- The original addon, when enabled, loads before us (alphabetical order): it keeps its /myslot and its saved tables.
+-- The original addon, when enabled, loads before us (alphabetical order): it keeps its /myslot.
 local originalLoaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Myslot") or false
--- its live saved tables, read before our saved variables replace the globals of the same name
-local originalExports = originalLoaded and MyslotExports or nil
-local originalSettings = originalLoaded and MyslotSettings or nil
-
--- 1.37.0 to 1.41.54 kept the exports in MyslotExports and the settings in MyslotSettings (per character), the original
--- addon's names (still listed in the .toc for this move): copied once into W.db.myslot, then no longer saved.
-W.Migration(4, "myslot", function(saved)
-    local t = type(saved.myslot) == "table" and saved.myslot or {}
-    saved.myslot = t
-    local old = MyslotExports
-    if type(old) == "table" then
-        t.exports, t.backups = {}, {}
-        for _, e in ipairs(type(old.exports) == "table" and old.exports or {}) do
-            if type(e) == "table" and type(e.value) == "string" then
-                t.exports[#t.exports + 1] = { name = tostring(e.name or "?"), value = e.value, class = type(e.class) == "string" and e.class or nil }
-            end
-        end
-        for _, b in ipairs(type(old.backups) == "table" and old.backups or {}) do
-            if type(b) == "table" and type(b.value) == "string" then t.backups[#t.backups + 1] = { value = b.value, time = tonumber(b.time) or 0 } end
-        end
-    end
-    local s = MyslotSettings
-    if type(s) == "table" then
-        if type(s.allowclearonimport) == "boolean" then t.allowClear = s.allowclearonimport end
-        if s.loadoutSort == "date" or s.loadoutSort == "name" or s.loadoutSort == "class" then t.sort = s.loadoutSort end
-        if type(s.loadoutFilterClass) == "boolean" then t.myClass = s.loadoutFilterClass end
-    end
-end)
-
--- saved data checked once at login (a damaged file, an old list): strings only, names without escape codes, the sizes
+-- saved data checked once at login (a damaged file): strings only, names without escape codes, the sizes
 -- bounded (the Tab's Save stops at the same limits)
 local function Sanitize(t)
     local exports, backups, size, dropped = {}, {}, 0, 0
@@ -80,11 +51,6 @@ W.OnReady(function()
     db = W.DB("myslot", { allowClear = false, sort = "date", myClass = false })
     Sanitize(db)
     ns.db = db
-    if originalLoaded then
-        MyslotExports, MyslotSettings = originalExports, originalSettings -- given back: the original addon saves them
-    else
-        MyslotExports, MyslotSettings = nil, nil -- moved into W.db.myslot (migration 4)
-    end
 end)
 
 -- /wl myslot: the tab; load <name>: that saved profile in the box (Import applies it, after its confirmation);

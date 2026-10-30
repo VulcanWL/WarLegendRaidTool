@@ -128,21 +128,6 @@ W.OnReady(function()
     end
 end)
 
--- Recipe lists were tables of numbers: now compact "id,id,..." text (about 3x less memory)
-W.Migration(2, "guild", function(all)
-    local g = all.guild
-    if type(g) ~= "table" or type(g.data) ~= "table" then return end
-    for _, members in pairs(g.data) do
-        for _, e in pairs(type(members) == "table" and members or {}) do
-            if type(e) == "table" and type(e.rec) == "table" then
-                for prof, ids in pairs(e.rec) do
-                    if type(ids) == "table" then e.rec[prof] = table.concat(ids, ",") end
-                end
-            end
-        end
-    end
-end)
-
 local function GuildName()
     return (GetGuildInfo and GetGuildInfo("player")) or nil
 end
@@ -156,16 +141,12 @@ end
 local function Me() return W.Safe(UnitName("player")) or "?" end
 
 -- Members are keyed by their full identity, lowercased (W.Key: "first surname" on Forever, where many share a
--- first name). Entries saved by older versions are keyed by the bare first name and have no .name field:
--- they are still shown, and dropped once the same player sends data under the full key.
+-- first name).
 local function EntryName(key, e) return (e and e.name) or key end
 local function Store(key, name, e)
     local d = Data()
     e.name = name
     d[key] = e
-    local short = W.BaseName(name)
-    local old = short and d[short]
-    if short ~= key and old and not old.name then d[short] = nil end
 end
 
 ---------------------------------------------------------------------------
@@ -236,7 +217,7 @@ end
 
 local function ProfLabel(key)
     local p = profById[tonumber(key) or 0]
-    -- an unknown one came from another member: no colour / link codes shown (older saved data too)
+    -- an unknown one came from another member: no colour / link codes shown
     return p and L(p.en) or (tostring(key):gsub("[%z\1-\31|]", ""))
 end
 
@@ -478,10 +459,10 @@ end)
 ---------------------------------------------------------------------------
 local function Encode(e)
     local p = {}
-    -- "name:skill:max:skillLineID" (older versions read the first three fields and skip the fourth)
+    -- "name:skill:max:skillLineID"
     for _, x in ipairs(e.profs or {}) do p[#p + 1] = x.n .. ":" .. x.r .. ":" .. x.m .. ":" .. (x.id or 0) end
     local r = {}
-    for prof, ids in pairs(e.rec or {}) do r[#r + 1] = prof .. "=" .. (type(ids) == "table" and table.concat(ids, ",") or ids) end
+    for prof, ids in pairs(e.rec or {}) do r[#r + 1] = prof .. "=" .. ids end
     -- profession links: "prof \31 link" separated by \30 (a link holds ":" ";" and "=")
     local l = {}
     for prof, link in pairs(e.links or {}) do l[#l + 1] = prof .. "\31" .. link end
@@ -834,73 +815,6 @@ local function Filters()
         name = UI.nameSearch and SearchText(UI.nameSearch:GetText()) or "", online = db.profOnline and true or false }
 end
 
----------------------------------------------------------------------------
--- One player, one entry: older versions saved the same player under other keys (the bare first name
--- "Vulcan", an old capitalized "Vulcan Wl"), so old readings showed next to new ones. Once the guild roster
--- tells who is who, they are merged under the current key, each profession keeping its most recent
--- reading, and the old keys are removed from the saved data (they do not come back after a restart).
----------------------------------------------------------------------------
-local function MergeEntries(list)
-    table.sort(list, function(a, b) return (a.e.t or 0) < (b.e.t or 0) end) -- oldest first: newer ones override
-    local m = { profs = {}, rec = {}, links = {} }
-    local skills = {} -- profession key -> { x, time }
-    for _, it in ipairs(list) do
-        local e = it.e
-        for _, x in ipairs(e.profs or {}) do
-            local pk, t = ProfKey(x.n, x.id), x.t or e.t or 0
-            if not skills[pk] or t >= skills[pk].t then
-                skills[pk] = { x = { n = x.n, id = x.id, r = x.r, m = x.m, t = t }, t = t }
-            end
-        end
-        for _, field in ipairs({ "rec", "links" }) do
-            for prof, v in pairs(e[field] or {}) do
-                local pk = ProfKey(prof)
-                for old in pairs(m[field]) do if ProfKey(old) == pk then m[field][old] = nil end end
-                m[field][prof] = v
-            end
-        end
-        if e.t and e.t > (m.t or 0) then m.t = e.t end
-        if e.srv and (e.srvT or 0) >= (m.srvT or 0) then m.srv, m.srvT = e.srv, e.srvT end
-        for pk, t in pairs(e.lk or {}) do
-            m.lk = m.lk or {}
-            if t > (m.lk[pk] or 0) then m.lk[pk] = t end
-        end
-        if e.lkT and e.lkT > (m.lkT or 0) then m.lkT = e.lkT end
-        m.name = e.name or m.name
-    end
-    for _, s in pairs(skills) do m.profs[#m.profs + 1] = s.x end
-    table.sort(m.profs, function(a, b) return ProfLabel(ProfKey(a.n, a.id)) < ProfLabel(ProfKey(b.n, b.id)) end)
-    return m
-end
-
-function G.Consolidate()
-    if not W.IsInGuild() or #W.GuildMembers() == 0 then return 0 end -- who is who needs the roster
-    local d = Data()
-    local groups = {}
-    for key, e in pairs(d) do
-        if type(e) == "table" then
-            local k, full = MemberKey(EntryName(key, e))
-            if k then
-                groups[k] = groups[k] or { full = full, list = {} }
-                table.insert(groups[k].list, { key = key, e = e })
-            end
-        end
-    end
-    local merged = 0
-    for k, g in pairs(groups) do
-        -- a lone first name nobody or several members have: who it is is unknown, it stays as it is
-        local unknown = #g.list == 1 and not W.HasFullPart(g.full)
-        if not unknown and (#g.list > 1 or g.list[1].key ~= k) then
-            local m = MergeEntries(g.list)
-            for _, it in ipairs(g.list) do d[it.key] = nil end
-            if W.HasFullPart(g.full) then m.name = g.full end
-            d[k] = m
-            merged = merged + #g.list - 1
-        end
-    end
-    return merged
-end
-
 -- Everything known about a member's professions, one entry per profession: for the skill, the most recent
 -- reading wins. "wl" = shared by their WarLegend RaidTool (skill and maximum read on their game), "roster" =
 -- the guild roster of the server (skill, no maximum). "link" = a profession link: the profession only, used
@@ -953,7 +867,6 @@ local countOfList, listsCounted = {}, 0
 local function RecipeCount(e, key)
     for prof, list in pairs(e.rec or {}) do
         if ProfKey(prof) == key then
-            if type(list) == "table" then return #list end
             local count = countOfList[list]
             if not count then
                 local _, commas = list:gsub(",", "")
@@ -979,7 +892,6 @@ function G.FindCrafters(search, filter, f)
             for prof, list in pairs(e.rec or {}) do
                 local pk = ProfKey(prof)
                 if (f.prof == "" or pk == f.prof) and PassSkill(SkillOf(e, pk), f) then
-                    if type(list) == "table" then list = table.concat(list, ",") end
                     for id in list:gmatch("%d+") do
                         id = tonumber(id)
                         if RecipeLower(id):find(search, 1, true) then
@@ -1357,7 +1269,6 @@ local function BuildProfs(p)
         -- the server's roster (as the modern guild list), listened to only while this tab is open
         ListenRoster(true)
         G.ReadRoster()
-        G.Consolidate() -- one entry per player (old keys merged), before anything is shown
         W.RequestGuildRoster(); G.Ask(); G.RefreshProfs()
     end)
     p:HookScript("OnHide", function() ListenRoster(false) end)
@@ -1414,10 +1325,7 @@ end, function()
     if UI.tabs then UI.tabs:Select(UI.tabs.current or 1) end
 end)
 
--- the first roster of the session also merges old duplicate entries, tab open or not (the saved data stays clean)
-local consolidated = false
 W.On("GUILD_ROSTER_UPDATE", function()
-    if not consolidated and db and #W.GuildMembers() > 0 then consolidated = true; G.Consolidate() end
     wipe(recipeUnknown)
     if W.IsShown("Guild") then G.RefreshInactive(); RefreshProfsSoon() end
 end)

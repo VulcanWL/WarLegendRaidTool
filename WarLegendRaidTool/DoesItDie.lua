@@ -21,27 +21,9 @@ W.AddFR({
     ["DoesItDie is switched off in Settings > Modules."] = "DoesItDie est désactivé dans Réglages > Modules.",
 })
 
--- The original addon, when enabled, loads before us (alphabetical order): it keeps its /did and its saved table,
--- and ours stays off (both would mark every nameplate).
+-- The original addon, when enabled, loads before us (alphabetical order): it keeps its /did, and ours stays off
+-- (both would mark every nameplate).
 local originalLoaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DoesItDie") or false
--- Its live saved table, read before our saved variables replace the global DoesItDieDB (both save it at logout).
-local originalDB = originalLoaded and type(DoesItDieDB) == "table" and DoesItDieDB or nil
-
--- 1.37.0 to 1.41.54 kept the settings and learned tick sizes in DoesItDieDB, the original addon's own name (still
--- listed in the .toc for this move): copied once into W.db.doesItDie, then no longer saved.
-W.Migration(3, "doesItDie", function(saved)
-    local old = DoesItDieDB
-    if type(old) ~= "table" then return end
-    local t = type(saved.doesItDie) == "table" and saved.doesItDie or {}
-    saved.doesItDie = t
-    for key, value in pairs(ns.DEFAULTS) do
-        if key ~= "enabled" and type(old[key]) == type(value) then t[key] = old[key] end
-    end
-    if old.version == ns.TICKS_VERSION and type(old.ticks) == "table" then
-        t.ticks, t.ticksVersion = old.ticks, ns.TICKS_VERSION -- checked by ns.SetDB
-    end
-end)
-
 -- Whether the tracking may run: the module's switch, Settings > Modules, the guild check, no original addon.
 function ns.Allowed()
     return db ~= nil and db.enabled and W.Allowed() and not W.IsOff("DoesItDie") and not originalLoaded
@@ -53,11 +35,8 @@ W.OnReady(function()
     db = W.DB("doesItDie", ns.DEFAULTS)
     ns.Sanitize(db)
     ns.SetDB(db)
-    if originalLoaded then
-        if originalDB then DoesItDieDB = originalDB end -- given back: the original addon saves it
-        if db.enabled then W.Print(L("The original DoesItDie addon is enabled: the one of WaR LegenD stays off (disable one of them).")) end
-    else
-        DoesItDieDB = nil -- moved into W.db.doesItDie (migration 3)
+    if originalLoaded and db.enabled then
+        W.Print(L("The original DoesItDie addon is enabled: the one of WaR LegenD stays off (disable one of them)."))
     end
 end)
 

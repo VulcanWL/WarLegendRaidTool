@@ -1210,7 +1210,6 @@ end
 ---------------------------------------------------------------------------
 
 ns.DEFAULTS = DEFAULTS
-ns.TICKS_VERSION = DB_VERSION -- (../DoesItDie.lua's migration keeps the tick sizes of the same version)
 ns.lists = { waitModes = WAIT_MODES } -- Display.lua and Nameplates.lua add the look lists
 -- What Display.lua needs from the tracking above.
 ns.tracking = { housekeep = housekeep, targetRemainingDamage = targetRemainingDamage, unitKey = unitKey }

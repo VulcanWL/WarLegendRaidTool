@@ -184,7 +184,7 @@ local SIMULATION_STEP = 0.5 -- seconds
 local SUBTABS_TOP = -94      -- the sub-tab buttons; their pages start 28 px lower
 local PANE_LEFT = 446        -- where the preview starts (the settings rows are 420 px wide)
 
--- The number settings (sliders): min, max, step. Also what an imported profile or the old saved file may set
+-- The number settings (sliders): min, max, step. Also what an imported profile may set
 -- (ns.Sanitize).
 local RANGES = {
     skullSize = { 20, 128, 2 }, skullOffsetX = { -150, 150, 1 }, skullOffsetY = { -150, 150, 1 },

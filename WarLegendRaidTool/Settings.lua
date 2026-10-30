@@ -149,7 +149,7 @@ local SKIP_FIELDS = {
     roster = { remindDay = true },
     bgStats = { recordMap = true },
     inviteTool = { offByDefault = true },
-    raidGroups = { migrated = true, selected = true },
+    raidGroups = { selected = true },
     dangerAlert = { logClass = true },
 }
 -- tables that are options: "point" / "emphPoint" in any module (a frame position), and these.
@@ -332,7 +332,7 @@ local function Apply(data)
     end
     if type(data.pvp) == "table" and W.LoadPvP and W.LoadPvP() and type(WarLegendRaidTool_PvPDB) == "table" then
         -- merged key by key (a key of another type than ours is ignored), the saved file is never replaced whole
-        -- and deep: a table merges into ours, so a field the profile lacks keeps its value (an older, cut profile
+        -- and deep: a table merges into ours, so a field the profile lacks keeps its value (a cut profile
         -- must not wipe the anchors / texts the PvP addon needs)
         local function Merge(dest, src, depth)
             for k, v in pairs(src) do

@@ -29,7 +29,6 @@ local db
 W.OnReady(function()
     db = W.DB("roster", { trialRank = "", trialDays = 21, remindDay = "" })
     if type(db.trials) ~= "table" then db.trials = {} end -- [key] = first time seen at the trial rank
-    db.players = nil -- mains / alts of an earlier test version
 end)
 
 ---------------------------------------------------------------------------

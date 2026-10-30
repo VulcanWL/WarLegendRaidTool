@@ -234,10 +234,7 @@ local popupAt, popupNext = -POPUP_GAP, nil
 W.OnAddon(PREFIX, function(msg, from, channel, full)
     local t = W.Unpack(msg)
     if t[1] ~= "A" or not W.IsGroupLead(full or from, channel) then return end
-    -- full name match; a bare first name (older version of the addon) still matches mine
-    local target = (t[2] or ""):lower()
-    if target ~= (W.UnitDisplayName("player") or ""):lower()
-        and (W.HasFullPart(t[2] or "") or target ~= (W.Safe(UnitName("player")) or ""):lower()) then return end
+    if (t[2] or ""):lower() ~= (W.UnitDisplayName("player") or ""):lower() then return end
     -- the lines are separated by " | ": split first, then every line is plain text
     local lines = {}
     for line in ((t[3] or "") .. " | "):gmatch("(.-) | ") do lines[#lines + 1] = W.Plain(line, 120) end

@@ -366,10 +366,7 @@ function WarLegendPvP:BuildProfile()
 end
 
 function WarLegendPvP:LoadSettings()
-	-- the BattleGroundEnemies / AceDB format of an older version is not read, start clean
-	if type(WarLegendRaidTool_PvPDB) ~= "table" or WarLegendRaidTool_PvPDB.profileKeys then
-		WarLegendRaidTool_PvPDB = {}
-	end
+	if type(WarLegendRaidTool_PvPDB) ~= "table" then WarLegendRaidTool_PvPDB = {} end
 	self.db = { profile = self:BuildProfile() }
 	if type(WarLegendRaidTool_PvPDB.TestPlayerCount) == "number" then
 		-- WarLegend: 1 to 40 like the slider (an imported 1e9 froze the client on Test)

@@ -16,7 +16,7 @@ ignore = {
 -- the globals the addon creates or changes (anything else written is an accident)
 globals = {
     "WLRT", "WarLegendRaidToolDB", "WarLegendRaidTool_PvPDB", "WarLegendRaidTool_SkyborneDB",
-    "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne", "MyslotExports", "MyslotSettings", "DoesItDieDB",
+    "WarLegendPvP", "ClickCastFrames", "WLRTSkyData", "WLRTSkyPinMixin", "WLRTSkyborne",
     "SlashCmdList", "StaticPopupDialogs", "BINDING_HEADER_WARLEGENDRAIDTOOL",
     "SLASH_WARLEGENDRT1", "SLASH_WARLEGENDRT2", "SLASH_WARLEGENDRT3", "SLASH_WARLEGENDRTDIRECT1", "SLASH_WARLEGENDRTDIRECT2",
     "SLASH_WLRTREADYCHECK1", "SLASH_DOESITDIE1", "SLASH_DOESITDIE2", "SLASH_MYSLOT1",

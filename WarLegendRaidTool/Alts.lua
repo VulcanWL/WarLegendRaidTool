@@ -61,23 +61,12 @@ local function Key()
     return (W.UnitDisplayName("player") or "?") .. "-" .. (GetRealmName and GetRealmName() or "?")
 end
 
--- data saved before the surname was in the key ("First-Realm"): taken over when it is mine
-local function OldKey()
-    return (W.Safe(UnitName("player")) or "?") .. "-" .. (GetRealmName and GetRealmName() or "?")
-end
-
 local function Char()
     if not db then return {} end -- before ADDON_LOADED: nothing is kept
     local k = Key()
     local c = db.chars[k]
     if not c then
-        local old = OldKey()
-        local o = old ~= k and db.chars[old]
-        if o and (not o.full or o.full == W.UnitFullName("player")) then
-            c, db.chars[old] = o, nil
-        else
-            c = {}
-        end
+        c = {}
         db.chars[k] = c
     end
     return c

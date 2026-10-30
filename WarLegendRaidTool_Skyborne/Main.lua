@@ -374,18 +374,14 @@ function ns.LearnShared(mapID, x, y, sender)
     table.insert(shared[mapID], { x, y, GetServerTime() })
 end
 
--- WLRT: learned locations not reported for SHARED_KEEP are dropped (at login); an old one without a date gets today's
+-- WLRT: learned locations not reported for SHARED_KEEP are dropped (at login)
 local function ExpireShared()
     local now = GetServerTime()
     for _, maps in pairs(db.shared) do
         for mapID, list in pairs(maps) do
             for i = #list, 1, -1 do
                 local p = list[i]
-                if type(p) ~= "table" then
-                    table.remove(list, i)
-                elseif type(p[3]) ~= "number" then
-                    p[3] = now
-                elseif now - p[3] > SHARED_KEEP then
+                if type(p) ~= "table" or type(p[3]) ~= "number" or now - p[3] > SHARED_KEEP then
                     table.remove(list, i)
                 end
             end

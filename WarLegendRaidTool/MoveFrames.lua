@@ -47,8 +47,7 @@ local L = W.L
 local db
 
 W.OnReady(function()
-    -- winMemory ("never" / "session" / "always") replaces the savePos tick; empty = read savePos (older saved data)
-    db = W.DB("moveFrames", { windows = false, savePos = false, winMemory = "", elements = false, tooltip = "default", tooltipCombat = false, fps = false })
+    db = W.DB("moveFrames", { windows = false, winMemory = "never", elements = false, tooltip = "default", tooltipCombat = false, fps = false })
     if type(db.winPos) ~= "table" then db.winPos = {} end
     if type(db.winScale) ~= "table" then db.winScale = {} end
     if type(db.elemPos) ~= "table" then db.elemPos = {} end
@@ -86,8 +85,8 @@ local hooked, moving, panelHook = {}, nil, false
 local sessPos, sessScale = {}, {}
 local function Memory()
     local m = db and db.winMemory
-    if m == "never" or m == "session" or m == "always" then return m end
-    return (db and db.savePos) and "always" or "never"
+    if m == "session" or m == "always" then return m end
+    return "never"
 end
 local function PosOf(name)
     local m = Memory()
@@ -419,7 +418,7 @@ W.RegisterModule("MoveFrames", "Move frames", function(p)
     W.Label(p, L("Remember their place and size:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 36, -68)
     W.Cycle(p, 150, { { "never", L("Never") }, { "session", L("Until /reload") }, { "always", L("Always") } },
         function() return Memory() end,
-        function(v) db.winMemory = v; db.savePos = (v == "always") end):SetPoint("TOPLEFT", 250, -63)
+        function(v) db.winMemory = v end):SetPoint("TOPLEFT", 250, -63)
     local hint = W.Label(p, L("Drag a window by an empty spot (edge, title). Ctrl + mouse wheel on it: its size. Ctrl + right-click: reset it. Protected windows are never touched."),
         "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", 36, -90)

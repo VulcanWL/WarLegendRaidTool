@@ -97,15 +97,10 @@ local function WeeklyRaids(now)
     for _, night in ipairs(at) do
         if type(night) == "table" and (tonumber(night.t) or 0) >= now - WEEK and type(night.players) == "table" then
             nights = nights + 1
-            for rawKey, p in pairs(night.players) do
+            for key, p in pairs(night.players) do
                 if type(p) == "table" and not p.bench then
-                    local key, shown = rawKey, p.n
-                    if not W.HasFullPart(rawKey) then -- an old record keyed by a first name: joined only when it is unique in the guild
-                        local m = W.GuildMember(rawKey)
-                        if m and m.full then key, shown = m.full:lower(), shown or m.full end
-                    end
                     local c = counts[key]
-                    if not c then c = { name = shown or rawKey, n = 0 }; counts[key] = c end
+                    if not c then c = { name = p.n or key, n = 0 }; counts[key] = c end
                     c.n = c.n + 1
                     c.class = p.c or c.class
                 end
