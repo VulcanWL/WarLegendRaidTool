@@ -8,7 +8,8 @@
 // to give secret values where the documentation says so.
 // "check" prints only what is new compared to tools/api-baseline.txt (names already looked at), exit code 1 if any.
 // It also lists "C_ form not tried first": a global Blizzard's own code no longer calls, whose replacement C_X.Name is
-// documented (Forever loads none of the deprecation fallbacks: likely nil there), called without trying the C_ form first.
+// documented (Forever loads none of the deprecation fallbacks: likely nil there), called without trying the C_ form first,
+// and "undocumented event": an event name the addon registers that this build does not document.
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
@@ -374,7 +375,22 @@ function check(m) {
             for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
         })(ast);
     }
+    // event names: a literal given to W.On (registered through pcall: a wrong name never fires, silently), RegisterEvent /
+    // RegisterUnitEvent (an error in the game unless under pcall), or a literal list a loop registers
+    const documented = (name, guard, where) => {
+        if (!(name in m.events)) add("undocumented event " + (guard ? "(guarded) " : "(no guard) ") + name, where);
+    };
+    const registers = (n) => mentions(n, "RegisterEvent") || mentions(n, "RegisterUnitEvent") || mentions(n, "On");
+    const literals = (t) => t.fields.map((f) => (f.type === "TableValue" && f.value.type === "StringLiteral" ? f.value.raw.slice(1, -1)
+        : f.type === "TableKeyString" ? f.key.name : null)).filter((s) => s && /^[A-Z][A-Z0-9_]+$/.test(s));
     for (const [rel, ast] of asts) {
+        const lists = {};
+        (function v(n) {
+            if (!n || typeof n !== "object") return;
+            if (Array.isArray(n)) { n.forEach(v); return; }
+            if (n.type === "LocalStatement") n.variables.forEach((x, i) => { const t = n.init[i]; if (t && t.type === "TableConstructorExpression") lists[x.name] = literals(t); });
+            for (const k in n) if (k !== "loc" && k !== "range") v(n[k]);
+        })(ast);
         (function visit(n, parents) {
             if (!n || typeof n !== "object") return;
             if (Array.isArray(n)) { n.forEach((c) => visit(c, parents)); return; }
@@ -384,6 +400,23 @@ function check(m) {
                 if (/^C_/.test(b) && !(b + "." + id in m.fn) && !m.frameXML.has(b)) add("undocumented " + b + "." + id, where);
                 if (b === "Enum" && !(id in m.enums)) add("undocumented Enum." + id, where);
                 if (b === "Constants" && !(id in m.consts)) add("undocumented Constants." + id, where);
+            }
+            if (n.type === "CallExpression" && n.base.type === "MemberExpression") {
+                const id = n.base.identifier.name, a = n.arguments[0];
+                const isOn = id === "On" && n.base.base.type === "Identifier" && n.base.base.name === "W";
+                if ((isOn || id === "RegisterEvent" || id === "RegisterUnitEvent") && a && a.type === "StringLiteral") {
+                    documented(a.raw.slice(1, -1), isOn, where);
+                }
+            }
+            if (n.type === "CallExpression" && n.base.type === "Identifier" && n.base.name === "pcall" && n.arguments[0] && n.arguments[0].type === "MemberExpression"
+                    && /^Register(Unit)?Event$/.test(n.arguments[0].identifier.name) && n.arguments[2] && n.arguments[2].type === "StringLiteral") {
+                documented(n.arguments[2].raw.slice(1, -1), true, where);
+            }
+            if (n.type === "ForGenericStatement" && registers(n.body) && n.iterators[0] && n.iterators[0].type === "CallExpression"
+                    && n.iterators[0].base.type === "Identifier" && /^i?pairs$/.test(n.iterators[0].base.name) && n.iterators[0].arguments[0]) {
+                const t = n.iterators[0].arguments[0];
+                const names = t.type === "TableConstructorExpression" ? literals(t) : t.type === "Identifier" ? lists[t.name] || [] : [];
+                for (const name of names) documented(name, mentions(n.body, "pcall") || mentions(n.body, "On"), where);
             }
             // hooksecurefunc("Name", fn): the game raises an error when Name is not a function, a guarded hook on a
             // missing one never runs (the feature it feeds is dead on Forever)

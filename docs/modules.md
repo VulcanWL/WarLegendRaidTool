@@ -262,7 +262,11 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
 - `WarLegendRaidTool_Dev/Verify.lua` (`/wl verify`, never in the zip): for the first night in the game. From login it watches what
   only the session shows, and sends nothing: name forms of whispers and invites, our chat lines and their echo, our restricted calls
   and whether they worked, blocked actions, the channel and sender form of our addon messages, a quest giver's unit, cooldown fields
-  after a cast, `C_Secrets` and the reads that come back secret 2 s into the first fight of each kind of place. `/wl verify` also
+  after a cast, `C_Secrets` and the reads that come back secret 2 s into the first fight of each kind of place, our invites against the
+  game's line `ERR_INVITE_PLAYER_S` (`invitename`, counts and forms only: an invite by full name can reach another character with
+  that first name, forever-bugs issue 24). Probes `eventnames` (`W.EventNames`, `C_EventUtils.IsEventValid`: `W.On` registers through
+  `pcall`, a refused name never fires, silently) and `errorcap` (100 Lua errors in a session, all addons: reported on build 69893,
+  the client stops delivering them until `/reload`). `/wl verify` also
   runs its probes and the module tests, then opens one report (context, every line, our errors with their stack, the busiest work)
   to copy: paste it to Claude, `node tools/verify-live.js --decode` reads it. `quick` skips the tests, `copy` opens the last one.
 - `node tools/smoke.js --open-world` (`tools/smoke/openworld.lua`, one English run, about 20 s, also in the CI): a guild of
@@ -296,7 +300,10 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
   mode. Agents run it first; on a failure, `--quiet --verbose` (every FAIL line, the stack of each Lua error) or
   `--verbose` alone (everything).
 - `tools/deps-watch.js` + `tools/watch.json`: upstream version of each embedded library, latest release of the ported
-  addons, edits of Blizzard's add-on policy, Luacheck release. `reviewed` = the upstream value already looked at.
+  addons, edits of Blizzard's add-on policy, Luacheck release, and the community tracker of the game's bugs
+  (`ClassicWoWCommunity/forever-bugs`: state of the issues we depend on; newest issue whose title speaks of addons, the API, taint
+  or secret values, listed without `@` or `#` so that our issue neither notifies nor links back). `reviewed` = the upstream value
+  already looked at.
 - Workflows: `wlrt-ci.yml` (every push / PR: check.js with Lua 5.1's compiler, Luacheck, wow-api check, smoke, open world and battleground smoke), `wlrt-build-watch.yml` (hourly:
   new build or UI source commit = one issue, with the API check and smoke results for a UI commit), `wlrt-deps-watch.yml`
   (Mondays: one issue per new upstream value), `.github/dependabot.yml` (pull requests for the pinned actions and tools).

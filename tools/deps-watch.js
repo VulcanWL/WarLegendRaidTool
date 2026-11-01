@@ -1,7 +1,8 @@
 // WarLegend RaidTool - weekly watch of what the addon depends on outside the repo (not shipped).
 // Usage: node tools/deps-watch.js [--issues]
 // Reads tools/watch.json: embedded libraries (their upstream version), the addons we ported (latest release),
-// Blizzard's add-on policy (edits of its first post), the Luacheck release used by the CI. Prints one line per source;
+// Blizzard's add-on policy (edits of its first post), the Luacheck release used by the CI, the community tracker of the
+// game's bugs (state of the issues we depend on, new issues about addons). Prints one line per source;
 // a source whose upstream value differs from its "reviewed" value is CHANGED. --issues (the weekly workflow,
 // .github/workflows/wlrt-deps-watch.yml, needs the gh CLI and GH_TOKEN) opens ONE GitHub issue per new upstream value,
 // label deps-watch, assigned to $OWNER; an issue with the same title, open or closed, means already reported.
@@ -46,6 +47,22 @@ async function upstream(src) {
         const t = await get(src.url, true);
         const p = t.post_stream.posts[0];
         return { value: String(p.version), link: src.page, note: "first post edited " + p.updated_at };
+    }
+    // a tracker of the game's bugs: the state of the issues we depend on. Every issue is not a change: titles are filtered
+    if (src.kind === "github-issues-state") {
+        const states = [];
+        for (const n of src.issues) states.push(n + ":" + (await get("https://api.github.com/repos/" + src.repo + "/issues/" + n, true)).state);
+        return { value: states.join(" "), link: "https://github.com/" + src.repo + "/issues" };
+    }
+    if (src.kind === "github-issues-new") {
+        const list = await get("https://api.github.com/repos/" + src.repo + "/issues?state=all&sort=created&direction=desc&per_page=100", true);
+        const re = new RegExp(src.pattern, "i");
+        const hits = list.filter((i) => !i.pull_request && re.test(i.title));
+        // other people's titles go in an issue of ours: no @ (notifies) and no # (links back to their issue)
+        const fresh = hits.filter((i) => i.number > Number(src.reviewed)).slice(0, 15)
+            .map((i) => i.number + ": " + i.title.replace(/[@#]/g, " ").slice(0, 100));
+        return { value: String(hits.length ? hits[0].number : src.reviewed), link: "https://github.com/" + src.repo + "/issues",
+            note: fresh.length ? fresh.join("; ") : undefined };
     }
     throw new Error("unknown kind " + src.kind);
 }

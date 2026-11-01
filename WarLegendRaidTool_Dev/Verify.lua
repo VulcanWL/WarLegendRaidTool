@@ -347,7 +347,7 @@ local function Hook(key, label, makeCheck)
         local at, ours = Caller()
         if not ours then return end
         local ok, check = pcall(makeCheck, ...)
-        NoteCall(label, at, ok and check or nil)
+        if label then NoteCall(label, at, ok and check or nil) end -- no label: makeCheck only reads, not a restricted call
     end
     if tbl == _G then hooksecurefunc(key, After) else hooksecurefunc(tbl, key, After) end
 end
@@ -369,6 +369,43 @@ if GetRaidRosterInfo then
         if not a or not b or a == b then return nil end
         return function() return Subgroup(i1) == b and Subgroup(i2) == a end
     end)
+end
+
+-- Blizzard bug report forever-bugs issue 24: an invite by full name can reach another character with the same first name.
+-- The game's line "You have invited X" says who got it: compared with the name we asked for, only the counts are kept
+local invites = { n = 0, same = 0, other = 0, short = 0, forms = {}, pending = {} }
+Hook("InviteUnit", nil, function(name)
+    name = W.Safe(name)
+    if type(name) ~= "string" then return end
+    invites.n = invites.n + 1
+    if #invites.pending >= 40 then table.remove(invites.pending, 1) end
+    invites.pending[#invites.pending + 1] = W.FullName(name):lower()
+end)
+local function InvitePattern()
+    local template = ERR_INVITE_PLAYER_S
+    if type(template) ~= "string" then return nil end
+    local pat = template:gsub("[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+    pat = pat:gsub("%%%%s", "(.+)", 1)
+    return "^" .. pat .. "$"
+end
+local function FirstName(full) return full:match("^(.-)" .. SEP_PAT) or full end
+local function NoteInviteLine(text)
+    local pending = invites.pending
+    invites.pat = invites.pat or InvitePattern()
+    local got = invites.pat and text:match(invites.pat)
+    if not got then return end
+    got = got:match("|h%[?([^%]|]+)%]?|h") or got
+    local full = W.FullName(got):lower()
+    local first, match = FirstName(full), nil
+    for i, want in ipairs(pending) do
+        if want == full then table.remove(pending, i); invites.same = invites.same + 1; return end
+        if not match and FirstName(want) == first then match = i end
+    end
+    if not match then return end -- an invite that is not ours
+    local want = table.remove(pending, match)
+    if #invites.forms < 5 then invites.forms[#invites.forms + 1] = Shape(got) end
+    if W.HasFullPart(full) and W.HasFullPart(want) then invites.other = invites.other + 1
+    else invites.short = invites.short + 1 end
 end
 
 local blocked, blockedKeys, blockedOther = {}, 0, 0
@@ -404,6 +441,11 @@ ON.GROUP_INVITE_CONFIRMATION = function()
     if not (id and GetInviteConfirmationInfo) then return end
     local _, name, guid = GetInviteConfirmationInfo(id)
     NoteName("confirm", name, guid)
+end
+ON.CHAT_MSG_SYSTEM = function(text)
+    if #invites.pending == 0 then return end
+    text = W.Safe(text)
+    if type(text) == "string" and #text <= 200 then NoteInviteLine(text) end
 end
 -- audit 21: guild bank money right after login, 10 s later, and whether the bank was opened since
 ON.PLAYER_ENTERING_WORLD = function(isLogin, isReload)
@@ -803,6 +845,52 @@ Probe("strings", function()
         parts[#parts + 1] = name .. "=" .. (type(v) == "string" and W.CutUTF8(v, 20) or Kind(v))
     end
     Out("INFO", "strings", table.concat(parts, " "))
+end)
+
+-- W.On registers through pcall: an event name this client refuses never fires, with no error
+Probe("eventnames", function()
+    local valid = C_EventUtils and C_EventUtils.IsEventValid
+    if not valid then Out("LOOK", "eventnames", "C_EventUtils.IsEventValid missing: event names not checked"); return end
+    if not W.EventNames then Out("LOOK", "eventnames", "W.EventNames missing"); return end
+    local names, bad = W.EventNames(), {}
+    for _, name in ipairs(names) do
+        local ok, yes = pcall(valid, name)
+        if not ok or yes == false then bad[#bad + 1] = name end
+    end
+    table.sort(bad)
+    if #bad == 0 then Out("OK", "eventnames", #names .. " event names, all valid on this client")
+    else Out("LOOK", "eventnames", #bad .. " / " .. #names .. " refused by this client: " .. table.concat(bad, ", ")) end
+end)
+
+-- Reported on build 69893 (forever-addon-kit): after 100 Lua errors the client stops delivering them until /reload, and an
+-- error we never get is missing from this report. Every addon's errors count, BugGrabber's repeats too
+local ERROR_CAP = 100
+Probe("errorcap", function()
+    if not (BugGrabber and BugGrabber.GetDB and BugGrabber.GetSessionId) then
+        Out("SKIP", "errorcap", "BugGrabber not installed: errors not counted")
+        return
+    end
+    local session, n = BugGrabber:GetSessionId(), 0
+    for _, err in ipairs(BugGrabber:GetDB() or {}) do
+        if err.session == session then n = n + (tonumber(err.counter) or 1) end
+    end
+    if n >= ERROR_CAP then
+        Out("LOOK", "errorcap", n .. " Lua errors this session, all addons: later ones may be missing, /reload and run again")
+    else
+        Out("OK", "errorcap", n .. " Lua errors this session, all addons (the client may stop at " .. ERROR_CAP .. ")")
+    end
+end)
+
+Probe("invitename", function()
+    if invites.n == 0 then
+        Out("SKIP", "invitename", "no invite of ours since /reload: mass invite or a keyword invite, then /wl verify quick")
+        return
+    end
+    if not InvitePattern() then Out("LOOK", "invitename", "ERR_INVITE_PLAYER_S missing: the game's line cannot be read"); return end
+    local read = invites.same + invites.other + invites.short
+    Out((invites.other > 0 or read == 0) and "LOOK" or "OK", "invitename", string.format(
+        "%d invite(s) of ours; the game named: that character %d, another with that first name %d (forever-bugs issue 24), no surname %d, no line read %d; forms: %s",
+        invites.n, invites.same, invites.other, invites.short, #invites.pending, table.concat(invites.forms, " ")))
 end)
 
 Probe("watch", function()

@@ -5,7 +5,16 @@ local M, Check = ...
 local W = WLRT
 
 local kept = { bank = rawget(_G, "GetGuildBankMoney"), secrets = rawget(_G, "C_Secrets"), logging = rawget(_G, "LoggingChat"),
-    popup = W.TextPopup }
+    popup = W.TextPopup, events = rawget(_G, "C_EventUtils"), grabber = rawget(_G, "BugGrabber"),
+    inviteLine = rawget(_G, "ERR_INVITE_PLAYER_S") }
+local eventNames = W.EventNames()
+table.sort(eventNames)
+local eventError, eventRefused, eventFine = eventNames[1], eventNames[2], eventNames[3]
+C_EventUtils = { IsEventValid = function(name)
+    if name == eventError then error("refused", 0) end -- a refusal must stay inside the probe
+    return name ~= eventRefused
+end }
+ERR_INVITE_PLAYER_S = "You have invited %s to join your group."
 GetGuildBankMoney = function() return 12345 end
 LoggingChat = function() return true end
 C_Secrets = {
@@ -35,6 +44,18 @@ M.Fire("CHAT_MSG_ADDON", "SLLCM", "x", "CHANNEL", SENDER, "", 0, 0, "", 0)
 M.Fire("CHAT_MSG_ADDON", "SLLCM", "x", "GUILD", SENDER, "", 0, 0, "", 0)
 M.Fire("CHAT_MSG_ADDON", "OtherAddon", "x", "RAID", SENDER, "", 0, 0, "", 0)
 M.Fire("QUEST_DETAIL")
+-- our invites as the game answers them: asked from one of our files (the watch leaves out other callers)
+local ourInvite = load("C_PartyInfo.InviteUnit(...)", "@WarLegendRaidTool/InviteTool.lua")
+local function Invited(name) M.Fire("CHAT_MSG_SYSTEM", ERR_INVITE_PLAYER_S:format(name)) end
+ourInvite("Zzanne Good")
+Invited("Zzanne Good")
+ourInvite("Zzbob Good")
+Invited("Zzbob Other") -- the game's bug: another character with that first name
+ourInvite("Zzcid Good")
+Invited("Zzcid") -- no surname in the game's line
+ourInvite("Zzdan Good") -- no line at all
+C_PartyInfo.InviteUnit("Zzeve Good") -- not from our code: not counted
+Invited("Zzeve Good")
 M.Fire("PLAYER_REGEN_DISABLED") -- just before the lockdown, as in the game
 M.combat = true
 M.Advance(3)
@@ -69,7 +90,7 @@ local missing = {}
 for _, id in ipairs({ "client", "names", "masterloot", "slot18", "range", "itemstats", "coins", "oldglobals", "realm", "encoding",
     "api", "cvar", "raid", "memory", "nameform", "guildname", "chatecho", "restricted", "blocked", "spellrank", "gcd", "pvpscore",
     "guildbank", "lootsource", "combatlog", "channels", "editmode", "pvplayout", "addonmsg", "questgiver", "secrets", "talents",
-    "hooks", "strings", "watch", "end" }) do
+    "hooks", "strings", "eventnames", "errorcap", "invitename", "watch", "end" }) do
     if not Find(lines, " " .. id .. ": ") then missing[#missing + 1] = id end
 end
 Check("/wl verify: every probe gives its line", #missing == 0, table.concat(missing, " "))
@@ -94,6 +115,32 @@ local echoLine = Find(lines, "chatecho: last")
 Check("/wl verify: our chat line and its missing echo", echoLine ~= nil and echoLine:find("1 never came back", 1, true) ~= nil, tostring(echoLine))
 local money = Find(lines, "guildbank: money")
 Check("/wl verify: the bank's money at login", money ~= nil and money:find("12345", 1, true) ~= nil, tostring(money))
+
+-- the launch-night probes taken from the scan of 31/10
+local eventLine = Find(lines, " eventnames: ")
+Check("/wl verify: event names the client refuses are listed, a refusal stays inside", eventLine ~= nil
+    and eventLine:find("LOOK", 1, true) == 1 and eventLine:find(eventError, 1, true) ~= nil
+    and eventLine:find(eventRefused, 1, true) ~= nil and not eventLine:find(eventFine, 1, true), tostring(eventLine))
+local inviteLine = Find(lines, " invitename: ")
+Check("/wl verify: our invites against the game's line, counts and forms only", inviteLine ~= nil
+    and inviteLine:find("LOOK", 1, true) == 1 and inviteLine:find("4 invite", 1, true) ~= nil
+    and inviteLine:find("that character 1", 1, true) ~= nil and inviteLine:find("first name 1", 1, true) ~= nil
+    and inviteLine:find("no surname 1", 1, true) ~= nil and inviteLine:find("no line read 1", 1, true) ~= nil
+    and not inviteLine:find("Zz", 1, true), tostring(inviteLine))
+Check("/wl verify: the invite is not a restricted call", not Find(lines, "restricted: InviteUnit"), tostring(Find(lines, "restricted: InviteUnit") or ""))
+local capLine = Find(lines, " errorcap: ")
+Check("/wl verify: no BugGrabber, the errors are not counted", capLine ~= nil and capLine:find("SKIP", 1, true) == 1, tostring(capLine))
+local function CapRun(counter)
+    BugGrabber = { GetSessionId = function() return 7 end, GetDB = function() return {
+        { session = 7, counter = counter, message = "x", stack = "" }, { session = 6, counter = 500, message = "x", stack = "" } } end }
+    local from = #M.prints
+    M.Call(W.slash.verify, "quick")
+    BugGrabber = kept.grabber
+    return Find(Lines(from + 1), " errorcap: ")
+end
+local under, over = CapRun(99), CapRun(100)
+Check("/wl verify: 100 errors in this session are to look at, 99 or another session's are not", under ~= nil and under:find("OK", 1, true) == 1
+    and over ~= nil and over:find("LOOK", 1, true) == 1, tostring(under) .. " / " .. tostring(over))
 
 -- the report: opens by itself, the same with /wl verify copy, and reads back
 local first = shown
@@ -126,3 +173,4 @@ Check("/wl verify: refused in combat", #Lines(printsC + 1) == 0, tostring(#Lines
 M.combat = false
 
 GetGuildBankMoney, C_Secrets, LoggingChat, W.TextPopup = kept.bank, kept.secrets, kept.logging, kept.popup
+C_EventUtils, BugGrabber, ERR_INVITE_PLAYER_S = kept.events, kept.grabber, kept.inviteLine

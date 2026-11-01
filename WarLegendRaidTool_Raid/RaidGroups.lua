@@ -1716,7 +1716,6 @@ local function RosterChanged()
 end
 W.On("GROUP_ROSTER_UPDATE", RosterChanged)
 W.On("RAID_ROSTER_UPDATE", RosterChanged)
-W.On("PARTY_MEMBERS_CHANGED", RosterChanged)
 W.On("GUILD_ROSTER_UPDATE", function()
     if UI.slots and UI.root:IsVisible() and db.poolSource == "guild" then UI.RefreshFree() end
 end)

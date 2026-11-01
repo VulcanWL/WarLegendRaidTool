@@ -63,6 +63,22 @@
             "reviewed": "1"
         },
         {
+            "name": "forever-bugs tracked issues",
+            "why": "community tracker of the game's bugs. 24: an invite or mail by full name can reach another character with the same first name (mass invites, InviteTool; /wl verify line invitename). 166: raid marks secret in combat, no way to draw them (PvP frames show none then). 267: raid buffs secret in combat (Raid Buffs reads out of combat). A state change: see what it means for the code.",
+            "kind": "github-issues-state",
+            "repo": "ClassicWoWCommunity/forever-bugs",
+            "issues": [24, 166, 267],
+            "reviewed": "24:open 166:open 267:open"
+        },
+        {
+            "name": "forever-bugs addon issues",
+            "why": "new reports whose title speaks of addons, the API, taint or secret values: a bug of the game can look like a bug of ours. reviewed = the newest such issue number already read.",
+            "kind": "github-issues-new",
+            "repo": "ClassicWoWCommunity/forever-bugs",
+            "pattern": "addon|add-on|\\bAPI\\b|taint|secret|protected|\\bLua\\b|\\bC_[A-Z]",
+            "reviewed": "352"
+        },
+        {
             "name": "Luacheck",
             "why": "the CI runs Luacheck 1.2.0 (signed binary, SHA-256 pinned in wlrt-ci.yml).",
             "kind": "github-release",

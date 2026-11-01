@@ -193,6 +193,13 @@ function W.On(event, fn, always, inactive)
     return h
 end
 
+-- the event names asked through W.On: Sync's pcall hides a name the client refuses (read by /wl verify, internal testing)
+function W.EventNames()
+    local names = {}
+    for event in pairs(handlers) do names[#names + 1] = event end
+    return names
+end
+
 function W.Activate(h, on)
     on = on and true or false
     if not h or h.active == on then return end
