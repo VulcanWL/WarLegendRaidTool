@@ -41,14 +41,18 @@ local function Apply()
         db.previous = ""
     end
 end
+local function Restore()
+    if not db or db.previous == "" then return end
+    SetCV(CVAR, db.previous)
+    db.previous = ""
+end
 W.On("PLAYER_ENTERING_WORLD", function(isLogin, isReload) if isLogin or isReload then Apply() end end)
--- switched off in Settings > Modules: the handler above no longer runs, so the player's value is put back here
+-- switched in Settings > Modules (Core runs this out of combat): the player's value back at once, or ours again
+W.OnModuleSwitch("CooldownText", function(on) if on then Apply() else Restore() end end, true) -- complete: one CVar
+-- off at login (a profile switched it off): the handler above no longer runs, so the player's value is put back here
 W.OnReady(function()
     W.After(1, function()
-        if W.IsOff("CooldownText") and db.previous ~= "" and not InCombatLockdown() then
-            SetCV(CVAR, db.previous)
-            db.previous = ""
-        end
+        if W.IsOff("CooldownText") and not InCombatLockdown() then Restore() end
     end)
 end)
 

@@ -1270,6 +1270,87 @@ M.group[4].assist = nil
 M.Fire("GROUP_ROSTER_UPDATE")
 M.Advance(1)
 
+-- game settings (CVars) changed by a module come back when it is switched off in Settings > Modules, at once out of
+-- combat, at the end of a fight otherwise; a value the game set since (a graphics preset) is the one put back
+Phase("cvars")
+do
+    local cv = M.cvars
+    local ls = W.DB("lootSparkles")
+    ls.quest, ls.nodes = true, true
+    -- a clean start: the fake client had no such CVars at login (the game has them), so the module could not save
+    -- originals then and a later pass saved its own values as such; the switch off clears what it holds
+    W.SetModuleOn("LootSparkles", false)
+    cv.graphicsOutlineMode, cv.SoftTargetInteract, cv.countdownForCooldowns, cv.raidOptionIsShown = "2", "0", "0", "1"
+    W.SetModuleOn("LootSparkles", true)
+    M.Advance(1.1)
+    local applied = cv.graphicsOutlineMode == "0" and cv.SoftTargetInteract == "3" and ls.o_graphicsOutlineMode == "2" and ls.o_SoftTargetInteract == "0"
+    SetCVar("graphicsOutlineMode", "1") -- the game's own options: a preset
+    M.Fire("GX_RESTARTED")
+    M.Advance(1.1)
+    local tracked = ls.o_graphicsOutlineMode == "1" and cv.graphicsOutlineMode == "0"
+    W.reloadNeeded = nil
+    local live = W.SetModuleOn("LootSparkles", false) == false and not W.reloadNeeded
+    local back = cv.graphicsOutlineMode == "1" and cv.SoftTargetInteract == "0" and ls.o_graphicsOutlineMode == nil
+    W.SetModuleOn("LootSparkles", true)
+    M.Advance(1.1)
+    M.combat = true
+    W.SetModuleOn("LootSparkles", false)
+    local waited = cv.graphicsOutlineMode == "0" and W.IsOff("LootSparkles")
+    M.combat = false
+    M.Fire("PLAYER_REGEN_ENABLED")
+    local afterFight = cv.graphicsOutlineMode == "1" and cv.SoftTargetInteract == "0"
+    W.SetModuleOn("LootSparkles", true)
+    M.Advance(1.1)
+    ls.o_graphicsOutlineMode, ls.o_SoftTargetInteract = nil, nil -- the next pass starts clean too
+    W.SetModuleOn("LootSparkles", false)
+    Check("Loot sparkles: CVars back when the module goes off (no reload needed), tracked when the game sets them, after a fight", applied and tracked and live and back and waited and afterFight,
+        string.format("applied %s, game value tracked %s, switched without a reload %s, back on off %s, kept in combat %s, back after the fight %s",
+        tostring(applied), tostring(tracked), tostring(live), tostring(back), tostring(waited), tostring(afterFight)))
+    W.SetModuleOn("LootSparkles", true)
+    M.Advance(1.1)
+    ls.o_graphicsOutlineMode, ls.o_SoftTargetInteract = nil, nil
+    cv.graphicsOutlineMode, cv.SoftTargetInteract = nil, nil
+
+    local ct = W.DB("cooldownText")
+    ct.enabled, ct.previous = true, ""
+    W.SetModuleOn("CooldownText", true)
+    local on = cv.countdownForCooldowns == "1" and ct.previous == "0"
+    W.SetModuleOn("CooldownText", false)
+    local off = cv.countdownForCooldowns == "0" and ct.previous == ""
+    W.SetModuleOn("CooldownText", true)
+    ct.enabled, ct.previous, cv.countdownForCooldowns = false, "", nil
+    Check("Cooldown text: the player's value back when the module goes off", on and off, string.format("on %s, off %s", tostring(on), tostring(off)))
+
+    local pvp = W.LoadPvP and W.LoadPvP() and WarLegendPvP
+    if pvp and pvp.db and pvp.states and pvp.ToggleRaidFrames then
+        local prof = pvp.db.profile
+        local was = prof.DisableRaidFramesInBattleground
+        prof.DisableRaidFramesInBattleground = true
+        pvp.states.real.isInBattleground = true
+        pvp:ToggleRaidFrames()
+        local hidden = cv.raidOptionIsShown == "0" and W.DB("pvp").raidOptionWas == "1"
+        pvp:ToggleRaidFrames() -- a /reload inside the battleground reads "0": the saved value stays
+        local kept = W.DB("pvp").raidOptionWas == "1"
+        W.reloadNeeded = nil
+        local needs = W.SetModuleOn("PvPFrames", false) == true and W.reloadNeeded == true -- its frames stay: the Reload button shows
+        local bySwitch = cv.raidOptionIsShown == "1" and W.DB("pvp").raidOptionWas == nil and needs
+        W.SetModuleOn("PvPFrames", true)
+        local again = cv.raidOptionIsShown == "0"
+        pvp.states.real.isInBattleground = false
+        pvp:ToggleRaidFrames()
+        local left = cv.raidOptionIsShown == "1" and W.DB("pvp").raidOptionWas == nil
+        prof.DisableRaidFramesInBattleground = was
+        W.reloadNeeded = nil
+        Check("Battleground frames: raidOptionIsShown back after the match, after a /reload inside it, when the module goes off (reload asked)", hidden and kept and bySwitch and again and left,
+            string.format("hidden %s, kept across a reload %s, back on off with a reload asked %s, hidden again on on %s, back on leaving %s",
+            tostring(hidden), tostring(kept), tostring(bySwitch), tostring(again), tostring(left)))
+    else
+        Check("Battleground frames: raidOptionIsShown back (PvP addon loaded)", false, "PvP addon not loaded")
+    end
+    cv.raidOptionIsShown = nil
+end
+M.Advance(1)
+
 -- what reached the screen from the hostile pieces (tools/smoke/wow.lua M.Shown): the check ends before the floods
 M.mark = nil
 report.escapes = M.escapes

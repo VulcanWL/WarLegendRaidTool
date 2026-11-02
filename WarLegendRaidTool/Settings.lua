@@ -24,6 +24,7 @@ W.AddFR({
         "Décoche un module pour l'éteindre complètement : il ne reçoit plus d'événements ni de messages et ne coûte plus de CPU. Ce qu'il affiche déjà disparaît au prochain /reload.",
     ["Reload"] = "Recharger",
     ["Reload to clear what the switched off modules still show."] = "Recharger pour effacer ce que les modules éteints affichent encore.",
+    ["Reload needed: a module ticked or unticked here takes its whole effect after a reload."] = "Rechargement nécessaire : un module coché ou décoché ici ne prend tout son effet qu'après un rechargement.",
     ["Export"] = "Exporter",
     ["Import"] = "Importer",
     ["Export: every setting of the addon (and of the battleground frames) in the box below. Copy it with Ctrl+C and share it (Discord...). Import: paste a profile in the box (Ctrl+V), then Import. Data (history, members, presets, characters) is never in a profile."] =
@@ -145,6 +146,7 @@ local SKIP_FIELDS = {
     ui = { lastModule = true, category = true, openSection = true, openSection_me = true, openSection_options = true, openSection_pvp = true, point = true, relPoint = true, x = true, y = true, lang = true },
     guild = { last = true, sel = true, profFilter = true, profMin = true, profMax = true, profSort = true, profSortDesc = true, profOnline = true },
     cooldownText = { previous = true },
+    pvp = { raidOptionWas = true },
     autoLog = { owned = true },
     roster = { remindDay = true },
     bgStats = { recordMap = true },
@@ -516,8 +518,20 @@ local function BuildModules(p)
     info:SetWidth(700)
     info:SetJustifyH("LEFT")
     local checks = {}
+    -- a switch that needs a /reload (Core W.SetModuleOn): the line and the button show until it is done
+    local need = W.Label(p, L("Reload needed: a module ticked or unticked here takes its whole effect after a reload."), "GameFontNormalSmall")
+    need:SetPoint("BOTTOMLEFT", 140, 14)
+    need:SetWidth(560)
+    need:SetJustifyH("LEFT")
+    need:SetTextColor(1, 0.6, 0)
+    local reload = W.Button(p, L("Reload"), 120, 22, function() W.ConfirmReload(L("Reload to clear what the switched off modules still show.")) end)
+    reload:SetPoint("BOTTOMLEFT", 14, 10)
+    local function ShowNeed()
+        if W.reloadNeeded then need:Show(); reload:Show() else need:Hide(); reload:Hide() end
+    end
     -- the raid modules register when their addon loads: the list is completed on every show
     local function Fill()
+        ShowNeed()
         local list = {}
         for _, m in ipairs(W.modules) do
             if m.file and not W.CORE_MODULES[m.key] then list[#list + 1] = m end
@@ -527,7 +541,7 @@ local function BuildModules(p)
             local c = checks[m.key]
             if not c then
                 local key = m.key
-                c = W.Check(p, L(m.label), function() return not W.IsOff(key) end, function(v) W.SetModuleOn(key, v) end)
+                c = W.Check(p, L(m.label), function() return not W.IsOff(key) end, function(v) W.SetModuleOn(key, v); ShowNeed() end)
                 checks[key] = c
             end
             local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
@@ -537,8 +551,6 @@ local function BuildModules(p)
         end
     end
     p:SetScript("OnShow", Fill)
-    W.Button(p, L("Reload"), 120, 22, function() W.ConfirmReload(L("Reload to clear what the switched off modules still show.")) end)
-        :SetPoint("BOTTOMLEFT", 14, 10)
 end
 
 local function BuildProfile(p)

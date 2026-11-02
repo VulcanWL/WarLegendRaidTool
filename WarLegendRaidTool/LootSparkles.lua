@@ -43,9 +43,29 @@ local function Get(name)
     return GetCVar and GetCVar(name)
 end
 
+local setting = false
 local function Set(name, value)
-    if C_CVar and C_CVar.SetCVar then return pcall(C_CVar.SetCVar, name, value) end
-    if SetCVar then return pcall(SetCVar, name, value) end
+    local ok, res
+    setting = true
+    if C_CVar and C_CVar.SetCVar then ok, res = pcall(C_CVar.SetCVar, name, value)
+    elseif SetCVar then ok, res = pcall(SetCVar, name, value) end
+    setting = false
+    return ok, res
+end
+
+-- one of our variables set by the game's own options (a graphics preset) or another addon while we hold it: that
+-- value is the new original, put back when the option or the module goes off (not the one saved at the first login)
+local OURS = {}
+for _, v in ipairs(QUEST) do OURS[v[1]] = true end
+for _, v in ipairs(SOFT) do OURS[v[1]] = true end
+local function Track(name, value)
+    if setting or not db or type(name) ~= "string" or not OURS[name] or db["o_" .. name] == nil or value == nil then return end
+    if type(value) == "boolean" then value = value and "1" or "0" end
+    db["o_" .. name] = tostring(value)
+end
+if hooksecurefunc then
+    if type(SetCVar) == "function" then hooksecurefunc("SetCVar", Track) end
+    if C_CVar and type(C_CVar.SetCVar) == "function" then hooksecurefunc(C_CVar, "SetCVar", Track) end
 end
 
 -- sets a list of variables, remembering each original value once (db["o_" .. name])
@@ -70,14 +90,15 @@ local function Restore(list, fallback)
     end
 end
 
--- switched off in Settings > Modules: its handlers no longer run, so the game's own values are put back here
+-- off in Settings > Modules at login (a profile switched it off): its handlers no longer run, so the game's own
+-- values are put back here
 W.OnReady(function()
     W.After(1, function()
         if W.IsOff("LootSparkles") and not InCombatLockdown() then Restore(QUEST); Restore(SOFT) end
     end)
 end)
 
-local pending = false
+local pending, restoreQuest, restoreNodes = false, false, false
 local function Refresh()
     if not db then return end
     if InCombatLockdown() then pending = true; return end
@@ -86,19 +107,30 @@ local function Refresh()
     if db.nodes then Apply(SOFT) end
 end
 
+-- unticked in a fight: put back when it ends
 local function Quest(on)
     db.quest = on
-    if on then Refresh() elseif not InCombatLockdown() then Restore(QUEST, QUEST_OFF) end
+    restoreQuest = false
+    if on then Refresh() elseif InCombatLockdown() then restoreQuest = true else Restore(QUEST, QUEST_OFF) end
 end
 
 local function Nodes(on)
     db.nodes = on
-    if on then Refresh() elseif not InCombatLockdown() then Restore(SOFT) end
+    restoreNodes = false
+    if on then Refresh() elseif InCombatLockdown() then restoreNodes = true else Restore(SOFT) end
 end
 
 W.On("PLAYER_ENTERING_WORLD", function() W.After(1, Refresh) end)
+-- switched in Settings > Modules (Core runs this out of combat): the game's values back at once, or ours again
+W.OnModuleSwitch("LootSparkles", function(on)
+    if on then Refresh() else Restore(QUEST); Restore(SOFT) end
+end, true) -- complete: only CVars, nothing a reload would still clear
 W.On("GX_RESTARTED", function() W.After(1, Refresh) end)
-W.On("PLAYER_REGEN_ENABLED", function() if pending then Refresh() end end)
+W.On("PLAYER_REGEN_ENABLED", function()
+    if restoreQuest then restoreQuest = false; Restore(QUEST, QUEST_OFF) end
+    if restoreNodes then restoreNodes = false; Restore(SOFT) end
+    if pending then Refresh() end
+end)
 
 W.RegisterModule("LootSparkles", "Loot sparkles", function(p)
     W.Title(p, L("Loot sparkles"))

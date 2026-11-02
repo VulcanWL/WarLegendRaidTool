@@ -109,7 +109,10 @@ WarLegendPvP.consts.PlayerTypes = {
 	Enemies = "Enemies"
 }
 
-local previousCvarRaidOptionIsShown
+-- WarLegend: the value raidOptionIsShown had before we hid the raid frames lives in the saved data of the core
+-- (WarLegendRaidToolDB.pvp.raidOptionWas, not in the profiles): a /reload inside the battleground used to read our
+-- "0" as the player's value, and Blizzard's raid frames stayed hidden after the match
+local function raidFrameState() return WLRT and WLRT.DB and WLRT.DB("pvp") or nil end
 
 --variables used in multiple functions, if a variable is only used by one function its declared above that function
 WarLegendPvP.currentTarget = false
@@ -1574,15 +1577,20 @@ function WarLegendPvP:UNIT_TARGET(unitID)
 end
 
 local function restoreShowRaidFrameCVar()
-	if not previousCvarRaidOptionIsShown then return end --we didn't modify it so no need to restore it
+	local state = raidFrameState()
+	local previous = state and state.raidOptionWas
+	if type(previous) ~= "string" then return end --we didn't modify it so no need to restore it
 	-- WarLegend: only while it is still ours ("0"): a value the player chose since stays; read again next time
-	if GetCVar("raidOptionIsShown") == "0" then SetCVar("raidOptionIsShown", previousCvarRaidOptionIsShown) end
-	previousCvarRaidOptionIsShown = nil
+	if GetCVar("raidOptionIsShown") == "0" then SetCVar("raidOptionIsShown", previous) end
+	state.raidOptionWas = nil
 end
 
 local function disableRaidFrames()
-	if previousCvarRaidOptionIsShown == nil then
-		previousCvarRaidOptionIsShown =  GetCVar("raidOptionIsShown")
+	local state = raidFrameState()
+	if state and state.raidOptionWas == nil then
+		local current = GetCVar("raidOptionIsShown")
+		-- already hidden by the player: nothing of ours to put back
+		if type(current) == "string" and current ~= "0" then state.raidOptionWas = current end
 	end
 	SetCVar("raidOptionIsShown", "0")
 end
@@ -1616,6 +1624,12 @@ local function setEllesmereRaidFramesHidden(hide)
 			if container:GetParent() == raidFrameHider then container:SetParent(UIParent) end
 		end
 	end
+end
+
+-- WarLegend: the module switched off in Settings > Modules: the raid frames back (out of combat, Core sees to it)
+function WarLegendPvP:RestoreRaidFrames()
+	setEllesmereRaidFramesHidden(false)
+	restoreShowRaidFrameCVar()
 end
 
 function WarLegendPvP:ToggleRaidFrames()

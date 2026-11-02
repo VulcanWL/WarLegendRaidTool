@@ -6,6 +6,13 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Ajouté
+- Réglages > Modules : quand un module coché ou décoché a besoin d'un /reload pour prendre tout son effet, une ligne orange et le bouton Recharger apparaissent ; la page « L'activer » d'un module éteint le propose aussi.
+
+### Corrigé
+- Scintillements du butin et Texte de recharge : désactiver le module dans Réglages > Modules remet tout de suite les réglages du jeu (plus besoin de /reload), et la valeur remise est celle que le jeu avait depuis (un préréglage graphique changé entre-temps), pas celle du tout premier lancement.
+- Cadres de champ de bataille : après un /reload pendant un champ de bataille, les cadres de raid de Blizzard restaient cachés à la sortie ; désactiver le module les rend aussi.
+
 ## 1.41.57 (30/10/2026)
 
 ### Modifié

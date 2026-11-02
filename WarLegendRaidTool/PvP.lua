@@ -389,6 +389,14 @@ W.RegisterTest("Battleground frames", function() return db and db.enabled and no
         if pvp and pvp.states and pvp.states.testmodeActive and not InCombatLockdown() then pvp.ToggleTestmode() end
     end)
 
+-- switched in Settings > Modules while the PvP addon is loaded: Blizzard's raid frames back (their CVar), or hidden
+-- again in a battleground. Core runs this out of combat.
+W.OnModuleSwitch("PvPFrames", function(on)
+    local pvp = WarLegendPvP
+    if not (pvp and pvp.RestoreRaidFrames and pvp.db) then return end
+    if on then pvp:ToggleRaidFrames() else pvp:RestoreRaidFrames() end
+end)
+
 W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     W.Title(p, L("Battleground frames"))
     if not W.LoadPvP() or not WarLegendPvP or not WarLegendPvP.db then

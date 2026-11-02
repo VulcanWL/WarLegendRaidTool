@@ -53,7 +53,14 @@ The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share th
   overlap switch). An option that concerns the whole addon goes there, not in a module's panel.
 - Settings > Modules: `W.SetModuleOn(key, on)` / `W.IsOff(key)`. Core skips the `W.On`, `W.OnRoster`, `W.OnAddon` handlers
   and the test of that module's FILE, found with `W.Where`; one module per file. A module with its own event frame
-  (not `W.On`) checks `W.IsOff("Key")` in its OnEvent.
+  (not `W.On`) checks `W.IsOff("Key")` in its OnEvent. A module that changes a game setting (a CVar: LootSparkles,
+  CooldownText, the battleground frames) registers `W.OnModuleSwitch(key, fn, complete)`: `fn(on)` runs on the switch (out
+  of combat, else at the end of the fight) to put the player's value back or apply its own again; at login it is not
+  called (a profile that switched the module off: the module checks `W.IsOff` itself in `W.OnReady`). `complete = true`
+  says the switch is the whole change (LootSparkles, CooldownText: CVars only); for every other module `W.SetModuleOn`
+  returns true and sets `W.reloadNeeded`: Settings > Modules shows its "Reload needed" line and Reload button, the
+  "Switch it on" page asks to reload (`W.ConfirmReload`). The player's own value is kept in the saved data, out of the profiles (`SKIP_FIELDS` / `SKIP_PATTERN`), and a value the game or
+  another addon sets since (`hooksecurefunc` on `SetCVar`) replaces it. Bench: phase "cvars" of `scenario.lua`.
 - Settings > Profile: export / import of the options as one text. A profile holds the scalars of every `W.db` key plus the
   option tables listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): a new option saved as a table goes in `TABLE_FIELDS`.
   An imported profile is untrusted: finite numbers up to 1e12, strings up to 20 000, 20 000 entries; its macro lines keep

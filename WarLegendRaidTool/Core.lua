@@ -1668,6 +1668,7 @@ W.AddFR({
     ["This module is switched off: it gets no events and does nothing."] =
         "Ce module est désactivé : il ne reçoit aucun événement et ne fait rien.",
     ["Switch it on"] = "L'activer",
+    ["Switched on: reload to apply it fully."] = "Activé : recharge pour l'appliquer complètement.",
     ["Settings > Modules lists every module."] = "Réglages > Modules liste tous les modules.",
 })
 
@@ -1676,7 +1677,9 @@ local function BuildOff(m, p)
     W.Title(p, L(m.label))
     local info = W.Label(p, L("This module is switched off: it gets no events and does nothing."), "GameFontHighlight")
     info:SetPoint("TOPLEFT", 16, -44)
-    W.Button(p, L("Switch it on"), 140, 22, function() W.SetModuleOn(m.key, true) end):SetPoint("TOPLEFT", 16, -74)
+    W.Button(p, L("Switch it on"), 140, 22, function()
+        if W.SetModuleOn(m.key, true) then W.ConfirmReload(L("Switched on: reload to apply it fully.")) end
+    end):SetPoint("TOPLEFT", 16, -74)
     local more = W.Label(p, L("Settings > Modules lists every module."), "GameFontDisableSmall")
     more:SetPoint("TOPLEFT", 16, -108)
 end
@@ -1876,12 +1879,37 @@ function W.MenuTextColor(b, m)
 end
 
 -- on = false: the module stops getting events, messages and tests (what it already shows stays until /reload)
+-- fn(on) runs when the module is switched in Settings > Modules (not at login): a module that changed a game
+-- setting (a CVar) puts it back at once, or applies it again. Out of combat only: in a fight, at its end.
+-- complete = true: the switch is the whole change (nothing shown or hooked that a /reload would still have to clear,
+-- nothing set up at login that the switch on misses); any other module switched asks for a reload (W.reloadNeeded,
+-- the button of Settings > Modules).
+local switchFns, switchLater, switchComplete = {}, nil, {}
+function W.OnModuleSwitch(key, fn, complete)
+    switchFns[key] = switchFns[key] or {}
+    table.insert(switchFns[key], fn)
+    if complete then switchComplete[key] = true end
+end
+local function FireSwitch(key, on)
+    for _, fn in ipairs(switchFns[key] or {}) do fn(on) end
+end
+W.On("PLAYER_REGEN_ENABLED", function()
+    if not switchLater then return end
+    local list = switchLater
+    switchLater = nil
+    for key, on in pairs(list) do FireSwitch(key, on) end
+end, true)
+
 function W.SetModuleOn(key, on)
     local m = byKey[key]
     if not m or not m.file or W.CORE_MODULES[key] then return end
+    on = on and true or false
     W.DB("ui").off[key] = (not on) or nil
     offFiles[m.file] = (not on) or nil
     SyncAll()
+    if switchFns[key] then
+        if InCombatLockdown() then switchLater = switchLater or {}; switchLater[key] = on else FireSwitch(key, on) end
+    end
     -- the tab is built again: the options when on, the "switched off" page when off
     if m.panel then
         local shown = m.panel:IsShown()
@@ -1895,6 +1923,10 @@ function W.SetModuleOn(key, on)
     for _, b in ipairs(entry.buttons or {}) do
         if not b.sel:IsShown() then W.MenuTextColor(b, entry) end -- the selected one stays white
     end
+    -- true when a reload is still needed for this switch to take its whole effect
+    if switchComplete[key] then return false end
+    W.reloadNeeded = true
+    return true
 end
 
 -- Window size: the whole window is scaled (text, buttons and layouts together), so every module stays

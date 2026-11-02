@@ -720,6 +720,13 @@ function GetCVar(k) return M.cvars[k] end
 function GetCVarBool(k) return M.cvars[k] == "1" end
 function SetCVar(k, v) M.cvars[k] = tostring(v); M.Sensitive("SetCVar " .. tostring(k)) ; return true end
 function GetCVarDefault() return "0" end
+-- C_CVar reads and writes the same values (the documented stubs answered nothing: a module trying C_CVar first never
+-- touched a CVar here, and the global SetCVar was never called)
+C_CVar.GetCVar = GetCVar
+C_CVar.GetCVarBool = GetCVarBool
+C_CVar.SetCVar = SetCVar
+C_CVar.GetCVarDefault = GetCVarDefault
+C_CVar.GetCVarInfo = function(k) local v = M.cvars[k]; if v == nil then return nil end; return v, "0", false, false, false, false, false end
 M.cvars = { nameplateMaxDistance = "41", loadDeprecationFallbacks = "0", minimapZoom = "0", minimapInsideZoom = "0", rotateMinimap = "0" }
 function GetAddOnMemoryUsage() return 1000 end
 function UpdateAddOnMemoryUsage() end
