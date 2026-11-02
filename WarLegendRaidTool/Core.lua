@@ -363,7 +363,7 @@ local GUILD_CHANNELS = { GUILD = true, OFFICER = true }
 -- guild) is not listed.
 local TRUST = {
     WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
-    GuildMapEx1 = "guildchan", WLRT_PROF = "guild",
+    WLRT_LVL = "guildchan", GuildMapEx1 = "guildchan", WLRT_PROF = "guild",
     WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group", WLRT_CD2 = "group",
     WLRT_RDYA = "group",
     WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid",
@@ -928,7 +928,7 @@ function W.GuildMembers()
     guildDirty = false
     local list, byFull, byShort = {}, {}, {}
     for i = 1, (GetNumGuildMembers() or 0) do
-        local name, rankName, rankIndex, level, _, _, _, _, online, _, class = GetGuildRosterInfo(i)
+        local name, rankName, rankIndex, level, _, zone, _, _, online, _, class = GetGuildRosterInfo(i)
         name = W.Safe(name)
         if name then
             local full = W.FullName(name)
@@ -936,7 +936,7 @@ function W.GuildMembers()
             if not byFull[key] then
                 local m = {
                     name = W.BaseName(name), full = full, class = W.Safe(class), rank = rankName, rankIndex = rankIndex,
-                    level = level, online = online and true or false,
+                    level = level, online = online and true or false, zone = W.Safe(zone),
                 }
                 byFull[key] = m
                 list[#list + 1] = m
@@ -1711,7 +1711,7 @@ local CATEGORIES = {
         { key = "world", title = "Open world", items = { "DangerAlert", "DuelTimer", "Layers" } },
     } },
     { key = "me", title = "Guild", sections = {
-        { key = "members", title = "Members", items = { "Guild", "Classes", "GuildPositions", "Minotaure" } },
+        { key = "members", title = "Members", items = { "Guild", "Classes", "GuildPositions", "Leveling", "Minotaure" } },
         { key = "chars", title = "My characters", items = { "Alts", "GuildBank", "SimExport" } },
     } },
     { key = "options", title = "Options", sections = {
@@ -2699,6 +2699,8 @@ W.AddFR({
     ["export / import all the settings as one text (Settings > Profile)"] = "exporter / importer tous les réglages en un texte (Réglages > Profil)",
     ["my premade history and records"] = "historique et records de mes premades",
     ["my layer and the guild members' layers"] = "mon layer et ceux des membres de la guilde",
+    ["guild members leveling near my level: who is looking for a group, invite or whisper"] =
+        "membres de la guilde qui montent de niveau près du mien : qui cherche un groupe, inviter ou chuchoter",
     ["the guild by class: class leaders, declared roles, my profile"] = "la guilde par classe : responsables, rôles déclarés, mon profil",
     ["Minotaure: guild PvP season ranking and weekly challenges"] = "Minotaure : classement JcJ de saison de la guilde et défis de la semaine",
     ["Skyborne: leylines / convergences on the map (settings, export, share)"] = "Skyborne : lignes de force / convergences sur la carte (réglages, export, partage)",
@@ -2719,6 +2721,7 @@ local HELP = {
     { "/wl ilvl", "item levels on the character sheet, inspect, bags, loot and tooltips" },
     { "/wl map", "guild members on the world map and the minimap" },
     { "/wl layer", "my layer and the guild members' layers" },
+    { "/wl lvl", "guild members leveling near my level: who is looking for a group, invite or whisper" },
     { "/wl classes", "the guild by class: class leaders, declared roles, my profile" },
     { "/wl profile", "export / import all the settings as one text (Settings > Profile)" },
     { "/wl reset [name]", "reset one module's saved data (no name: list them)" },

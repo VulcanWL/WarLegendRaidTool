@@ -8,6 +8,10 @@ Releases et les tags git.
 
 ### Ajouté
 - Réglages > Modules : quand un module coché ou décoché a besoin d'un /reload pour prendre tout son effet, une ligne orange et le bouton Recharger apparaissent ; la page « L'activer » d'un module éteint le propose aussi.
+- Guilde > Membres > Leveling (`/wl lvl`) : les membres de la guilde en ligne proches de ton niveau (zone, layer, qui cherche
+  un groupe, qui est déjà groupé), boutons Inviter et Chuchoter. Coche « Je cherche un groupe de leveling » pour le dire à
+  la guilde (un message d'addon par minute au plus, rien hors de la guilde) ; une ligne dans ton chat quand un membre
+  proche de ton niveau cherche un groupe.
 
 ### Corrigé
 - Scintillements du butin et Texte de recharge : désactiver le module dans Réglages > Modules remet tout de suite les réglages du jeu (plus besoin de /reload), et la valeur remise est celle que le jeu avait depuis (un préréglage graphique changé entre-temps), pas celle du tout premier lancement.

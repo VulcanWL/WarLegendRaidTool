@@ -48,6 +48,7 @@ GuildPositions.lua
 TransportsData.lua
 Transports.lua
 Layers.lua
+Leveling.lua
 Classes.lua
 Minotaure.lua
 LootSparkles.lua
