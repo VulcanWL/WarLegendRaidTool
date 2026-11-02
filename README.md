@@ -29,7 +29,7 @@ La fenêtre a quatre onglets, chacun avec toutes ses sections visibles.
 | | Butin et présences | Loot Council (vote, soft-res, nombre de loots reçus), présences, tableau de bord de la guilde, recrues en essai. |
 | **JcJ** | Champs de bataille | Cadres ennemis et alliés (dissipations, contrôles), minuteurs de capture et de cimetière, historique et records des premades. |
 | | Monde ouvert | Alerte danger, compte à rebours des duels, layers de la guilde. |
-| **Guilde** | Membres | Métiers, recrutement et inactifs, la guilde par classe, carte de la guilde et transports, classement JcJ Minotaure. |
+| **Guilde** | Membres | Métiers, recrutement et inactifs, la guilde par classe, carte de la guilde et transports, compagnons de leveling, classement JcJ Minotaure. |
 | | Mes personnages | Rerolls, stock des persos banque, export pour simulateurs (SimulationCraft, MythicSim, OXM). |
 | **Options** | Addon | Réglages (modules, profil, taille de la fenêtre), version, erreurs Lua, temps de chargement. |
 | | Interface | Déplacer les fenêtres, options cachées du jeu, niveaux d'objet, outils de la carte. |
@@ -61,6 +61,7 @@ WowUp propose ensuite chaque nouvelle version. Il faut WowUp (ou WowUp-CF) 2.24.
 | `/wl apply [preset]` | Pose les marques et range les groupes d'un preset. |
 | `/wl loot` | Loot Council. |
 | `/wl map` | Carte de la guilde et transports. |
+| `/wl lvl` | Compagnons de leveling : les membres de la guilde proches de ton niveau, qui cherche un groupe, Inviter ou Chuchoter. |
 | `/wl pvp` | Réglages des cadres de champ de bataille. |
 | `/wl test` | Montre en même temps tous les modules allumés, pour les voir et les placer. |
 | `/wl bugs` | Erreurs Lua récentes. |

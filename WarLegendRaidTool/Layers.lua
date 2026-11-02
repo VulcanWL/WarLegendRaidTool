@@ -168,6 +168,14 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     if UI.panel and UI.panel:IsVisible() then Refresh() end
 end)
 
+-- For the other modules (Leveling): a guild member's layer number as this computer names it, and whether it is mine
+-- (same zone and layer); nil when unknown or older than 5 minutes.
+function W.GuildLayer(full)
+    local e = guild[W.Key(full)]
+    if not e or GetServerTime() - e.at > FRESH then return nil end
+    return Number(e.map, e.id), current and e.map == current.map and e.id == current.id or false
+end
+
 ---------------------------------------------------------------------------
 -- Detection
 ---------------------------------------------------------------------------

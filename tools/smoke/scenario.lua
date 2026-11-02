@@ -316,6 +316,7 @@ end
 for _, p in ipairs(MARKED) do
     shapedMsgs[#shapedMsgs + 1] = { "WLRT_PROFILE", "1^Tank^" .. p .. "^" .. p, "GUILD" }
     shapedMsgs[#shapedMsgs + 1] = { "WLRT_LAYER", string.format("1^5-7^1411^%d^", GetServerTime()) .. p, "GUILD" }
+    shapedMsgs[#shapedMsgs + 1] = { "WLRT_LVL", "1^1^0^37^" .. p, "GUILD" }
     shapedMsgs[#shapedMsgs + 1] = { "WLRT_BUFF", "A^Smoketest^" .. p .. " | " .. p, "RAID" }
 end
 local shaped = { sent = #shapedMsgs }
@@ -853,7 +854,7 @@ do
     W.AuditNote = function(kind) if kind ~= "time" then said = kind end end
     local function Says(prefix, channel, from) said = nil; Addon(prefix, "x", channel, from); return said end
     local KINDS = { WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
-        GuildMapEx1 = "guildchan", WLRT_PROF = "guild", WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group",
+        WLRT_LVL = "guildchan", GuildMapEx1 = "guildchan", WLRT_PROF = "guild", WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group",
         WLRT_CD2 = "group", WLRT_RDYA = "group", WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid" }
     local function All(v) return { guildchan = v, guild = v, group = v, raid = v } end
     local CASES = {

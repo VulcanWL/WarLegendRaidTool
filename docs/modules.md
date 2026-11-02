@@ -48,6 +48,14 @@ holder (never to the rows), changed out of combat only; in combat a clickable ro
 `Overlap.lua`: `autoInvite` is covered by WarLegend v3 while its `WarLegendDB.config.invite.mode` is not "off".
 The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share the `wl3` palette in `Core.lua`.
 
+`Leveling.lua` (`WLRT_LVL`, Guild > Members, on by default; idea from GroupGains, Cohort Gaming, no licence: nothing copied): guild members
+online within N levels of mine from the roster (`W.GuildMembers()` now keeps `zone`), my zone first, the layer through `W.GuildLayer(full)`
+(Layers, fresh readings only). One GUILD message `1^looking^grouped^level^zone` when my state changes (group, zone while looking,
+level), at most once a minute, every 5 min while "looking" is ticked; a `"?"` request on tab open (1 / min), answered spread over 1-9 s,
+one answer a minute. Received: 100 bytes at most, anchored fields, 500 senders kept 15 min. Invite = `InviteUnit` on the click (not in
+combat, not grouped with him, leader / assistant when grouped); Whisper = `ChatFrame_SendTell` (opens the edit box, sends nothing).
+One local chat line per looking member per 30 min, not in instances.
+
 ## Settings.lua
 - Settings > General: the options of the addon as a whole (minimap button, preload of the raid modules, countdown voice,
   overlap switch). An option that concerns the whole addon goes there, not in a module's panel.

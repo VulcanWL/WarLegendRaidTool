@@ -6,6 +6,12 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Ajouté
+- Guilde > Membres > Leveling (`/wl lvl`) : les membres de la guilde en ligne proches de ton niveau (zone, layer, qui cherche
+  un groupe, qui est déjà groupé), boutons Inviter et Chuchoter. Coche « Je cherche un groupe de leveling » pour le dire à
+  la guilde (un message d'addon par minute au plus, rien hors de la guilde) ; une ligne dans ton chat quand un membre
+  proche de ton niveau cherche un groupe.
+
 ## 1.41.57 (30/10/2026)
 
 ### Modifié
