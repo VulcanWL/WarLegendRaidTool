@@ -10,7 +10,7 @@
 ## SavedVariables: WarLegendRaidTool_PvPDB
 ## IconTexture: Interface\AddOns\WarLegendRaidTool\Media\Logo64
 
-embeds.xml
+Libs\LibRangeCheck-3.0.lua
 
 Locales.lua
 

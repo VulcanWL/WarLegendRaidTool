@@ -14,6 +14,11 @@ Read only the part about the file you are changing. The rules that always apply 
   can dispel and give; `Modules/CrowdControl.lua`: the CC on the class icon. Both use `Modules/NativeAuras.lua`: Blizzard's
   `CreateFrame("AuraContainer")` (Forever 12.1 aura system) shows the auras itself, also the secret ones.
   Trinket / DR tracking is NOT possible in battlegrounds (the client hides that data there).
+  LibStub and CallbackHandler come from the main addon's `Libs/` (one copy for the four addons, `Libs/README.txt`); a
+  library added for several addons goes there, in the main `.toc`. A library only this addon uses stays in its own
+  `Libs/` (its `.toc`), so it costs nothing until the addon loads: LibRangeCheck-3.0 (38, Forever spell lists; it reads
+  the spellbook again at every `SPELLS_CHANGED` and keeps a 5 s ticker). Range: the game's own checks first
+  (`WarLegendPvP.GameRangeCheck`), LibRangeCheck when they give no answer.
   Work per frame (Alterac, 80 buttons): no OnUpdate per button. `WarLegendPvP.Spread(parent, period, getList, fn)` (`Main.lua`)
   runs fn for each item every `period` s from ONE OnUpdate that spreads the items over the frames (round robin): the range /
   `UpdateAll` of each side's buttons (`Mainframe.lua`, 0.2 s in combat, 0.4 s out of combat), the ally power read
@@ -104,7 +109,8 @@ One local chat line per looking member per 30 min, not in instances.
   weak table (nothing written in Blizzard's tables); it does nothing while SimpleItemLevel itself is loaded.
 - `GuildPositions.lua` (`/wl map`): guild members on the maps. It sends addon messages to the GUILD (the user asked for it),
   with GuildMap's prefix `GuildMapEx1` and fields so both addons see each other: keep that format. Pins through
-  HereBeDragons in `Libs/` (the "-gm" Forever copy from GuildMap, loaded first in the .toc). HereBeDragons-Pins takes a
+  HereBeDragons in `Libs/` (upstream, loaded first in the .toc; it has the Forever client since version 35, the GuildMap
+  addon keeps its own "-gm" copy under another name). HereBeDragons-Pins takes a
   new world map pin at each `AddWorldMapIcon*` and frees the old one only when the map refreshes: a moved icon is removed
   first (`RemoveWorldMapIcon`, as `Transports.lua` does), else pins pile up while the map is closed. A line that changes
   neither the place, the class nor the options (`PlaceKey`) places nothing again: each minimap add makes the library
@@ -209,8 +215,11 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
   a problem; a luac of another Lua is refused.
 - `tools/wow-api.js`: model of the game's API from Blizzard_APIDocumentationGenerated in Gethe/wow-ui-source, branch
   `forever` (cloned into `tools/.cache`, 50 MB). `check` lists the C_ functions / Enum / Constants the addon uses that
-  the build does not document, and the old globals called directly (with or without a guard; `deprecated shim` = only
-  Blizzard_Deprecated* defines it, gone when the CVar loadDeprecationFallbacks is off). `C_ form not tried first X (C_Y.X)`:
+  the build does not document (also through a local alias, `local C_Item = C_Item`), and the old globals called directly
+  (with or without a guard; `deprecated shim` = only a Blizzard file that returns at once unless the CVar
+  loadDeprecationFallbacks is on defines it: the Blizzard_Deprecated* ones and Deprecated_PaperDoll). The files of the
+  `Libs` folders a .toc loads (directly or through an .xml) are checked too, listed apart under "Libs" (`lib ...` lines):
+  upstream code kept unchanged, so a finding there is reported, never fixed in the library. `C_ form not tried first X (C_Y.X)`:
   a global Blizzard's own loaded code no longer calls, with a documented replacement (`C_Y.X`, or the C_ function its
   shim calls: `IsPlayerSpell` -> `C_SpellBook.IsSpellKnown`), called without trying the C_ form first (above it in the
   same function, or as the fallback of an `if` testing `C_Y`): Forever loads no deprecation fallback, so likely nil there.

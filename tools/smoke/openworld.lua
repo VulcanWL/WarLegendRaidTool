@@ -104,7 +104,7 @@ Check("the addon sends its own position (GuildMapEx1 on GUILD)", own ~= nil, own
 Check("its line has GuildMap's 12 fields", #fields == 12, own)
 Check("it sends a 'gone' line (class STEALTH) when sharing stops", gone ~= nil, gone)
 
-local Pins = LibStub and LibStub("HereBeDragons-Pins-2.0-gm", true)
+local Pins = LibStub and LibStub("HereBeDragons-Pins-2.0", true)
 local REF, TEMPLATE = "WLRTGuildMap", "HereBeDragonsPinsTemplate"
 -- drawn: shown with an anchor (a frame with no point is not drawn)
 local function Drawn(f) return f:IsVisible() and #f.__points > 0 end

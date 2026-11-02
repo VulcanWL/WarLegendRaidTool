@@ -13,6 +13,10 @@ Releases et les tags git.
   la guilde (un message d'addon par minute au plus, rien hors de la guilde) ; une ligne dans ton chat quand un membre
   proche de ton niveau cherche un groupe.
 
+### Modifié
+- La librairie de portée des cadres de champ de bataille (LibRangeCheck) ne se charge plus qu'avec eux : rien à la
+  connexion ni en raid pour qui ne fait pas de champ de bataille.
+
 ### Corrigé
 - Scintillements du butin et Texte de recharge : désactiver le module dans Réglages > Modules remet tout de suite les réglages du jeu (plus besoin de /reload), et la valeur remise est celle que le jeu avait depuis (un préréglage graphique changé entre-temps), pas celle du tout premier lancement.
 - Cadres de champ de bataille : après un /reload pendant un champ de bataille, les cadres de raid de Blizzard restaient cachés à la sortie ; désactiver le module les rend aussi.
@@ -23,6 +27,8 @@ Releases et les tags git.
 - Cadres de champ de bataille : le nom du porteur du drapeau s'arrête avant l'icône du drapeau.
 - Cadres de champ de bataille : les icônes des debuffs, de tes buffs et des contrôles suivent la taille des cadres quand
   le nombre de joueurs change (elles gardaient celle du début de partie et débordaient sur les lignes voisines).
+- Cadres de champ de bataille : la portée de secours (quand le jeu ne répond pas) est mise à jour pour WoW Forever
+  (LibRangeCheck 38 : sorts de Forever, plus d'ancienne fonction appelée à son chargement).
 
 ## 1.41.57 (30/10/2026)
 

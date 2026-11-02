@@ -3,7 +3,7 @@
     "sources": [
         {
             "name": "HereBeDragons-2.0",
-            "why": "map library of GuildPositions / MapTools. Ours is GuildMap's \"-gm\" copy (adds WoW Forever): a new upstream version is a reason to look for a new GuildMap copy, not to replace ours blindly.",
+            "why": "map library of GuildPositions / Transports, upstream copy (WoW Forever upstream since 35): a new version is taken whole (only the line endings change).",
             "kind": "text",
             "url": "https://raw.githubusercontent.com/Nevcairiel/HereBeDragons/master/HereBeDragons-2.0.lua",
             "pattern": "local MAJOR, MINOR = \"HereBeDragons-2.0\", (\\d+)",
@@ -21,7 +21,7 @@
         },
         {
             "name": "CallbackHandler-1.0",
-            "why": "Ace3 callbacks (main addon and PvP addon).",
+            "why": "Ace3 callbacks (one copy in the main addon for the four addons).",
             "kind": "text",
             "url": "https://raw.githubusercontent.com/WoWUIDev/Ace3/master/CallbackHandler-1.0/CallbackHandler-1.0.lua",
             "pattern": "local MAJOR, MINOR = \"CallbackHandler-1.0\", (\\d+)",
@@ -30,7 +30,7 @@
         },
         {
             "name": "LibStub",
-            "why": "library loader (main addon and PvP addon).",
+            "why": "library loader (one copy in the main addon for the four addons).",
             "kind": "text",
             "url": "https://raw.githubusercontent.com/WoWUIDev/Ace3/master/LibStub/LibStub.lua",
             "pattern": "LIBSTUB_MAJOR, LIBSTUB_MINOR = \"LibStub\", (\\d+)",
@@ -39,12 +39,12 @@
         },
         {
             "name": "LibRangeCheck-3.0",
-            "why": "range of the battleground frames (PvP addon, fallback after the game's own checks).",
+            "why": "range of the battleground frames (PvP addon, fallback after the game's own checks); in the PvP addon's Libs (loaded with it), its two do-not-package blocks removed as its packager does.",
             "kind": "text",
             "url": "https://raw.githubusercontent.com/WeakAuras/LibRangeCheck-3.0/master/LibRangeCheck-3.0/LibRangeCheck-3.0.lua",
             "pattern": "local MINOR_VERSION = (\\d+)",
             "reviewed": "38",
-            "local": { "file": "WarLegendRaidTool_PvP/Libs/LibRangeCheck-3.0/LibRangeCheck-3.0/LibRangeCheck-3.0.lua", "pattern": "local MINOR_VERSION = (\\d+)" }
+            "local": { "file": "WarLegendRaidTool_PvP/Libs/LibRangeCheck-3.0.lua", "pattern": "local MINOR_VERSION = (\\d+)" }
         },
         {
             "name": "BattleGroundEnemies",

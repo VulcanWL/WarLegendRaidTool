@@ -172,6 +172,23 @@ Probe("realm", function()
     Out("INFO", "realm", "GetRealmName=" .. Str(GetRealmName and GetRealmName()))
 end)
 
+-- the copy of each library that runs: LibStub keeps the highest version among the copies of all loaded addons, so a
+-- number other than ours (Libs/README.txt) = another addon's copy. LibRangeCheck comes only with the PvP addon.
+Probe("libs", function()
+    if not (LibStub and LibStub.minors) then Out("LOOK", "libs", "LibStub missing"); return end
+    local pvp = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("WarLegendRaidTool_PvP")
+    local look = LibStub.minor ~= 2
+    local parts = { "LibStub " .. Str(LibStub.minor) .. (look and " (ours 2)" or "") }
+    for _, l in ipairs({ { "CallbackHandler-1.0", 8 }, { "HereBeDragons-2.0", 35 }, { "HereBeDragons-Pins-2.0", 17 },
+            { "LibRangeCheck-3.0", pvp and 38 or nil } }) do
+        local have, ours = LibStub.minors[l[1]], l[2]
+        if have ~= ours then look = true end
+        parts[#parts + 1] = l[1] .. " " .. (have and tostring(have) or "-") ..
+            (have == ours and "" or " (ours " .. (ours and tostring(ours) or "-") .. ")")
+    end
+    Out(look and "LOOK" or "OK", "libs", table.concat(parts, ", ") .. (pvp and "" or "; PvP addon not loaded"))
+end)
+
 -- the size read in the deflate codes before inflating (W.InflatedSize) must work on the client's own deflate
 Probe("encoding", function()
     local EU = C_EncodingUtil

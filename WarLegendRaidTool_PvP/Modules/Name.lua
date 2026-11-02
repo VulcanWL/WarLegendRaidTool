@@ -65,8 +65,10 @@ function name:AttachToPlayerButton(playerButton)
 
 		if WarLegendPvP.db.profile.ConvertCyrillic then
 			playerName = ""
-			for i = 1, name:utf8len() do
-				local c = name:utf8sub(i,i)
+			-- WarLegend: one UTF-8 character at a time (was the UTF8 library: string.utf8len / utf8sub)
+			local i = 0
+			for c in name:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+				i = i + 1
 
 				if Data.CyrillicToRomanian[c] then
 					playerName = playerName..Data.CyrillicToRomanian[c]

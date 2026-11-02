@@ -41,7 +41,7 @@ local time = time
 local type = type
 local unpack = unpack
 
---Libs
+--Libs (WarLegend: LibStub and CallbackHandler come from WarLegendRaidTool's Libs, loaded first; LibRangeCheck from ours)
 local LRC = LibStub("LibRangeCheck-3.0")
 
 

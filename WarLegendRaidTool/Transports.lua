@@ -452,8 +452,8 @@ end)
 
 W.On("PLAYER_LOGIN", function()
     if LibStub then
-        HBD = LibStub("HereBeDragons-2.0-gm", true)
-        Pins = LibStub("HereBeDragons-Pins-2.0-gm", true)
+        HBD = LibStub("HereBeDragons-2.0", true)
+        Pins = LibStub("HereBeDragons-Pins-2.0", true)
     end
     base = GetServerTime() - GetTime()
     cal:Show()
