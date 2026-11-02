@@ -28,6 +28,10 @@ local function Try(obj, method, ...)
 	if obj and obj[method] then return pcall(obj[method], obj, ...) end
 end
 
+-- WarLegend: the size the client's aura buttons are made at (InitButton); NA.SetIconSize shows them at another one
+local BASE = 20
+NA.BASE = BASE
+
 -- the dispel type textures: our own flat art (white square / lines) that the client only colors with the
 -- dispel type (PreserveAsset, as BetterBlizzFrames' pixel borders); the stretched Blizzard border atlas
 -- when the client has no PreserveAsset
@@ -72,9 +76,31 @@ local TYPE_ICONS = {
 local TYPE_GAP, NAME_MIN = 1, 45 -- px between symbols; px of name that must stay readable beside them
 -- WarLegend: this runs twice a second per unit frame: its list is reused, no shift table when there is none
 local NO_SHIFT = { 0, 0 }
+-- size of the symbols: most of the health bar's height, big enough to be seen at a glance. A name that keeps to the
+-- top or bottom line of the bar (5 players or fewer: the health number fills the other line) keeps them on its line,
+-- a little taller than its letters: they never run over the health number.
+local function SymbolSize(pb)
+	local bar, name = pb.healthBar, pb.Name
+	local size = math.max(12, math.floor(((bar and bar:GetHeight()) or 20) * 0.85))
+	local jv = name and name:GetJustifyV()
+	if jv == "TOP" or jv == "BOTTOM" then
+		local _, fontSize = name:GetFont()
+		size = math.min(size, math.max(12, math.floor((fontSize or 13) + 4)))
+	end
+	return size
+end
+NA.SymbolSize = SymbolSize
+
 local function LayoutTypeIcons(pb)
 	local list, bar = pb.WLTypeIcons, pb.healthBar
 	if not (list and bar) then return end
+	-- a symbol made at another bar height (the layout follows the number of players) gets this one's size; one the
+	-- client refuses keeps its own, it is read below
+	local want = SymbolSize(pb)
+	if pb.WLTypeWant ~= want or pb.WLTypeCount ~= #list then
+		pb.WLTypeWant, pb.WLTypeCount = want, #list
+		for _, it in ipairs(list) do pcall(it.SetSize, it, want, want) end
+	end
 	-- the symbols live inside the client's aura container: it may refuse some calls on them ("secret aspects"),
 	-- so each one goes through pcall and a refusal just leaves that symbol where it is
 	-- The container's frames may answer "hidden / shown" with a secret value (it cannot even be tested): then
@@ -127,17 +153,26 @@ local function LayoutTypeIcons(pb)
 			local pc = cfg.Points[j]
 			local rel = pc and pc.RelativeFrame and pb:GetAnchor(pc.RelativeFrame)
 			if rel and pc.Point then
+				-- the set offsets are screen units (SetModulePositions); the shift is in the symbols' units, as the
+				-- name's (divided by the scale too, it fell short above a scale of 1: symbols over the name)
 				local dx = pc.Point:find("LEFT") and sl or (pc.Point:find("RIGHT") and -sr or 0)
-				name:SetPoint(pc.Point, rel, pc.RelativePoint, ((pc.OffsetX or 0) + dx) / es, (pc.OffsetY or 0) / es)
+				name:SetPoint(pc.Point, rel, pc.RelativePoint, (pc.OffsetX or 0) / es + dx, (pc.OffsetY or 0) / es)
 			end
 		end
+	end
+	-- on the name's line when it keeps to the top / bottom of the bar (centered on its letters), else in the middle
+	local v, dy = "", 0
+	local jv = hasName and name:GetJustifyV()
+	if jv == "TOP" or jv == "BOTTOM" then
+		local _, fontSize = name:GetFont()
+		v, dy = jv, (size - (fontSize or 13)) / 2 * (jv == "TOP" and 1 or -1)
 	end
 	for k, it in ipairs(shown) do
 		local step = (k - 1) * (size + TYPE_GAP)
 		pcall(function()
 			it:ClearAllPoints()
-			if mode == "before" then it:SetPoint("LEFT", name, "LEFT", -total + step, 0)
-			elseif mode == "after" then it:SetPoint("LEFT", name, "RIGHT", TYPE_GAP + step, 0)
+			if mode == "before" then it:SetPoint(v .. "LEFT", name, v .. "LEFT", -total + step, dy)
+			elseif mode == "after" then it:SetPoint(v .. "LEFT", name, v .. "RIGHT", TYPE_GAP + step, dy)
 			else it:SetPoint("RIGHT", bar, "RIGHT", -26 - step, 0) end -- left of the target counter
 		end)
 	end
@@ -170,12 +205,18 @@ function NA.RegisterTypeIcon(pb, item)
 	list[#list + 1] = pb
 end
 
-local function TypeIcon(button, unitFrame, slot)
+local function TypeIcon(button, unitFrame, slot, box)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	local bar = unitFrame.healthBar
 	if not (styles and styles.CustomAsset and button.AddDispelTypeTexture and bar) then return end
-	local size = math.max(12, math.floor((bar:GetHeight() or 20) * 0.85)) -- big enough to be seen at a glance
+	local size = SymbolSize(unitFrame)
 	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
+	-- WarLegend: the button is scaled with its box (NA.SetIconSize); the symbol keeps the unit frame's scale, the name's
+	-- (LayoutTypeIcons measures both alike)
+	if box then
+		holder:SetScale(1 / (box.WLScale or 1))
+		box.WLHolders[#box.WLHolders + 1] = holder
+	end
 	holder:SetSize(size, size)
 	holder:SetFrameLevel(bar:GetFrameLevel() + 5)
 	NA.RegisterTypeIcon(unitFrame, holder) -- its place depends on the name
@@ -201,8 +242,9 @@ local function HealthBarColor(button, unitFrame)
 end
 
 local function InitButton(button, group, glowParent)
-	local size = (group.sizeFn and group.sizeFn()) or group.size or 20
-	button:SetSize(size, size)
+	-- WarLegend: made once, at one size. The client keeps its frames for good and refuses addon calls on them while
+	-- auras are secret: the size of the frame's layout comes from the box they hang in (NA.SetIconSize)
+	button:SetSize(BASE, BASE)
 	-- black square, then the dispel colored square, the icon 1 px inside: a clean 1 px border
 	Square(button, -8, 0, 0, 0)
 	if group.dispelBorder then AddDispelTexture(button, Square(button, -7)) end
@@ -228,21 +270,26 @@ local function InitButton(button, group, glowParent)
 	if group.frameGlow and glowParent then
 		HealthBarColor(button, glowParent)
 		group.made = (group.made or 0) + 1 -- the client makes the buttons of a group in their display order
-		TypeIcon(button, glowParent, group.made)
+		TypeIcon(button, glowParent, group.made, group.box)
 	end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end
 end
 
--- groups: { { key, filter, max, size, timer, dispelBorder, frameGlow }, ... } shown left to right
+-- groups: { { key, filter, max, timer, dispelBorder, frameGlow }, ... } shown left to right
 -- (right to left with growLeft, the container then hangs on the right side of parent)
 -- glowParent: the frame a "frameGlow" group colors (the unit frame)
+-- returns the container and its box: a frame of ours between parent and the container, scaled to the icon size wanted
 function NA.Create(parent, groups, glowParent, growLeft)
 	if not NA.Available() then return nil end
-	local ok, container = pcall(CreateFrame, "AuraContainer", nil, parent, "CustomAuraContainerTemplate")
-	if not ok or not container then return nil end
-	container:SetSize(1, 1)
 	local side = growLeft and "RIGHT" or "LEFT"
-	container:SetPoint(side, parent, side)
+	local box = CreateFrame("Frame", nil, parent)
+	box:SetSize(1, 1)
+	box:SetPoint(side, parent, side)
+	box.WLHolders = {}
+	local ok, container = pcall(CreateFrame, "AuraContainer", nil, box, "CustomAuraContainerTemplate")
+	if not ok or not container then box:Hide(); return nil end
+	container:SetSize(1, 1)
+	container:SetPoint(side, box, side)
 	if AnchorUtil and AnchorUtil.FlowLayoutAxis and AnchorUtil.FlowDirection then
 		local dir = growLeft and AnchorUtil.FlowDirection.Left or AnchorUtil.FlowDirection.Right
 		Try(container, "SetFlowLayoutAxis", AnchorUtil.FlowLayoutAxis.Horizontal)
@@ -251,6 +298,7 @@ function NA.Create(parent, groups, glowParent, growLeft)
 		Try(container, "SetFlowLayoutPadding", 0, 0, 0, 0)
 	end
 	for _, g in ipairs(groups) do
+		g.box = box
 		local added = pcall(container.AddAuraGroup, container, g.key, g.filter, {
 			maxFrameCount = 0,
 			sortMethod = AuraContainerSortMethod.ExpirationOnly,
@@ -262,7 +310,18 @@ function NA.Create(parent, groups, glowParent, growLeft)
 	end
 	Try(container, "SetEnabled", false)
 	container:Hide()
-	return container
+	return container, box
+end
+
+-- WarLegend: shows the icons of a box (NA.Create) size units high, in the units of the box's parent (the layout of the
+-- unit frame changes with the number of players: 47, 28 or 22 high)
+function NA.SetIconSize(box, size)
+	if not (box and size and size > 0) then return end
+	local s = size / BASE
+	if box.WLScale == s then return end
+	box.WLScale = s
+	box:SetScale(s)
+	for _, holder in ipairs(box.WLHolders) do pcall(holder.SetScale, holder, 1 / s) end
 end
 
 -- unit nil: hidden

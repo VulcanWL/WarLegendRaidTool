@@ -56,9 +56,11 @@ function objectiveAndRespawn:AttachToPlayerButton(playerButton)
 	end)
 	frame:Hide()
 
+	-- WarLegend: the name ends at this frame's left (Name.lua): nearly no width while there is no flag
 	function frame:Reset()
 		self:Hide()
 		self.Icon:SetTexture()
+		self:SetWidth(0.01)
 	end
 
 	function frame:ApplyAllSettings()
@@ -81,6 +83,7 @@ function objectiveAndRespawn:AttachToPlayerButton(playerButton)
 			texture = GetSpellTexture(spellId)
 		end
 		if not texture then return end
+		self:SetWidth(self.config and self.config.Width or 36)
 		self.Icon:SetTexture(texture)
 		self:Show()
 	end

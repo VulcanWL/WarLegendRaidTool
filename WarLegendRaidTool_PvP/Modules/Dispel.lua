@@ -29,10 +29,13 @@ local defaultSettings = {
 	UseButtonHeightAsHeight = true,
 	Width = 1,
 	ActivePoints = 1,
+	-- WarLegend: right of the class icon (on the right of the ally frames), also while this module is off: the ally
+	-- cast bar of 6 players or more hangs after this frame (Defaults.lua). Anchor() puts it against the bar when the
+	-- class icon is hidden.
 	Points = {
 		{
 			Point = "LEFT",
-			RelativeFrame = "Button",
+			RelativeFrame = "SpecClassPriorityOne",
 			RelativePoint = "RIGHT",
 			OffsetX = 2
 		}
@@ -290,26 +293,39 @@ function dispel:AttachToPlayerButton(playerButton)
 	--  then the other debuffs
 	--  left of the frame: the missing buffs of my class (greyed, read by us), then my buffs on the player
 	local NA = WarLegendPvP.NativeAuras
-	-- icons as high as the bar (a bit less), read when the client makes each icon
+	-- icons as high as the bar (a bit less)
 	local function IconSize() return math.max(14, math.floor((playerButton:GetHeight() or 22) - 4)) end
+	-- WarLegend: the room of the debuffs of both containers (4 each, 2 apart, scaled by their box): the ally cast bar of
+	-- 6 players or more comes after it
+	local function Reserved() return (MAX_DEBUFFS + 4) * (NA.BASE + 2) * IconSize() / NA.BASE end
 	if not playerButton.PlayerIsEnemy and NA and NA.Available() then
-		f.native = NA.Create(f, {
-			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, sizeFn = IconSize, dispelBorder = true, frameGlow = true },
-			{ key = "other", filter = "HARMFUL|!RAID_PLAYER_DISPELLABLE", max = 4, sizeFn = IconSize, dispelBorder = true },
+		f.native, f.nativeBox = NA.Create(f, {
+			{ key = "dispel", filter = "HARMFUL|RAID_PLAYER_DISPELLABLE", max = MAX_DEBUFFS, dispelBorder = true, frameGlow = true },
+			{ key = "other", filter = "HARMFUL|!RAID_PLAYER_DISPELLABLE", max = 4, dispelBorder = true },
 		}, playerButton)
 		if f.native then
 			f.left = CreateFrame("Frame", nil, playerButton)
 			f.left:SetPoint("RIGHT", playerButton, "LEFT", -2, 0)
 			f.left:SetSize(1, 18)
-			f.leftNative = NA.Create(f.left, {
-				{ key = "mine", filter = "HELPFUL|PLAYER", max = 4, sizeFn = IconSize },
+			f.leftNative, f.leftBox = NA.Create(f.left, {
+				{ key = "mine", filter = "HELPFUL|PLAYER", max = 4 },
 			}, nil, true)
-			if f.leftNative then
+			if f.leftBox then
 				-- hangs left of the greyed icons (f.left grows with them)
-				f.leftNative:ClearAllPoints()
-				f.leftNative:SetPoint("RIGHT", f.left, "LEFT", -2, 0)
+				f.leftBox:ClearAllPoints()
+				f.leftBox:SetPoint("RIGHT", f.left, "LEFT", -2, 0)
 			end
 		end
+	end
+
+	-- WarLegend: the client's icons are made once, at one size (NativeAuras.lua): shown at this layout's size (47, 28
+	-- or 22 high frames: the side's number of players), and the room kept on the right follows
+	function f:FitNative()
+		if not f.native then return end
+		local size = IconSize()
+		NA.SetIconSize(f.nativeBox, size)
+		NA.SetIconSize(f.leftBox, size)
+		self:SetWidth(Reserved())
 	end
 
 	local function Icon(i)
@@ -331,7 +347,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	local function TypeIcons(debuffs)
 		local bar = playerButton.healthBar
 		if not bar then return end
-		local size = math.max(12, math.floor((bar:GetHeight() or 20) * 0.85)) -- big enough to be seen at a glance
+		local size = NA.SymbolSize(playerButton) -- the container's size (NativeAuras.lua)
 		local n = 0
 		for _, d in ipairs(debuffs) do
 			if d.dtype and n < MAX_DEBUFFS then
@@ -379,7 +395,7 @@ function dispel:AttachToPlayerButton(playerButton)
 		for _, d in ipairs(debuffs) do put(d, d.color[1], d.color[2], d.color[3]) end
 		for _, b in ipairs(buffs) do put(b, 0, 0, 0, b.grey, f.left ~= nil) end
 		for i = n + 1, #f.icons do f.icons[i]:Hide() end
-		self:SetWidth(f.native and 8 * 20 or math.max(1, nr * (size + 2)))
+		self:SetWidth(f.native and Reserved() or math.max(1, nr * (size + 2)))
 		if f.left then f.left:SetWidth(math.max(1, nl * (size + 2))) end
 		TypeIcons(debuffs)
 		local t = border and Tint() or tint
@@ -475,7 +491,7 @@ function dispel:AttachToPlayerButton(playerButton)
 	f.runUpdate = function() f:Update() end -- made once per button, not on every schedule
 
 	function f:UnitIdUpdate() self:Schedule() end
-	function f:PlayerButtonSizeChanged() self.anchorTarget = nil; self:Schedule() end
+	function f:PlayerButtonSizeChanged() self.anchorTarget = nil; self:FitNative(); self:Schedule() end
 
 	function f:OnTestmodeEnabled()
 		self.testmode = true
@@ -507,6 +523,7 @@ function dispel:AttachToPlayerButton(playerButton)
 		if not self.config then return end
 		if playerButton.PlayerIsEnemy then self:Clear(); return end
 		self.lastDebuffs, self.anchorTarget = nil, nil
+		self:FitNative() -- icon size and the cast bar's place at once (positions just set the width to 1)
 		self:Schedule()
 	end
 
