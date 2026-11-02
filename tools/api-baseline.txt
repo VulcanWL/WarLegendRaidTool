@@ -202,6 +202,8 @@ C_ form not tried first IsItemInRange (C_Item.IsItemInRange)
 # minimap addons, tested first. LibStub: set through _G[...] by LibStub.lua. LibRangeCheck 28 (the PvP addon's copy
 # before 29/10) called GetInventorySlotInfo at load with no C_ form first: not accepted here, it comes back if it returns.
 lib deprecated shim (guarded) GetInventorySlotInfo
+# LibRangeCheck 38 registers it only if C_EventUtils.IsEventValid says the event exists (a guard the check does not read)
+lib undocumented event (no guard) LEARNED_SPELL_IN_TAB
 lib legacy (guarded) GetMinimapShape
 lib legacy (guarded) InCombatLockdown
 lib legacy (local alias) GetInventoryItemLink

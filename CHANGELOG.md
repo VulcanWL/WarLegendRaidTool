@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.58 (02/11/2026)
+
 ### Ajouté
 - Réglages > Modules : quand un module coché ou décoché a besoin d'un /reload pour prendre tout son effet, une ligne orange et le bouton Recharger apparaissent ; la page « L'activer » d'un module éteint le propose aussi.
 - Guilde > Membres > Leveling (`/wl lvl`) : les membres de la guilde en ligne proches de ton niveau (zone, layer, qui cherche
