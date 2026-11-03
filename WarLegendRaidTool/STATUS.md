@@ -3,6 +3,35 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Compatibilité build 70707 (3/11, branche `claude/blizzard-modification-compat-4ba9d6`, pas commité, pas de version)
+
+- **Demande** : « make sure everything work with the new modification from blizzard ». Source UI de Forever en cache passée de
+  70532 à 70707 (`node tools/wow-api.js check --update` ; la veille du 3/11 avait vu `aff0d8c` en amont mais le cache local
+  était resté à `ca8368f` : `wow-api check` tournait contre 70532). Diff 70532 -> 70707 lu : 119 fichiers, 9 de doc API ;
+  les fichiers de Blizzard que nos crochets touchent (ContainerFrame `UpdateItems`, PaperDoll, Trade, WorldMap,
+  CompactRaidFrameManager, Nameplates, ClassTalents, PVPMatchScoreboard, ItemButton) : manette seulement, rien de cassé ;
+  réglages : CVars seulement gardées sous `if GetCVar` ; notes du 2/11 (sorts plus posés sur les barres, sacs à la main,
+  Darkspear) : aucun module concerné (grep). Veille deps : 0 changement.
+- **Trouvé et corrigé** : `C_LossOfControl.GetActiveLossOfControlData` est `SecretWhenLossOfControlRestricted` depuis 70707
+  (« always », mes propres contrôles compris ; seuls `priority` et `displayType` NeverSecret ; le compte et
+  `GetActiveLossOfControlDuration` pas marqués) : l Alerte de CC (`CCAlert.lua`) ne s affichait plus jamais (`W.Safe` -> nil ->
+  aucun genre). Maintenant : données lisibles = ancien chemin ; secrètes = contrôle de plus haute `priority`, icône / texte
+  secrets donnés aux widgets (`SetTexture` / `SetText` AllowedWhenTainted dans la doc), minuteur par
+  `GetActiveLossOfControlDuration("player", i)` + `Cooldown:SetCooldownFromDurationObject` (sous pcall, sinon `Clear`), une
+  seule couleur (`KINDS.SECRET`), « Aussi les immobilisations » sans effet, redessin sur événement / compte / priorité
+  (`dirty`, `shownStamp`). Autres changements de doc sans impact (rien ne les utilise) : `IsSpellCrowdControl`, DamageMeter
+  `specIconID`, `ForeverExperiencePreset.Enhanced`, `MIN_RES_SICKNESS_LEVEL` 11, `NamePartType.Combined`.
+- **Banc** : faux `C_LossOfControl` (`M.loc`), prédicat `SecretWhenLossOfControlRestricted` toujours vrai et `M.Reveal` dans
+  `wow.lua` ; phase « loss of control » de `scenario.lua` (1 contrôle : affiché, données secrètes, étourdissement choisi avant
+  l immobilisation, disparu à la fin) ; vue en échec sur l ancien `CCAlert.lua` (« shown false »). Docs : `docs/modules.md`
+  (prédicats), CHANGELOG (1 Corrigé).
+- **Vérifié** : check 0, wow-api 0 nouveau (contre 70707), smoke sans problème (2 passes, 84 / 84 et 87 / 87), open world
+  49 / 49, BG 31 / 31, jeu à jour. Contrôle ToS : lectures d API documentées, widgets à nous. **Rien testé en jeu.**
+  UNVERIFIED : `SetCooldownFromDurationObject` accepte l objet de durée depuis un addon (sinon le minuteur reste vide,
+  icône et texte restent) ; `SetTexture` / `SetText` avec une valeur secrète (doc : AllowedWhenTainted).
+- **À tester (5/11)** : Options > Alerte de CC cochée, se faire étourdir / immobiliser (icône, nom du sort, compte à rebours,
+  bordure orange), bouton Test, `/wl bugs` ; `/wl verify` (ligne `secrets`).
+
 ## Talent Reminder en grille comme en jeu (3/11, sur `main`, pas poussé, pas de version)
 
 - **Fait (« vas y » de l utilisateur, même session)** : `W.TalentGrid()` (`Core.lua`, après `W.OwnTalents` ; `W.TreeBorders` sorti de `W.ReadTalentColumns`) lit chaque nœud de ma config active (`C_Traits` : position, arbre par `groupIDs`, rang, rang max, prérequis `visibleEdges`, icône par entrée -> définition -> sort), sous `pcall`, valeurs passées par `W.Safe` ; nœud sans groupe connu = arbres coupés aux deux plus grands écarts. `TalentReminder.lua` : 3 panneaux côte à côte, chaque nœud à sa place (pas de la grille = plus petit écart entre nœuds -> 38 px, icônes de 28, fenêtre de 900 px au plus), bord or (max) / vert (pris ou apprenable) / gris, rang « x/y », traits de prérequis (`CreateLine`, or si le talent visé est pris), infobulle du sort ; sans grille lisible : l ancien texte. Banc : faux `C_ClassTalents` / `C_Traits` dans `wow.lua` (3 arbres, 72 nœuds, 31 / 20 / 0 : avant, la config était vide et aucun lecteur de talents ne tournait) + contrôle « Talent Reminder: the talent grid » de `scenario.lua`. Vérifié : check 0, wow-api 0 nouveau, smoke sans problème (2 passes, 83 / 83 et 86 / 86), open world 49 / 49, BG 31 / 31, jeu à jour ; pas de mutation lancée sur le contrôle. Contrôle ToS : lectures et affichage seulement. **Rien testé en jeu.** UNVERIFIED : `groupIDs` des nœuds sur Forever, écart réel des nœuds (600 supposé par la lecture en colonnes), `NumberFontNormalSmall`, `GameTooltip:SetSpellByID`.

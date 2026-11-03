@@ -1,6 +1,10 @@
 -- WarLegend RaidTool - Loss of control alert (the idea of OmniCC GODMODE's player CC alert)
 -- When I am stunned, feared, silenced, rooted, disarmed or incapacitated: a big icon in the middle of the
--- screen with the countdown and the kind of control, colored by kind. My own data (C_LossOfControl), not secret.
+-- screen with the countdown and the kind of control, colored by kind. My own data (C_LossOfControl); on Forever
+-- 70707 it is secret (SecretWhenLossOfControlRestricted: always, my own controls too, except priority and displayType):
+-- then the control with the highest priority is shown, its icon, text and timer handed to the widgets as the game gives
+-- them (SetTexture / SetText take a secret; the timer by GetActiveLossOfControlDuration + SetCooldownFromDurationObject),
+-- without the kind's color nor the "Roots too" choice. Readable data (an older build, a spectator) keeps the full path.
 -- Cost: nothing until the game says I lost control; a check every 0.2 s only while it lasts.
 local W = WLRT
 W.AddFR({
@@ -18,6 +22,7 @@ W.AddFR({
     ["Rooted"] = "Immobilisation",
     ["Disarmed"] = "Désarmement",
     ["Incapacitated"] = "Stupéfaction",
+    ["Crowd controlled"] = "Sous contrôle",
 })
 local L = W.L
 local db
@@ -35,6 +40,7 @@ local KINDS = {
     ROOT = { "Rooted", 0.3, 0.8, 0.3 },
     DISARM = { "Disarmed", 1, 0.6, 0.2 },
     INCAP = { "Incapacitated", 1, 0.8, 0.2 },
+    SECRET = { "Crowd controlled", 1, 0.85, 0.3 }, -- the kind is secret (Forever 70707): one color for all
 }
 local function Kind(locType)
     local t = tostring(locType or ""):upper()
@@ -84,24 +90,37 @@ local function Create()
     Place()
 end
 
-local shownKind, shownEnds, ticking -- the control drawn now: the same one is not drawn again every 0.2 s
+local shownKind, shownStamp, ticking, dirty -- the control drawn now: the same one is not drawn again every 0.2 s
 local TICK_LABEL
 local function Scan()
     if not db or not db.enabled or not frame then return end
-    local best, bestIcon, bestStart, bestDur, bestEnds, bestText -- locals, no table per control found
+    local best, bestIcon, bestStart, bestDur, bestEnds, bestText, bestIndex, bestPrio, readable -- locals, no table per control found
     local LoC = C_LossOfControl
+    local count = 0
     if LoC and LoC.GetActiveLossOfControlDataCount and LoC.GetActiveLossOfControlData then
-        local ok, count = pcall(LoC.GetActiveLossOfControlDataCount)
-        for i = 1, (ok and type(count) == "number") and count or 0 do
+        local ok, n = pcall(LoC.GetActiveLossOfControlDataCount)
+        count = (ok and type(n) == "number") and n or 0
+        for i = 1, count do
             local okData, data = pcall(LoC.GetActiveLossOfControlData, i)
             if okData and type(data) == "table" then
-                local kind = Kind(W.Safe(data.locType))
-                local start, dur = W.Safe(data.startTime), W.Safe(data.duration)
-                if kind and (kind ~= "ROOT" or db.roots) then
-                    local ends = (type(start) == "number" and type(dur) == "number") and (start + dur) or 0
-                    if not best or ends > bestEnds then
-                        best, bestIcon, bestStart, bestDur, bestEnds = kind, W.Safe(data.iconTexture) or W.Safe(data.texture), start, dur, ends
-                        bestText = W.Safe(data.displayText)
+                local locType = W.Safe(data.locType)
+                local kind = locType and Kind(locType)
+                if kind then
+                    local start, dur = W.Safe(data.startTime), W.Safe(data.duration)
+                    if kind ~= "ROOT" or db.roots then
+                        local ends = (type(start) == "number" and type(dur) == "number") and (start + dur) or 0
+                        if not best or not readable or ends > bestEnds then
+                            best, bestIcon, bestStart, bestDur, bestEnds = kind, W.Safe(data.iconTexture) or W.Safe(data.texture), start, dur, ends
+                            bestText, bestIndex, readable = W.Safe(data.displayText), i, true
+                        end
+                    end
+                elseif locType == nil and data.locType ~= nil and not readable and W.Safe(data.displayType) ~= 0 then
+                    -- the kind is secret (Forever 70707): the highest priority (never secret) wins, roots included
+                    local prio = W.Safe(data.priority)
+                    if type(prio) ~= "number" then prio = 0 end
+                    if not best or prio > bestPrio then
+                        best, bestIndex, bestPrio, bestEnds = "SECRET", i, prio, 0
+                        bestIcon, bestText = data.iconTexture, data.displayText -- secret: only the widgets take them
                     end
                 end
             end
@@ -109,19 +128,27 @@ local function Scan()
     end
     if not best then
         frame:Hide()
-        shownKind, shownEnds = nil, nil
+        shownKind, shownStamp, dirty = nil, nil, nil
         return
     end
-    if best ~= shownKind or bestEnds ~= shownEnds then
-        shownKind, shownEnds = best, bestEnds
+    -- drawn again on a new kind or end time; with secret data on a new count or priority, or an event since
+    local stamp = readable and bestEnds or (count * 1000 + bestPrio)
+    if best ~= shownKind or stamp ~= shownStamp or dirty then
+        shownKind, shownStamp, dirty = best, stamp, nil
         local k = KINDS[best]
+        if bestIcon == nil then bestIcon = 136116 end
+        if bestText == nil then bestText = L(k[1]) end
         frame:SetSize(db.size, db.size)
         frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)
-        frame.icon:SetTexture(bestIcon or 136116)
-        frame.label:SetText(bestText or L(k[1]))
+        frame.icon:SetTexture(bestIcon)
+        frame.label:SetText(bestText)
         frame.label:SetTextColor(k[2], k[3], k[4])
         if type(bestStart) == "number" and type(bestDur) == "number" and bestDur > 0 then
             frame.cd:SetCooldown(bestStart, bestDur)
+        elseif not readable and LoC.GetActiveLossOfControlDuration and frame.cd.SetCooldownFromDurationObject then
+            -- secret times: the game's duration object drives the cooldown (UNVERIFIED on Forever: a refusal clears it)
+            local okD, d = pcall(LoC.GetActiveLossOfControlDuration, "player", bestIndex)
+            if not (okD and d ~= nil and pcall(frame.cd.SetCooldownFromDurationObject, frame.cd, d)) then frame.cd:Clear() end
         else
             frame.cd:Clear()
         end
@@ -147,11 +174,11 @@ local events = CreateFrame("Frame")
 for _, e in ipairs({ "LOSS_OF_CONTROL_ADDED", "LOSS_OF_CONTROL_UPDATE", "PLAYER_CONTROL_LOST" }) do
     pcall(events.RegisterEvent, events, e)
 end
-events:SetScript("OnEvent", function() if W.Allowed() and not W.IsOff("CCAlert") then Start() end end)
+events:SetScript("OnEvent", function() if W.Allowed() and not W.IsOff("CCAlert") then dirty = true; Start() end end)
 
 local function Test()
     Create()
-    shownKind, shownEnds = nil, nil -- the test draws its own: a real control after it is drawn again
+    shownKind, shownStamp = nil, nil -- the test draws its own: a real control after it is drawn again
     local k = KINDS.STUN
     frame:SetSize(db.size, db.size)
     frame:SetBackdropBorderColor(k[2], k[3], k[4], 1)

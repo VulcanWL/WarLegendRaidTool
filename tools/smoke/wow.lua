@@ -731,6 +731,24 @@ C_CVar.GetCVarBool = GetCVarBool
 C_CVar.SetCVar = SetCVar
 C_CVar.GetCVarDefault = GetCVarDefault
 C_CVar.GetCVarInfo = function(k) local v = M.cvars[k]; if v == nil then return nil end; return v, "0", false, false, false, false, false end
+-- loss of control (CCAlert): M.loc = my active controls, each a LossOfControlData; on 70707 the data is secret
+-- (SecretWhenLossOfControlRestricted below), the count and the duration object are not
+M.loc = {}
+C_LossOfControl = {
+    GetActiveLossOfControlDataCount = function() return #M.loc end,
+    GetActiveLossOfControlData = function(i)
+        local d = M.loc[i]
+        if not d then return nil end
+        local out = {}
+        for k, v in pairs(d) do out[k] = v end
+        return out
+    end,
+    GetActiveLossOfControlDuration = function(unit, i)
+        local d = M.loc[i]
+        if not Who(unit) or not d then return nil end
+        return { durationObject = true, startTime = d.startTime, duration = d.duration } -- a LuaDurationObject: opaque for the addon
+    end,
+}
 M.cvars = { nameplateMaxDistance = "41", loadDeprecationFallbacks = "0", minimapZoom = "0", minimapInsideZoom = "0", rotateMinimap = "0" }
 function GetAddOnMemoryUsage() return 1000 end
 function UpdateAddOnMemoryUsage() end
@@ -1518,6 +1536,7 @@ local ACTIVE = {
     SecretWhenCooldownsRestricted = function() return M.combat or M.encounter end,
     SecretWhenAurasRestricted = function() return M.combat or M.encounter end,
     SecretWhenInCombat = function() return M.combat end,
+    SecretWhenLossOfControlRestricted = function() return true end, -- 70707: always, my own controls too (not a spectator)
 }
 M.secretsMade = {} -- what gave them: function / event -> count
 local SECRET, VALUE = {}, "\0value"
@@ -1530,6 +1549,7 @@ local function Secret(v, from)
     return setmetatable({ [VALUE] = v }, SECRET)
 end
 local function Reveal(v) if IsSecret(v) then return rawget(v, VALUE) end return v end
+M.Reveal = Reveal -- for the scenario's checks only: what a widget was given
 local function Refuse(what) return function() error("attempt to " .. what .. " a secret value", 2) end end
 for _, k in ipairs({ "__add", "__sub", "__mul", "__div", "__mod", "__pow", "__unm", "__idiv", "__band", "__bor", "__bxor", "__shl", "__shr", "__bnot" }) do
     SECRET[k] = Refuse("perform arithmetic on")

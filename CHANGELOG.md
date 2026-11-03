@@ -6,6 +6,10 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Alerte de CC : s'affiche encore quand le jeu cache les données de contrôle (build 70707 de Forever : icône, nom et
+  durée tels que le jeu les donne, une seule couleur ; « Aussi les immobilisations » sans effet dans ce cas).
+
 ### Modifié
 - Raid Buffs et cadres de champ de bataille : Salut et Bénédiction de lumière retirés (supprimés du jeu par Blizzard le 3/11).
 - Rappel des talents : la fenêtre montre maintenant tes 3 arbres comme la fenêtre de talents du jeu (icônes à leur place,

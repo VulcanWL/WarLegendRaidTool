@@ -1375,6 +1375,36 @@ for at, n in pairs(M.reached) do report.reached[#report.reached + 1] = { at, n }
 table.sort(report.reached, function(a, b) return a[1] < b[1] end)
 
 -- Myslot's text format (tools/smoke/myslot.lua): the same bytes as Myslot 6.2.1's exports, the import in the click only
+Phase("loss of control")
+do
+    -- Forever 70707: C_LossOfControl's data is secret (always, my own controls too): the alert must still show,
+    -- the highest priority (never secret) first, the secret icon / text handed to its widgets, gone when it ends
+    local cc = W.DB("ccAlert")
+    local was = cc.enabled
+    cc.enabled = true
+    local now = GetTime()
+    M.loc = {
+        { locType = "ROOT", spellID = 339, displayText = "Entangling Roots", iconTexture = 136100, startTime = now, timeRemaining = 20, duration = 20, lockoutSchool = 0, priority = 1, displayType = 1 },
+        { locType = "STUN", spellID = 408, displayText = "Kidney Shot", iconTexture = 132298, startTime = now, timeRemaining = 6, duration = 6, lockoutSchool = 0, priority = 5, displayType = 2 },
+    }
+    local made = M.secretsMade["C_LossOfControl.GetActiveLossOfControlData"] or 0
+    M.Fire("LOSS_OF_CONTROL_ADDED", "player", 2)
+    M.Advance(0.3)
+    local f = _G.WLRTCCAlert
+    local shown = f ~= nil and f:IsShown()
+    local secret = (M.secretsMade["C_LossOfControl.GetActiveLossOfControlData"] or 0) > made
+    local icon = f and M.Reveal(f.icon:GetTexture())
+    local text = f and M.Reveal(f.label:GetText())
+    local chosen = icon == 132298 and text == "Kidney Shot"
+    M.loc = {}
+    M.Advance(0.5)
+    local gone = f ~= nil and not f:IsShown()
+    cc.enabled = was
+    Check("CC alert: shown from secret loss-of-control data (Forever 70707), the highest priority, gone when it ends",
+        shown and secret and chosen and gone, string.format("shown %s, data secret %s, icon %s text %s, gone %s",
+        tostring(shown), tostring(secret), tostring(icon), tostring(text), tostring(gone)))
+end
+
 Phase("Myslot format")
 do
     local chunk, err = load(SMOKE_READ(M.smokeDir .. "/myslot.lua"), "@tools/smoke/myslot.lua")

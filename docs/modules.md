@@ -249,7 +249,9 @@ lines show a stranger's text through `W.Plain` (the debug setting is saved).
   pieces carry a mark inside their codes and `M.Shown` (`wow.lua`) reads every text shown (widget text, chat line,
   tooltip line, popup, print) for a live `|T`, `|A`, `|K`, `|H` other than an item link or a line break of the pieces,
   with the line that showed it. Secret values (`wow.lua`, end): in combat or an encounter, the functions / events the
-  Forever docs flag `SecretWhenCooldownsRestricted`, `SecretWhenAurasRestricted` or `SecretWhenInCombat`
+  Forever docs flag `SecretWhenCooldownsRestricted`, `SecretWhenAurasRestricted` or `SecretWhenInCombat`, and always
+  those flagged `SecretWhenLossOfControlRestricted` (70707: `C_LossOfControl` data, `M.loc` in the fake client; the
+  "loss of control" phase checks that CCAlert still shows from it)
   (`tools/wow-api.js` puts their returns / payload and structures in the model) give secrets (not `NeverSecret` fields,
   booleans, unit tokens): `issecretvalue` true, `type` the value's type, `W.Safe` nil, `tostring` / `tonumber` /
   `string.format` / string and math functions give secrets (wrapped in JS: `SMOKE_WRAP`), comparing (`==` too),
