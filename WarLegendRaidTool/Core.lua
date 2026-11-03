@@ -993,6 +993,24 @@ function W.ItemLevel(link)
     return (lvl and lvl > 0) and lvl or nil
 end
 
+-- The 2 tree borders in a list of node posX (sorted here): middles of the two widest gaps between
+-- neighbour columns. Returns c1 < c2, or nil
+function W.TreeBorders(xs)
+    if #xs < 3 then return nil end
+    table.sort(xs)
+    local g1, g2 = 0, 0
+    local c1, c2
+    for i = 2, #xs do
+        local gap = xs[i] - xs[i - 1]
+        local mid = (xs[i] + xs[i - 1]) / 2
+        if gap > g1 then g2, c2, g1, c1 = g1, c1, gap, mid
+        elseif gap > g2 then g2, c2 = gap, mid end
+    end
+    if not (c1 and c2) then return nil end
+    if c2 < c1 then c1, c2 = c2, c1 end
+    return c1, c2
+end
+
 -- Fallback when the trait groups give nothing: Forever lays the 3 trees side by side in one trait tree
 -- (nodes ~600 apart inside a tree, ~4000 between trees), so the node columns are split at the two widest gaps.
 -- names = the groups' names when there are 3 of them. Same result as W.ReadTalentConfig, or nil.
@@ -1010,19 +1028,8 @@ function W.ReadTalentColumns(configID, treeID, names)
             ranks[#ranks + 1] = { x = x, r = type(r) == "number" and r or 0 }
         end
     end
-    if #xs < 3 then return nil end
-    table.sort(xs)
-    -- the two widest gaps between neighbour columns: their middles are the tree borders
-    local g1, g2 = 0, 0
-    local c1, c2
-    for i = 2, #xs do
-        local gap = xs[i] - xs[i - 1]
-        local mid = (xs[i] + xs[i - 1]) / 2
-        if gap > g1 then g2, c2, g1, c1 = g1, c1, gap, mid
-        elseif gap > g2 then g2, c2 = gap, mid end
-    end
-    if not (c1 and c2) then return nil end
-    if c2 < c1 then c1, c2 = c2, c1 end
+    local c1, c2 = W.TreeBorders(xs)
+    if not c1 then return nil end
     local t = { spent = { 0, 0, 0 }, names = {}, total = 0 }
     for _, n in ipairs(ranks) do
         local i = n.x < c1 and 1 or (n.x < c2 and 2 or 3)
@@ -1094,6 +1101,83 @@ end
 function W.OwnTalents()
     local id = C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_ClassTalents.GetActiveConfigID()
     return W.ReadTalentConfig(id) or W.ClassicTalents(false)
+end
+
+-- Icon and spell of a talent node: its chosen entry, else its first one (like Blizzard's talent buttons)
+local function NodeSpell(configID, info)
+    local entryID = (info.activeEntry and W.Safe(info.activeEntry.entryID)) or (info.entryIDs and W.Safe(info.entryIDs[1]))
+    local entry = entryID and C_Traits.GetEntryInfo and C_Traits.GetEntryInfo(configID, entryID)
+    local defID = entry and W.Safe(entry.definitionID)
+    local def = defID and C_Traits.GetDefinitionInfo and C_Traits.GetDefinitionInfo(defID)
+    if not def then return nil end
+    local spellID = W.Safe(def.spellID)
+    local icon = W.Safe(def.overrideIcon)
+    if not icon and spellID and C_Spell and C_Spell.GetSpellTexture then
+        local cur, original = C_Spell.GetSpellTexture(spellID)
+        icon = W.Safe(original) or W.Safe(cur)
+    end
+    return icon, spellID
+end
+
+local function ReadTalentGrid()
+    local configID = C_ClassTalents.GetActiveConfigID()
+    local config = configID and C_Traits.GetConfigInfo(configID)
+    local treeID = config and config.treeIDs and config.treeIDs[1]
+    if not treeID then return nil end
+    local sum = W.ReadTalentConfig(configID)
+    local groups = (C_Traits.GetGroupDisplayInfoByTreeID and C_Traits.GetGroupDisplayInfoByTreeID(treeID)) or {}
+    local trees, byGroup, loose, xs = {}, {}, {}, {}
+    for i, g in ipairs(groups) do
+        trees[i] = { name = W.Safe(g.displayName), icon = W.Safe(g.icon), nodes = {} }
+        byGroup[g.groupID] = trees[i]
+    end
+    for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID) or {}) do
+        local info = C_Traits.GetNodeInfo(configID, nodeID)
+        local x, y = info and W.Safe(info.posX), info and W.Safe(info.posY)
+        if type(x) == "number" and type(y) == "number" and W.Safe(info.isVisible) ~= false then
+            local icon, spellID = NodeSpell(configID, info)
+            local rank = W.Safe(info.ranksPurchased) or W.Safe(info.activeRank) or 0
+            local n = {
+                id = nodeID, x = x, y = y, rank = type(rank) == "number" and rank or 0, max = W.Safe(info.maxRanks) or 0,
+                icon = icon, spellID = spellID, edges = {},
+                available = W.Safe(info.isAvailable) and W.Safe(info.meetsEdgeRequirements) ~= false,
+            }
+            for _, e in ipairs(info.visibleEdges or {}) do
+                local target = W.Safe(e.targetNode)
+                if target then n.edges[#n.edges + 1] = target end
+            end
+            local tree
+            for _, gid in ipairs(info.groupIDs or {}) do tree = tree or byGroup[gid] end
+            if tree then tree.nodes[#tree.nodes + 1] = n else loose[#loose + 1] = n end
+            xs[#xs + 1] = x
+        end
+    end
+    -- nodes without a known group (or no groups at all): the 3 trees side by side, split at the widest gaps
+    if #loose > 0 then
+        local c1, c2 = W.TreeBorders(xs)
+        if not c1 or #trees > 0 and #trees ~= 3 then return nil end
+        for i = 1, 3 do trees[i] = trees[i] or { nodes = {} } end
+        for _, n in ipairs(loose) do
+            local t = trees[n.x < c1 and 1 or (n.x < c2 and 2 or 3)]
+            t.nodes[#t.nodes + 1] = n
+        end
+    end
+    if #trees == 0 then return nil end
+    for i, t in ipairs(trees) do
+        t.name = t.name or (sum and sum.names[i]) or ("#" .. i)
+        t.spent = (sum and #sum.spent == #trees and sum.spent[i]) or 0
+    end
+    return { trees = trees, best = sum and sum.best }
+end
+
+-- My talents as the game's talent frame lays them out: { best, trees = { { name, icon, spent, nodes = { { id, x, y,
+-- rank, max, icon, spellID, available, edges = { target node ids } } } } } } or nil. x / y = C_Traits node
+-- positions (Blizzard draws a node at posX / 10, -posY / 10 pixels).
+function W.TalentGrid()
+    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_Traits and C_Traits.GetConfigInfo
+        and C_Traits.GetTreeNodes and C_Traits.GetNodeInfo) then return nil end
+    local ok, grid = pcall(ReadTalentGrid)
+    return ok and grid or nil
 end
 
 -- Talents of the unit being inspected (after INSPECT_READY)

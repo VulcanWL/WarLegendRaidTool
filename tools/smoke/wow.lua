@@ -814,6 +814,60 @@ C_SpellBook = C_SpellBook or {}
 C_SpellBook.IsSpellKnown = function(id) return not (type(id) == "number" and M.unknownSpells[id]) end
 C_SpellBook.IsSpellInSpellBook = C_SpellBook.IsSpellKnown
 
+-- My talents as Forever stores them: one trait tree, the 3 vanilla trees as groups side by side (~4000 apart), 4
+-- columns x 7 rows per tree (600 apart), a prerequisite edge down each tree's first column, 31 / 20 / 0 points
+-- (the documented stubs gave an empty config: Talent Reminder's grid and the talent readers were never run)
+M.talentNodes = {}
+do
+    local spent = { 31, 20, 0 }
+    for tree = 1, 3 do
+        local left = spent[tree]
+        for row = 1, 7 do
+            for col = 1, (row % 2 == 0) and 4 or 3 do
+                local id = tree * 100 + row * 10 + col
+                local max = (row == 7) and 1 or 3
+                local rank = math.min(max, left)
+                left = left - rank
+                M.talentNodes[#M.talentNodes + 1] = {
+                    ID = id, posX = (tree - 1) * 4000 + (col - 1) * 600, posY = (row - 1) * 600, isVisible = true,
+                    isAvailable = row == 1 or rank > 0, meetsEdgeRequirements = true, ranksPurchased = rank, maxRanks = max,
+                    activeRank = rank, entryIDs = { id }, groupIDs = { tree },
+                    visibleEdges = (col == 1 and row < 7) and { { targetNode = id + 10, type = 0, visualStyle = 0, isActive = rank > 0 } } or {},
+                }
+            end
+        end
+    end
+end
+C_ClassTalents = C_ClassTalents or {}
+C_ClassTalents.GetActiveConfigID = function() return 1 end
+C_Traits = C_Traits or {}
+C_Traits.GetConfigInfo = function(id) return id == 1 and { ID = 1, treeIDs = { 1 }, type = 1, name = "" } or nil end
+C_Traits.GetTreeNodes = function(treeID)
+    local ids = {}
+    if treeID == 1 then for i, n in ipairs(M.talentNodes) do ids[i] = n.ID end end
+    return ids
+end
+C_Traits.GetNodeInfo = function(_, nodeID)
+    for _, n in ipairs(M.talentNodes) do if n.ID == nodeID then return n end end
+    return { ID = nodeID, posX = 0, posY = 0, isVisible = false, entryIDs = {}, visibleEdges = {}, groupIDs = {} }
+end
+C_Traits.GetGroupDisplayInfoByTreeID = function(treeID)
+    if treeID ~= 1 then return {} end
+    return { { groupID = 1, treeID = 1, displayName = "Arms" }, { groupID = 2, treeID = 1, displayName = "Fury" },
+        { groupID = 3, treeID = 1, displayName = "Protection" } }
+end
+C_Traits.GetGroupCurrencyInfo = function(_, groupIDs)
+    local out = {}
+    for i, gid in ipairs(groupIDs) do
+        local spent = 0
+        for _, n in ipairs(M.talentNodes) do if n.groupIDs[1] == gid then spent = spent + n.ranksPurchased end end
+        out[i] = { traitNodeGroupID = gid, currencyInfos = { { spent = spent, quantity = 0 } } }
+    end
+    return out
+end
+C_Traits.GetEntryInfo = function(_, entryID) return { definitionID = entryID, type = 0, maxRanks = 3, isAvailable = true, conditionIDs = {} } end
+C_Traits.GetDefinitionInfo = function(defID) return { spellID = 10000 + defID } end
+
 -- The open world, for tools/smoke/openworld.lua (M.SetupWorld before the addons load: HereBeDragons reads the maps
 -- then). Two continents, a few zones (a box on their continent); positions: M.world.player / a unit's map, x, y
 -- (0-1 on that map). World coordinates in yards as the game gives them: UnitPosition = y, x (x = left - width * mapX).

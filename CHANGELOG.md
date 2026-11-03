@@ -8,6 +8,8 @@ Releases et les tags git.
 
 ### Modifié
 - Raid Buffs et cadres de champ de bataille : Salut et Bénédiction de lumière retirés (supprimés du jeu par Blizzard le 3/11).
+- Rappel des talents : la fenêtre montre maintenant tes 3 arbres comme la fenêtre de talents du jeu (icônes à leur place,
+  rang pris / max, prérequis, points par arbre, description du sort au survol).
 
 ## 1.41.58 (02/11/2026)
 

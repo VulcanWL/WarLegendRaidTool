@@ -105,6 +105,17 @@ M.Fire("PLAYER_ENTERING_WORLD", false, false)
 M.Advance(3)
 report.raidLoaded = W.raidLoaded
 M.Fire("READY_CHECK", "Smoketest", 30)
+do
+    -- Talent Reminder draws the 3 trees of the fake talent config (wow.lua: 72 nodes, 31 / 20 / 0 points)
+    local f, shown, heads = _G.WLRTTalentReminder, 0, {}
+    for _, p in ipairs(f and f.trees or {}) do
+        heads[#heads + 1] = p.head:GetText()
+        for _, b in ipairs(p.buttons) do if b:IsShown() then shown = shown + 1 end end
+    end
+    Check("Talent Reminder: the talent grid shows the 3 trees and every node of the active config",
+        f and f:IsShown() and #heads == 3 and shown == #M.talentNodes and heads[1]:find("31", 1, true),
+        "trees " .. #heads .. ", nodes " .. shown .. " / " .. #M.talentNodes .. ", " .. table.concat(heads, " | "))
+end
 M.Advance(2)
 M.Fire("READY_CHECK_CONFIRM", "raid2", true)
 M.Fire("READY_CHECK_FINISHED")
