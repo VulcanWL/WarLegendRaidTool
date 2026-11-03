@@ -13,8 +13,6 @@ W.AddFR({
     ["Might"] = "Puissance",
     ["Wisdom"] = "Sagesse",
     ["Kings"] = "Rois",
-    ["Salvation"] = "Salut",
-    ["Light"] = "Lumière",
     ["Auto assign"] = "Répartition auto",
     ["Send assignments"] = "Envoyer les assignations",
     ["Check missing"] = "Vérifier les manquants",
@@ -42,9 +40,10 @@ local db
 local NO_MANA = { WARRIOR = true, ROGUE = true }
 local CASTERS = { MAGE = true, PRIEST = true, WARLOCK = true }
 -- talent = only some casters have it (never auto assigned), level = learned at that level,
--- skip = classes that do not need it, noTank = not wanted on tanks (Salvation)
+-- skip = classes that do not need it
 -- WoW: Forever (class deep dives, Sept-Oct 2026): Divine Spirit is baseline for priests at level 30,
--- Blessing of Kings is baseline for paladins (no longer talents)
+-- Blessing of Kings is baseline for paladins (no longer talents); Salvation and Blessing of Light are
+-- removed (development notes of 3 Nov 2026)
 local BUFFS = {
     { key = "int", class = "MAGE", text = L("Arcane Intellect"), ids = { 1459, 1460, 1461, 10156, 10157, 23028 }, skip = NO_MANA },
     { key = "fort", class = "PRIEST", text = L("Fortitude"), ids = { 1243, 1244, 1245, 2791, 10937, 10938, 21562, 21564 } },
@@ -56,8 +55,6 @@ local BLESS = {
     { key = "kings", text = L("Kings"), ids = { 20217, 25898 } },
     { key = "wisdom", text = L("Wisdom"), ids = { 19742, 19850, 19852, 19853, 19854, 25290, 25894, 25918 }, skip = NO_MANA },
     { key = "might", text = L("Might"), ids = { 19740, 19834, 19835, 19836, 19837, 19838, 25291, 25782, 25916 }, skip = CASTERS },
-    { key = "salvation", text = L("Salvation"), ids = { 1038, 25895 }, level = 26, noTank = true },
-    { key = "light", text = L("Light"), ids = { 19977, 19978, 19979, 25890 }, level = 40 },
 }
 W.TranslateField(BUFFS, "text")
 W.TranslateField(BLESS, "text")
@@ -71,36 +68,29 @@ W.OnReady(function()
     if type(db.bless) ~= "table" then db.bless = {} end
 end)
 
--- Raid members: { name, class, group, unit, level, tank } - name is "First Surname" on Forever, so two
+-- Raid members: { name, class, group, unit, level } - name is "First Surname" on Forever, so two
 -- casters sharing a first name keep their own assignment
-local function IsTank(u, rosterRole)
-    if W.Safe(rosterRole) == "MAINTANK" then return true end
-    return UnitGroupRolesAssigned and W.Safe(UnitGroupRolesAssigned(u)) == "TANK" or false
-end
-
 local function Members()
     local list = {}
     if W.InRaid() then
         for i = 1, W.NumRaid() do
-            local _, _, group, level, _, class, _, _, _, role = GetRaidRosterInfo(i)
+            local _, _, group, level, _, class = GetRaidRosterInfo(i)
             local u = "raid" .. i
             local name = W.UnitDisplayName(u)
             if name then
-                list[#list + 1] = { name = name, class = class, group = group or 1, unit = u, level = W.Safe(level),
-                    tank = IsTank(u, role) }
+                list[#list + 1] = { name = name, class = class, group = group or 1, unit = u, level = W.Safe(level) }
             end
         end
     else
         for _, u in ipairs(W.GroupUnits()) do
             local n = W.UnitDisplayName(u)
             if n then
-                list[#list + 1] = { name = n, class = W.UnitClassToken(u), group = 1, unit = u, level = W.Safe(UnitLevel(u)),
-                    tank = IsTank(u) }
+                list[#list + 1] = { name = n, class = W.UnitClassToken(u), group = 1, unit = u, level = W.Safe(UnitLevel(u)) }
             end
         end
         if #list == 0 then
             list[1] = { name = W.UnitDisplayName("player") or "?", class = W.UnitClassToken("player"), group = 1, unit = "player",
-                level = W.Safe(UnitLevel("player")), tank = IsTank("player") }
+                level = W.Safe(UnitLevel("player")) }
         end
     end
     return list
@@ -295,8 +285,8 @@ function RB.Missing()
             end
             checked = checked + 1
             if hidden then skipped = skipped + 1 end
-            -- a buff the player does not need (Wisdom on a warrior, Might on a mage, Salvation on a tank)
-            local function Needs(b) return not (b.skip and b.skip[m.class]) and not (b.noTank and m.tank) end
+            -- a buff the player does not need (Wisdom on a warrior, Might on a mage)
+            local function Needs(b) return not (b.skip and b.skip[m.class]) end
             for _, b in ipairs(hidden and {} or BUFFS) do
                 local caster
                 for c, set in pairs(Assign(b.key)) do if set[m.group] and present[c] then caster = c end end

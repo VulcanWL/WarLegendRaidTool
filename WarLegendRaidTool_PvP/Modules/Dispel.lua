@@ -84,9 +84,8 @@ local CLASS_BUFFS = {
 		{ ids = { 19740, 25782 } }, -- Blessing of Might / Greater
 		{ ids = { 19742, 25894 } }, -- Wisdom
 		{ ids = { 20217, 25898 } }, -- Kings
-		{ ids = { 1038, 25895 } },  -- Salvation
-		{ ids = { 19977, 25890 } }, -- Light
-		-- no Sanctuary: the talent is removed in WoW: Forever (Paladin class deep dive, Oct 2026)
+		-- no Sanctuary: the talent is removed in WoW: Forever (Paladin class deep dive, Oct 2026);
+		-- no Salvation nor Light: removed (development notes of 3 Nov 2026)
 	},
 }
 

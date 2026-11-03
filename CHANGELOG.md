@@ -6,6 +6,9 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Modifié
+- Raid Buffs et cadres de champ de bataille : Salut et Bénédiction de lumière retirés (supprimés du jeu par Blizzard le 3/11).
+
 ## 1.41.58 (02/11/2026)
 
 ### Ajouté
