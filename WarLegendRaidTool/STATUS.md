@@ -3,7 +3,16 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Compatibilité build 70707 (3/11, branche `claude/blizzard-modification-compat-4ba9d6`, pas commité, pas de version)
+## Version publiée (3/11) : 1.41.59
+
+- **1.41.59** (tag `v1.41.59`, numéro choisi par l utilisateur) = `main` en avance rapide de
+  `claude/blizzard-modification-compat-4ba9d6` : Alerte de CC sous les données secrètes de 70707 (entrée ci-dessous), Raid
+  Buffs / Dispel sans Salut ni Lumière, Talent Reminder en grille, source UI en cache 70707. Branches : `veille/70707`
+  (15 lignes de STATUS, rapport du 2/11 : fusionnées ici) ; `claude/addon-improvements-85980d` toujours pas fusionnée (ses 2
+  fichiers sont déjà dans `main`, la fusion ne ferait que des conflits). **Verrou de release levé par l utilisateur pour
+  cette version** (pas de `/wl verify` avant). **Rien testé en jeu.**
+
+## Compatibilité build 70707 (3/11, branche `claude/blizzard-modification-compat-4ba9d6`, commit `ef48965`, dans 1.41.59)
 
 - **Demande** : « make sure everything work with the new modification from blizzard ». Source UI de Forever en cache passée de
   70532 à 70707 (`node tools/wow-api.js check --update` ; la veille du 3/11 avait vu `aff0d8c` en amont mais le cache local

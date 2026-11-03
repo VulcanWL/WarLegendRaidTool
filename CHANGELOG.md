@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.59 (03/11/2026)
+
 ### Corrigé
 - Alerte de CC : s'affiche encore quand le jeu cache les données de contrôle (build 70707 de Forever : icône, nom et
   durée tels que le jeu les donne, une seule couleur ; « Aussi les immobilisations » sans effet dans ce cas).
