@@ -3,6 +3,13 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Prochaine session : Talent Reminder en grille comme en jeu (demande du 3/11)
+
+- **Demande** : la fenêtre de rappel de `TalentReminder.lua` (`ShowReminder`, l. 42-57) n est qu un texte (« Arbre principal » + « Arcane 31 / Feu 0 / Givre 20 », `TalentSummary` sur `W.OwnTalents()` de `Core.lua` ~1094 ; lecture par colonnes de nœuds `C_Traits` vers ~1000, noms d arbre « #2 » possibles). Les talents de Forever ont beaucoup changé ; l utilisateur veut la **grille comme en jeu** (choix fait entre grille et colonnes) : chaque arbre avec ses talents (icône, rang pris / max) aux places de la fenêtre du jeu.
+- **Référence** : l utilisateur parlait d un site ou de la fenêtre en jeu, lien / capture pas reçus : les redemander. Source Forever locale : `tools/.cache/wow-ui-source/Interface/AddOns/Blizzard_PlayerSpells/ClassTalents/Blizzard_ClassTalentsFrame.lua` (l. 726 : `TalentButtonUtil.ApplyPosition(bouton, cadre, nodeInfo.posX, nodeInfo.posY)`, sous-arbres l. 733-744), `Blizzard_SharedTalentUI/Blizzard_SharedTalentFrame.lua:458` : positions = `posX` / `posY` de `C_Traits.GetNodeInfo`.
+- **À décider / vérifier** : taille de la fenêtre (3 arbres côte à côte), icône = `C_Traits.GetEntryInfo` -> `definitionID` -> `C_Traits.GetDefinitionInfo` -> sort (à vérifier dans la doc Forever), liens entre nœuds (traits des arêtes) ou pas, rien sous les valeurs secrètes ; tout est à valider en jeu le 5/11 (rien ne tourne avant).
+- Fichiers : `TalentReminder.lua` (sans doute un accesseur dans `Core.lua` à côté de `W.OwnTalents`), CHANGELOG, `docs/modules.md`.
+
 ## Veille 03/11/2026 (build 1.60.1.70707, Interface 16001)
 
 - **Build / Interface** : `wowf` 1.60.1.70707 (inchangé), Interface 16001 = les .toc ; `forever` de Gethe/wow-ui-source toujours à `aff0d8c` (70707) : aucun changement d API. Branche `veille/70707-0311` partie de `main` (l ancienne `veille/70707` a divergé de `main`).
