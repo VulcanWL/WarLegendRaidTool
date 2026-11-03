@@ -79,7 +79,6 @@ Pas dans le zip des releases.
 - **À tester en jeu (nuit du 5/11)** : `/reload`, `/wl bugs` ; se faire étourdir ou enraciner par un PNJ : cadre de l alerte de contrôle affiché ? (`/wl cc` l allume) ; sous contrôle : `/dump C_LossOfControl.GetActiveLossOfControlData(1)` (champs secrets ?) ; fin de CdB : tableau des scores, onglet autre que « tous » puis fermeture ; barres de nom ennemies avec DoesItDie / DangerAlert (icône élite / rare).
 - **Prochaine version** : pas de release pour l Interface (inchangée). Rien à publier avant la lecture en jeu de CCAlert. Vérifié : `check.js` « 103 Lua files checked, 0 problem(s) » (luac5.1 absent du PC, fait par la CI). Rien testé en jeu, rien publié.
 
-- **Correctifs proposés (pas appliqués)** : (1) CCAlert : rien à changer dans le code (règle 12 : se dégrader, ce qu il fait déjà) ; **tester en jeu** ; s il reste muet, soit l éteindre par défaut / le retirer du menu, soit le refaire sur mes auras (`C_UnitAuras.GetAuraDataByIndex("player", i, "HARMFUL")` : type de contrôle non donné, durée peut-être secrète en combat : à lire en jeu d abord). (2) `tools/.cache/wow-ui-source` vers `aff0d8c` puis `node tools/wow-api.js check`.
 ## Veille 01/11/2026 (build 1.60.1.70707, Interface 16001)
 
 - **Build / Interface** : `wowf` 1.60.1.70707 (déjà vu le 30/10), Interface 16001 = les .toc, rien à changer. Branche `forever` de Gethe/wow-ui-source toujours à `ca8368f` (70532) : **le code de 70707 n est pas publié**, aucun changement d API lisible.
