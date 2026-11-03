@@ -3,6 +3,18 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Veille 03/11/2026 (build 1.60.1.70707, Interface 16001)
+
+- **Build / Interface** : `wowf` 1.60.1.70707 (inchangé), Interface 16001 = les .toc ; `forever` de Gethe/wow-ui-source toujours à `aff0d8c` (70707) : aucun changement d API. Branche `veille/70707-0311` partie de `main` (l ancienne `veille/70707` a divergé de `main`).
+- **Officiel Blizzard** : « WoW Forever Beta Development Notes – Updated November 2 » (Kaivax, 3/11 03:20, https://us.forums.blizzard.com/en/wow/t/wow-forever-beta-development-notes-%E2%80%93-updated-november-2/2360696, même message en EU) : changements depuis la bêta du 15/10, avant la sortie du 4/11. Paladin : « Salvation, Mass Salvation, and Revoke have been removed. » et « Blessing of Light has been removed. » ; Fureur vertueuse au niveau 10 (+33 % de menace) ; rien ne dit que Bénédiction de salut revient (la note du druide parle de compenser « Blessing of Salvation being removed »). Aussi : sorts appris plus mis tout seuls sur les barres, sacs à équiper à la main, Darkspear sans débuff « Recently Dropped Flag », compatibilité manette / addons améliorée, raids le mois prochain. Rien sur l API, la guilde, le chat, les layers.
+- **Wiki / communauté** : rien de plus (les sites parlent encore du changement du 15/10).
+- **Modules touchés** :
+  - `WarLegendRaidTool_Raid/RaidBuffs.lua:59-60` : `salvation` { 1038, 25895 } et `light` { 19977, 19978, 19979, 25890 } dans `BLESS` (et `L("Salvation")` l. 16). Risque : assignation de Salut / Lumière à un paladin qui ne peut pas les lancer ; « Vérifier les manquants » / « Signaler les manquants » les annonce manquants à tort.
+  - `WarLegendRaidTool_PvP/Modules/Dispel.lua:87-88` : mêmes ids dans les buffs du paladin ; depuis le 29/10 seuls les sorts connus comptent (`C_SpellBook.IsSpellKnown`) : sans doute sans effet visible, lignes mortes.
+- **Correctifs proposés (pas appliqués)** : retirer les entrées `salvation` et `light` de `BLESS` (et ce qui ne sert qu à elles : `noTank`, traduction « Salut » / « Lumière » si plus utilisées, assignations sauvées qui pointent dessus ignorées) ; retirer les 2 lignes de `Dispel.lua` ; CHANGELOG « Modifié ». Pas besoin d id lu en jeu : c est un retrait. Remplace le correctif « Salvation hors de BLESS » de la veille du 01/11 (devenu sans objet).
+- **À tester en jeu (nuit du 5/11, paladin)** : grimoire (plus de Salut / Lumière / Revoke) ; Raid > Préparation > Raid Buffs (assignations des paladins, « Vérifier les manquants ») ; `/reload`, `/wl bugs`.
+- **Prochaine version** : pas de release pour l Interface. Correctif petit, à grouper dans la prochaine version (verrou de release ouvert jusqu au `/wl verify` du 5/11). Rien testé en jeu, rien publié.
+
 ## Veille 01/11/2026 (build 1.60.1.70707, Interface 16001)
 
 - **Build / Interface** : `wowf` 1.60.1.70707 (déjà vu le 30/10), Interface 16001 = les .toc, rien à changer. Branche `forever` de Gethe/wow-ui-source toujours à `ca8368f` (70532) : **le code de 70707 n est pas publié**, aucun changement d API lisible.
