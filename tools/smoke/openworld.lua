@@ -696,6 +696,21 @@ Cast("Cast-3")
 did.refreshPlates()
 Check("DoesItDie: on again with the plates already up, the marker shows on the plate with the DoT", MarkerShown(1) and not MarkerShown(3))
 
+-- build 70755: UNIT_COMBAT's amount is a secret value (SecretValue in its documentation). The DoT's ticks still count
+-- on their rhythm (before, none was seen and the DoT was dropped as "never ticked" after 2 ticks); the copy of the same
+-- hit by another token of that mob counts once
+local hidden = 0
+for _ = 1, 4 do
+    M.Advance(3)
+    M.Fire("UNIT_COMBAT", "nameplate1", "WOUND", "", M.Secret(15), 32)
+    M.Fire("UNIT_COMBAT", "target", "WOUND", "", M.Secret(15), 32)
+end
+for _, l in ipairs(W.db.doesItDie.log) do
+    if l:find("(amount hidden)", 1, true) then hidden = hidden + 1 end
+end
+Check("DoesItDie: with secret tick amounts the DoT keeps ticking on its rhythm (4 ticks, each counted once)",
+    DotsOnTarget() == 1 and hidden == 4, DotsOnTarget() .. " DoT(s) left, " .. hidden .. " tick(s) counted")
+
 W.db.doesItDie.enabled = false
 did.Apply()
 for i = 1, 40 do Unmob(i) end

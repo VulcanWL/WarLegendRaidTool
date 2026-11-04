@@ -1550,6 +1550,8 @@ local function Secret(v, from)
 end
 local function Reveal(v) if IsSecret(v) then return rawget(v, VALUE) end return v end
 M.Reveal = Reveal -- for the scenario's checks only: what a widget was given
+-- for a payload field flagged SecretValue alone (no predicate, so not modelled above): the scenario fires it secret
+M.Secret = Secret
 local function Refuse(what) return function() error("attempt to " .. what .. " a secret value", 2) end end
 for _, k in ipairs({ "__add", "__sub", "__mul", "__div", "__mod", "__pow", "__unm", "__idiv", "__band", "__bor", "__bxor", "__shl", "__shr", "__bnot" }) do
     SECRET[k] = Refuse("perform arithmetic on")

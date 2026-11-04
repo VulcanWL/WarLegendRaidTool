@@ -126,6 +126,10 @@ preview), `Locale.lua` + `Locale_frFR.lua` (spell texts read in English and Fren
   original DoesItDie addon loaded. `ns.SetActive` registers / unregisters the events (a frame of its own: the spell cast
   events for the player only, `UNIT_COMBAT` for every unit, too frequent for `W.On`) and forgets every DoT. `W.On` of the
   module file (target change, entering world, combat) switch it back on after Settings > Modules.
+- **Secret tick amounts** (build 70755: `UNIT_COMBAT` `amount` is `SecretValue`): `onSecretTick` counts a hit of a DoT's
+  school as the tick nearest in its window (fresh slot), on timing alone; no size is checked or learned, and another
+  player's same-school hit in that window can pass for a tick. Smoke: `openworld.lua` fires secret amounts (`M.Secret`:
+  the fake client models predicates, not a field flagged `SecretValue` alone).
 - **Only the mobs**: `UNIT_COMBAT` comes for every unit token (the raid's: hundreds a second in a fight); a wrapper in front
   of the timed handler drops every token but `target`, `focus`, `softenemy` and `nameplateN` (`mobUnit`, one table
   lookup). The last outcome (hit / avoid, for the cast's look-back) is kept per mob (`lastOutcomes`): another unit's hit

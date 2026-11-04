@@ -12,6 +12,28 @@ Pas dans le zip des releases.
   fichiers sont déjà dans `main`, la fusion ne ferait que des conflits). **Verrou de release levé par l utilisateur pour
   cette version** (pas de `/wl verify` avant). **Rien testé en jeu.**
 
+## Veille 03/11/2026 soir (build 1.60.1.70755, Interface 16001)
+
+- **Build / Interface** : `wowf` 1.60.1.70755 (issue n° 15), Interface 16001 = les .toc. Code de l interface publié : `forever` de
+  Gethe/wow-ui-source `17ed2c3` (issue n° 16), 65 fichiers depuis `aff0d8c` (70707). La CI l a passé sur `main` : `wow-api check` 0 nouveau,
+  smoke sans problème. Branche `veille/1.60.1.70755` jamais créée (la tâche locale n a pas tourné). Diff lu en entier le 3/11.
+- **Touché : DoesItDie** : `UNIT_COMBAT` `amount` devient `SecretValue = true` (sans prédicat). L ancien code s arrêtait sur un montant
+  secret : pas d erreur Lua, mais aucun tick vu, donc **chaque DoT retiré comme « jamais posé » après 2 ticks** (`housekeep`), tailles
+  plus apprises, piège jamais déclenché. Esquives / coups (école lisible) gardés. UNVERIFIED : secret toujours ou seulement en combat.
+  **Corrigé (3/11, accord de l utilisateur, pas commité, pas de version)** : `onSecretTick` (`DoesItDie.lua`) : montant secret = tick
+  le plus proche dans sa fenêtre (case neuve) d un DoT de cette école, au rythme seulement, sans taille vérifiée ni apprise (le coup
+  d un autre joueur de la même école dans la fenêtre peut passer pour un tick) ; copie du même coup par un autre jeton comptée une fois ;
+  piège non déclenché sans montant. Banc : `M.Secret` exporté de `wow.lua` (le faux client ne modèle que les prédicats, pas un champ
+  `SecretValue` seul), contrôle « secret tick amounts » dans `openworld.lua` (4 ticks, un par coup, le DoT reste ; vu en échec sans le
+  correctif : 0 DoT, 0 tick). Vérifié : check 0, wow-api 0 nouveau (cache 70755), smoke sans problème (2 passes, 84 / 84 et 87 / 87),
+  open world 50 / 50, BG 31 / 31. Docs : `docs/modules.md`, CHANGELOG (1 Corrigé). **Rien testé en jeu.**
+- **Sans impact (grep)** : `DRUID_BEAR_FORM` 5 -> 8 sur Camelot (aucun numéro de forme chez nous) ; `C_ActionBar.IsHighestSpellRank`
+  (nouveau, surbrillance des sorts pas posés) ; `C_RolesetSystem.ApplyRolesetFilters` `HasRestrictions` ; `subIcon` Battle.net / textures ;
+  doc des enchantements temporaires ; `Menu.lua` (grilles bornées à l écran) ; barres de nom (auras) ; inspection (`UNIT_NAME_UPDATE`,
+  `UpdateButtons` inchangé) ; cadres d unité, sacs, PaperDoll, amis, LFG, abonnement, tutoriels : visuel seulement.
+- **À tester en jeu (5/11)** : DoesItDie allumé, DoT sur une cible : `/wl did debug` (lignes TICK ?), `/dump` dans un gestionnaire n est pas
+  possible : regarder si la marque suit les ticks. Rien publié.
+
 ## Compatibilité build 70707 (3/11, branche `claude/blizzard-modification-compat-4ba9d6`, commit `ef48965`, dans 1.41.59)
 
 - **Demande** : « make sure everything work with the new modification from blizzard ». Source UI de Forever en cache passée de

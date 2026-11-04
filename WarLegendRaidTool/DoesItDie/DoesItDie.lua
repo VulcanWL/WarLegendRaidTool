@@ -1030,6 +1030,50 @@ end
 -- from the same token feeds another DoT, one from another token is a copy and is dropped (PR #14).
 local combatFrameAt
 local combatFrameHits = {}
+
+-- Since Forever build 70755 UNIT_COMBAT's amount is a secret value (its documentation): it can't be compared, added
+-- or put in a string. A hit of the mob's DoT school is then matched on timing alone, to the DoT whose tick is the
+-- nearest in its window (a fresh slot only), and no size is checked or learned. Without it no tick was ever seen and
+-- every DoT was dropped as "never ticked" after a few seconds. Same copy rule per token as below.
+local function onSecretTick(key, unit, school, isCrit)
+    local dots = dotsByTarget[key]
+    if not dots then return end
+    local now = GetTime()
+    if combatFrameAt ~= now then
+        wipe(combatFrameHits)
+        combatFrameAt = now
+    end
+    local signature = key .. ":?:" .. school
+    local hit = combatFrameHits[signature]
+    if hit then
+        if hit.unit ~= unit then return end
+    else
+        hit = { unit = unit, fed = {} }
+        combatFrameHits[signature] = hit
+    end
+    local best, bestName, bestDistance, bestIndex
+    for name, dot in pairs(dots) do
+        if not hit.fed[name] and dot.school == school then
+            local distance, index = distanceToExpectedTick(dot, now)
+            local window = dot.firstTickAt and TICK_MATCH_WINDOW_ANCHORED or TICK_MATCH_WINDOW
+            local freshSlot = not dot.firstTickAt or index > dot.lastTickIndex
+            if freshSlot and distance <= window and (not bestDistance or distance < bestDistance) then
+                best, bestName, bestDistance, bestIndex = dot, name, distance, index
+            end
+        end
+    end
+    if not best then return end
+    local wasWaiting = isWaiting(best)
+    best.ticksSeen = best.ticksSeen + 1
+    best.lastTickAmount, best.lastTickShape, best.lastTickCrit = 0, tickShape(best, tickNumberAt(best, now)), isCrit
+    best.offBeatCandidate = nil
+    hit.fed[bestName] = true
+    local tickIndex = anchorTick(best, bestIndex, now)
+    trace(string.format("TICK %s (amount hidden)%s on %s (tick %d/%d)%s", bestName, isCrit and " CRIT" or "", unit,
+        tickIndex, best.totalTicks, wasWaiting and ", now shown" or ""))
+    if wasWaiting then return key end
+end
+
 local function onUnitCombat(unit, action, flag, amount, school)
     if isSecret(action) then return end
     -- A fully absorbed tick still landed (a shield ate it): it proves the DoT is on and keeps its rhythm, so ABSORB
@@ -1042,8 +1086,10 @@ local function onUnitCombat(unit, action, flag, amount, school)
     if action == "WOUND" or absorbed then onHit(key, school) end
     -- a mob without a DoT of ours (and no armed trap): its hits are other players' (left before reading their values)
     if not dotsByTarget[key] and not armedTrap then return end
-    if isSecret(amount) or isSecret(school) or type(amount) ~= "number" then return end
+    if isSecret(school) or type(school) ~= "number" then return end
     local isCrit = not isSecret(flag) and flag == "CRITICAL"
+    if isSecret(amount) then return onSecretTick(key, unit, school, isCrit) end
+    if type(amount) ~= "number" then return end
     local dots = dotsByTarget[key] or EMPTY
     -- A school none of the mob's DoTs (nor the armed trap) has is another player's hit: nothing to match. Its HIT line is
     -- only written while debugging (below): in a raid those lines were most of the work and filled the trace log
