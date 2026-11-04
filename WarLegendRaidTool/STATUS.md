@@ -18,6 +18,17 @@ Pas dans le zip des releases.
   fichiers sont déjà dans `main`, la fusion ne ferait que des conflits). **Verrou de release levé par l utilisateur pour
   cette version** (pas de `/wl verify` avant). **Rien testé en jeu.**
 
+## Veille 04/11/2026 (build 1.60.1.70790, Interface 16001)
+
+- **Build / Interface** : code de l interface `forever` de Gethe/wow-ui-source `eac30af` (1.60.1.70790, 4/11), 5 fichiers depuis `17ed2c3`
+  (70755), diff lu en entier. Branche `claude/wow-forever-70790-check-0a12fe`. Cache local passé à 70790 : `wow-api check` 0 nouveau.
+- **Changement** : amis Battle.net de niveau « titre » (amitié en jeu seulement) : les chuchotements vers eux partent en chuchotement de
+  personnage (`WHISPER`) au lieu de `BN_WHISPER` (`ChatFrameEditBox`, `ChatFrameUtil.SendBNetTell`) ; nouvelle API
+  `C_BattleNet.GetDefaultTitleWhisperTarget(id)` (AllowedWhenUntainted) ; le menu du clic droit montre « Chuchoter » même hors ligne.
+- **Sans impact (grep)** : nos chuchotements passent tous par `ChatFrame_SendTell` avec un nom de personnage (Guild, GuildPositions, Layers,
+  Leveling : chemin inchangé) ; InviteTool lit seulement `CHAT_MSG_BN_WHISPER` reçu (rien de changé à la réception). Rien à corriger,
+  rien testé en jeu. UNVERIFIED : un ami « titre » qui chuchote « inv » arrive-t-il encore en `CHAT_MSG_BN_WHISPER` (à voir le 5/11).
+
 ## Veille 03/11/2026 soir (build 1.60.1.70755, Interface 16001)
 
 - **Build / Interface** : `wowf` 1.60.1.70755 (issue n° 15), Interface 16001 = les .toc. Code de l interface publié : `forever` de
