@@ -3,6 +3,12 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Version publiée (4/11) : 1.41.60
+
+- **1.41.60** (tag `v1.41.60`, numéro choisi par l utilisateur) = DoesItDie, ticks reconnus au rythme quand `UNIT_COMBAT` cache le
+  montant (build 70755, entrée « Veille 03/11/2026 soir » ci-dessous). **Verrou de release levé par l utilisateur pour cette
+  version** (pas de `/wl verify` avant). **Rien testé en jeu.**
+
 ## Version publiée (3/11) : 1.41.59
 
 - **1.41.59** (tag `v1.41.59`, numéro choisi par l utilisateur) = `main` en avance rapide de

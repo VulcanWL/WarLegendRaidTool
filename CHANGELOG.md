@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.60 (04/11/2026)
+
 ### Corrigé
 - DoesItDie : les DoT ne disparaissent plus au bout de quelques secondes depuis que le jeu cache les dégâts des ticks
   (build 70755 de Forever) ; les ticks sont reconnus à leur rythme, mais leur taille n'est plus apprise (estimation par la
