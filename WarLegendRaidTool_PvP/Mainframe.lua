@@ -807,7 +807,13 @@ local function CreateMainFrame(playerType)
 				topButton = lastButton
 				bottomButton = firstButton
 			end
-			self:SetSize(barWidth, topButton:GetTop() - bottomButton:GetBottom())
+			-- WarLegend: a button whose settings come on a later frame has no place yet (GetTop nil, /wl verify 4/11):
+			-- the height the settings give until the next pass measures it
+			local top, bottom = topButton:GetTop(), bottomButton:GetBottom()
+			if not (top and bottom) then
+				top, bottom = rowsPerColumn * (barHeight or 0) + (rowsPerColumn - 1) * (verticalSpacing or 0), 0
+			end
+			self:SetSize(barWidth, top - bottom)
 		end
 		-- the next buttons on the next frame, or after the fight if one started
 		if more and not self.positioningAgain then

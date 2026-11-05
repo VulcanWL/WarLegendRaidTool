@@ -3,6 +3,20 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Premier `/wl verify` en jeu (4/11 13:44, build 70790, 1.41.60 installée ; pas commité, pas de version)
+
+- Lu avec `node tools/verify-live.js --saved` (compte VULCANMETHOD, Vulcan-Shadex, Voleur niveau bas, solo). 3 `LOOK` :
+  - `errors` : 1 erreur de nos addons, `WarLegendRaidTool_PvP/Mainframe.lua:810` (`GetTop()` nil : un bouton dont les
+    réglages viennent à une frame suivante n a pas encore de place). **Corrigé** : hauteur tirée des réglages tant que la
+    mesure manque (CHANGELOG 1 Corrigé). Vérifié : check 0, smoke sans problème (2 passes), BG 31 / 31, open world 50 / 50,
+    wow-api 0 nouveau, jeu à jour.
+  - `errorcap` : 945 erreurs dans la session, presque toutes d EllesmereUIDamageMeters (valeurs secrètes, corrigé à part
+    dans le dossier du jeu) : à relancer après `/reload`.
+  - `nameform` : `confirm: a_a>a_a GUID gives a_a_a4a2a DIFFERS` : le nom de `GetInviteConfirmationInfo` n a pas le
+    royaume d un joueur d un autre royaume. Sans effet : `InviteTool` décide par le GUID (le nom n est que le message).
+    À accepter par l utilisateur.
+- Verrou de release : encore ouvert (SKIP restants : butin de maître, guilde, chat, appels restreints, CdB, invitation).
+
 ## Version publiée (4/11) : 1.41.60
 
 - **1.41.60** (tag `v1.41.60`, numéro choisi par l utilisateur) = DoesItDie, ticks reconnus au rythme quand `UNIT_COMBAT` cache le

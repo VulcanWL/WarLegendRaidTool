@@ -6,6 +6,9 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Cadres de champ de bataille : plus d'erreur Lua quand les cadres s'affichent avant que tous les joueurs soient placés.
+
 ## 1.41.60 (04/11/2026)
 
 ### Corrigé
