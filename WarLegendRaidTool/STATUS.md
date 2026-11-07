@@ -3,7 +3,13 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Layers : numéro du jeu + événements de changement de layer (6/11, sur `main`, poussé, pas de version)
+## Version publiée (6/11) : 1.41.61
+
+- **1.41.61** (tag `v1.41.61`) = Layers (numéro du jeu, entrée ci-dessous) + cadres de champ de bataille sans erreur
+  (`Mainframe.lua:810`, premier `/wl verify`). **Verrou de release levé par l utilisateur pour cette version** (SKIP de
+  `/wl verify` encore ouverts). **Layers pas encore testé en jeu.**
+
+## Layers : numéro du jeu + événements de changement de layer (6/11, dans 1.41.61)
 
 - Constat (données sauvegardées) : le registre d alias locaux comptait 70 « layers » pour Durotar en deux jours (lectures
   de la guilde comprises) : sur Forever les layers sont par zone et s ouvrent / se ferment avec l affluence.
