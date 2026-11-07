@@ -3,6 +3,19 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Layers : numéro du jeu + événements de changement de layer (6/11, sur `main`, poussé, pas de version)
+
+- Constat (données sauvegardées) : le registre d alias locaux comptait 70 « layers » pour Durotar en deux jours (lectures
+  de la guilde comprises) : sur Forever les layers sont par zone et s ouvrent / se ferment avec l affluence.
+- `Layers.lua` : le numéro affiché = la partie zone de l id (`server-zoneUID`), le numéro du jeu, le même partout (Forever
+  Layer Hop et Overlord montrent le même brut). L id sur le fil et les comparaisons ne changent pas (compatible avec les
+  anciennes versions). Registre `db.registry` supprimé (vidé au chargement). `SHARD_TRANSFER` relance la détection,
+  `SHARD_TRANSFER_IMMINENT` / `_CANCELLED` + `GetEvictionTimeRemaining` (doc Forever, SystemDocumentation /
+  PlayerScriptDocumentation) affichent le compte à rebours. CHANGELOG + `docs/modules.md`.
+- À tester en jeu : `/wl layer`, cibler 2 monstres, comparer le numéro avec un membre de la guilde sur le même layer ;
+  quitter un groupe : le compte à rebours doit s afficher. NON VÉRIFIÉ : `SHARD_TRANSFER` à l entrée dans un groupe (le
+  vote à 2 créatures reste le filet), messages GUILD entre royaumes de fond différents.
+
 ## Premier `/wl verify` en jeu (4/11 13:44, build 70790, 1.41.60 installée ; pas commité, pas de version)
 
 - Lu avec `node tools/verify-live.js --saved` (compte VULCANMETHOD, Vulcan-Shadex, Voleur niveau bas, solo). 3 `LOOK` :

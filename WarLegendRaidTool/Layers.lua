@@ -2,8 +2,11 @@
 -- Which layer (copy of the open world) I am on, and the layers of the guild members. Idea and method from Sashoof's
 -- WarLegend v3 addon: the zone part of a creature GUID ("Creature-0-server-instance-zoneUID-npc-spawn") is the same for
 -- every creature of one layer. Two different creatures that agree within 30 s confirm it (target, mouseover, nameplates).
--- Shared with the guild (GUILD, prefix WLRT_LAYER). Layer numbers are this computer's aliases per zone (1, 2, 3... in the
--- order they were met), never the server's numbers. Nothing runs in instances, battlegrounds and on a taxi.
+-- Shared with the guild (GUILD, prefix WLRT_LAYER). The number shown is the zone part itself: the game's own number for
+-- that layer, the same on every computer (the raw id Forever Layer Hop and Overlord show too). Forever layers are per
+-- zone and come and go with the crowd, so the old aliases "in the order this computer met them" reached "Layer 70" in
+-- Durotar within two days. Blizzard's SHARD_TRANSFER events (the "moving you to another layer" toast) restart the
+-- detection. Nothing runs in instances, battlegrounds and on a taxi.
 local W = WLRT
 W.AddFR({
     ["Layers"] = "Layers",
@@ -36,8 +39,10 @@ W.AddFR({
         "[WaR LegenD] Nous sommes sur des layers différents : je t'invite dans mon groupe, accepte pour rejoindre mon layer.",
     ["Invitation sent to %s."] = "Invitation envoyée à %s.",
     ["Click: select. Right click: whisper."] = "Clic : sélectionner. Clic droit : chuchoter.",
-    ["Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."] =
-        "Les numéros de layer sont donnés par cet ordinateur, zone par zone, dans l'ordre où les layers ont été rencontrés : ils peuvent différer de ceux d'un autre joueur. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
+    ["The layer number is the game's own number for this copy of the zone, read on the creatures around you: the same for every player on that layer (and in other layer addons). Layers open and close with the crowd, so the numbers change over time. A reading older than 5 minutes is grey, gone after one hour."] =
+        "Le numéro de layer est celui du jeu pour cette copie de la zone, lu sur les créatures autour de toi : le même pour tous les joueurs de ce layer (et dans les autres addons de layers). Les layers s'ouvrent et se ferment avec l'affluence, donc les numéros changent avec le temps. Une lecture de plus de 5 minutes est grise, effacée après une heure.",
+    ["the game moves me to another layer in %s"] = "le jeu me change de layer dans %s",
+    ["the game moves me to another layer any moment"] = "le jeu me change de layer d'un instant à l'autre",
     ["Method from Sashoof's WarLegend v3 addon."] = "Méthode reprise de l'addon WarLegend v3 de Sashoof.",
 })
 local L = W.L
@@ -49,8 +54,6 @@ local FRESH = 300      -- older than 5 min: shown in grey
 local KEEP = 3600      -- a guild member's reading is forgotten after 1 h
 local SHARE_GAP = 120  -- the same layer is sent again at most every 2 min
 local MIN_GAP = 10     -- and never two messages within 10 s (zone borders)
-local MAX_PER_ZONE = 20
-local MAX_ZONES = 300 -- a guild member (or a buggy client) sending endless map ids must not grow the saved data
 local LOOK_GAP = 2     -- once the layer is known: one creature looked at every 2 s at most (nameplates come in bursts)
 
 local current -- { id = "server-zoneUID", map = mapID, zone = name, at = server time }
@@ -66,40 +69,13 @@ local lastWhisper = {}
 
 W.OnReady(function()
     db = W.DB("layers", { on = true, share = true })
-    if type(db.registry) ~= "table" then db.registry = {} end
+    db.registry = nil -- the old per-zone aliases (up to 300 zones x 20 layers): no longer used
 end)
 
--- Alias of a layer in a zone: 1, 2, 3... in the order this computer met them
-local function Number(map, id)
-    local key = tostring(map)
-    local zone = db.registry[key]
-    if type(zone) ~= "table" then
-        -- full: the zone seen least recently is forgotten (refusing new ones left "layer 0" everywhere for good once
-        -- a guild member had sent made-up map ids)
-        local zones, oldestKey, oldestSeen = 0, nil, nil
-        for k, z in pairs(db.registry) do
-            zones = zones + 1
-            local seen = type(z) == "table" and tonumber(z.seen) or 0
-            if not oldestSeen or seen < oldestSeen then oldestKey, oldestSeen = k, seen end
-        end
-        if zones >= MAX_ZONES and oldestKey then db.registry[oldestKey] = nil end
-        zone = { next = 0, ids = {} }; db.registry[key] = zone
-    end
-    local e = zone.ids[id]
-    if not e then
-        local count, oldest = 0, nil
-        for k, v in pairs(zone.ids) do
-            count = count + 1
-            if not oldest or v.seen < zone.ids[oldest].seen then oldest = k end
-        end
-        if count >= MAX_PER_ZONE and oldest then zone.ids[oldest] = nil end -- old server restarts
-        zone.next = zone.next + 1
-        e = { n = zone.next, seen = 0 }
-        zone.ids[id] = e
-    end
-    e.seen = GetServerTime()
-    zone.seen = e.seen
-    return e.n
+-- The number shown for a layer id ("server-zoneUID", digits only: checked on receive, matched on the GUID): the zone
+-- part, the game's own number for that layer
+local function Number(id)
+    return tonumber(id:match("%-(%d+)$")) or 0
 end
 
 local function OpenWorld()
@@ -164,16 +140,15 @@ W.OnAddon(PREFIX, function(msg, name, channel, full)
     local e = guild[key] -- the same table each time a member sends: no allocation per message
     if not e then e = {}; guild[key] = e end
     e.name, e.full, e.id, e.map, e.at, e.zone = name, full, id, map, math.min(at, now), W.Plain(f[5], 60)
-    Number(map, id)
     if UI.panel and UI.panel:IsVisible() then Refresh() end
 end)
 
--- For the other modules (Leveling): a guild member's layer number as this computer names it, and whether it is mine
--- (same zone and layer); nil when unknown or older than 5 minutes.
+-- For the other modules (Leveling): a guild member's layer number (the game's), and whether it is mine (same zone and
+-- layer); nil when unknown or older than 5 minutes.
 function W.GuildLayer(full)
     local e = guild[W.Key(full)]
     if not e or GetServerTime() - e.at > FRESH then return nil end
-    return Number(e.map, e.id), current and e.map == current.map and e.id == current.id or false
+    return Number(e.id), current and e.map == current.map and e.id == current.id or false
 end
 
 ---------------------------------------------------------------------------
@@ -209,7 +184,6 @@ local function Observe(unit)
     if count < 2 then return end
     current = current or {}
     current.id, current.map, current.zone, current.at = id, map, W.Safe(GetRealZoneText()) or "?", GetServerTime()
-    Number(map, id)
     Share(true)
     if UI.panel and UI.panel:IsVisible() then Refresh() end
 end
@@ -236,6 +210,29 @@ local function Reset()
 end
 W.On("PLAYER_ENTERING_WORLD", Reset)
 W.On("ZONE_CHANGED_NEW_AREA", Reset)
+
+-- Blizzard's layer moves (System events of the Forever build, the client's "moving you to another layer" toast):
+-- IMMINENT starts the countdown (GetEvictionTimeRemaining, seconds; after leaving a group), CANCELLED stops it,
+-- SHARD_TRANSFER is the move itself: my reading is wrong from then on, the detection starts over.
+local moveAt -- GetTime() of the announced move, nil when none
+W.On("SHARD_TRANSFER_IMMINENT", function()
+    local left = GetEvictionTimeRemaining and W.Safe(GetEvictionTimeRemaining())
+    moveAt = GetTime() + ((type(left) == "number" and left > 0) and left or 0)
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
+end)
+W.On("SHARD_TRANSFER_CANCELLED", function()
+    moveAt = nil
+    if UI.panel and UI.panel:IsVisible() then Refresh() end
+end)
+W.On("SHARD_TRANSFER", function() moveAt = nil; Reset() end)
+
+local function MoveText()
+    if not moveAt then return "" end
+    local left = math.ceil(moveAt - GetTime())
+    if left <= 0 then return "  |cffff8800" .. L("the game moves me to another layer any moment") .. "|r" end
+    local t = left < 60 and string.format(L("%d s"), left) or string.format(L("%d min"), math.ceil(left / 60))
+    return "  |cffff8800" .. string.format(L("the game moves me to another layer in %s"), t) .. "|r"
+end
 
 ---------------------------------------------------------------------------
 -- Invite a guild member who is on another layer of my zone (the group puts him on my layer)
@@ -285,8 +282,8 @@ function Refresh()
     if not UI.panel then return end
     local now = GetServerTime()
     if current then
-        UI.mine:SetText(string.format(L("My layer: %s"), string.format(L("Layer %d"), Number(current.map, current.id))
-            .. "  |cffaaaaaa" .. W.Plain(current.zone, 60) .. " · " .. Age(current.at) .. "|r"))
+        UI.mine:SetText(string.format(L("My layer: %s"), string.format(L("Layer %d"), Number(current.id))
+            .. "  |cffaaaaaa" .. W.Plain(current.zone, 60) .. " · " .. Age(current.at) .. "|r") .. MoveText())
     elseif db.on and not OpenWorld() then
         UI.mine:SetText(string.format(L("My layer: %s"), "|cffaaaaaa" .. L("off in instances, battlegrounds and on a taxi") .. "|r"))
     else
@@ -300,7 +297,7 @@ function Refresh()
     for key, e in pairs(guild) do
         if now - e.at > KEEP then guild[key] = nil else list[#list + 1] = e end
     end
-    for _, e in ipairs(list) do e.n = Number(e.map, e.id) end -- once per row, not in the sort
+    for _, e in ipairs(list) do e.n = Number(e.id) end -- once per row, not in the sort
     table.sort(list, function(a, b)
         if a.zone ~= b.zone then return a.zone < b.zone end
         if a.n ~= b.n then return a.n < b.n end
@@ -368,7 +365,7 @@ W.RegisterModule("Layers", "Layers", function(p)
     UI.sel:SetPoint("LEFT", UI.invite, "RIGHT", 10, 0)
     UI.sel:SetWidth(600)
     UI.sel:SetJustifyH("LEFT")
-    local hint = W.Label(p, L("Layer numbers are given by this computer, zone by zone, in the order the layers were met: they can differ from another player's numbers. A reading older than 5 minutes is grey, gone after one hour."),
+    local hint = W.Label(p, L("The layer number is the game's own number for this copy of the zone, read on the creatures around you: the same for every player on that layer (and in other layer addons). Layers open and close with the crowd, so the numbers change over time. A reading older than 5 minutes is grey, gone after one hour."),
         "GameFontDisableSmall")
     hint:SetPoint("TOPLEFT", 16, -522)
     hint:SetWidth(780)

@@ -8,6 +8,9 @@ Releases et les tags git.
 
 ### Corrigé
 - Cadres de champ de bataille : plus d'erreur Lua quand les cadres s'affichent avant que tous les joueurs soient placés.
+- Layers (`/wl layer`) : le numéro affiché est celui du jeu pour le layer, le même pour toute la guilde (et dans les autres
+  addons de layers), au lieu d'un numéro donné par ton ordinateur qui grimpait sans fin (« Layer 70 »). Un changement de
+  layer annoncé par le jeu relance la détection, et le compte à rebours du jeu s'affiche dans l'onglet.
 
 ## 1.41.60 (04/11/2026)
 
