@@ -350,7 +350,7 @@ function W.AddonOff(prefix) return offFiles[addonFiles[prefix]] and true or fals
 
 -- Addon messages are taken from my group and my guild only. Anyone on the realm can whisper an
 -- addon message (and any addon can reuse our prefixes): a whisper must come from a group or guild
--- member. Handlers get (msg, short name for display / state, channel, full "Name-Realm" name).
+-- member (one exception: TRUST "ask" below). Handlers get (msg, short name for display / state, channel, full "Name-Realm" name).
 -- The full name is the one to trust: two players can share a short name on different realms.
 -- No INSTANCE_CHAT: nothing of ours sends on it, and it is how a battleground's strangers (its random leader) reach us.
 local GROUP_CHANNELS = { RAID = true, PARTY = true, GUILD = true, OFFICER = true }
@@ -360,17 +360,27 @@ local GUILD_CHANNELS = { GUILD = true, OFFICER = true }
 -- (a whisper from a group member), never the guild channel: one message there made the whole guild load the raid addon
 -- and answer in its groups. "raid": the same, not in a battleground / arena (the raid tools have nothing to do there).
 -- Leader / assistant checks stay in the handlers (they need the unit). A new prefix goes here too; WLRT_VER (group and
--- guild) is not listed.
+-- guild) is not listed. "ask": a whisper only, from anyone (a stranger too), and only while the module that sent an ask
+-- says it waits for that player's answer (W.AskGate): Layers, the answers of LayerSwap users to my ask.
 local TRUST = {
     WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
     WLRT_LVL = "guildchan", GuildMapEx1 = "guildchan", WLRT_PROF = "guild",
     WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group", WLRT_CD2 = "group",
     WLRT_RDYA = "group",
     WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid",
+    LayerSwap = "ask",
 }
+-- prefix -> fn(full name): true while that player's whispered answer is awaited (TRUST "ask"); closed when not set
+local askGates = {}
+function W.AskGate(prefix, fn) askGates[prefix] = fn end
+local function AskOpen(prefix, channel, full)
+    local gate = channel == "WHISPER" and TRUST[prefix] == "ask" and askGates[prefix]
+    return gate and gate(full) and true or false
+end
 local function Trusted(prefix, channel, full)
     local kind = TRUST[prefix]
     if not kind then return true end
+    if kind == "ask" then return AskOpen(prefix, channel, full) end
     if kind == "guildchan" then return GUILD_CHANNELS[channel] or false end
     if kind == "guild" then return W.GuildMember(full) ~= nil end
     if GUILD_CHANNELS[channel] then return false end
@@ -554,7 +564,8 @@ function Dispatch(prefix, msg, channel, sender, replay)
             if audit then audit("bad-channel", prefix, channel, full, #msg) end
             return
         end
-        if not (W.UnitByName(full) or W.GuildMember(full)) then
+        -- a stranger only on an "ask" prefix whose module waits for this very player's answer (TRUST)
+        if not (W.UnitByName(full) or W.GuildMember(full)) and not AskOpen(prefix, channel, full) then
             if audit then audit("stranger", prefix, channel, full, #msg) end
             return
         end

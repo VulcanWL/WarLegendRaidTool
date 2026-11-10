@@ -870,15 +870,17 @@ do
     local function Says(prefix, channel, from) said = nil; Addon(prefix, "x", channel, from); return said end
     local KINDS = { WLRT_PROFILE = "guildchan", WLRT_LAYER = "guildchan", WLRT_MINO = "guildchan", WLRT_TRANSP = "guildchan",
         WLRT_LVL = "guildchan", GuildMapEx1 = "guildchan", WLRT_PROF = "guild", WLRT_VERQ = "group", WLRT_INSQ = "group", WLRT_INSD = "group", WLRT_DUR = "group",
-        WLRT_CD2 = "group", WLRT_RDYA = "group", WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid" }
-    local function All(v) return { guildchan = v, guild = v, group = v, raid = v } end
+        WLRT_CD2 = "group", WLRT_RDYA = "group", WLRT_LC = "raid", WLRT_CON = "raid", WLRT_BUFF = "raid", WLRT_RG = "raid", WLRT_RDYQ = "raid",
+        LayerSwap = "ask" }
+    local function All(v) return { guildchan = v, guild = v, group = v, raid = v, ask = v } end
+    -- "ask": nothing while no ask of mine waits (section 14 checks it open)
     local CASES = {
-        { "GUILD", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted" } },
-        { "OFFICER", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted" } },
-        { "WHISPER", GUILDIE, { guildchan = "untrusted", guild = "ok", group = "untrusted", raid = "untrusted" } }, -- out of my group
-        { "RAID", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } }, -- out of my guild
-        { "PARTY", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } },
-        { "WHISPER", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok" } },
+        { "GUILD", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted", ask = "untrusted" } },
+        { "OFFICER", GUILDIE, { guildchan = "ok", guild = "ok", group = "untrusted", raid = "untrusted", ask = "untrusted" } },
+        { "WHISPER", GUILDIE, { guildchan = "untrusted", guild = "ok", group = "untrusted", raid = "untrusted", ask = "untrusted" } }, -- out of my group
+        { "RAID", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok", ask = "untrusted" } }, -- out of my guild
+        { "PARTY", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok", ask = "untrusted" } },
+        { "WHISPER", MATE, { guildchan = "untrusted", guild = "untrusted", group = "ok", raid = "ok", ask = "untrusted" } },
         { "INSTANCE_CHAT", MATE, All("bad-channel") },
         { "WHISPER", "Stranger-Other", All("stranger") },
     }
@@ -1285,6 +1287,256 @@ end
 M.group[4].assist = nil
 M.Fire("GROUP_ROSTER_UPDATE")
 M.Advance(1)
+
+-- 14: Layers, Ask LayerSwap hosts: one player search on the click (the zone's map, climbed from a town map; every class,
+-- then one class a search while that zone is busy), LayerSwap's line with my map place (none when unreadable) whispered
+-- to the players of my zone only (not me, no one twice, 40 at most, the hosts of the book first), 8 then one a second; the
+-- answers taken by Core only from the players asked and only while the ask waits, malformed ones dropped, the book capped
+-- and pruned at login, a host on my layer named when it invites, the end message from the answers, nothing more once an
+-- invite comes; the Leave button only for the invite's own group, not as leader, never during the game's countdown, on a
+-- click; nothing on a who answer nobody asked for, no search in a group
+Phase("layerswap ask")
+do
+    local root = Panel("Layers")
+    local btn, leaveBtn = ButtonIn(root, W.L("Ask LayerSwap hosts")), ButtonIn(root, W.L("Leave this group"))
+    local fl0, best0, info0, spot0 = rawget(_G, "C_FriendList"), C_Map.GetBestMapForUnit, C_Map.GetMapInfo, C_Map.GetPlayerMapPosition
+    local leave0, evict0, lead0 = C_PartyInfo.LeaveParty, rawget(_G, "GetEvictionTimeRemaining"), UnitIsGroupLeader
+    local group0, inst0 = M.group, M.instance
+    local searches, rows, left, town, leader = {}, {}, 0, 1519, false
+    C_FriendList = {
+        SendWho = function(text, origin, filters)
+            local f = type(filters) == "table" and filters or {}
+            searches[#searches + 1] = { text = text, map = f.uiMapIDs and f.uiMapIDs[1], class = f.classIDs and f.classIDs[1] or "all" }
+        end,
+        SetWhoToUi = function() end,
+        GetNumWhoResults = function() return math.min(#rows, 50), #rows end,
+        GetWhoInfo = function(i) return rows[i] end,
+    }
+    -- town maps (1519, 1520: Micro) inside their zones (1411, 1412); my place on the zone map of 1411 only
+    C_Map.GetBestMapForUnit = function(u) if UnitIsUnit(u, "player") then return town end return nil end
+    C_Map.GetMapInfo = function(id)
+        if id == 1519 then return { mapID = 1519, mapType = Enum.UIMapType.Micro, parentMapID = 1411 } end
+        if id == 1520 then return { mapID = 1520, mapType = Enum.UIMapType.Micro, parentMapID = 1412 } end
+        return { mapID = id, mapType = Enum.UIMapType.Zone, parentMapID = 12 }
+    end
+    C_Map.GetPlayerMapPosition = function(map, u) if map == 1411 and UnitIsUnit(u, "player") then return { x = 0.482, y = 0.425 } end return nil end
+    C_PartyInfo.LeaveParty = function() left = left + 1 end
+    UnitIsGroupLeader = function(u) if UnitIsUnit(u, "player") then return leader end return lead0(u) end
+    local function Solo()
+        M.group = { M.player }
+        M.Fire("GROUP_LEFT")
+        M.Fire("GROUP_ROSTER_UPDATE")
+    end
+    M.instance = nil
+    Solo()
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(1)
+    local me = W.UnitFullName("player")
+    -- 52 rows (the game says 52, sends 50): a busy zone
+    rows[1] = { fullName = me, area = "Orgrimmar" }
+    rows[2] = { fullName = "Faraway One", area = "Durotar" }
+    rows[3] = { fullName = "Host1 Forever", area = "Orgrimmar" } -- again in the loop
+    for i = 1, 49 do rows[#rows + 1] = { fullName = "Host" .. i .. " Forever", area = "Orgrimmar" } end
+    local LINE = "inv layer <LS 1411 not 1-4242 48.2,42.5>"
+    local function Reply(msg, from) Addon("LayerSwap", msg, "WHISPER", from) end
+    local function Invite(name, guid) M.Fire("PARTY_INVITE_REQUEST", name, false, false, false, false, false, guid, false) end
+    local function StatusHas(s) -- the status next to the button (a font string of the tab)
+        local stack = { root }
+        while #stack > 0 do
+            local o = table.remove(stack)
+            for _, r in ipairs(o.__regions or {}) do if type(r.__text) == "string" and r.__text:find(s, 1, true) then return true end end
+            for _, c in ipairs(o.__children or {}) do stack[#stack + 1] = c end
+        end
+        return false
+    end
+    local function PrintedHas(fn, line)
+        for _, l in ipairs(Printed(fn)) do if l == line then return true end end
+        return false
+    end
+    if not W.IsShown() then M.Call(W.Toggle) end
+    M.Call(W.Select, "Layers")
+    -- the book: the second pass (saved data) finds what the first left, pruned at login (older than 7 days); then full
+    local saved = W.db.layers.lsHosts or {}
+    local pruned = opts.race ~= "Skyborne" or (saved["stale one"] == nil and saved["fresh one"] ~= nil)
+    local fill = {}
+    for i = 1, 150 do fill["filler" .. i] = time() - 1000 + i end
+    W.db.layers.lsHosts = fill
+    -- the layer unknown: no search
+    Click(btn)
+    local unknown = #searches
+    M.units.nameplate1, M.units.nameplate2 = { guid = "Creature-0-1-1-4242-1234-1" }, { guid = "Creature-0-1-1-4242-1235-1" }
+    M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+    M.units.nameplate1, M.units.nameplate2 = nil, nil
+    -- a who answer nobody asked for sends nothing
+    local before = #M.addon
+    M.Fire("WHO_LIST_UPDATE")
+    M.Advance(2, 1)
+    local unasked = #SentSince(before, "LayerSwap")
+    -- the first ask (every class): 8 at once, then one a second; the answers; an invite from a host on my layer
+    Click(btn)
+    local s1 = searches[#searches] or {}
+    local onClick = #SentSince(before, "LayerSwap")
+    M.Fire("WHO_LIST_UPDATE")
+    local burst = #SentSince(before, "LayerSwap")
+    local first = SentSince(before, "LayerSwap")[1] or {}
+    M.Advance(2.5, 0.5)
+    local later = #SentSince(before, "LayerSwap")
+    Reply("heard " .. me .. "|1-5555|1411|h", "Host2 Forever")       -- a host on another layer of my zone
+    Reply("heard " .. me .. "|1-5555|1411|-", "Host2 Forever")       -- again, Host off now: still counted as a host
+    Reply("same", "Host3 Forever")                                     -- a host on my layer
+    Reply("heard " .. me .. "|1-5555|1411|h", "Host30 Forever")      -- not asked yet
+    Reply("heard " .. me .. "|1-5555|1411|h", "Faraway One")         -- never asked
+    for _, bad in ipairs({ "heard x|1|2", string.rep("|", 300), "heard " .. me .. "|a-b|1411|h", "heard Someone Else|1-5555|1411|h",
+        "heard " .. me .. "|1-5555|1411|h|h", string.rep("heard ", 30) }) do
+        Reply(bad, "Host4 Forever")
+    end
+    local counted = StatusHas(string.format(W.L("%d heard, %d hosting on another layer"), 2, 1))
+    -- what Core decides while the ask waits (the audit's word): a player asked, by whisper only; nobody else
+    local on0, note0, said = W.AuditOn, W.AuditNote, nil
+    W.AuditOn = function() return true end
+    W.AuditNote = function(kind) if kind ~= "time" then said = kind end end
+    local function Says(channel, from) said = nil; Addon("LayerSwap", "x", channel, from); return said end
+    local gate = { Says("WHISPER", "Host6 Forever"), Says("WHISPER", "Host40 Forever"), Says("GUILD", "Host6 Forever"),
+        Says("OFFICER", "Host6 Forever"), Says("PARTY", "Host6 Forever"), Says("RAID", "Host6 Forever"), Says("WHISPER", GUILDIE) }
+    W.AuditOn, W.AuditNote = on0, note0
+    local gateOk = gate[1] == "ok" and gate[2] == "stranger" and gate[3] == "untrusted" and gate[4] == "untrusted"
+        and gate[5] == "untrusted" and gate[6] == "untrusted" and gate[7] == "untrusted"
+    local warned = PrintedHas(function() Invite("Host3 Forever", "Player-1-00000099") end,
+        string.format(W.L("%s is a LayerSwap host on my own layer: accepting changes nothing. Decline, then ask again."), "Host3 Forever"))
+    M.Advance(10, 1)
+    local afterInvite = #SentSince(before, "LayerSwap")
+    Reply("heard " .. me .. "|1-5555|1411|h", "Host5 Forever")       -- after the ask
+    local book, inBook = W.db.layers.lsHosts or {}, 0
+    for _ in pairs(book) do inBook = inBook + 1 end
+    Check("Ask LayerSwap hosts: one search on the click (layer known), every class on the zone's map, my map place in the line, 8 then one a second, stopped by an invite",
+        unknown == 0 and #searches == 1 and s1.map == 1411 and s1.class == "all" and s1.text == 'z-"Orgrimmar"' and unasked == 0 and onClick == 0
+        and burst == 8 and first.msg == LINE and later == 10 and afterInvite == 10,
+        string.format("searches %d (layer unknown %d), map %s, class %s, filter %s; sent: unasked %d, on the click %d, burst %d (%s), 2.5 s later %d, after the invite %d",
+        #searches, unknown, tostring(s1.map), tostring(s1.class), tostring(s1.text), unasked, onClick, burst, tostring(first.msg), later, afterInvite))
+    Check("Ask LayerSwap hosts: Core takes answers from the players asked only, by whisper only; malformed ones dropped; the book keeps hosts, capped, pruned at login; a host on my layer named when it invites",
+        counted and gateOk and book["host2 forever"] ~= nil and book["host3 forever"] ~= nil and book["host30 forever"] == nil and book["faraway one"] == nil
+        and book["host4 forever"] == nil and book["host5 forever"] == nil and inBook == 150 and book.filler1 == nil and book.filler2 == nil
+        and book.filler3 ~= nil and pruned and warned,
+        string.format("status counted: %s; Core: %s; book: host2 %s, host3 %s, host30 %s, faraway %s, host4 %s, host5 %s, %d entries, filler1 %s, filler3 %s; pruned at login: %s; on the invite: %s",
+        tostring(counted), table.concat(gate, " "), tostring(book["host2 forever"] ~= nil), tostring(book["host3 forever"] ~= nil),
+        tostring(book["host30 forever"] ~= nil), tostring(book["faraway one"] ~= nil), tostring(book["host4 forever"] ~= nil),
+        tostring(book["host5 forever"] ~= nil), inBook, tostring(book.filler1 ~= nil), tostring(book.filler3 ~= nil), tostring(pruned), tostring(warned)))
+    -- the second ask (30 s later, a busy zone: one class): 40 players of my zone, once each, the hosts of the book first;
+    -- nobody answers: the end message says so
+    M.Advance(31, 1)
+    before = #M.addon
+    Click(btn)
+    local s2 = searches[#searches] or {}
+    M.Fire("WHO_LIST_UPDATE")
+    M.Advance(40, 1)
+    local sent, targets, bad = SentSince(before, "LayerSwap"), {}, 0
+    for _, s in ipairs(sent) do
+        if s.channel ~= "WHISPER" or s.msg ~= LINE or targets[s.target] or s.target == me or s.target == "Faraway One" then bad = bad + 1 end
+        targets[s.target] = true
+    end
+    local bookFirst = sent[1] and sent[2] and ((sent[1].target == "Host2 Forever" and sent[2].target == "Host3 Forever")
+        or (sent[1].target == "Host3 Forever" and sent[2].target == "Host2 Forever"))
+    local told = PrintedHas(function() M.Advance(61, 1) end,
+        string.format(W.L("No invite after asking %d players: none of them answered with LayerSwap. Try again later (in a busy zone, the next search covers another class)."), 40))
+    local ended = rawequal(btn.__text, W.L("Ask LayerSwap hosts"))
+    -- the third ask: my layer changes during the rounds (the line would name the old one): nothing more goes out
+    before = #M.addon
+    Click(btn)
+    local s3 = searches[#searches] or {}
+    M.Fire("WHO_LIST_UPDATE")
+    M.units.nameplate1, M.units.nameplate2 = { guid = "Creature-0-1-1-4343-1234-1" }, { guid = "Creature-0-1-1-4343-1235-1" }
+    M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    M.Advance(2.5, 0.5)
+    M.Fire("NAME_PLATE_UNIT_ADDED", "nameplate2")
+    M.units.nameplate1, M.units.nameplate2 = nil, nil
+    local atMove = #SentSince(before, "LayerSwap")
+    M.Advance(10, 1)
+    local afterMove = #SentSince(before, "LayerSwap")
+    local stopped = rawequal(btn.__text, W.L("Ask LayerSwap hosts"))
+    Check("Ask LayerSwap hosts: then one class a search, 40 players of my zone once each, the hosts of the book first; the end message from the answers; stops on a new layer",
+        s2.class == 1 and s3.class == 2 and #sent == 40 and bad == 0 and bookFirst and told and ended and atMove >= 8 and afterMove == atMove and stopped,
+        string.format("classes %s, %s; %d sent, %d wrong (channel, line, twice, me, another zone), first %s, %s; end message: %s, ended: %s; new layer: %d then %d, stopped %s",
+        tostring(s2.class), tostring(s3.class), #sent, bad, tostring(sent[1] and sent[1].target), tostring(sent[2] and sent[2].target),
+        tostring(told), tostring(ended), atMove, afterMove, tostring(stopped)))
+    -- the fourth ask: the invite is declined (the game cancels it), then another group: no Leave button
+    M.Advance(31, 1)
+    Click(btn)
+    M.Fire("WHO_LIST_UPDATE")
+    Invite("Host9 Forever", "Player-1-00000002")
+    M.Fire("PARTY_INVITE_CANCEL")
+    M.group = { M.player, group0[2] }
+    M.Fire("GROUP_JOINED", 1, "0")
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Advance(17, 1)
+    M.Call(W.Select, "Layers")
+    local afterDecline = leaveBtn:IsShown()
+    Solo()
+    -- the fifth ask, in another zone (not busy as far as we know: every class), no map place readable: the line without
+    -- it; the invite's inviter is not in the group joined: no Leave button
+    town = 1520
+    M.Advance(31, 1)
+    before = #M.addon
+    Click(btn)
+    local s5 = searches[#searches] or {}
+    M.Fire("WHO_LIST_UPDATE")
+    local line5 = (SentSince(before, "LayerSwap")[1] or {}).msg
+    Invite("Host9 Forever", "Player-1-00000099")
+    M.group = { M.player, group0[2] }
+    M.Fire("GROUP_JOINED", 1, "0")
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Advance(17, 1)
+    M.Call(W.Select, "Layers")
+    local otherGroup = leaveBtn:IsShown()
+    Solo()
+    town = 1519
+    -- the sixth ask: the inviter's group, no countdown: shown after 15 s, not as leader, never during the countdown, on a click
+    M.Advance(31, 1)
+    Click(btn)
+    M.Fire("WHO_LIST_UPDATE")
+    Invite("Host9 Forever", "Player-1-00000002")
+    M.group = { M.player, group0[2] }
+    M.Fire("GROUP_JOINED", 1, "0")
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Advance(5, 1)
+    M.Call(W.Select, "Layers")
+    local early = leaveBtn:IsShown()
+    leader = true
+    M.Advance(12, 1)
+    M.Call(W.Select, "Layers")
+    local asLeader = leaveBtn:IsShown()
+    leader = false
+    M.Call(W.Select, "Layers")
+    local shown = leaveBtn:IsShown()
+    GetEvictionTimeRemaining = function() return 300 end
+    M.Fire("SHARD_TRANSFER_IMMINENT")
+    M.Call(W.Select, "Layers")
+    local inCountdown = leaveBtn:IsShown()
+    Click(leaveBtn)
+    local leftInCountdown = left
+    M.Fire("SHARD_TRANSFER_CANCELLED")
+    M.Call(W.Select, "Layers")
+    Click(leaveBtn)
+    local leftAfter = left
+    -- in a group: no search
+    local searched = #searches
+    M.Advance(31, 1)
+    Click(btn)
+    Check("Ask LayerSwap hosts: no map place, no x,y; a new zone searches every class; Leave this group only for the invite's group, after 15 s without a countdown, not as leader, never in the countdown, one leave per click; no search in a group",
+        line5 == "inv layer <LS 1412 not 1-4343>" and s5.class == "all" and s5.map == 1412 and not afterDecline and not otherGroup and not early
+        and not asLeader and shown and not inCountdown and leftInCountdown == 0 and leftAfter == 1 and #searches == searched,
+        string.format("line %s, class %s, map %s; shown after a decline: %s, for another group: %s, at 5 s: %s, as leader: %s, at 17 s: %s, in the countdown: %s; leaves in the countdown %d, after it %d; searches in a group: %d",
+        tostring(line5), tostring(s5.class), tostring(s5.map), tostring(afterDecline), tostring(otherGroup), tostring(early), tostring(asLeader),
+        tostring(shown), tostring(inCountdown), leftInCountdown, leftAfter, #searches - searched))
+    C_FriendList, C_Map.GetBestMapForUnit, C_Map.GetMapInfo, C_Map.GetPlayerMapPosition = fl0, best0, info0, spot0
+    C_PartyInfo.LeaveParty, GetEvictionTimeRemaining, UnitIsGroupLeader = leave0, evict0, lead0
+    -- for the second pass: one entry to prune at login, one to keep
+    W.db.layers.lsHosts = { ["stale one"] = 1, ["fresh one"] = time() }
+    M.group, M.instance = group0, inst0
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(1)
+end
 
 -- game settings (CVars) changed by a module come back when it is switched off in Settings > Modules, at once out of
 -- combat, at the end of a fight otherwise; a value the game set since (a graphics preset) is the one put back

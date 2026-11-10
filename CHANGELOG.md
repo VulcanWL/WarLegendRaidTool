@@ -6,6 +6,24 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Ajouté
+- Layers : bouton « Demander aux hôtes LayerSwap » (WoW Forever). Un clic cherche les joueurs de ta zone (la recherche
+  /who du jeu s'ouvre avec leur liste) puis leur envoie en privé la demande de l'addon LayerSwap, avec ta position sur la
+  carte comme LayerSwap (40 joueurs au plus, 8 d'un coup puis un par seconde, une recherche toutes les 30 s ; dans une zone
+  peuplée, chaque recherche suivante couvre une classe ; les hôtes qui ont déjà répondu passent en premier). Un utilisateur
+  de LayerSwap d'un autre layer de ta zone qui héberge t'invite. À côté du bouton : combien d'utilisateurs de LayerSwap
+  ont reçu la demande et combien hébergent sur un autre layer ; l'invitation d'un hôte de ton propre layer est signalée.
+  Tu acceptes toi-même, puis tu valides l'avis du jeu (ou « Changer de layer maintenant ») et tu restes dans le groupe.
+  Si aucun changement n'est annoncé 15 s après avoir rejoint, un bouton « Quitter ce groupe » apparaît (jamais pendant le
+  compte à rebours). Rien ne part tout seul, rien n'est accepté à ta place ; hors groupe et avec ton layer connu.
+
+### Corrigé
+- Layers : « Inviter sur mon layer » explique l'étape qui manquait. Depuis le lancement, rejoindre un groupe ne change pas
+  de layer tout de suite : le jeu affiche un avis avec un compte à rebours (environ 5 min) et il faut le valider (Refresh
+  Now) ou attendre. Le chuchotement d'invitation, le chat et l'onglet le disent, et l'onglet a un bouton « Changer de
+  layer maintenant » (le même que celui du jeu, hors combat) pendant le compte à rebours, même quand le changement était
+  déjà prévu avant un `/reload` ou un écran de chargement (comme l'avis du jeu depuis la build 70840).
+
 ## 1.41.61 (06/11/2026)
 
 ### Corrigé

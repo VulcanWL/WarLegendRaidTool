@@ -3,6 +3,95 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Veille 07/11/2026 matin (build 1.60.1.70862, Interface 16001)
+
+- **Build / Interface** : `Wow.exe` 1.60.1.70862 (installée 09:23) ; Gethe/wow-ui-source `forever` `9dc84f0` (70862),
+  5 fichiers depuis `5987a8e` (70840), diff lu en entier. Cache local passé à 70862 : `wow-api check` 0 nouveau.
+  Issues build-watch #19 à #22 fermées le 7/11 (accord de l utilisateur, sans commentaire).
+- **Changements** : manette seulement. `FrameControlsManager.lua` : un cadre de premier niveau avec `disallowGamepadUnfocus`
+  garde le focus manette ; `SmartNavigation.lua` suit `UI.AlternateTopLevelParentChanged` ; BarberShop : ce drapeau + un
+  saut de navigation manette.
+- **Impact** : aucun (aucun module ne touche la manette / SmartNavigation / BarberShop, grep). `check.js` 0 problème ;
+  smoke normal, open world 50/50, BG 31/31 sans problème ; `sync.sh` 0 copié (déjà à jour). BugGrabber : rien de nouveau.
+- **Addons du dossier du jeu mis à jour par WowUp (09:26)** : EllesmereUI 9.8 (toute la suite), NaowhForever 1.2.14 (tous),
+  Overlord 2.2.1, ShortestPathForever v1.22.47. StockStyles (combo du voleur « modern » par défaut) effacé par 9.8, remis à
+  la main (sauvegarde `.bak-combo-98`). Naowh garde ses correctifs amont (Walk borné, TownMap hors combat).
+
+## Veille 06/11/2026 soir (build 1.60.1.70840, Interface 16001)
+
+- **Build / Interface** : serveur de versions `wowf` us/eu = 1.60.1.70840 (installée) ; Gethe/wow-ui-source `forever` `5987a8e`
+  (70840), 5 fichiers depuis `eac30af` (70790), diff lu en entier. Cache local passé à 70840 : `wow-api check` 0 nouveau.
+  Issues build-watch #19 et #20 fermées le 7/11 (voir l entrée du 7/11).
+- **Changements** : `SocialToast.lua` (l avis de changement de layer) : plus chargé sur l écran de connexion, et montré au
+  chargement si un changement est déjà prévu (`GetEvictionTimeRemaining() > 0`) ; `Start()` sans argument.
+  SubscriptionInterstitial / CharacterSelect : écran d abonnement (manette, cadre modal), sans impact.
+- **Impact** : Layers fait pareil (PLAYER_ENTERING_WORLD : changement déjà prévu -> compte à rebours, ligne de chat, bouton,
+  journal). Rien d autre (aucun de nos addons ne touche SocialToast / l abonnement).
+- **Addons du dossier du jeu mis à jour par WowUp (18:08)** : EllesmereUI 9.7.8 (toute la suite), NaowhForever 1.2.12 (tous),
+  Overlord, ShortestPathForever. Corrections locales : DamageMeters (secret specIcon) et Naowh (Waypoints `Walk` borné à un
+  jour, TownMap hors combat) corrigés en amont ; StockStyles (combo du voleur « modern » par défaut) remis à la main.
+
+## Layers : Demander aux hôtes LayerSwap (9/11, sur `main`, pas commité, pas de version)
+
+- Demande de l utilisateur : « insérer LayerSwap dans WLRT ». LayerSwap 1.14.10 (Adam5288, CurseForge, sans licence dans
+  le zip) lu en entier le 9/11 : code propre, mais l hôte invite / exclut / quitte sans clic et Host se remet à chaque
+  connexion. Repris ici : le **côté demandeur seulement**, code écrit pour WLRT, seul le format du message est le leur.
+- `Layers.lua` : bouton « Ask LayerSwap hosts » (TOPRIGHT sous « Change layer now », Forever seulement) + état à sa gauche.
+  Clic : un `C_FriendList.SendWho` (`z-"zone"` + `uiMapIDs` = carte de la zone, remontée au type Zone comme LayerSwap ;
+  repli sans filtre), `WHO_LIST_UPDATE` -> joueurs de ma zone (pas moi, 40 max), puis `inv layer <LS carte not monLayer>`
+  en WHISPER sur le préfixe `LayerSwap`, 8 d un coup puis un par seconde. Fin : invitation, groupe, zone / layer / écran
+  de chargement, 2e clic, 60 s sans invitation.
+- 9/11, 2e passe (« fais au mieux pour que le swap marche ») : comparaison ligne à ligne avec LayerSwap, repris ce qui
+  aide sans clic manquant : rotation des classes (une recherche toutes classes, puis une classe par recherche tant que la
+  zone est pleine, 50/50+), position sur la carte dans la ligne (`x,y`, comme LayerSwap : les hôtes « Skip askers near
+  you » nous ignoraient sans), réponses lues (`heard` / `same`, Core : TRUST `LayerSwap = "ask"` + `W.AskGate`, un
+  inconnu seulement s il a reçu la demande et tant qu elle attend), carnet d hôtes `db.lsHosts` (7 j, 150 max, sollicités
+  en premier), message de fin selon les réponses, invitation d un hôte de mon layer signalée, bouton « Leave this group »
+  (15 s sans compte à rebours après avoir rejoint, sur clic, jamais pendant le compte à rebours), 30 s entre recherches.
+  `FOREIGN` retiré de `check.js` (le préfixe est reçu). Smoke : section 8 (type « ask » fermé : rien de personne) et 14
+  (4 checks : classes, zone peuplée par zone, position ou pas, Core n accepte que les sollicités en WHISPER (audit),
+  malformées ignorées, carnet plafonné et purgé à la connexion (2e passe), hôtes du carnet en premier, message de fin,
+  hôte de mon layer nommé, bouton Quitter : groupe de l invitation seulement (GUID), pas après un refus, pas en chef,
+  jamais pendant le compte à rebours). Revue wow-reviewer : 6 points corrigés (invitation refusée, zone peuplée par zone,
+  « other » collant, pas de redessin pour une réponse répétée, tests).
+- Lu dans LayerSwap (pas testé) : son départ automatique juge « pas déplacé » 15 à 60 s après avoir rejoint sans regarder
+  le compte à rebours du jeu (`evictAt` noté, pas utilisé par `hostOnOurLayer`) : il peut quitter avant la fin et annuler
+  le changement. Ici : on reste, bouton « Change layer now ».
+- ToS : SendWho (HasRestrictions) dans le clic seulement ; messages d addon non restreints, envoyés après le clic au
+  rythme du client (comme la file d invitations acceptée) ; réponses lues = information seulement (règle 8 : rien n est
+  renvoyé, rien n invite / accepte ; le carnet ne fait que réordonner la recherche suivante, sur clic) ; quitter le groupe
+  sur clic seulement (`C_PartyInfo.LeaveParty`, pas HasRestrictions) ; aucun cadre Blizzard modifié (LayerSwap
+  désenregistre WHO_LIST_UPDATE de LFGWhoListFrame / FriendsFrame pour cacher la liste : pas repris, la liste /who
+  s ouvre). NON VÉRIFIÉ ToS : chuchotements d addon à ~40 inconnus par recherche (règle 3, « usage excessif du chat » ;
+  une recherche / 30 s) ; le 7/11 le jeu a désactivé le canal LayerSwap pour des comptes qui l avaient rejoint (notes de
+  l auteur) : si Blizzard serre les chuchotements d addon, le bouton dira « refusé ». Position envoyée à ~40 joueurs de ma
+  faction dans ma zone (le /who ne rend que ma faction).
+- Suivi du format : CurseForge répond 403 aux scripts et l addon n a pas de dépôt GitHub : pas de deps-watch. À chaque
+  version de LayerSwap, relire `routeTag`, `Who.isAsk` / `Who.onAsk`, `onChat` / `answer` (format de 1.14.10).
+- À tester en jeu (Forever, hors groupe) : cibler 2 monstres, cliquer le bouton ; la liste /who s ouvre ; l état compte
+  les joueurs puis « N heard, M hosting » ; une invitation d un hôte -> accepter -> avis du jeu -> « Change layer now » ;
+  rester groupé. NON VÉRIFIÉ : que rejoindre un hôte d un autre layer annonce toujours le compte à rebours dans les 15 s
+  (sinon « Leave this group » apparaît à tort : le texte dit « peut-être ») ; que `WhoInfo.fullName` serve de cible de
+  chuchotement et de clé pour les réponses. `layers.log` garde « LayerSwap ask ... » (lignes /who, connus, réponses).
+
+## Layers : l étape Refresh Now (6/11 soir, sur `main`, pas commité, pas de version)
+
+- Test en jeu de 1.41.61 : « l invitation ne change pas de layer ». Cause (guides Forever Guides / WoW Handbook, code
+  Blizzard `GameDialogDefs.lua` SHARD_TRANSFER_IMMINENT_EVENT) : depuis le lancement, rejoindre un groupe ne déplace pas
+  tout de suite ; le jeu affiche un avis avec compte à rebours (~5 min), le déplacement se fait à la fin ou au clic sur
+  Refresh Now (`C_PlayerInteractionManager.ShardTransferConfirm`). Le chef ne bouge pas (notes beta 1/10). Le serveur
+  peut refuser. Naowh QoL a « Auto-Accept Layer Swap » (désactivé sur les deux comptes).
+- `Layers.lua` : chuchotement d invitation et message après l invitation disent l étape ; une ligne de chat par annonce
+  IMMINENT ; bouton « Change layer now » (TOPRIGHT, visible pendant le compte à rebours, refuse en combat, appel sur clic
+  seulement) ; aide de l onglet = comment changer de layer (table 330 au lieu de 360 pour la place). CHANGELOG + modules.md.
+- ToS : appel sur clic du joueur, une action. NON VÉRIFIÉ ToS : `ShardTransferConfirm` depuis un bouton d addon (pas de
+  HasRestrictions dans la doc Forever).
+- À tester : A invite B (même zone, hors combat) ; B accepte : l avis du jeu + la ligne de chat + le bouton doivent
+  apparaître chez B ; B clique ; B cible 2 monstres ; A doit voir « Comme moi ».
+- Retour du test 1.41.61 : « pas d avis » (avant ce code). Ajouté : journal `layers.log` dans `WarLegendRaidToolDB`
+  (80 lignes : mes lectures, écrans de chargement, zones, GROUP_JOINED / GROUP_LEFT, SHARD_TRANSFER*, clic du bouton,
+  invitations et nouvelles lectures des invités pendant 15 min). Le lire après `/reload` des deux personnages.
+
 ## Version publiée (6/11) : 1.41.61
 
 - **1.41.61** (tag `v1.41.61`) = Layers (numéro du jeu, entrée ci-dessous) + cadres de champ de bataille sans erreur
