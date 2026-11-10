@@ -3,7 +3,7 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11, 2e passe) : audit de 1.41.62, question ouverte + 19 MED « C » corrigés (commité, pas poussé, pas de version)
+## Maintenant (10/11, 2e passe) : audit de 1.41.62, question ouverte + 19 MED « C » corrigés, publié en 1.41.63
 
 - **Fait** : `W.Safe` (`Core.lua`) et `readable` (PvP `Main.lua`, M11) testent `issecretvalue` / `canaccessvalue` d abord,
   sans comparaison avant. Puis M2, M3, M4, M5, M6, M9, M12, M13, M15, M17, M18, M19, M20, M21, M22, M23, M24, M26, un
@@ -97,8 +97,14 @@ Pas dans le zip des releases.
 - **NON VÉRIFIÉ** : la renumérotation des macros sur Forever (comportement habituel de WoW) ; ce que le client écrit pour
   -inf dans SavedVariables.
 
-## Version publiée (10/11) : 1.41.62
+## Version publiée (10/11) : 1.41.63
 
+- **1.41.63** (tag `v1.41.63`) = l audit du 10/11 : les 2 HIGH, l ordre du test des secrets (`W.Safe`, M11) et les 19 MED « C »
+  (les deux entrées du 10/11 ci-dessus), la sonde `hooks` de `/wl verify`. **Verrou de release levé par l utilisateur pour
+  cette version** (choix « Release 1.41.63 now », 10/11) ; **rien testé en jeu** ; CI verte avant le tag (Luacheck, luac5.1,
+  wow-api, 3 bancs). **Pas dedans** : le correctif `PARTY_INVITE_REQUEST` de la veille 70888 (GUID de l inviteur passé au
+  8e argument : acceptation automatique des invitations et Layers lisent le mauvais), laissé pour une version suivante
+  par choix de l utilisateur.
 - **1.41.62** (tag `v1.41.62`) = Layers : l étape Refresh Now (bouton « Changer de layer maintenant ») + le bouton
   « Demander aux hôtes LayerSwap » (deux entrées ci-dessous, commit `7710794`). **Verrou de release levé par l utilisateur
   pour cette version** (SKIP de `/wl verify` encore ouverts), demande LayerSwap incluse par choix de l utilisateur malgré

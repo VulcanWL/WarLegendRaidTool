@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.63 (10/11/2026)
+
 ### Corrigé
 - Myslot : à l'import, une macro créée ne décale plus les macros déjà présentes vers les mauvais emplacements des barres
   ni vers les mauvais raccourcis de clic.
