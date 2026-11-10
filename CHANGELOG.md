@@ -11,6 +11,29 @@ Releases et les tags git.
   ni vers les mauvais raccourcis de clic.
 - Guilde > Métiers : un nom de métier reçu d'un membre qui se lit comme un nombre (« -1e999 ») n'est plus enregistré comme
   un nombre infini dans les données sauvegardées.
+- Maj-clic sur un objet : le lien va de nouveau dans la zone de texte de l'addon qui a le curseur (recherche de recette,
+  Loot Council...), et un lien de métier maj-cliqué est de nouveau enregistré dans Guilde > Métiers.
+- Messages de l'addon retenus pendant un long combat de boss : ceux qui attendaient derrière le premier ne sont plus perdus
+  à la fin du combat (un long texte partagé arrivait incomplet).
+- Profils (Options > Profil) : une liste ou un texte invalide d'un profil collé n'est plus gardé (liste de consommables,
+  rangs, noms, modules coupés, texte avec un code d'icône ou trop long) ; avant, une liste de consommables mal formée
+  donnait une erreur à chaque appel de raid, d'une session à l'autre.
+- Niveaux d'objet : affichés aussi sur les emplacements de la banque.
+- Cadres de champ de bataille : coupés pendant un combat, ils disparaissent bien à la fin du combat.
+- Cadres de champ de bataille : après un passage par le mode test, les contrôles, les buffs manquants et l'indicateur de
+  combat s'affichent de nouveau sur tous les joueurs sans `/reload`.
+- Cadres de champ de bataille : la barre de vie d'un allié prend la couleur du type de débuff que tu peux dissiper.
+- Loot Council : après un vote, la fenêtre affiche tout de suite les candidats de l'objet suivant (un deuxième clic rapide
+  votait pour un joueur de l'objet précédent sans le montrer).
+- Cooldowns de raid : en rejoignant un groupe avec la fenêtre affichée, l'addon demande aussitôt leurs cooldowns aux
+  autres (ils restaient en « Nom? » jusqu'à ce que quelqu'un d'autre demande).
+- Inspection du raid : ton inspection d'un joueur n'est plus annulée par celles de l'onglet pendant qu'elle charge.
+- Recrues : choisir un autre rang de recrue puis revenir au bon ne remet plus toutes les dates « recrue depuis » à
+  aujourd'hui.
+- Stats de BG : une partie n'est plus enregistrée deux fois après un `/reload` ou une reconnexion sur l'écran des scores.
+- Alerte de danger : cocher une option ne vide plus l'alerte et les cadres ennemis tant que les ennemis sont à l'écran.
+- Skyborne : un nœud vu sur la minicarte n'est plus renvoyé à chaque passage quand la liste de la carte est pleine.
+- DoesItDie : après avoir coupé puis rallumé le module, les listes déroulantes de son onglet s'ouvrent de nouveau.
 
 ## 1.41.62 (10/11/2026)
 

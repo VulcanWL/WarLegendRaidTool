@@ -3,11 +3,46 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11 soir) : audit ligne à ligne de 1.41.62, les 2 HIGH corrigés (commité, pas poussé, pas de version)
+## Maintenant (10/11, 2e passe) : audit de 1.41.62, question ouverte + 19 MED « C » corrigés (commité, pas poussé, pas de version)
+
+- **Fait** : `W.Safe` (`Core.lua`) et `readable` (PvP `Main.lua`, M11) testent `issecretvalue` / `canaccessvalue` d abord,
+  sans comparaison avant. Puis M2, M3, M4, M5, M6, M9, M12, M13, M15, M17, M18, M19, M20, M21, M22, M23, M24, M26, un
+  petit changement chacun ; chaque ligne du rapport `docs/audit-2026-11-10.md` porte « Fixed 10/11 » et ce qui diffère
+  du correctif proposé. Rien sauté.
+- **Choix à connaître** : M5 = 1 020 octets par texte (8 000 pour `inviteTool.list` et `readiness.text`, 2 000 pour
+  `auras.custom` : 255 partout aurait jeté de vraies options), `|` refusé sauf doublé, clé absente de `W.db` refusée
+  après `W.LoadRaid()`. M21 = dates gardées par rang (`db.trialsOf`, `db.trialsRank`, ce dernier hors profils) ; un rang
+  renommé n est pas couvert. M22 = même carte enregistrée il y a moins de 150 s = même partie. M18 = `InspectFrame.unit`
+  cadre caché compte 4 s par joueur. M24 = liste « déjà envoyé » en mémoire, et mon signalement prend la place du plus
+  vieux des autres quand la liste de la carte est pleine.
+- **Banc** : `tools/smoke/audit.lua` (nouveau, phase « audit 10/11 » de `scenario.lua`, 10 checks), + 3 dans
+  `battleground.lua`, 1 dans `openworld.lua`, 1 dans `verify.lua` ; faux client : `ChatFrameUtil.InsertLink`,
+  `GetBattlefieldWinner` réglable. 14 vus rouges correctif retiré, verts avec ; le 15e (un export réimporté rend les
+  listes et les longs textes) garde les validateurs de M4 / M5 de devenir trop stricts. **Pas vus par le banc** : M6
+  (banque), M13 (teinte de dissipation), l ordre dans `W.Safe` / M11.
+- **Modèle des secrets non changé** : le banc laisse exprès comparer un secret avec nil (`smoke.js` `smokeEqual`, et son
+  autotest l affirme). Lui et le bug enregistré L6 se contredisent toujours : un test en jeu tranche. Si L6 a raison,
+  retirer l exception du modèle (tout `x == nil` sur un secret possible deviendra une erreur du banc).
+- **Vérifié** : check 0 problème, wow-api 0 nouveau, smoke sans problème (102 / 102 et 105 / 105), `--bg` 34 / 34,
+  `--open-world` 51 / 51, jeu à jour (`sync.sh`, rien de sauté sauf `STATUS.md`). **Rien testé en jeu.**
+- **À tester en jeu** (`/reload`) : (1) maj-clic d un objet des sacs avec le curseur dans la recherche de Guilde > Métiers ;
+  maj-clic d un lien de métier, onglet Métiers ouvert. (2) Banque : niveaux d objet sur les emplacements, en changeant
+  d onglet. (3) BG : couper les cadres en combat (option), fin du combat = cachés ; mode test puis un vrai BG = contrôles
+  et buffs manquants sur tous ; un allié avec un débuff dissipable = barre de vie teintée (jamais vu marcher : regarder
+  aussi que le nom reste lisible). (4) Loot Council : voter sur 2 objets d affilée. (5) Cooldowns de raid : rejoindre un
+  groupe fenêtre affichée. (6) Inspecter un joueur avec l onglet Inspection du raid ouvert. (7) Recrues : changer de
+  rang puis revenir. (8) `/reload` sur l écran des scores d un BG de guilde : une seule ligne. (9) Alerte de danger :
+  cocher une option devant des ennemis. (10) DoesItDie : couper / rallumer le module, ouvrir une liste déroulante.
+  (11) Importer son propre profil exporté : rien de perdu (liste d invitations, texte de préparation).
+- **Relecture indépendante du diff** (wow-reviewer) : aucun défaut bloquant ; 2 points repris (drapeau de test remis à
+  faux au recyclage, délai d inspection par joueur), 2 laissés : la teinte M13 peut passer sous ou sur le nom (à voir en
+  jeu), M22 ne compte pas une partie rejointe en cours qui finit moins de 150 s après la précédente de la même carte.
+- **Reste** : MED R ou U seulement (M1, M7, M8, M10, M14, M16, M25, M27 à M30), tous les LOW, les points ToS.
+
+## 10/11 soir : audit ligne à ligne de 1.41.62, les 2 HIGH corrigés (commit `d05ba40`)
 
 - **Audit** : 10 relecteurs en parallèle, chaque ligne chargée des 5 addons (~46 000), lecture seule. 2 HIGH, 30 MED,
-  ~90 LOW, aucun échec ToS certain. Rapport : `docs/audit-2026-11-10.md` (numéros de ligne de v1.41.62). **Les 30 MED et les LOW
-  restent à traiter** (prochaine session : la question ouverte `W.Safe` d abord, puis les MED confirmés « C »).
+  ~90 LOW, aucun échec ToS certain. Rapport : `docs/audit-2026-11-10.md` (numéros de ligne de v1.41.62).
 - **HIGH 1 corrigé, `Myslot/Myslot.lua`** : l index des macros était lu une fois par import alors que `CreateMacro`
   renumérote les macros triées après la nouvelle (Beta et Gamma allaient sur les emplacements l une de l autre, raccourcis
   de clic compris ; `MacroIndex` date de `b22e679`, 29/10). `MacroIndex(index)` relit dans la même table après chaque macro créée, et les
@@ -18,8 +53,6 @@ Pas dans le zip des releases.
   raccourcis de clic) ; `tools/smoke/scenario.lua` 8b (aucun inf / NaN dans les données après un nom « numérique »).
   Rouge sans les correctifs (« Alpha, Alpha, Beta », `profs.1.id` inf), vert avec : check 0, wow-api 0 nouveau, smoke sans
   problème (91 / 91 et 94 / 94). Jeu à jour (`sync.sh`).
-- **Question ouverte de l audit** : `W.Safe` (`Core.lua:741`) teste `v ~= nil` avant `issecretvalue(v)`, ce que le bug
-  enregistré L6 dit interdit sur une valeur secrète. À trancher par un test en jeu (ou tester `issecretvalue` d abord).
 - **À tester en jeu** : (1) macros « Beta » et « Gamma » sur deux emplacements, importer un profil Myslot qui contient
   « Alpha », « Beta », « Gamma » : chaque emplacement doit garder sa macro ; d abord vérifier que créer « Aaa » change bien
   `GetMacroInfo(1)` sur Forever. (2) Guilde > Métiers s affiche comme avant après les annonces des membres.
