@@ -3,6 +3,13 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Version publiée (10/11) : 1.41.62
+
+- **1.41.62** (tag `v1.41.62`) = Layers : l étape Refresh Now (bouton « Changer de layer maintenant ») + le bouton
+  « Demander aux hôtes LayerSwap » (deux entrées ci-dessous, commit `7710794`). **Verrou de release levé par l utilisateur
+  pour cette version** (SKIP de `/wl verify` encore ouverts), demande LayerSwap incluse par choix de l utilisateur malgré
+  l exception non vérifiée (chuchotements d addon cachés à des inconnus, 40 au plus par clic). **Rien testé en jeu.**
+
 ## Veille 07/11/2026 matin (build 1.60.1.70862, Interface 16001)
 
 - **Build / Interface** : `Wow.exe` 1.60.1.70862 (installée 09:23) ; Gethe/wow-ui-source `forever` `9dc84f0` (70862),
@@ -31,7 +38,7 @@ Pas dans le zip des releases.
   Overlord, ShortestPathForever. Corrections locales : DamageMeters (secret specIcon) et Naowh (Waypoints `Walk` borné à un
   jour, TownMap hors combat) corrigés en amont ; StockStyles (combo du voleur « modern » par défaut) remis à la main.
 
-## Layers : Demander aux hôtes LayerSwap (9/11, sur `main`, pas commité, pas de version)
+## Layers : Demander aux hôtes LayerSwap (9/11, dans 1.41.62)
 
 - Demande de l utilisateur : « insérer LayerSwap dans WLRT ». LayerSwap 1.14.10 (Adam5288, CurseForge, sans licence dans
   le zip) lu en entier le 9/11 : code propre, mais l hôte invite / exclut / quitte sans clic et Host se remet à chaque
@@ -74,7 +81,7 @@ Pas dans le zip des releases.
   (sinon « Leave this group » apparaît à tort : le texte dit « peut-être ») ; que `WhoInfo.fullName` serve de cible de
   chuchotement et de clé pour les réponses. `layers.log` garde « LayerSwap ask ... » (lignes /who, connus, réponses).
 
-## Layers : l étape Refresh Now (6/11 soir, sur `main`, pas commité, pas de version)
+## Layers : l étape Refresh Now (6/11 soir, dans 1.41.62)
 
 - Test en jeu de 1.41.61 : « l invitation ne change pas de layer ». Cause (guides Forever Guides / WoW Handbook, code
   Blizzard `GameDialogDefs.lua` SHARD_TRANSFER_IMMINENT_EVENT) : depuis le lancement, rejoindre un groupe ne déplace pas

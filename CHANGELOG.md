@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.62 (10/11/2026)
+
 ### Ajouté
 - Layers : bouton « Demander aux hôtes LayerSwap » (WoW Forever). Un clic cherche les joueurs de ta zone (la recherche
   /who du jeu s'ouvre avec leur liste) puis leur envoie en privé la demande de l'addon LayerSwap, avec ta position sur la
