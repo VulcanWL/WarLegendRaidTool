@@ -1,5 +1,6 @@
 -- WarLegend RaidTool - the MED findings of the audit of 10/11/2026 in the simulated client (tools/smoke/scenario.lua, phase
--- "audit 10/11"; not shipped). One check per fix the bench can see; each was seen failing with its fix taken out.
+-- "audit 10/11"; not shipped). One check per fix the bench can see, each seen failing with its fix taken out; the export / import one passes both
+-- ways: it keeps the import checks of M4 / M5 from being too strict.
 -- Not seen from here: M6 (the bank's item levels: BankPanel is Blizzard's frame), M13 (the dispel tint: the client's own
 -- aura buttons), the order of the secret-value test in W.Safe / M11 (the bench lets a secret be compared with nil).
 local M, Check, H = ...

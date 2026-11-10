@@ -37,7 +37,8 @@ Read only the part about the file you are changing. The rules that always apply 
   found; with the client's containers only a missing buff is read here, 1 s after the aura change (0.2 s without them).
 
 ## Guild-side modules (personal only, no addon messages)
-`Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank, `/wl trials`), `GuildBank.lua`
+`Guild.lua` (inactive, professions synced, recruitment), `Roster.lua` (trials by rank, `/wl trials`; the dates of a rank
+are put aside in `db.trialsOf` when another trial rank is picked, `db.trialsRank` says whose `db.trials` holds), `GuildBank.lua`
 (stock of MY account's characters at the bank rank, read from `Alts.lua`, `/wl bank`), `BGStats.lua` (my guild premades,
 players, fastest wins per battleground, `/wl bg`). Roster, GuildBank and BGStats send nothing: the user chose that; do not
 add guild sync to them without being asked.
@@ -48,7 +49,8 @@ add guild sync to them without being asked.
 `Minotaure.lua` (`WLRT_MINO`: 28-day UTC seasons from 1791763200, fixed rules 5 / 30 / 200 a day, peers shown as declared).
 Each answers a `"?"` request, throttled. `DangerAlert.lua` keeps the enemy players seen (`db.seen`, 200 at most, personal).
 Its enemy player frames (open world) are light rows of its own, not the PvP addon (never loaded for them): one per GUID,
-fed by nameplate / target / focus / mouseover events, no nameplate scan. The click buttons are secure, anchored to the
+fed by nameplate / target / focus / mouseover events, no periodic nameplate scan (the plates on screen are read once
+each time the options are applied: `Apply`, no sound and no log line then). The click buttons are secure, anchored to the
 holder (never to the rows), changed out of combat only; in combat a clickable row stays (grey) until the combat ends.
 `Overlap.lua`: `autoInvite` is covered by WarLegend v3 while its `WarLegendDB.config.invite.mode` is not "off".
 The "WL v3" styles (`wl3`, `wl3red`, `wl3gold`, `wl3violet`, `wl3mono`) share the `wl3` palette in `Core.lua`.
@@ -78,6 +80,10 @@ One local chat line per looking member per 30 min, not in instances.
   option tables listed in `TABLE_FIELDS` there (and `point` / `emphPoint`): a new option saved as a table goes in `TABLE_FIELDS`.
   An imported profile is untrusted: finite numbers up to 1e12, strings up to 20 000, 20 000 entries; its macro lines keep
   only the commands of `MACRO_CMDS` (an allow list: never add a guild, logout, chat or script command to it).
+  Since 10/11: an option table is kept only if its shape passes `PLACES` or `CONTENT` (a new table option gets its
+  validator there, or it comes in as pasted); a text option is dropped past 1,020 bytes or with a `|` that is not
+  doubled (a longer one, typed in a box of more than 255 letters, is listed in `LONG_TEXT`); a top-level key absent
+  from `W.db` after `W.LoadRaid()` is not created.
 - Received data (addon messages, whispers, pasted strings, the Skyborne public channel) is untrusted: numbers through
   `W.Finite` / `W.Int` (a `tonumber("nan")` passes `<` / `>` tests), lists and tables capped, texts through `W.Plain`, names
   that reach a macro without `[ ] ; ,` or control characters, and a "?" / "Q" request answered once a minute at most.
