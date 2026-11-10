@@ -44,6 +44,9 @@ local warnedAt = 0
 local function Pump()
     local item = queue[1]
     if not item then pumping = false; return end
+    -- MAX_WAIT counts from the moment a message is first in line: the ones queued behind a long lockdown were older
+    -- than it when their turn came, and went at their first throttle (a long text lost its chunks after a boss)
+    if not item.head then item.head, item.at = true, GetTime() end
     local res
     if item.channel == "LOCAL" then
         Loopback(item.prefix, item.msg)
@@ -716,6 +719,9 @@ if hooksecurefunc then
             if box:HasFocus() then box:Insert(link); return true end
         end
     end
+    -- Forever's own code calls ChatFrameUtil.InsertLink; ChatEdit_InsertLink is the old name kept for addons, holding
+    -- the function itself (Deprecated_ChatFrame.lua): a hook on one name never sees a call made through the other
+    if ChatFrameUtil and ChatFrameUtil.InsertLink then hooksecurefunc(ChatFrameUtil, "InsertLink", Insert) end
     if ChatEdit_InsertLink then hooksecurefunc("ChatEdit_InsertLink", Insert) end
 end
 

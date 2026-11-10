@@ -343,6 +343,19 @@ if hooksecurefunc then
             if button.isBag then return end
             MarkBagButton(button, button:GetParent():GetID(), button:GetID())
         end))
+    elseif BankPanel and BankPanel.EnumerateValidItems then
+        -- Forever has no BankFrameItemButton_Update (Vanilla/BankFrame.lua is not loaded): its bank is BankPanel
+        -- (BankFrameTemplates.lua), which makes its item buttons anew at each tab / page and refreshes them in a row.
+        -- Their pool gives the button as the first value; its bag is the bank tab, its slot the container slot.
+        local update = W.Timed("hook bank", function(panel)
+            for button in panel:EnumerateValidItems() do
+                MarkBagButton(button, button.GetBankTabID and button:GetBankTabID(),
+                    button.GetContainerSlotID and button:GetContainerSlotID())
+            end
+        end)
+        for _, method in ipairs({ "GenerateItemSlotsForSelectedTab", "RefreshAllItemsForSelectedTab" }) do
+            if BankPanel[method] then hooksecurefunc(BankPanel, method, update) end
+        end
     end
 end
 

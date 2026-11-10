@@ -148,7 +148,7 @@ local SKIP_FIELDS = {
     cooldownText = { previous = true },
     pvp = { raidOptionWas = true },
     autoLog = { owned = true },
-    roster = { remindDay = true },
+    roster = { remindDay = true, trialsRank = true },
     bgStats = { recordMap = true },
     inviteTool = { offByDefault = true },
     raidGroups = { selected = true },
@@ -297,18 +297,59 @@ local function Texts(max, plain)
         return GoodMap(t, function(v) return type(v) == "string" and #v <= max and not (plain and v:find("|", 1, true)) end)
     end
 end
-local CONTENT = { guild = { msgs = Texts(255) }, classes = { leaders = Texts(60, true) } }
+-- the lists and choices of the modules, by their shape (audit 10/11: they came in as pasted, unbounded; { { 13444 } }
+-- as a consumables list raised a Lua error at every ready check, kept across sessions)
+local function Whole(lo, hi) return function(v) return type(v) == "number" and v >= lo and v <= hi and v % 1 == 0 end end
+local function Name(k) return type(k) == "string" and #k <= 80 and not k:find("|", 1, true) end
+local function Flags(max, goodKey) -- key -> true / false, max of them
+    return function(t)
+        if type(t) ~= "table" then return false end
+        local n = 0
+        for k, v in pairs(t) do
+            n = n + 1
+            if n > max or type(v) ~= "boolean" or not goodKey(k) then return false end
+        end
+        return true
+    end
+end
+local ItemID, ItemCount = Whole(1, 999999), Whole(0, 9999)
+local function Items(t) -- Checklist: { { item, how many }, ... } without a hole, bounded as its own shared lists are
+    if type(t) ~= "table" then return false end
+    local n = 0
+    for _ in pairs(t) do n = n + 1 end
+    if n > 100 then return false end
+    for i = 1, n do
+        local e = t[i]
+        if type(e) ~= "table" or Count(e) ~= 2 or not ItemID(e[1]) or not ItemCount(e[2]) then return false end
+    end
+    return true
+end
+local CONTENT = { guild = { msgs = Texts(255) }, classes = { leaders = Texts(60, true) },
+    checklist = { items = Items }, ui = { off = Flags(200, Name) },
+    autoPromote = { names = Flags(500, Name), ranks = Flags(20, Name) },
+    inviteTool = { ranks = Flags(10, Whole(0, 9)) }, raidGroups = { sortGroups = Flags(8, Whole(1, 8)) },
+    raidCooldowns = { spells = Flags(100, Name) } }
 local function GoodContent(key, f, v)
     local check = CONTENT[key] and CONTENT[key][f]
     return not check or check(v)
 end
+-- a text option: no escape code ("||", a "|" typed in a box, stays) and no longer than its box takes (4 bytes a
+-- letter at most; 255 letters for the one-line boxes). moneyGoal.label came in as a |T texture or as 20,000 letters,
+-- drawn at every login
+local LONG_TEXT = { inviteTool = { list = 8000 }, readiness = { text = 8000 }, auras = { custom = 2000 } }
+local function GoodText(key, f, v)
+    if type(v) ~= "string" then return true end
+    return #v <= (LONG_TEXT[key] and LONG_TEXT[key][f] or 1020) and not v:gsub("||", ""):find("|", 1, true)
+end
 
 -- the values are written in place: a module keeps its table, a value of another type than ours is ignored
 local function Apply(data)
+    -- a key no module of ours saves under is not created (junk kept in the saved file for good): the raid modules
+    -- save theirs once loaded (the window opened in a fight has not loaded them; an import is never in combat)
+    if W.LoadRaid then W.LoadRaid() end
     for key, fields in pairs(data.main) do
-        if type(key) == "string" and #key <= 40 and type(fields) == "table" and not SKIP[key] then
-            local dest = W.db[key]
-            if type(dest) ~= "table" then dest = {}; W.db[key] = dest end
+        local dest = W.db[key]
+        if type(key) == "string" and #key <= 40 and type(fields) == "table" and not SKIP[key] and type(dest) == "table" then
             local skip = SKIP_FIELDS[key] or {}
             for f, v in pairs(fields) do
                 if type(f) == "string" and #f <= 40 and not skip[f] and not Prefixed(key, f) then
@@ -325,7 +366,7 @@ local function Apply(data)
                             dest[f] = v
                         end
                     elseif not IsTableOption(key, f) and (dest[f] == nil or type(dest[f]) == type(v))
-                        and (not SCALAR_CHECK[f] or SCALAR_CHECK[f](v)) then
+                        and (not SCALAR_CHECK[f] or SCALAR_CHECK[f](v)) and GoodText(key, f, v) then
                         dest[f] = v
                     end
                 end

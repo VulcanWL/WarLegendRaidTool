@@ -685,8 +685,8 @@ function G.ImportLink(link)
     return true
 end
 
-if hooksecurefunc and ChatEdit_InsertLink then
-    hooksecurefunc("ChatEdit_InsertLink", W.Timed("hook profession link", function(link)
+if hooksecurefunc then
+    local onLink = W.Timed("hook profession link", function(link)
         if not W.Allowed() or W.IsOff("Guild") then return end
         if UI.profsTab and UI.profsTab:IsVisible() and type(link) == "string" and link:find("|Htrade:", 1, true) then
             G.ImportLink(link)
@@ -695,7 +695,10 @@ if hooksecurefunc and ChatEdit_InsertLink then
                 if UI.search and (UI.search:GetText() or ""):find("|Htrade:", 1, true) then UI.search:SetText("") end
             end)
         end
-    end))
+    end)
+    -- both names, as in Lib.lua (W.LinkTarget): the game's code calls ChatFrameUtil.InsertLink, addons the old name
+    if ChatFrameUtil and ChatFrameUtil.InsertLink then hooksecurefunc(ChatFrameUtil, "InsertLink", onLink) end
+    if ChatEdit_InsertLink then hooksecurefunc("ChatEdit_InsertLink", onLink) end
 end
 
 ---------------------------------------------------------------------------
@@ -777,9 +780,12 @@ local function BuildInactive(p)
 end
 
 local recipeNames, recipeLower, recipeUnknown = {}, {}, {}
+-- the ids come from guild members ("^[%d,]+$", a run of digits of any length, kept 90 days): past 9 digits none is a
+-- spell, and the client is not asked about it (W.SpellName has no pcall; what it does with 1e300 is not known)
+local MAX_RECIPE_ID = 999999999
 local function RecipeName(id)
     local n = recipeNames[id]
-    if not n then n = W.SpellName(id); recipeNames[id] = n end
+    if not n and id <= MAX_RECIPE_ID then n = W.SpellName(id); recipeNames[id] = n end
     return n or ("#" .. id)
 end
 

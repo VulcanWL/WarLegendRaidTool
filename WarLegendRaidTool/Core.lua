@@ -737,8 +737,10 @@ end, true)
 ---------------------------------------------------------------------------
 -- Player / group / guild helpers (fallbacks for older clients)
 ---------------------------------------------------------------------------
+-- issecretvalue / canaccessvalue first, no "v ~= nil" before them: the bug recorded as L6 (RaidGroups MarkOf) says the
+-- game refuses to compare a secret, with nil too. Both take nil and plain values (false, true): same result for those.
 function W.Safe(v)
-    if v ~= nil and ((issecretvalue and issecretvalue(v)) or (canaccessvalue and not canaccessvalue(v))) then
+    if (issecretvalue and issecretvalue(v)) or (canaccessvalue and not canaccessvalue(v)) then
         return nil
     end
     return v

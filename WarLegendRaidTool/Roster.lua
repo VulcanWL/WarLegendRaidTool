@@ -34,9 +34,25 @@ end)
 ---------------------------------------------------------------------------
 -- First time each member is seen at the trial rank
 ---------------------------------------------------------------------------
+-- db.trials holds the dates of one rank, db.trialsRank. Another trial rank picked (a mis-click, a try, a profile) puts
+-- them aside under their rank (db.trialsOf) and takes back the dates of the new one: the scan below forgot every
+-- member as "promoted" (none is at the new rank), and picking the right rank again started all the dates anew.
+-- Dates saved before this (no db.trialsRank) are those of the rank picked now.
+local function KeepByRank()
+    if db.trialsRank == nil then db.trialsRank = db.trialRank end
+    if db.trialsRank == db.trialRank then return end
+    if type(db.trialsOf) ~= "table" then db.trialsOf = {} end
+    if db.trialsRank ~= "" and next(db.trials) then db.trialsOf[db.trialsRank] = db.trials end
+    db.trials = db.trialsOf[db.trialRank] or {}
+    db.trialsOf[db.trialRank] = nil
+    db.trialsRank = db.trialRank
+end
+
 local lastScan = 0
 local function ScanTrials()
-    if not db or db.trialRank == "" or not W.IsInGuild() or GetTime() - lastScan < 30 then return end
+    if not db then return end
+    KeepByRank()
+    if db.trialRank == "" or not W.IsInGuild() or GetTime() - lastScan < 30 then return end
     lastScan = GetTime()
     local members = W.GuildMembers()
     if #members == 0 then return end

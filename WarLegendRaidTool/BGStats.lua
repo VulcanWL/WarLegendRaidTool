@@ -40,6 +40,7 @@ W.BGStats = BG
 local db
 local MAX_GAMES = 500
 local PREP = 120 -- preparation phase (gates closed) when it could not be seen
+local SCORE_SCREEN = 150 -- the score screen closes 2 minutes after the end: no other game of that map ends that soon
 
 W.OnReady(function()
     db = W.DB("bgStats", { minGuild = 5, range = 30, recordMap = 0 })
@@ -129,6 +130,10 @@ local function Finish(winner)
     end
     local count = SeeGuild() or 0
     if count < (db.minGuild or 5) then return end
+    -- a /reload or a reconnection on the score screen starts this file anew with the winner already known: the game
+    -- just recorded (newest first: this map, ended less than SCORE_SCREEN ago) was recorded a second time
+    local last = db.games[1]
+    if last and last.m == cur.m and now - (tonumber(last.e) or 0) < SCORE_SCREEN then return end
     local names = {}
     for _, n in pairs(cur.players) do names[#names + 1] = n end
     table.sort(names)

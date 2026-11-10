@@ -634,6 +634,23 @@ local function Apply()
     W.Activate(fDeadEv, framesOn)
     W.Activate(fRegenEv, (db and db.frames) or clickPending)
     ClearFrames()
+    -- the nameplates already on screen are read again: both lists were just emptied, and no event comes for a plate
+    -- that stays shown (ticking an option emptied the warning and the enemy frames while the enemies stood there).
+    -- No sound and no log line: those were for the moment they came.
+    if not (on or framesOn) or not OpenWorld() or not (C_NamePlate and C_NamePlate.GetNamePlates) then return end
+    local ok, plates = pcall(C_NamePlate.GetNamePlates)
+    if not ok or type(plates) ~= "table" then return end
+    local any = false
+    for _, plate in ipairs(plates) do
+        local unit = W.Safe(plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit))
+        if type(unit) == "string" then
+            local kind = on and Classify(unit)
+            if kind then seen[unit], any = kind, true end
+            if framesOn then Bind(unit) end
+        end
+    end
+    if framesOn then Bind("target"); Bind("focus") end
+    if any then Create(); Refresh() end
 end
 W.On("PLAYER_ENTERING_WORLD", Apply)
 

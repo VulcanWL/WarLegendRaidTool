@@ -1010,6 +1010,12 @@ local LEARNED_TAB = 8
 -- y: below the header of ../DoesItDie.lua (title, description, switch, presets).
 function ns.BuildTab(p)
     page = p
+    -- built again on a new page when the module is switched off then on (W.SetModuleOn): the rows of the old page
+    -- leave the list (it doubled at each switch), and the list of choices is made anew on this page (it stayed on
+    -- the old, hidden one: every drop-down opened nothing)
+    wipe(controls)
+    if menu then menu:Hide() end
+    menu = nil
     -- Presets, right-aligned on the switch's line.
     local previous
     for i = #PRESETS, 1, -1 do
