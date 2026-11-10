@@ -524,7 +524,10 @@ W.OnAddonLong(PREFIX, function(msg, from, _, full)
             if #item <= 64 then n, r, m, id = item:match("^([^:]+):(%d+):(%d+):?(%d*)$") end
             if n and #n <= 40 and #e.profs < 20 then
                 n = W.Plain(n, 40)
-                e.profs[#e.profs + 1] = { n = n, r = W.Int(r, 0, 1000), m = W.Int(m, 0, 1000), id = tonumber(ProfKey(n, tonumber(id))) }
+                -- the key is a skill line ID as text, else the name: a name like "-1e999" is no ID (tonumber made it
+                -- -inf, saved with the rest)
+                local key = ProfKey(n, W.Int(id, 1, 100000))
+                e.profs[#e.profs + 1] = { n = n, r = W.Int(r, 0, 1000), m = W.Int(m, 0, 1000), id = key:find("^%d+$") and W.Int(key, 1, 100000) or nil }
             end
         end
         for item in (t[3] or ""):gmatch("[^;]+") do

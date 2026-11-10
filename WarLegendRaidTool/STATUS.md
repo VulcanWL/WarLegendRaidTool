@@ -3,6 +3,29 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Maintenant (10/11 soir) : audit ligne à ligne de 1.41.62, les 2 HIGH corrigés (commité, pas poussé, pas de version)
+
+- **Audit** : 10 relecteurs en parallèle, chaque ligne chargée des 5 addons (~46 000), lecture seule. 2 HIGH, 30 MED,
+  ~90 LOW, aucun échec ToS certain. Rapport : `docs/audit-2026-11-10.md` (numéros de ligne de v1.41.62). **Les 30 MED et les LOW
+  restent à traiter** (prochaine session : la question ouverte `W.Safe` d abord, puis les MED confirmés « C »).
+- **HIGH 1 corrigé, `Myslot/Myslot.lua`** : l index des macros était lu une fois par import alors que `CreateMacro`
+  renumérote les macros triées après la nouvelle (Beta et Gamma allaient sur les emplacements l une de l autre, raccourcis
+  de clic compris ; `MacroIndex` date de `b22e679`, 29/10). `MacroIndex(index)` relit dans la même table après chaque macro créée, et les
+  numéros des raccourcis de clic sont lus après la boucle.
+- **HIGH 2 corrigé, `Guild.lua:527`** : le NOM d un métier reçu passait par `tonumber` nu (`-1e999` -> -inf enregistré dans
+  `db.guild.data`). Maintenant `W.Int` sur l id et la clé gardée seulement si elle est faite de chiffres.
+- **Banc** : `tools/smoke/myslot.lua` `CreateMacro` insère trié et décale les numéros (comme le jeu) + 2 checks (emplacements,
+  raccourcis de clic) ; `tools/smoke/scenario.lua` 8b (aucun inf / NaN dans les données après un nom « numérique »).
+  Rouge sans les correctifs (« Alpha, Alpha, Beta », `profs.1.id` inf), vert avec : check 0, wow-api 0 nouveau, smoke sans
+  problème (91 / 91 et 94 / 94). Jeu à jour (`sync.sh`).
+- **Question ouverte de l audit** : `W.Safe` (`Core.lua:741`) teste `v ~= nil` avant `issecretvalue(v)`, ce que le bug
+  enregistré L6 dit interdit sur une valeur secrète. À trancher par un test en jeu (ou tester `issecretvalue` d abord).
+- **À tester en jeu** : (1) macros « Beta » et « Gamma » sur deux emplacements, importer un profil Myslot qui contient
+  « Alpha », « Beta », « Gamma » : chaque emplacement doit garder sa macro ; d abord vérifier que créer « Aaa » change bien
+  `GetMacroInfo(1)` sur Forever. (2) Guilde > Métiers s affiche comme avant après les annonces des membres.
+- **NON VÉRIFIÉ** : la renumérotation des macros sur Forever (comportement habituel de WoW) ; ce que le client écrit pour
+  -inf dans SavedVariables.
+
 ## Version publiée (10/11) : 1.41.62
 
 - **1.41.62** (tag `v1.41.62`) = Layers : l étape Refresh Now (bouton « Changer de layer maintenant ») + le bouton
@@ -118,7 +141,7 @@ Pas dans le zip des releases.
   quitter un groupe : le compte à rebours doit s afficher. NON VÉRIFIÉ : `SHARD_TRANSFER` à l entrée dans un groupe (le
   vote à 2 créatures reste le filet), messages GUILD entre royaumes de fond différents.
 
-## Premier `/wl verify` en jeu (4/11 13:44, build 70790, 1.41.60 installée ; pas commité, pas de version)
+## Premier `/wl verify` en jeu (4/11 13:44, build 70790, 1.41.60 installée ; commité, pas poussé, pas de version)
 
 - Lu avec `node tools/verify-live.js --saved` (compte VULCANMETHOD, Vulcan-Shadex, Voleur niveau bas, solo). 3 `LOOK` :
   - `errors` : 1 erreur de nos addons, `WarLegendRaidTool_PvP/Mainframe.lua:810` (`GetTop()` nil : un bouton dont les
@@ -166,7 +189,7 @@ Pas dans le zip des releases.
 - **Touché : DoesItDie** : `UNIT_COMBAT` `amount` devient `SecretValue = true` (sans prédicat). L ancien code s arrêtait sur un montant
   secret : pas d erreur Lua, mais aucun tick vu, donc **chaque DoT retiré comme « jamais posé » après 2 ticks** (`housekeep`), tailles
   plus apprises, piège jamais déclenché. Esquives / coups (école lisible) gardés. UNVERIFIED : secret toujours ou seulement en combat.
-  **Corrigé (3/11, accord de l utilisateur, pas commité, pas de version)** : `onSecretTick` (`DoesItDie.lua`) : montant secret = tick
+  **Corrigé (3/11, accord de l utilisateur, commité, pas poussé, pas de version)** : `onSecretTick` (`DoesItDie.lua`) : montant secret = tick
   le plus proche dans sa fenêtre (case neuve) d un DoT de cette école, au rythme seulement, sans taille vérifiée ni apprise (le coup
   d un autre joueur de la même école dans la fenêtre peut passer pour un tick) ; copie du même coup par un autre jeton comptée une fois ;
   piège non déclenché sans montant. Banc : `M.Secret` exporté de `wow.lua` (le faux client ne modèle que les prédicats, pas un champ

@@ -6,6 +6,12 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Myslot : à l'import, une macro créée ne décale plus les macros déjà présentes vers les mauvais emplacements des barres
+  ni vers les mauvais raccourcis de clic.
+- Guilde > Métiers : un nom de métier reçu d'un membre qui se lit comme un nombre (« -1e999 ») n'est plus enregistré comme
+  un nombre infini dans les données sauvegardées.
+
 ## 1.41.62 (10/11/2026)
 
 ### Ajouté

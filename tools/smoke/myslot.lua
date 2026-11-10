@@ -81,9 +81,22 @@ local function Install(state)
         if strlenutf8(name) > 16 or strlenutf8(body or "") > 255 or name == "Refused" then error("Usage: CreateMacro(...)", 0) end
         local first, last = 1, 120
         if perChar then first, last = 121, 150 end
-        for i = first, last do
-            if not model.macros[i] then model.macros[i] = { name, icon, body }; Changed(); return i end
+        local free = first
+        while model.macros[free] do free = free + 1 end
+        if free > last then return end
+        -- like the game: the macros of a kind stay sorted by name, so a new one takes its place and those after it move up
+        -- by one (the bars follow their macro). Code that keeps numbers read before this puts the wrong macros on the bars
+        local pos = free
+        for i = first, free - 1 do
+            if name:lower() < model.macros[i][1]:lower() then pos = i; break end
         end
+        for i = free, pos + 1, -1 do model.macros[i] = model.macros[i - 1] end
+        model.macros[pos] = { name, icon, body }
+        local function Moved(a) if a and a[1] == "macro" and a[2] >= pos and a[2] < free then a[2] = a[2] + 1 end end
+        for _, a in pairs(model.actions) do Moved(a) end
+        Moved(model.cursor)
+        Changed()
+        return pos
     end
     function DeleteMacro(i)
         local last = i <= 120 and 120 or 150
@@ -486,6 +499,30 @@ do
         local made = a and model.macros[a[2]]
         Check("Myslot limits: a macro of 255 letters saved with a line break goes whole on its slot", made and made[3] == A:rep(255),
             made and (#made[3] .. " bytes") or "macro not on its slot")
+        Uninstall()
+        -- a macro made by the import moves the numbers of the macros sorted after it (audit 10/11: Beta and Gamma, found
+        -- by the numbers read before Alpha was made, went on each other's slots and click bindings)
+        Install({ macros = { [1] = { "Beta", "I", "/cast B" }, [2] = { "Gamma", "I", "/cast G" } },
+            actions = { [1] = { "macro", 1 }, [2] = { "macro", 2 } } })
+        box.__text = Text({ ver = 42, name = "x",
+            slot = { { id = 1, type = MS.SLOT.MACRO, index = 1 }, { id = 2, type = MS.SLOT.MACRO, index = 2 }, { id = 3, type = MS.SLOT.MACRO, index = 3 } },
+            macro = { { id = 1, name = "Alpha", body = "/cast A", icon = "I" }, { id = 2, name = "Beta", body = "/cast B", icon = "I" },
+                { id = 3, name = "Gamma", body = "/cast G", icon = "I" } },
+            clickBinding = { { type = 2, actionID = 2, button = "BUTTON1" }, { type = 2, actionID = 3, button = "BUTTON2" } } })
+        Click(import)
+        Yes()
+        local on = {}
+        for slot = 1, 3 do
+            local s = model.actions[slot]
+            on[slot] = s and s[1] == "macro" and model.macros[s[2]] and model.macros[s[2]][1] or "none"
+        end
+        Check("Myslot: a macro made by the import does not move the others to the wrong slots",
+            on[1] == "Alpha" and on[2] == "Beta" and on[3] == "Gamma", table.concat(on, ", "))
+        local clicks = {}
+        for i, c in ipairs(model.clicks or {}) do clicks[i] = model.macros[c.actionID] and model.macros[c.actionID][1] or "none" end
+        if W.Space("Myslot").HasClickBindings and W.Space("Myslot").HasClickBindings() then
+            Check("Myslot: the click bindings point at their macros after one was made", clicks[1] == "Beta" and clicks[2] == "Gamma", table.concat(clicks, ", "))
+        end
         Uninstall()
         for k in pairs(backups) do backups[k] = nil end
         for i, b in ipairs(before) do backups[i] = b end

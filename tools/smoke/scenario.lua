@@ -934,6 +934,30 @@ do
         string.format("from outside the guild: %d, from a guild mate: %d", byMate, opened - byMate))
 end
 
+-- 8b: a profession whose NAME reads as a number ("-1e999", "nan", "inf", "0x10") is no skill line ID: no inf / NaN in
+-- the saved data (audit 10/11: Guild.lua kept tonumber(name); a file with -inf in it may not load again)
+do
+    local text = EU.EncodeBase64(EU.CompressString("D^-1e999:1:1;nan:2:2;inf:3:3;1e999:4:4;0x10:5:5^^"))
+    Addon("WLRT_PROF", "z776:1:1:" .. text, "GUILD", GUILDIE)
+    local bad, seen, kept = {}, {}, 0
+    local function Walk(t, path)
+        if seen[t] then return end
+        seen[t] = true
+        for k, v in pairs(t) do
+            local p = path .. "." .. tostring(k)
+            if type(v) == "table" then
+                if v.n == "-1e999" then kept = kept + 1 end
+                Walk(v, p)
+            elseif type(v) == "number" and (v ~= v or v == math.huge or v == -math.huge) then
+                bad[#bad + 1] = p
+            end
+        end
+    end
+    Walk(WarLegendRaidToolDB, "db")
+    Check("a profession name that reads as a number leaves no inf / NaN in the saved data", kept > 0 and #bad == 0,
+        kept == 0 and "the message was not kept: the check saw nothing" or table.concat(bad, ", "):sub(1, 200))
+end
+
 -- 8: Raid Buffs: one popup per 10 s, the newest one waiting; nothing from INSTANCE_CHAT
 do
     local function Shown() local p = rawget(_G, "WLRTBuffPopup"); return p and p.text.__text or "" end

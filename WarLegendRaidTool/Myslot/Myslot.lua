@@ -337,9 +337,11 @@ end
 ---------------------------------------------------------------------------
 -- Restoring (in the click of the import's confirmation, out of combat: bars, macros and bindings are protected in combat)
 ---------------------------------------------------------------------------
--- the character's macros by "name_body" and by body, read once per import
-local function MacroIndex()
-    local index = {}
+-- the character's macros by "name_body" and by body. Read again into the same table after each macro made: the game
+-- keeps the macros sorted by name, so a new one moves the numbers of those after it
+local function MacroIndex(index)
+    index = index or {}
+    wipe(index)
     for i = 1, MAX_ACCOUNT + MAX_CHARACTER do
         local name, _, body = GetMacroInfo(i)
         if name then
@@ -374,6 +376,7 @@ local function FindOrCreateMacro(m, index)
         if strsub(body, 0, 12) == "#showtooltip" then icon = "INV_Misc_QuestionMark" end
         local ok, id = pcall(CreateMacro, m.name, icon, body, perChar) -- refused by the game: left out, the import goes on
         if ok and id then
+            MacroIndex(index) -- the numbers read before are old now (a macro found by an old number went on the wrong slots)
             index[m.name .. "_" .. body], index[body] = id, id
             return id
         end
@@ -509,7 +512,6 @@ function ns.Restore(msg, skip)
         end
         newId = newId or FindMacro(m, index)
         if newId then
-            macroIds[m.id] = newId
             for _, slot in ipairs(macroSlots[m.id] or {}) do
                 if not bars[Page(slot)] then
                     PickupMacro(newId)
@@ -521,6 +523,8 @@ function ns.Restore(msg, skip)
             left.macro = left.macro + 1
         end
     end
+    -- the numbers for the click bindings, read once every macro is made: one made later moved those sorted after it
+    for _, m in ipairs(msg.macro or {}) do macroIds[m.id] = FindMacro(m, index) end
 
     -- the other slots (a macro is in place already; an EMPTY one, a pet action or a future spell, is left as it is, as
     -- Myslot did); a slot of the chosen bars that the profile does not list is emptied
