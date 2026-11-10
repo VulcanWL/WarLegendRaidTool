@@ -1689,6 +1689,19 @@ do
     if not ok then M.Error(err) end
 end
 
+-- the MED findings of the audit of 10/11/2026 (tools/smoke/audit.lua): one check per fix the bench can see
+Phase("audit 10/11")
+do
+    local chunk, err = load(SMOKE_READ(M.smokeDir .. "/audit.lua"), "@tools/smoke/audit.lua")
+    local ok
+    if chunk then
+        ok, err = pcall(chunk, M, Check, { Addon = Addon, Click = Click, Panel = Panel, ButtonIn = ButtonIn, Under = Under,
+            ProfileBox = ProfileBox, ProfileExport = ProfileExport, Confirming = Confirming, Printed = Printed,
+            ASSIST = ASSIST, MATE = MATE, GUILDIE = GUILDIE })
+    end
+    if not ok then M.Error(err) end
+end
+
 -- cost: event floods in a raid, out of combat, window closed (fengari is slower than the game: compare, do not read as ms in game)
 Phase("perf")
 M.Call(W.Hide) -- the commands may have left the window open: measured closed

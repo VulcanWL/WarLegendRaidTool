@@ -141,6 +141,21 @@ end
 local under, over = CapRun(99), CapRun(100)
 Check("/wl verify: 100 errors in this session are to look at, 99 or another session's are not", under ~= nil and under:find("OK", 1, true) == 1
     and over ~= nil and over:find("LOOK", 1, true) == 1, tostring(under) .. " / " .. tostring(over))
+-- audit 10/11 (M19): an error of ours raised again during the run. BugGrabber keeps one entry per error and counts its
+-- repeats: with one per entry nothing moved, and the release gate read "no new Lua error"
+do
+    local reads = 0
+    BugGrabber = { GetSessionId = function() return 7 end, GetDB = function()
+        reads = reads + 1 -- the first read is the count before the probes; the error comes back twice after it
+        return { { session = 7, counter = reads == 1 and 1 or 3, message = "Interface/AddOns/WarLegendRaidTool/Core.lua:1: again", stack = "" } }
+    end }
+    local from = #M.prints
+    M.Call(W.slash.verify, "quick")
+    BugGrabber = kept.grabber
+    local line = Find(Lines(from + 1), " errors: ")
+    Check("/wl verify: an error of ours raised again during the run counts as new", line ~= nil and line:find("LOOK", 1, true) == 1
+        and line:find("2 new", 1, true) ~= nil, tostring(line))
+end
 
 -- the report: opens by itself, the same with /wl verify copy, and reads back
 local first = shown

@@ -490,6 +490,21 @@ Line("GROUP_ROSTER_UPDATE x200: %.0f ms, of which the PvP addon %.0f ms (%.2f ms
     (cOut[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0) / 200)
 report.rosterOut = (cOut[CostKey("GROUP_ROSTER_UPDATE", PvP)] or 0) / 200
 TestMode("after a battleground, raid of 40")
+-- audit 10/11 (M12): a button removed while the test mode runs never gets OnTestmodeDisabled. Taken again for a player
+-- of the next battleground, its modules must not be in test mode any more (they showed nothing real until /reload)
+local recycled, flagged = nil, {}
+local TEST_FLAGS = { CrowdControl = "testmode", Dispel = "testmode", CombatIndicator = "testmodeEnabled" }
+if PvP and PvP.EnableTestMode then
+    PvP:EnableTestMode()
+    M.Advance(2)
+    for _, b in pairs(PvP.Allies.Players) do if b ~= PvP.UserButton then recycled = b; break end end
+    if recycled then
+        for mod, flag in pairs(TEST_FLAGS) do if recycled[mod] and recycled[mod][flag] then flagged[#flagged + 1] = mod end end
+        PvP.Allies:RemovePlayer(recycled)
+    end
+    PvP:DisableTestMode()
+    M.Advance(1)
+end
 -- the next battleground: entering it shows the raid again (the PvP addon scans the roster at the loading screen)
 M.instance, M.instanceName, M.instanceID, M.bgStart = "pvp", "Alterac Valley", 30, M.now
 BuildScores()
@@ -499,6 +514,17 @@ local aBack, eBack = Buttons("Allies"), Buttons("Enemies")
 Line("next battleground: allies %d shown, enemies %d shown", aBack.shown, eBack.shown)
 Check("next battleground: the raid is shown again (no roster event needed)", aBack.shown == #M.group, aBack.shown .. " / " .. #M.group)
 Check("next battleground: the enemies are shown again", eBack.shown == 40, eBack.shown)
+do
+    local still = {}
+    for _, mod in ipairs(flagged) do if recycled[mod][TEST_FLAGS[mod]] then still[#still + 1] = mod end end
+    table.sort(flagged); table.sort(still)
+    Check("a button removed during the test mode, taken again in the next battleground: no module left in test mode",
+        recycled ~= nil and #flagged > 0 and recycled:IsVisible() and #still == 0,
+        recycled == nil and "no test button to remove: the check saw nothing"
+        or string.format("in test mode when removed: %s; button used again: %s; still in test mode: %s",
+            #flagged > 0 and table.concat(flagged, " ") or "none (the check saw nothing)", tostring(recycled:IsVisible()),
+            #still > 0 and table.concat(still, " ") or "none"))
+end
 -- here every button of both sides was made at the same moment (the loading screen): the worst case for work done
 -- every 0.2 s per button
 Section("[7b next] a fight in the next battleground, the raid formed before it (every button made at the same moment), 15 s")
@@ -512,6 +538,48 @@ LeaveCombat()
 for i = 1, 20 do Unplate(i) end
 M.Advance(2)
 Check("fight in the next battleground: no secure frame changed in combat", Blocked() == blocked0, Blocked() - blocked0)
+
+-- audit 10/11 (M9): the frames switched off during a fight are hidden when it ends. Disable() unregistered
+-- PLAYER_REGEN_ENABLED with the other events, then queued the hiding that only this event runs: they stayed on screen
+if PvP and PvP.CheckEnableState and PvP.db then
+    EnterCombat()
+    PvP.db.profile.ShowBGEInBattleground = false
+    PvP:CheckEnableState()
+    local inFight = Buttons("Allies").shown
+    LeaveCombat()
+    M.Advance(1)
+    local after = Buttons("Allies").shown + Buttons("Enemies").shown
+    Check("frames switched off in combat: still there during the fight, hidden when it ends", inFight > 0 and after == 0,
+        string.format("allies shown in the fight: %d, buttons shown after it: %d", inFight, after))
+    PvP.db.profile.ShowBGEInBattleground = true
+    PvP:CheckEnableState()
+    M.Advance(1)
+end
+
+-- audit 10/11 (M22): the premade is recorded once. A /reload or a reconnection on the score screen starts BGStats anew
+-- with the winner already known (here: the zone left and entered again, which also forgets the game in progress)
+do
+    local stats = W.db.bgStats
+    local min0, games0 = stats.minGuild, #stats.games
+    stats.minGuild = 0
+    M.bgWinner = 0
+    M.Fire("UPDATE_BATTLEFIELD_SCORE")
+    M.Advance(1)
+    local once = #stats.games - games0
+    M.instance = nil
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(1)
+    M.instance = "pvp"
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(1)
+    M.Fire("UPDATE_BATTLEFIELD_SCORE")
+    M.Advance(1)
+    local twice = #stats.games - games0
+    M.bgWinner = nil
+    stats.minGuild = min0
+    Check("BGStats: the game is recorded once, also when the score screen is seen again after a /reload", once == 1 and twice == 1,
+        string.format("recorded at the end: %d, after the score screen was entered again: %d", once, twice))
+end
 
 Section("[8] /wl perf over the whole run (W.BusiestWork, total ms / count)")
 for _, b in ipairs(W.BusiestWork(10)) do Line("%-52s %8.1f ms / %d (max %.1f ms)", b[1], b[4], b[3], b[2]) end

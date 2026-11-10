@@ -432,6 +432,31 @@ local fc = Flood(2000, function(i)
     Plate(p, 200 + (i % 120))
 end)
 Line("NAME_PLATE_UNIT_REMOVED + _ADDED x2000 (40 plates, 120 enemies): %.0f ms", fc)
+-- audit 10/11 (M23): the options are applied again (as a ticked option does: here the event that also runs Apply)
+-- with the 40 nameplates still shown. The frames are emptied, and no event comes for a plate that stays: they must be
+-- read again from the plates on screen (C_NamePlate.GetNamePlates), not left empty until the enemies come back
+do
+    local keptPlates = rawget(_G, "C_NamePlate")
+    C_NamePlate = { GetNamePlates = function()
+        local list = {}
+        for i = 1, 40 do
+            if M.units["nameplate" .. i] then list[#list + 1] = { namePlateUnitToken = "nameplate" .. i } end
+        end
+        return list
+    end }
+    local guids, plated = {}, 0
+    for i = 1, 40 do
+        local u = M.units["nameplate" .. i]
+        if u and not guids[u.guid] then guids[u.guid] = true; plated = plated + 1 end
+    end
+    local before = Frames().rows
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(1)
+    local again = Frames()
+    C_NamePlate = keptPlates
+    Check("frames: options applied again with the nameplates still shown, the enemies on screen keep their rows",
+        plated > 0 and again.rows == plated, string.format("%d enemies on nameplates, %d rows before, %d after", plated, before, again.rows))
+end
 for i = 1, 40 do Unplate(i) end
 M.Advance(17)
 local f7 = Frames()

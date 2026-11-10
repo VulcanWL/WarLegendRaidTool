@@ -797,7 +797,7 @@ function GetMaxBattlefieldID() return 2 end
 function GetNumBattlefieldScores() return InBG() and #M.scores or 0 end
 function GetBattlefieldTeamInfo() return nil end
 function GetBattlefieldArenaFaction() return InBG() and (M.bgFaction or 0) or 0 end
-function GetBattlefieldWinner() return nil end
+function GetBattlefieldWinner() return M.bgWinner end -- nil while the game runs; the scenario sets 0 (Horde) / 1 (Alliance)
 function GetBattlefieldInstanceRunTime() return InBG() and math.floor((M.now - (M.bgStart or M.now)) * 1000) or 0 end
 C_PvP = C_PvP or {}
 C_PvP.GetScoreInfo = function(i) return InBG() and M.scores[i] or nil end
@@ -1451,6 +1451,10 @@ function Item:CreateFromItemLink()
         GetItemID = function() return 0 end, GetItemName = function() return nil end, GetItemLink = function() return nil end, GetItemIcon = function() return nil end }
 end
 function Item:CreateFromItemID() return Item:CreateFromItemLink() end
+-- a shift-clicked link: the game's own code inserts it through ChatFrameUtil.InsertLink (Blizzard_ChatFrameBase,
+-- Mainline/ChatFrameUtilOverrides.lua; false: no chat edit box is open here). The old global ChatEdit_InsertLink, a
+-- deprecation alias holding that same function, is not modelled.
+ChatFrameUtil = { InsertLink = function() return false end }
 -- chat filters (ChatFrame_AddMessageEventFilter): kept, run by M.ChatFilters on a line as the chat frame does before
 -- showing it (a filter returning true hides the line, its other returns replace the line's arguments)
 M.chatFilters = {}
