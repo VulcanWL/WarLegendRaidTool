@@ -841,17 +841,38 @@ Probe("talents", function()
 end)
 
 -- the Blizzard functions our hooks need: a missing one = that feature silently stays off (item levels, +/- on the loot window...).
--- The inspect ones come with the inspect window: open it once before reading them.
+-- The inspect ones come with the inspect window: open it once before reading them. "Frame.method": a method hooked on a
+-- Blizzard table. The bank and the shift-clicked links each have two: the old global (hooked when the client has it) and
+-- the one Forever's code is expected to use (BankPanel, ChatFrameUtil.InsertLink; audit 10/11, M6 and M2): one of each
+-- pair must be present.
 Probe("hooks", function()
     local missing, present = {}, {}
-    for _, name in ipairs({ "BankFrameItemButton_Update", "ChatEdit_InsertLink", "ContainerFrame_Update", "GameTooltip_SetDefaultAnchor",
-        "InspectPaperDollFrame_UpdateButtons", "InspectPaperDollItemSlotButton_Update", "LootFrame_UpdateButton",
-        "PaperDollItemSlotButton_Update", "UpdateUIPanelPositions" }) do
-        local list = type(_G[name]) == "function" and present or missing
+    for _, name in ipairs({ "BankFrameItemButton_Update", "BankPanel.EnumerateValidItems", "BankPanel.GenerateItemSlotsForSelectedTab",
+        "BankPanel.RefreshAllItemsForSelectedTab", "ChatEdit_InsertLink", "ChatFrameUtil.InsertLink", "ContainerFrame_Update",
+        "GameTooltip_SetDefaultAnchor", "InspectPaperDollFrame_UpdateButtons", "InspectPaperDollItemSlotButton_Update",
+        "LootFrame_UpdateButton", "PaperDollItemSlotButton_Update", "UpdateUIPanelPositions" }) do
+        local owner, method = name:match("^([%w_]+)%.([%w_]+)$")
+        local fn
+        if owner then
+            local t = rawget(_G, owner)
+            fn = type(t) == "table" and t[method] or nil
+        else
+            fn = rawget(_G, name)
+        end
+        local list = type(fn) == "function" and present or missing
         list[#list + 1] = name
     end
-    if #missing > 0 then Out("INFO", "hooks", "missing: " .. table.concat(missing, " ")) end
-    if #present > 0 then Out("INFO", "hooks", "present: " .. table.concat(present, " ")) end
+    -- in lines of 200 letters at most: Out cuts a line at MAX_LEN, and the names past it were lost
+    local function Say(label, names)
+        local line = label
+        for _, name in ipairs(names) do
+            if #line + #name > 200 then Out("INFO", "hooks", line); line = label end
+            line = line .. " " .. name
+        end
+        if line ~= label then Out("INFO", "hooks", line) end
+    end
+    Say("missing:", missing)
+    Say("present:", present)
 end)
 
 -- Myslot's export header (a global missing: it says "Player" on a French client)

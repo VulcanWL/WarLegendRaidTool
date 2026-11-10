@@ -98,6 +98,20 @@ local broke = Find(lines, "probe error")
 Check("/wl verify: no probe stops on an error", not broke, broke or "")
 local watchLine = Find(lines, " watch: ")
 Check("/wl verify: the session watch had no error", watchLine ~= nil and watchLine:find("0 error", 1, true) ~= nil, tostring(watchLine))
+-- the hooks probe names the bank and link hooks Forever uses (audit 10/11, M6 / M2), a method of a table read as such:
+-- this client has ChatFrameUtil.InsertLink (wow.lua) and no BankPanel
+do
+    local gone, there = "", "" -- each list may take several lines
+    for _, l in ipairs(lines) do
+        local names = l:match(" hooks: missing:(.*)")
+        if names then gone = gone .. names end
+        names = l:match(" hooks: present:(.*)")
+        if names then there = there .. names end
+    end
+    Check("/wl verify: the hooks probe reads the bank and link hooks of Forever (BankPanel, ChatFrameUtil.InsertLink)",
+        there:find(" ChatFrameUtil.InsertLink", 1, true) ~= nil and gone:find(" BankPanel.RefreshAllItemsForSelectedTab", 1, true) ~= nil
+        and gone:find(" BankFrameItemButton_Update", 1, true) ~= nil, there .. " / " .. gone)
+end
 Check("/wl verify: sends nothing, no Lua error", #M.chat == chat1 and #M.addon == addon1 and (M.errorSeq or 0) == errors1,
     (#M.chat - chat1) .. " chat, " .. (#M.addon - addon1) .. " addon, " .. ((M.errorSeq or 0) - errors1) .. " errors: " .. tostring(M.lastError))
 

@@ -23,7 +23,7 @@ Pas dans le zip des releases.
 - **Modèle des secrets non changé** : le banc laisse exprès comparer un secret avec nil (`smoke.js` `smokeEqual`, et son
   autotest l affirme). Lui et le bug enregistré L6 se contredisent toujours : un test en jeu tranche. Si L6 a raison,
   retirer l exception du modèle (tout `x == nil` sur un secret possible deviendra une erreur du banc).
-- **Vérifié** : check 0 problème, wow-api 0 nouveau, smoke sans problème (102 / 102 et 105 / 105), `--bg` 34 / 34,
+- **Vérifié** : check 0 problème, wow-api 0 nouveau, smoke sans problème (102 / 102 et 105 / 105, puis 103 / 103 et 106 / 106 avec la sonde), `--bg` 34 / 34,
   `--open-world` 51 / 51, jeu à jour (`sync.sh`, rien de sauté sauf `STATUS.md`). **Rien testé en jeu.**
 - **À tester en jeu** (`/reload`) : (1) maj-clic d un objet des sacs avec le curseur dans la recherche de Guilde > Métiers ;
   maj-clic d un lien de métier, onglet Métiers ouvert. (2) Banque : niveaux d objet sur les emplacements, en changeant
@@ -37,6 +37,10 @@ Pas dans le zip des releases.
 - **Relecture indépendante du diff** (wow-reviewer) : aucun défaut bloquant ; 2 points repris (drapeau de test remis à
   faux au recyclage, délai d inspection par joueur), 2 laissés : la teinte M13 peut passer sous ou sur le nom (à voir en
   jeu), M22 ne compte pas une partie rejointe en cours qui finit moins de 150 s après la précédente de la même carte.
+- **`/wl verify`, sonde `hooks`** : lit aussi `BankPanel.EnumerateValidItems` / `GenerateItemSlotsForSelectedTab` /
+  `RefreshAllItemsForSelectedTab` et `ChatFrameUtil.InsertLink` (les crochets de M6 et M2), à côté des anciens noms ; sa
+  liste sort en lignes de 200 lettres (la coupe à 300 perdait les derniers noms). 1 check de plus au banc (103 / 103 et
+  106 / 106, rouge sans, vert avec). En jeu : de chaque paire (banque, lien), un nom au moins doit être « present ».
 - **Reste** : MED R ou U seulement (M1, M7, M8, M10, M14, M16, M25, M27 à M30), tous les LOW, les points ToS.
 
 ## 10/11 soir : audit ligne à ligne de 1.41.62, les 2 HIGH corrigés (commit `d05ba40`)
