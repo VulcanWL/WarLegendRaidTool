@@ -43,6 +43,40 @@ Pas dans le zip des releases.
   106 / 106, rouge sans, vert avec). En jeu : de chaque paire (banque, lien), un nom au moins doit être « present ».
 - **Reste** : MED R ou U seulement (M1, M7, M8, M10, M14, M16, M25, M27 à M30), tous les LOW, les points ToS.
 
+## Veille 10/11/2026 soir (build 1.60.1.70888, Interface 16001)
+
+- **Build / Interface** : `wowf` us = 1.60.1.70888 (avant 70862), Interface 16001 = les .toc, rien à changer. Gethe/wow-ui-source
+  `forever` `4cd0ab7` (70888), 16 fichiers depuis `9dc84f0` (70862), diff lu en entier. Branche `veille/1.60.1.70888`.
+- **[Code Blizzard] Touché : `PARTY_INVITE_REQUEST`** : nouveau champ `isCrossShard` (bool) inséré APRÈS `isNativeRealm`
+  (`PartyInfoDocumentation.lua`) ; le gestionnaire Mainline du jeu lit maintenant `name, tank, healer, damage, isXRealm, isXShard,
+  allowMultipleRoles, inviterGuid, questSessionActive` ; nouveau `GetPartyInviteString` (Camelot : texte `INVITATION_XSHARD` pour une
+  invitation d un autre layer). **`inviterGUID` passe du 7e au 8e argument.** À confirmer en jeu, mais doc + code du jeu concordent.
+  - `WarLegendRaidTool/QualityOfLife.lua:66` `select(6, ...)` (après `name`) = maintenant `allowMultipleRoles` (bool). `false` :
+    `guid` faux, retour au nom (`IsFriend(name)`, `W.GuildMember(name)`), le chemin GUID de l audit du 29/10 est perdu. `true` :
+    `C_FriendList.IsFriend(true)` et `IsGuildMember(true)` (l. 58) reçoivent un booléen : erreur Lua possible, invitation pas acceptée.
+  - `WarLegendRaidTool/Layers.lua:706` (`name, _, _, _, _, _, guid`) : guid = booléen -> `LS.invite.guid` nil ; `InviterHere`
+    (l. ~736) retombe sur la clé du nom : sans erreur, mais le contrôle « groupe de l invitation » par GUID ne sert plus.
+  - `WarLegendRaidTool_Dev/Verify.lua:455` : sonde `invitename` lit le mauvais argument (rapport faux, pas livré).
+  - Banc : `tools/smoke/scenario.lua:1366` et `tools/smoke/verify.lua:41` tirent l événement à l ancien format : le banc passe
+    encore avec l ancien code. `tools/.cache/wow-ui-source` est à 70862 : `wow-api.js check --update` à faire.
+- **Correctif proposé (pas appliqué)** : ne plus lire le GUID par position : parcourir les arguments, garder la première chaîne
+  (sous `W.Safe`) qui commence par `Player-` (marche avec l ancien et le nouveau format) ; un petit accesseur commun
+  (`W.InviteGUID(...)`, `Lib.lua`) pour QualityOfLife, Layers et Verify. Mettre les 2 bancs au nouveau format (+ un cas à l ancien).
+  Piste : `isCrossShard` dit si l invitation vient d un autre layer : Layers pourrait le noter (« invitation d un autre layer ») au
+  lieu de le deviner.
+- **Sans impact (grep)** : barres de nom (`UpdateControlAnchors` : contrôle des foules à droite du niveau), cadre de cible (icône de
+  mascotte toujours cachée sur Camelot, `ShouldShowBattlePetIcon` retiré), arbre Legacy (`cannotRefund` cache Reset), réglages Discord
+  retirés de « nouveaux », écran des personnages. Aucun de ces noms chez nous.
+- **Officiel Blizzard** : « WoW: Forever Hotfixes » (page tenue à jour, section du 9/11) : classes (Cooldown Manager druide /
+  paladin / guerrier, Infusion de puissance, Consécration), butin de donjons, population réduite dans les zones encombrées ; rien sur
+  l API, les addons, les invitations ou les layers. Messages bleus US / EU (20 + 20) : rien de nouveau.
+- **Wiki / communauté** : rien sur 70888.
+- **À tester en jeu** : (1) `/run` un gestionnaire `PARTY_INVITE_REQUEST` qui affiche `select("#", ...)` et chaque argument, se faire
+  inviter (même layer, puis autre layer) ; (2) QualityOfLife « accepter les invitations d amis / guilde » coché, invitation d un membre
+  de guilde : acceptée ? `/wl bugs` ; (3) Layers « Ask LayerSwap hosts » puis invitation : `layers.log` (guid ?).
+- **Prochaine version** : l Interface ne change pas. Correctif petit (3 fichiers + 2 bancs), à mettre dans la prochaine version ;
+  l acceptation automatique des invitations (éteinte par défaut) est la seule fonction cassée. Rien testé en jeu, rien publié.
+
 ## 10/11 soir : audit ligne à ligne de 1.41.62, les 2 HIGH corrigés (commit `d05ba40`)
 
 - **Audit** : 10 relecteurs en parallèle, chaque ligne chargée des 5 addons (~46 000), lecture seule. 2 HIGH, 30 MED,
