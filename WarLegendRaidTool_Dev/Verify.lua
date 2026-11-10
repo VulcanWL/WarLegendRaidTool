@@ -920,7 +920,9 @@ local function Errors()
     local session, n = BugGrabber:GetSessionId(), 0
     for _, err in ipairs(BugGrabber:GetDB() or {}) do
         local text = tostring(err.message or "") .. tostring(err.stack or "")
-        if err.session == session and text:find("WarLegendRaidTool", 1, true) then n = n + 1 end
+        -- BugGrabber keeps one entry per error and counts its repeats: an error a module test raised again moved
+        -- nothing with one per entry, and "no new Lua error" was said (counted as errorcap does)
+        if err.session == session and text:find("WarLegendRaidTool", 1, true) then n = n + (tonumber(err.counter) or 1) end
     end
     return n
 end

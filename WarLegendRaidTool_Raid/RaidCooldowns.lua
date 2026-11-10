@@ -376,7 +376,12 @@ end)
 local wasInGroup = false
 W.OnRoster(function()
     local inGroup = W.InGroup()
-    if inGroup and not wasInGroup then SendKnown() end -- just joined: tell the others
+    if inGroup and not wasInGroup then
+        SendKnown() -- just joined: tell the others
+        -- and ask them, as after a login: with the raid modules loaded at the loading screen the login was before the
+        -- group, and every player with the addon stayed "Name?" until someone else asked (Ask: once per 20 s)
+        if db and db.window then W.After(3, function() Ask() end) end
+    end
     if not inGroup then wipe(state) end
     wasInGroup = inGroup
     Listen()

@@ -26,8 +26,21 @@ local UI = {}
 
 local function Now() return GetTime() end
 
+-- The player's own inspect: its window open, a talent window showing someone else's talents, or an inspect asked and
+-- not answered yet. Blizzard sets InspectFrame.unit when the player asks (InspectFrame_Show) and shows the window
+-- only at INSPECT_READY: our NotifyInspect / ClearInspectPlayer in between dropped the data it was waiting for.
+-- Hidden with a unit counts for WAIT_FOR seconds per player only (its GUID: the unit is "target" for every inspect):
+-- when the answer never comes the unit stays set (only OnHide clears it) and the list must go on.
+local askedUnit, askedAt
 local function UserInspecting()
-    return InspectFrame and InspectFrame:IsShown()
+    if PlayerSpellsFrame and PlayerSpellsFrame.GetInspectUnit and PlayerSpellsFrame:GetInspectUnit() then return true end
+    if not InspectFrame then return false end
+    if InspectFrame:IsShown() then askedUnit = nil; return true end
+    local unit = InspectFrame.unit
+    if unit == nil then askedUnit = nil; return false end
+    local who = W.Safe(UnitGUID(unit)) or unit
+    if who ~= askedUnit then askedUnit, askedAt = who, Now() end
+    return Now() - askedAt < WAIT_FOR
 end
 
 ---------------------------------------------------------------------------

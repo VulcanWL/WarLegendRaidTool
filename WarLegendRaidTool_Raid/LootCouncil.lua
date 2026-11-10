@@ -1056,7 +1056,9 @@ local function VoteRow(content)
         if not S or not r.cand then return end
         local mine = r.cand.votes[MyKey()]
         Send("V", S.sid, UI.vote.sel, r.cand.key, mine and "0" or "1")
-        if not mine then NextToVote(UI.vote.sel) end -- like RCLootCouncil: on to the next item; the item tabs go back
+        -- like RCLootCouncil: on to the next item; the item tabs go back. Drawn at once: the rows still showed this
+        -- item's candidates until the vote came back, and a second click voted for that row's player on the next item
+        if not mine then NextToVote(UI.vote.sel); LC.RefreshVote() end
     end)
     r.vote:SetPoint("LEFT", x + 4, 0)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")

@@ -268,6 +268,13 @@ local function Add(p, mapID, x, y, t, mine, sender)
         r.mine = r.mine or mine
     elseif #list < MAX_REPORTS and (mine or (p == phase and mapID == phaseMap) or not Full()) then
         list[#list + 1] = { phase = p, x = x, y = y, t = t, first = t, mine = mine }
+    elseif mine and #list >= MAX_REPORTS then
+        -- the map's list is full of other players' sightings (WLRT): mine takes the place of the oldest of theirs
+        local oldest
+        for i, o in ipairs(list) do
+            if not o.mine and (not oldest or o.t < list[oldest].t) then oldest = i end
+        end
+        if oldest then list[oldest] = { phase = p, x = x, y = y, t = t, first = t, mine = mine } end
     end
     Refresh(p, mapID)
 end
@@ -362,11 +369,29 @@ end
 -- only shows while the node is up in your phase. Skipped when the node already has a sighting in this
 -- phase from anyone in the last gap seconds (default REPEAT_GAP), so passing the same blip doesn't flood.
 local REPEAT_GAP = 5 * 60
+-- What went out through here, in memory only (WLRT): the gap must hold when Add kept nothing of mine (the map's list
+-- filled by strangers, a "not there" dated a minute ahead), or every minimap scan sent the same sighting again on the
+-- public channel. A few entries a map (one per node), forgotten after SENT_KEEP, longer than any gap asked (scan: 10 min).
+local sent = {} -- [mapID] = { { phase, x, y, t }, ... }
+local SENT_KEEP, SENT_MAX = 15 * 60, 50
 function ns.ReportSighting(mapID, x, y, gap)
     local now = GetServerTime()
+    gap = gap or REPEAT_GAP
     for _, r in ipairs(reports[mapID] or {}) do
-        if r.phase == phase and now - r.t < (gap or REPEAT_GAP) and ns.Near(mapID, r.x, r.y, x, y) then return end
+        if r.phase == phase and now - r.t < gap and ns.Near(mapID, r.x, r.y, x, y) then return end
     end
+    local mine = sent[mapID] or {}
+    sent[mapID] = mine
+    for i = #mine, 1, -1 do
+        local s = mine[i]
+        if now - s.t >= SENT_KEEP then
+            table.remove(mine, i)
+        elseif s.phase == phase and now - s.t < gap and ns.Near(mapID, s.x, s.y, x, y) then
+            return
+        end
+    end
+    if #mine >= SENT_MAX then table.remove(mine, 1) end
+    mine[#mine + 1] = { phase = phase, x = x, y = y, t = now }
     ns.OnConfirmed(mapID, x, y, now)
 end
 
