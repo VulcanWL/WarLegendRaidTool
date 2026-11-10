@@ -168,6 +168,12 @@ function combatIndicator:AttachToPlayerButton(playerButton)
 		self:DisableTicker()
 	end
 
+	-- a button taken again for another player: one removed during the test mode never got OnTestmodeDisabled and
+	-- kept its flag, so ApplyAllSettings started no ticker for it in a real battleground
+	function playerButton.CombatIndicator:Reset()
+		self.testmodeEnabled = false -- in test mode the next tick sets it again
+	end
+
 	function playerButton.CombatIndicator:DisableTicker()
 		if self.Ticker then
 			self.Ticker:Cancel()

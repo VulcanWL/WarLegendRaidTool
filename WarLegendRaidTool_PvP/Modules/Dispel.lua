@@ -518,6 +518,14 @@ function dispel:AttachToPlayerButton(playerButton)
 
 	function f:Disable() self:Clear() end
 
+	-- a button taken again for another player: one removed during the test mode never got OnTestmodeDisabled and
+	-- kept its flag and its test icons (nothing read in a real battleground until /reload)
+	function f:Reset()
+		self.testmode = false -- in test mode the next tick sets it again
+		self:Clear()
+		f.nativeUnit = nil
+	end
+
 	function f:ApplyAllSettings()
 		if not self.config then return end
 		if playerButton.PlayerIsEnemy then self:Clear(); return end

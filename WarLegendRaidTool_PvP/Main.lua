@@ -552,7 +552,8 @@ rangeSpellReset:RegisterEvent("SPELLS_CHANGED")
 rangeSpellReset:SetScript("OnEvent", function() wipe(rangeSpellCache) end)
 
 local function readable(v)
-	if v == nil or issecret(v) then return nil end
+	-- issecret first: comparing a secret raises, with nil too (the recorded bug L6); UnitInRange has SecretReturns
+	if issecret(v) or v == nil then return nil end
 	return v
 end
 
@@ -984,9 +985,10 @@ WarLegendPvP.GeneralEvents = {
 	"CHAT_MSG_BG_SYSTEM_HORDE",
 	"CHAT_MSG_BG_SYSTEM_ALLIANCE",
 	"CHAT_MSG_BG_SYSTEM_NEUTRAL",
-	"PLAYER_REGEN_ENABLED",
 	"PLAYER_REGEN_DISABLED"
 }
+-- PLAYER_REGEN_ENABLED is not in this list: it runs what waited for the end of the fight (PendingUpdates), and
+-- Disable() in combat queues the hiding of the frames right after it unregisters these (registered in PLAYER_LOGIN)
 
 function WarLegendPvP:RegisterEvents()
 	local events = self.GeneralEvents
@@ -1220,6 +1222,7 @@ do
 		self:RegisterEvent("PLAYER_UNGHOST") --Fired when the player is alive after being a ghost.
 		self:RegisterEvent("PLAYER_DEAD") --Fired when the player has died.
 		self:RegisterEvent("UPDATE_BATTLEFIELD_SCORE")
+		self:RegisterEvent("PLAYER_REGEN_ENABLED") -- kept while the frames are off: see GeneralEvents
 
 
 

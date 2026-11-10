@@ -235,10 +235,15 @@ local function HealthBarColor(button, unitFrame)
 	local bar = unitFrame.healthBar
 	local fill = bar and bar.GetStatusBarTexture and bar:GetStatusBarTexture()
 	if not fill then return end
-	local tint = bar:CreateTexture(nil, "ARTWORK", nil, 7)
-	tint:SetAllPoints(fill)
+	-- on a frame of the aura button, as the type symbol below it: AddDispelTypeTexture refuses a texture that is not a
+	-- descendant of its button (a texture of the bar was refused inside the pcall: the tint never showed). The frame
+	-- is hidden with the aura button and sits at the bar's level, over the fill
+	local holder = CreateFrame("Frame", nil, button)
+	holder:SetAllPoints(fill)
+	holder:SetFrameLevel(bar:GetFrameLevel())
+	local tint = holder:CreateTexture(nil, "ARTWORK", nil, 7)
+	tint:SetAllPoints(holder)
 	AddDispelTexture(button, tint, fill:GetTexture())
-	pcall(button.HookScript, button, "OnHide", function() tint:Hide() end) -- the container may refuse scripts on its frames
 end
 
 local function InitButton(button, group, glowParent)

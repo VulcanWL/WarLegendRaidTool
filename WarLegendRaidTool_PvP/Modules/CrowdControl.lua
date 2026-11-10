@@ -105,6 +105,13 @@ function crowdControl:AttachToPlayerButton(playerButton)
 		if self.native then NA.SetUnit(self.native, nil) end
 	end
 
+	-- a button taken again for another player (SetupButtonForNewPlayer): one removed during the test mode never got
+	-- OnTestmodeDisabled, so it kept its flag and showed no crowd control in a real battleground until /reload
+	function f:Reset()
+		self.testmode = false -- in test mode the next tick sets it again
+		test:Hide()
+	end
+
 	function f:ApplyAllSettings()
 		if not self.config then return end
 		self:Update()
