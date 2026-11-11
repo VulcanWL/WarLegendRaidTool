@@ -3,6 +3,32 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu (13 OK, 2 LOOK, 11 SKIP), rien à corriger
+
+- **Rapport** collé par l utilisateur (fenêtre `/wl verify`, lu avec `node tools/verify-live.js --decode`) : 1.41.64, build
+  70888, Voleur 48, solo, Feralas, royaume `CAMWOW EU5 Realm 8 PvP`. 0 erreur Lua de la session (tous addons), 0 action
+  bloquée, 98 noms d événements valides.
+- **2 LOOK `nameform`** (whisper, invite) : `a_a>a_a GUID gives a_a_a4a4a DIFFERS` (aussi `a5a4a`). Le nom de l événement
+  est « Prénom Nom » sans royaume ; la sonde (`GuidFull`) y colle la case royaume de `GetPlayerInfoByGUID`, qui pour un
+  joueur d un autre royaume (EU4 Realm 4, EU5 Realm 4 ; nous `a5a8a`) est le vrai royaume. Même cas que `confirm` (4/11) :
+  `W.FullName` n a rien à retirer, rien à corriger. **Question ouverte** : ce que `UnitName(unité)` rend pour un membre du
+  groupe d un autre royaume. Si le 2e retour est le royaume, `W.UnitFullName` ferait « Prénom Nom Royaume » et la clé ne
+  serait plus celle du chuchoteur (`!sr` de `LootCouncil.lua`, `InviteTool.lua`). Le rapport (solo) ne le dit pas : la sonde
+  `names` ne lit que le joueur.
+- **Preuves en jeu** : `invite` : 3 formes sur 4 ont un nom par GUID, donc `W.InviteGUID` trouve le GUID au build 70888
+  (ne prouve ni l acceptation automatique ni Layers ; 1 forme « no GUID name » pas expliquée). `hooks` : `BankPanel.*` et
+  `ChatFrameUtil.InsertLink` présents, `BankFrameItemButton_Update` et `ContainerFrame_Update` absents : la branche M6 est
+  celle qui tourne. `ChatEdit_InsertLink` présent aussi : c est un alias (`Deprecated_ChatFrame.lua:43` du cache), chaque
+  crochet enveloppe sa propre entrée, pas de double appel.
+- **Pas tranché** : secret comparé à nil (L6), aucune ligne ne le teste (hors combat `player reads secret: health` : une
+  sonde `pcall` de « secret == nil » sur la vie du joueur le dirait). Banque pas ouverte, addon PvP pas chargé : M6, M12,
+  M13 toujours pas testés. `invitename` : SKIP (pas d invitation de notre part).
+- **Vu au passage** : la sonde `secrets` en combat lève « Auras cannot be accessed when secret while tainted » (lecture non
+  protégée de la sonde ; l addon passe par `W.AuraByIndex`, protégé). `WarLegendRaidTool_Skyborne/Main.lua:141` et `:407`
+  lisent `C_UnitAuras.GetPlayerAuraBySpellID` sans `pcall` (pas dans l audit, pas vérifié en jeu). Perf de la session :
+  `transports draw` 2,5 s en 40 363 appels, max 28,8 ms ; `CHAT_MSG_ADDON` 0,9 s en 9 877 appels.
+- **Proposé, pas fait** : 2 sondes Dev (noms des unités du groupe ; secret comparé à nil).
+
 ## 10/11 nuit : GUID de l inviteur lu par sa forme (build 70888), publié en 1.41.64
 
 - **Fait** : `W.InviteGUID(...)` (`Lib.lua`) rend la première chaîne lisible `Player-<n>-<hex>` des arguments de
