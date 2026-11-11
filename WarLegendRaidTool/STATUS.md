@@ -3,7 +3,7 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu (13 OK, 2 LOOK, 11 SKIP), rien à corriger
+## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu (13 OK, 2 LOOK, 11 SKIP), rien à corriger, 2 sondes Dev ajoutées
 
 - **Rapport** collé par l utilisateur (fenêtre `/wl verify`, lu avec `node tools/verify-live.js --decode`) : 1.41.64, build
   70888, Voleur 48, solo, Feralas, royaume `CAMWOW EU5 Realm 8 PvP`. 0 erreur Lua de la session (tous addons), 0 action
@@ -27,7 +27,17 @@ Pas dans le zip des releases.
   protégée de la sonde ; l addon passe par `W.AuraByIndex`, protégé). `WarLegendRaidTool_Skyborne/Main.lua:141` et `:407`
   lisent `C_UnitAuras.GetPlayerAuraBySpellID` sans `pcall` (pas dans l audit, pas vérifié en jeu). Perf de la session :
   `transports draw` 2,5 s en 40 363 appels, max 28,8 ms ; `CHAT_MSG_ADDON` 0,9 s en 9 877 appels.
-- **Proposé, pas fait** : 2 sondes Dev (noms des unités du groupe ; secret comparé à nil).
+- **Fait ensuite (oui de l utilisateur)** : 2 sondes Dev dans `Verify.lua` (pas dans le zip, commit local, pas poussé).
+  - `unitnames` : par membre du groupe, la forme des 2 retours de `UnitName`, de `W.UnitFullName`, des 2 cases de
+    `GetPlayerInfoByGUID`, `UnitRealmRelationship`, et en raid le nom du roster. `LOOK` si `W.UnitFullName` a plus de 2
+    parties, un tiret, ou diffère du roster passé par `W.FullName`. Lu au `/wl verify` et à `GROUP_ROSTER_UPDATE` (au plus
+    toutes les 5 s, 6 formes gardées), jamais un nom.
+  - `secretnil` : sur la première valeur secrète lisible (hors combat : la vie du joueur), `== nil`, `~= nil`, `not` et
+    `== 0` sous `pcall`. `LOOK` si le jeu et le banc diffèrent (le banc permet les 3 premiers et refuse le 4e) ; un
+    échantillon aussi 2 s après le début d un combat.
+  - Banc : 2 checks dans `tools/smoke/verify.lua` (rouge sans les sondes, vert avec ; 107 / 107 et 110 / 110).
+- **À faire en jeu** : `/wl verify quick` seul (ligne `secretnil`), puis en groupe avec un joueur d un autre royaume
+  (lignes `unitnames`), et coller le rapport.
 
 ## 10/11 nuit : GUID de l inviteur lu par sa forme (build 70888), publié en 1.41.64
 

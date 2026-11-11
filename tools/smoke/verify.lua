@@ -81,6 +81,50 @@ local function Find(lines, text)
     for _, l in ipairs(lines) do if l:find(text, 1, true) then return l end end
 end
 
+-- 10/11, the two probes the report of 1.41.64 asked for, before the bench's own raid fills the forms kept (its names
+-- carry a figure: one form each). A raid with members of this realm ("First", "Surname") and one
+-- of another realm, its unit read as the GUID's was in the game ("First Surname", the realm): the first form is fine,
+-- the second to look at, and no name leaves. The player's health secret, as out of combat in the game: compared with
+-- nil it gives an answer here (the bench's model, the question the probe puts to the game), with 0 it raises.
+do
+    local keptGroup, keptName, keptHealth = M.group, UnitName, UnitHealth
+    M.group = { M.player } -- alone, and nothing secret out of combat: nothing to read
+    local solo = #M.prints
+    M.Call(W.slash.verify, "quick")
+    local soloNames, soloNil = Find(Lines(solo + 1), " unitnames: "), Find(Lines(solo + 1), " secretnil: ")
+    for i = 2, 6 do M.group[i] = { name = "Zzmate" .. string.char(96 + i) .. "-Good", class = "MAGE" } end
+    UnitName = function(u)
+        if u == "raid3" then return "Zzfar Away", "CAMWOWEU4Realm4PvP" end
+        return keptName(u)
+    end
+    UnitHealth = function(u)
+        if u == "player" then return M.Secret(1234) end
+        return keptHealth(u)
+    end
+    local from = #M.prints
+    M.Call(W.slash.verify, "quick")
+    M.group, UnitName, UnitHealth = keptGroup, keptName, keptHealth
+    local now = Lines(from + 1)
+    local fine, far
+    for _, l in ipairs(now) do
+        if l:find(" unitnames: ", 1, true) then
+            if l:find("W.UnitFullName=a_a_a4a4a", 1, true) then far = l
+            elseif l:find("W.UnitFullName=a_a ", 1, true) then fine = l end
+        end
+    end
+    Check("/wl verify: a group member's name forms, one of another realm to look at, never the name",
+        tostring(soloNames):find("SKIP", 1, true) == 1 and fine ~= nil and fine:find("OK", 1, true) == 1
+        and fine:find("UnitName=a|a ", 1, true) ~= nil and fine:find("roster=a-a", 1, true) ~= nil
+        and far ~= nil and far:find("LOOK", 1, true) == 1 and far:find("UnitName=a_a|a4a4a ", 1, true) ~= nil
+        and far:find("DIFFERS", 1, true) ~= nil and not Find(now, "Zzfar") and not Find(now, "Zzmate"),
+        tostring(soloNames) .. " / " .. tostring(fine) .. " / " .. tostring(far))
+    local nilLine = Find(now, " secretnil: ")
+    Check("/wl verify: a secret value compared with nil and with 0, each result told",
+        tostring(soloNil):find("SKIP", 1, true) == 1 and nilLine ~= nil and nilLine:find("OK", 1, true) == 1
+        and nilLine:find("player health: == nil gives false, ~= nil gives true, not gives false, == 0 raises (", 1, true) ~= nil
+        and not nilLine:find("1234", 1, true), tostring(soloNil) .. " / " .. tostring(nilLine))
+end
+
 local chat1, addon1, errors1 = #M.chat, #M.addon, M.errorSeq or 0
 local prints1 = #M.prints
 M.Call(W.slash.verify, "quick")
@@ -90,7 +134,7 @@ local missing = {}
 for _, id in ipairs({ "client", "names", "masterloot", "slot18", "range", "itemstats", "coins", "oldglobals", "realm", "encoding",
     "api", "cvar", "raid", "memory", "nameform", "guildname", "chatecho", "restricted", "blocked", "spellrank", "gcd", "pvpscore",
     "guildbank", "lootsource", "combatlog", "channels", "editmode", "pvplayout", "addonmsg", "questgiver", "secrets", "talents",
-    "hooks", "strings", "eventnames", "errorcap", "invitename", "watch", "end" }) do
+    "hooks", "strings", "eventnames", "errorcap", "invitename", "watch", "unitnames", "secretnil", "end" }) do
     if not Find(lines, " " .. id .. ": ") then missing[#missing + 1] = id end
 end
 Check("/wl verify: every probe gives its line", #missing == 0, table.concat(missing, " "))

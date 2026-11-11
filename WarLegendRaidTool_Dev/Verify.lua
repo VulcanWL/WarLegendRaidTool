@@ -288,6 +288,46 @@ local function NoteName(kind, raw, guid)
     end
 end
 
+-- 10/11: a group member of another realm. The nameform LOOK of 1.41.64 was read solo: for such a player the realm slot
+-- of GetPlayerInfoByGUID is the real realm, not the surname. If a unit's second name is too, W.UnitFullName makes a
+-- three-part name that no whisper or roster name matches. Forms only: the unit's two names, what W.UnitFullName makes
+-- of them, the GUID's two, the realm relation (1 same, 2 coalesced, 3 virtual), in a raid the roster name too.
+local UNIT_FORMS, UNIT_EVERY = 6, 5
+local unitSeen, unitAt = {}, 0
+local function NoteUnits()
+    local raid = IsInRaid and IsInRaid()
+    for i = 1, raid and 40 or 4 do
+        if (unitSeen.n or 0) >= UNIT_FORMS then return end
+        local unit = (raid and "raid" or "party") .. i
+        local n, second = UnitName(unit)
+        n, second = W.Safe(n), W.Safe(second)
+        local full = W.UnitFullName(unit)
+        if type(n) == "string" and n ~= "" and n ~= UNKNOWNOBJECT and type(full) == "string" and UnitIsPlayer(unit) then
+            local gname, grealm
+            if GetPlayerInfoByGUID then
+                local ok, _, _, _, _, _, a, b = pcall(GetPlayerInfoByGUID, W.Safe(UnitGUID(unit)))
+                if ok then gname, grealm = a, b end
+            end
+            local okRel, rel = pcall(UnitRealmRelationship or error, unit)
+            local entry = "UnitName=" .. Shape(n) .. "|" .. Shape(second) .. " W.UnitFullName=" .. Shape(full)
+                .. " GUID=" .. Shape(W.Safe(gname)) .. "|" .. Shape(W.Safe(grealm)) .. " relation=" .. (okRel and Str(rel) or "?")
+            local _, parts = full:gsub(SEP_PAT, "")
+            local differs = parts > 1 or full:find("-", 1, true) ~= nil
+            local roster = raid and W.Safe((GetRaidRosterInfo(i)))
+            if type(roster) == "string" then
+                entry = entry .. " roster=" .. Shape(roster)
+                differs = differs or W.FullName(roster) ~= full
+            end
+            if differs then entry = entry .. " DIFFERS from First Surname" end
+            if not unitSeen[entry] then
+                unitSeen[entry] = true
+                unitSeen.n = (unitSeen.n or 0) + 1
+                unitSeen[unitSeen.n] = entry
+            end
+        end
+    end
+end
+
 -- HIGH 6: our chat lines (the ones our modules send) and whether the server echoes them back
 local sent, settling, listening = {}, false, false
 local echo = CreateFrame("Frame")
@@ -453,6 +493,11 @@ ON.ADDON_ACTION_BLOCKED = function(addon, fn) Blocked("blocked", addon, fn) end
 ON.ADDON_ACTION_FORBIDDEN = function(addon, fn) Blocked("forbidden", addon, fn) end
 ON.CHAT_MSG_WHISPER = function(_, sender, _, _, _, _, _, _, _, _, _, guid) NoteName("whisper", sender, guid) end
 ON.PARTY_INVITE_REQUEST = function(name, ...) NoteName("invite", name, W.InviteGUID(...)) end
+ON.GROUP_ROSTER_UPDATE = function()
+    if GetTime() - unitAt < UNIT_EVERY then return end
+    unitAt = GetTime()
+    NoteUnits()
+end
 ON.GROUP_INVITE_CONFIRMATION = function()
     local id = W.Safe(GetNextPendingInviteConfirmation and GetNextPendingInviteConfirmation())
     if not (id and GetInviteConfirmationInfo) then return end
@@ -551,12 +596,55 @@ local function SecretLine()
     if type(aura) == "table" then Read("aura spell", aura.spellId); Read("aura name", aura.name) end
     return table.concat(out, " ") .. "; " .. unit .. " reads secret: " .. (#hidden > 0 and table.concat(hidden, " ") or "none")
 end
+-- 10/11: is a secret value compared with nil an error? The recorded bug L6 says so, the bench allows it (smokeEqual in
+-- tools/smoke.js) and W.Safe no longer depends on it. Tried under pcall on the first secret value the client gives: out
+-- of combat the player's health is one (report of 1.41.64). differs = the game and the bench disagree: the bench allows
+-- "== nil", "~= nil" and "not", and refuses "== 0".
+local SECRET_READS = {
+    { "player health", function() return UnitHealth("player") end },
+    { "player health max", function() return UnitHealthMax("player") end },
+    { "player power", function() return UnitPower("player") end },
+    { "target health", function() return UnitHealth("target") end },
+    { "target name", function() return (UnitName("target")) end },
+}
+local SECRET_TESTS = {
+    { "== nil", function(v) return v == nil end, true },
+    { "~= nil", function(v) return v ~= nil end, true },
+    { "not", function(v) return not v end, true },
+    { "== 0", function(v) return v == 0 end, false },
+}
+-- the line and whether it differs from the bench; nil and why when no secret value can be read now
+local function SecretNilLine()
+    if not issecretvalue then return nil, "no issecretvalue" end
+    for _, read in ipairs(SECRET_READS) do
+        local ok, v = pcall(read[2])
+        if ok and issecretvalue(v) then
+            local out, differs = {}, false
+            for _, test in ipairs(SECRET_TESTS) do
+                local fine, r = pcall(test[2], v)
+                if fine ~= test[3] then differs = true end
+                if fine then
+                    out[#out + 1] = test[1] .. " gives " .. (issecretvalue(r) and "a secret" or tostring(r))
+                else
+                    out[#out + 1] = test[1] .. " raises (" .. W.CutUTF8((tostring(r):gsub("^.-:%d+: ", "")), 40) .. ")"
+                end
+            end
+            return read[1] .. ": " .. table.concat(out, ", "), differs
+        end
+    end
+    return nil, "no secret value to read now"
+end
+local fightNil
 local secretKinds, secretLines = {}, {}
 local function SampleFight(kind)
     if secretKinds[kind] or #secretLines >= 6 then return end
     secretKinds[kind] = true
     W.After(2, function()
         if not InCombatLockdown() then secretKinds[kind] = nil; return end -- over too soon: the next fight
+        if not fightNil then
+            local okNil, l, differs = pcall(SecretNilLine)
+            if okNil and l then fightNil = { line = l, differs = differs } end
+        end
         local ok, line = pcall(SecretLine)
         secretLines[#secretLines + 1] = "fight in " .. kind .. ": " .. (ok and line or ("error " .. Str(line)))
     end, "verify secrets")
@@ -594,6 +682,17 @@ Probe("nameform", function()
         end
     end
     if not any then Out("SKIP", "nameform", "no whisper / invite seen since /reload: get one of each, then /wl verify quick") end
+end)
+
+Probe("unitnames", function()
+    NoteUnits()
+    if (unitSeen.n or 0) == 0 then
+        Out("SKIP", "unitnames", "no group member read since /reload: in a group with a player of another realm, /wl verify quick")
+        return
+    end
+    for i = 1, unitSeen.n do
+        Out(unitSeen[i]:find("DIFFERS", 1, true) and "LOOK" or "OK", "unitnames", unitSeen[i])
+    end
 end)
 
 -- HIGH 2 (fixed 29/10): "First-Zzz" / "First Zzz" must not match the guild's only "First"
@@ -826,6 +925,15 @@ Probe("secrets", function()
     Out("INFO", "secrets", "out of combat: " .. (ok and line or ("error " .. Str(line))))
     if #secretLines == 0 then Out("SKIP", "secrets", "no fight seen since /reload: fight for 2 s, then /wl verify quick") end
     for _, l in ipairs(secretLines) do Out("INFO", "secrets", l) end
+end)
+
+Probe("secretnil", function()
+    local line, differs = SecretNilLine()
+    if line then Out(differs and "LOOK" or "OK", "secretnil", "now, " .. line) end
+    if fightNil then Out(fightNil.differs and "LOOK" or "OK", "secretnil", "in a fight, " .. fightNil.line) end
+    if not (line or fightNil) then
+        Out("SKIP", "secretnil", Str(differs) .. ": target an enemy or fight for 2 s, then /wl verify quick")
+    end
 end)
 
 -- the talent reading (groups, else columns of nodes): TalentReminder and Upgrades' automatic tree depend on it
