@@ -215,6 +215,29 @@ do
         and line:find("2 new", 1, true) ~= nil, tostring(line))
 end
 
+-- a player of another realm who joins once the ordinary forms kept are full (the bench's raid, a figure in each name,
+-- has filled them by now): that form is still read
+do
+    local keptName = UnitName
+    UnitName = function(u)
+        if u == "raid4" then return "Zzlate Comer", "CAMWOWEU5Realm4PvP" end
+        return keptName(u)
+    end
+    local from = #M.prints
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Call(W.slash.verify, "quick")
+    UnitName = keptName
+    local now, n, late = Lines(from + 1), 0, nil
+    for _, l in ipairs(now) do
+        if l:find(" unitnames: ", 1, true) then
+            n = n + 1
+            if l:find("W.UnitFullName=a_a_a5a4a", 1, true) then late = l end
+        end
+    end
+    Check("/wl verify: a member of another realm who joins late is read, however many forms were kept before",
+        n > 6 and late ~= nil and late:find("LOOK", 1, true) == 1 and not Find(now, "Zzlate"), n .. " line(s), " .. tostring(late))
+end
+
 -- the report: opens by itself, the same with /wl verify copy, and reads back
 local first = shown
 Check("/wl verify: the report opens to copy", type(first) == "string" and first:find("WLRTV1:", 1, true) ~= nil, tostring(first):sub(1, 60))

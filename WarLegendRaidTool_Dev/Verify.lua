@@ -292,12 +292,14 @@ end
 -- of GetPlayerInfoByGUID is the real realm, not the surname. If a unit's second name is too, W.UnitFullName makes a
 -- three-part name that no whisper or roster name matches. Forms only: the unit's two names, what W.UnitFullName makes
 -- of them, the GUID's two, the realm relation (1 same, 2 coalesced, 3 virtual), in a raid the roster name too.
+-- UNIT_FORMS of each kind are kept: the ordinary ones, and those to read (DIFFERS, or a relation that is not 1), so
+-- that a player of another realm who joins late is not left out by the forms already seen.
 local UNIT_FORMS, UNIT_EVERY = 6, 5
-local unitSeen, unitAt = {}, 0
+local unitSeen, unitOdd, unitAt = {}, {}, 0
 local function NoteUnits()
     local raid = IsInRaid and IsInRaid()
     for i = 1, raid and 40 or 4 do
-        if (unitSeen.n or 0) >= UNIT_FORMS then return end
+        if (unitSeen.n or 0) >= UNIT_FORMS and (unitOdd.n or 0) >= UNIT_FORMS then return end
         local unit = (raid and "raid" or "party") .. i
         local n, second = UnitName(unit)
         n, second = W.Safe(n), W.Safe(second)
@@ -309,6 +311,7 @@ local function NoteUnits()
                 if ok then gname, grealm = a, b end
             end
             local okRel, rel = pcall(UnitRealmRelationship or error, unit)
+            rel = W.Safe(rel)
             local entry = "UnitName=" .. Shape(n) .. "|" .. Shape(second) .. " W.UnitFullName=" .. Shape(full)
                 .. " GUID=" .. Shape(W.Safe(gname)) .. "|" .. Shape(W.Safe(grealm)) .. " relation=" .. (okRel and Str(rel) or "?")
             local _, parts = full:gsub(SEP_PAT, "")
@@ -319,10 +322,11 @@ local function NoteUnits()
                 differs = differs or W.FullName(roster) ~= full
             end
             if differs then entry = entry .. " DIFFERS from First Surname" end
-            if not unitSeen[entry] then
-                unitSeen[entry] = true
-                unitSeen.n = (unitSeen.n or 0) + 1
-                unitSeen[unitSeen.n] = entry
+            local seen = (differs or (okRel and rel ~= nil and rel ~= 1)) and unitOdd or unitSeen
+            if not seen[entry] and (seen.n or 0) < UNIT_FORMS then
+                seen[entry] = true
+                seen.n = (seen.n or 0) + 1
+                seen[seen.n] = entry
             end
         end
     end
@@ -686,12 +690,14 @@ end)
 
 Probe("unitnames", function()
     NoteUnits()
-    if (unitSeen.n or 0) == 0 then
+    if (unitSeen.n or 0) + (unitOdd.n or 0) == 0 then
         Out("SKIP", "unitnames", "no group member read since /reload: in a group with a player of another realm, /wl verify quick")
         return
     end
-    for i = 1, unitSeen.n do
-        Out(unitSeen[i]:find("DIFFERS", 1, true) and "LOOK" or "OK", "unitnames", unitSeen[i])
+    for _, seen in ipairs({ unitOdd, unitSeen }) do
+        for i = 1, seen.n or 0 do
+            Out(seen[i]:find("DIFFERS", 1, true) and "LOOK" or "OK", "unitnames", seen[i])
+        end
     end
 end)
 

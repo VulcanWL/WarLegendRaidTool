@@ -31,13 +31,19 @@ Pas dans le zip des releases.
   - `unitnames` : par membre du groupe, la forme des 2 retours de `UnitName`, de `W.UnitFullName`, des 2 cases de
     `GetPlayerInfoByGUID`, `UnitRealmRelationship`, et en raid le nom du roster. `LOOK` si `W.UnitFullName` a plus de 2
     parties, un tiret, ou diffère du roster passé par `W.FullName`. Lu au `/wl verify` et à `GROUP_ROSTER_UPDATE` (au plus
-    toutes les 5 s, 6 formes gardées), jamais un nom.
+    toutes les 5 s), jamais un nom. 6 formes ordinaires gardées, et 6 à part pour celles à lire (`DIFFERS` ou relation
+    autre que 1) : un joueur d un autre royaume arrivé tard n est pas écarté par les formes déjà vues.
+    **Règle de lecture** : des lignes `OK` seules ne tranchent rien (un groupe du même royaume donne `OK`). Le passage
+    ne compte que si une ligne montre une relation autre que 1 ou un royaume de GUID autre que `a5a8a` (le nôtre) ;
+    les valeurs de `UnitRealmRelationship` sur Forever ne sont pas vérifiées, la forme du royaume fait foi.
   - `secretnil` : sur la première valeur secrète lisible (hors combat : la vie du joueur), `== nil`, `~= nil`, `not` et
     `== 0` sous `pcall`. `LOOK` si le jeu et le banc diffèrent (le banc permet les 3 premiers et refuse le 4e) ; un
     échantillon aussi 2 s après le début d un combat.
-  - Banc : 2 checks dans `tools/smoke/verify.lua` (rouge sans les sondes, vert avec ; 107 / 107 et 110 / 110).
-- **À faire en jeu** : `/wl verify quick` seul (ligne `secretnil`), puis en groupe avec un joueur d un autre royaume
-  (lignes `unitnames`), et coller le rapport.
+  - Banc : 3 checks dans `tools/smoke/verify.lua` (rouges sans, verts avec ; 108 / 108 et 111 / 111). Luacheck et luac5.1
+    ne tournent qu en CI : pas encore passés sur ces commits (locaux).
+- **À faire en jeu** : `/reload` (le fichier Dev a changé). (1) Seul, après un court combat, `/wl verify quick` : lignes
+  `secretnil`. (2) En groupe ou raid avec un joueur d un autre royaume, `/wl verify quick` : lignes `unitnames`. Coller
+  les deux rapports. L6 et la question `UnitName` restent ouvertes jusque-là ; le modèle du banc ne change pas.
 
 ## 10/11 nuit : GUID de l inviteur lu par sa forme (build 70888), publié en 1.41.64
 
