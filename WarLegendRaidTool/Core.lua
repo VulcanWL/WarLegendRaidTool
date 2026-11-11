@@ -737,8 +737,9 @@ end, true)
 ---------------------------------------------------------------------------
 -- Player / group / guild helpers (fallbacks for older clients)
 ---------------------------------------------------------------------------
--- issecretvalue / canaccessvalue first, no "v ~= nil" before them: the bug recorded as L6 (RaidGroups MarkOf) says the
--- game refuses to compare a secret, with nil too. Both take nil and plain values (false, true): same result for those.
+-- issecretvalue / canaccessvalue first, no "v ~= nil" before them. Read in the game on 10/11 (build 70888, the secretnil
+-- probe of /wl verify): a secret compared with nil does not raise, with 0 it does; the bug recorded as L6 (RaidGroups
+-- MarkOf) said nil did too. This order holds either way: both take nil and plain values (false, true), same result.
 function W.Safe(v)
     if (issecretvalue and issecretvalue(v)) or (canaccessvalue and not canaccessvalue(v)) then
         return nil

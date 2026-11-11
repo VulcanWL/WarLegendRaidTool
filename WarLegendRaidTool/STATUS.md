@@ -3,7 +3,7 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu (13 OK, 2 LOOK, 11 SKIP), rien à corriger, 2 sondes Dev ajoutées
+## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu, 2 sondes Dev ajoutées, secret comparé à nil tranché en jeu
 
 - **Rapport** collé par l utilisateur (fenêtre `/wl verify`, lu avec `node tools/verify-live.js --decode`) : 1.41.64, build
   70888, Voleur 48, solo, Feralas, royaume `CAMWOW EU5 Realm 8 PvP`. 0 erreur Lua de la session (tous addons), 0 action
@@ -20,8 +20,8 @@ Pas dans le zip des releases.
   `ChatFrameUtil.InsertLink` présents, `BankFrameItemButton_Update` et `ContainerFrame_Update` absents : la branche M6 est
   celle qui tourne. `ChatEdit_InsertLink` présent aussi : c est un alias (`Deprecated_ChatFrame.lua:43` du cache), chaque
   crochet enveloppe sa propre entrée, pas de double appel.
-- **Pas tranché** : secret comparé à nil (L6), aucune ligne ne le teste (hors combat `player reads secret: health` : une
-  sonde `pcall` de « secret == nil » sur la vie du joueur le dirait). Banque pas ouverte, addon PvP pas chargé : M6, M12,
+- **Pas tranché par ce 1er rapport** : secret comparé à nil (L6), aucune ligne ne le testait (tranché ensuite, plus
+  bas). Banque pas ouverte, addon PvP pas chargé : M6, M12,
   M13 toujours pas testés. `invitename` : SKIP (pas d invitation de notre part).
 - **Vu au passage** : la sonde `secrets` en combat lève « Auras cannot be accessed when secret while tainted » (lecture non
   protégée de la sonde ; l addon passe par `W.AuraByIndex`, protégé). `WarLegendRaidTool_Skyborne/Main.lua:141` et `:407`
@@ -41,9 +41,15 @@ Pas dans le zip des releases.
     échantillon aussi 2 s après le début d un combat.
   - Banc : 3 checks dans `tools/smoke/verify.lua` (rouges sans, verts avec ; 108 / 108 et 111 / 111). Luacheck et luac5.1
     ne tournent qu en CI : pas encore passés sur ces commits (locaux).
-- **À faire en jeu** : `/reload` (le fichier Dev a changé). (1) Seul, après un court combat, `/wl verify quick` : lignes
-  `secretnil`. (2) En groupe ou raid avec un joueur d un autre royaume, `/wl verify quick` : lignes `unitnames`. Coller
-  les deux rapports. L6 et la question `UnitName` restent ouvertes jusque-là ; le modèle du banc ne change pas.
+- **2e rapport (23:24, seul, Strangleronce, 15 OK, 0 LOOK, 14 SKIP, 0 erreur de nos addons)** : `secretnil` `OK` hors
+  combat et dans un combat, sur la vie du joueur : `== nil` rend false, `~= nil` rend true, `not` rend false, aucun ne
+  lève ; `== 0` lève « attempt to compare local 'v' (a secret n... », le message même de L6. **Tranché : le modèle du
+  banc est juste et reste tel quel** ; la ligne de L6 (`if v == nil`) ne lève pas au build 70888 (build plus ancien, ou
+  autre comparaison d un local `v`). Limites : un seul genre de secret (un nombre), lu depuis l addon Dev. Commentaires
+  de `W.Safe` (`Core.lua`) et de `readable` (PvP `Main.lua`) corrigés, code inchangé ; note dans
+  `docs/audit-2026-11-10.md`. CI verte sur `802e682` (Luacheck, luac5.1, 3 bancs).
+- **Reste à faire en jeu** : en groupe ou raid avec un joueur d un autre royaume, `/wl verify quick` : lignes
+  `unitnames` (ce rapport : `SKIP`, seul). La question `UnitName` reste ouverte jusque-là.
 
 ## 10/11 nuit : GUID de l inviteur lu par sa forme (build 70888), publié en 1.41.64
 

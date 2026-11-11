@@ -552,7 +552,8 @@ rangeSpellReset:RegisterEvent("SPELLS_CHANGED")
 rangeSpellReset:SetScript("OnEvent", function() wipe(rangeSpellCache) end)
 
 local function readable(v)
-	-- issecret first: comparing a secret raises, with nil too (the recorded bug L6); UnitInRange has SecretReturns
+	-- issecret first: comparing a secret raises (not with nil on build 70888: /wl verify secretnil, 10/11); UnitInRange
+	-- has SecretReturns
 	if issecret(v) or v == nil then return nil end
 	return v
 end
