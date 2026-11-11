@@ -6,6 +6,11 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Depuis la mise à jour du jeu du 10/11 (build 70888) : « accepter les invitations des amis et de la guilde » reconnaît de
+  nouveau celui qui invite par son identifiant (et plus seulement par son nom), et Layers reconnaît de nouveau le groupe
+  de l'hôte qui t'a invité.
+
 ## 1.41.63 (10/11/2026)
 
 ### Corrigé

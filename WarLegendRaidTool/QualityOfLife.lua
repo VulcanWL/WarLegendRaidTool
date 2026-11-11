@@ -63,7 +63,7 @@ end
 W.On("PARTY_INVITE_REQUEST", function(name, ...)
     name = W.Safe(name)
     if not db.acceptInvites or Shift() or W.InGroup() or not name then return end
-    local guid = W.Safe((select(6, ...))) -- inviterGUID
+    local guid = W.InviteGUID(...) -- by its form: its place changed with build 70888
     local friend = guid and C_FriendList and C_FriendList.IsFriend and C_FriendList.IsFriend(guid)
     if not (friend or IsFriend(name) or IsGuildMate(name, guid)) then return end
     W.After(0, function()

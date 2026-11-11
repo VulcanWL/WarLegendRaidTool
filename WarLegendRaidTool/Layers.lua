@@ -703,14 +703,14 @@ end)
 
 -- An invite (a host's, or anyone's), a group, a new zone or layer: the ask is over, nothing more goes out. An invite from
 -- a host that said it stands on my layer is named: accepting it changes nothing.
-W.On("PARTY_INVITE_REQUEST", function(name, _, _, _, _, _, guid)
+W.On("PARTY_INVITE_REQUEST", function(name, ...)
     if not ask then return end
+    local guid = W.InviteGUID(...) -- by its form: its place changed with build 70888
     local raw = W.Safe(name)
     local who = W.Plain(raw or "?", 40)
     local key = type(raw) == "string" and W.Key(raw) or nil
     local r = key and ask.replies[key]
-    guid = W.Safe(guid)
-    LS.invite = { at = GetTime(), name = who, key = key, guid = type(guid) == "string" and guid or nil }
+    LS.invite = { at = GetTime(), name = who, key = key, guid = guid }
     if r and r.same then
         EndAsk("invite from a host on my layer", string.format(L("%s is a LayerSwap host on my own layer: accepting changes nothing. Decline, then ask again."), who))
     else

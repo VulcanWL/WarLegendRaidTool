@@ -307,3 +307,43 @@ do
     Check("DoesItDie: its tab built again (switched off then on), the drop-downs still open their list", first == true and again == true and page2 ~= page1,
         string.format("opened on the first page: %s; page built again: %s; opened on it: %s", tostring(first), tostring(page2 ~= page1), tostring(again)))
 end
+
+---------------------------------------------------------------------------
+-- Build 70888: the inviter's GUID of PARTY_INVITE_REQUEST is read by its form (8th argument now, 7th before)
+---------------------------------------------------------------------------
+do
+    local G = "Player-5827-0A1B2C3D"
+    local new = W.InviteGUID(false, false, false, true, true, true, G, false)
+    local old = W.InviteGUID(false, false, false, true, false, G, false)
+    local none = W.InviteGUID(false, false, false, true, true, true, nil, false)
+    local notOne = W.InviteGUID("Player-Forever", "Creature-0-1-1-4242-1234-1", "Player-1-zz", true)
+    local hidden = W.InviteGUID(false, M.Secret(G), false)
+    Check("the inviter's GUID of an invite is found at its new place (build 70888) and at the old one, nothing else taken for it",
+        new == G and old == G and none == nil and notOne == nil and hidden == nil,
+        string.format("new format: %s, old: %s, none given: %s, a name / a creature: %s, secret: %s", tostring(new), tostring(old),
+            tostring(none), tostring(notOne), tostring(hidden)))
+
+    -- and the handlers give it to the game as it is: "accept invites from friends / guild" asks the friend list and
+    -- the guild about the GUID. Read at its old place, the 7th argument (allowMultipleRoles, true here) went to them
+    local qol, group0 = W.db.qol, M.group
+    local kept = { rawget(_G, "C_FriendList"), rawget(_G, "IsGuildMember"), qol and qol.acceptInvites }
+    local asked = {}
+    C_FriendList = { IsFriend = function(v) asked[#asked + 1] = v; return false end }
+    IsGuildMember = function(v) asked[#asked + 1] = v; return false end
+    if qol then qol.acceptInvites = true end
+    M.group = { M.player }
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Advance(1)
+    M.Fire("PARTY_INVITE_REQUEST", "Zzstranger Nobody", false, false, false, true, false, true, G, false)
+    M.Advance(0.5)
+    C_FriendList, IsGuildMember = kept[1], kept[2]
+    if qol then qol.acceptInvites = kept[3] end
+    M.group = group0
+    M.Fire("GROUP_ROSTER_UPDATE")
+    M.Advance(1)
+    local wrong = {}
+    for _, v in ipairs(asked) do if v ~= G then wrong[#wrong + 1] = type(v) .. " " .. tostring(v) end end
+    Check("an invite of build 70888: the friend list and the guild are asked about the inviter's GUID, nothing else",
+        #asked > 0 and #wrong == 0, #asked == 0 and "nothing asked: the check saw nothing" or (#asked .. " asked, not the GUID: "
+            .. (#wrong > 0 and table.concat(wrong, ", ") or "none")))
+end

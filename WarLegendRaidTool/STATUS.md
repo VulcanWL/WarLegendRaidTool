@@ -3,7 +3,21 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11, 2e passe) : audit de 1.41.62, question ouverte + 19 MED « C » corrigés, publié en 1.41.63
+## Maintenant (10/11 nuit) : GUID de l inviteur lu par sa forme (build 70888), commité, pas poussé, pas de version
+
+- **Fait** : `W.InviteGUID(...)` (`Lib.lua`) rend la première chaîne lisible `Player-<n>-<hex>` des arguments de
+  `PARTY_INVITE_REQUEST` (les autres sont des booléens) : marche au 8e argument (70888, `isCrossShard` inséré avant) comme au
+  7e. Utilisé par `QualityOfLife.lua` (accepter les invitations amis / guilde), `Layers.lua` (groupe de l hôte) et la sonde
+  `invitename` de `Verify.lua`. Vérifié dans la doc Blizzard 70888 (`PartyInfoDocumentation.lua`, cache passé à `4cd0ab7`).
+- **Banc** : les événements des bancs au format 70888 (une invitation de la phase Layers reste à l ancien) ; 2 checks dans
+  `audit.lua` : l accesseur (nouveau / ancien format, rien, un nom, une créature, un secret) et ce que le gestionnaire donne
+  à `C_FriendList.IsFriend` / `IsGuildMember` (rouge sans : « boolean true » ; vert avec). Les checks Layers passent avec ou
+  sans : ils retombent sur le nom. check 0, wow-api 0 nouveau, smoke 105 / 105 et 108 / 108, `--bg`, `--open-world`.
+- **À tester en jeu** : option « accepter les invitations » cochée, invitation d un membre de guilde : acceptée, rien dans
+  `/wl bugs` ; Layers « Demander aux hôtes LayerSwap » puis invitation : le bouton « Quitter ce groupe » suit le bon groupe.
+- **Pas fait** : la piste `isCrossShard` (Layers pourrait dire « invitation d un autre layer »).
+
+## 10/11, 2e passe : audit de 1.41.62, question ouverte + 19 MED « C » corrigés, publié en 1.41.63
 
 - **Fait** : `W.Safe` (`Core.lua`) et `readable` (PvP `Main.lua`, M11) testent `issecretvalue` / `canaccessvalue` d abord,
   sans comparaison avant. Puis M2, M3, M4, M5, M6, M9, M12, M13, M15, M17, M18, M19, M20, M21, M22, M23, M24, M26, un
@@ -59,7 +73,7 @@ Pas dans le zip des releases.
   - `WarLegendRaidTool_Dev/Verify.lua:455` : sonde `invitename` lit le mauvais argument (rapport faux, pas livré).
   - Banc : `tools/smoke/scenario.lua:1366` et `tools/smoke/verify.lua:41` tirent l événement à l ancien format : le banc passe
     encore avec l ancien code. `tools/.cache/wow-ui-source` est à 70862 : `wow-api.js check --update` à faire.
-- **Correctif proposé (pas appliqué)** : ne plus lire le GUID par position : parcourir les arguments, garder la première chaîne
+- **Correctif proposé (appliqué le 10/11 nuit, voir en haut ; pas encore publié)** : ne plus lire le GUID par position : parcourir les arguments, garder la première chaîne
   (sous `W.Safe`) qui commence par `Player-` (marche avec l ancien et le nouveau format) ; un petit accesseur commun
   (`W.InviteGUID(...)`, `Lib.lua`) pour QualityOfLife, Layers et Verify. Mettre les 2 bancs au nouveau format (+ un cas à l ancien).
   Piste : `isCrossShard` dit si l invitation vient d un autre layer : Layers pourrait le noter (« invitation d un autre layer ») au

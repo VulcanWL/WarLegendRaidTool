@@ -101,6 +101,17 @@ function W.Int(v, min, max)
     return n and math.floor(n) or nil
 end
 
+-- The inviter's GUID of PARTY_INVITE_REQUEST, found by its form among the event's arguments after the name (the others
+-- are booleans), not by its place: build 70888 put isCrossShard before it (7th -> 8th argument), and the old place gave
+-- a boolean to IsGuildMember / C_FriendList.IsFriend. nil when the game gives none or hides it.
+function W.InviteGUID(...)
+    for i = 1, select("#", ...) do
+        local v = W.Safe((select(i, ...)))
+        if type(v) == "string" and #v <= 60 and v:find("^Player%-%d+%-%x+$") then return v end
+    end
+    return nil
+end
+
 -- Search boxes: fn runs once typing pauses for delay seconds, not on every key (big tables rebuilt once)
 function W.Debounce(delay, fn)
     local gen = 0

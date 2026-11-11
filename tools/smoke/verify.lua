@@ -38,7 +38,7 @@ M.Advance(11) -- the bank's second reading
 -- the session: what only the game can show, from other players too
 local SENDER = "Zzsender-Surname"
 M.Fire("CHAT_MSG_WHISPER", "hello", SENDER, "", "", SENDER, "", 0, 0, "", 0, 1, "Player-1-00000099")
-M.Fire("PARTY_INVITE_REQUEST", SENDER, false, false, false, true, false, "Player-1-00000099", false)
+M.Fire("PARTY_INVITE_REQUEST", SENDER, false, false, false, true, false, false, "Player-1-00000099", false) -- build 70888
 M.Fire("CHAT_MSG_ADDON", "WLRT_LC", "x", "RAID", SENDER, "", 0, 0, "", 0)
 M.Fire("CHAT_MSG_ADDON", "SLLCM", "x", "CHANNEL", SENDER, "", 0, 0, "", 0)
 M.Fire("CHAT_MSG_ADDON", "SLLCM", "x", "GUILD", SENDER, "", 0, 0, "", 0)

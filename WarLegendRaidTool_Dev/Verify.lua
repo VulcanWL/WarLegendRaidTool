@@ -452,7 +452,7 @@ end
 ON.ADDON_ACTION_BLOCKED = function(addon, fn) Blocked("blocked", addon, fn) end
 ON.ADDON_ACTION_FORBIDDEN = function(addon, fn) Blocked("forbidden", addon, fn) end
 ON.CHAT_MSG_WHISPER = function(_, sender, _, _, _, _, _, _, _, _, _, guid) NoteName("whisper", sender, guid) end
-ON.PARTY_INVITE_REQUEST = function(name, _, _, _, _, _, guid) NoteName("invite", name, guid) end
+ON.PARTY_INVITE_REQUEST = function(name, ...) NoteName("invite", name, W.InviteGUID(...)) end
 ON.GROUP_INVITE_CONFIRMATION = function()
     local id = W.Safe(GetNextPendingInviteConfirmation and GetNextPendingInviteConfirmation())
     if not (id and GetInviteConfirmationInfo) then return end

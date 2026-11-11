@@ -1363,7 +1363,12 @@ do
     for i = 1, 49 do rows[#rows + 1] = { fullName = "Host" .. i .. " Forever", area = "Orgrimmar" } end
     local LINE = "inv layer <LS 1411 not 1-4242 48.2,42.5>"
     local function Reply(msg, from) Addon("LayerSwap", msg, "WHISPER", from) end
-    local function Invite(name, guid) M.Fire("PARTY_INVITE_REQUEST", name, false, false, false, false, false, guid, false) end
+    -- build 70888: name, isTank, isHealer, isDamage, isNativeRealm, isCrossShard, allowMultipleRoles, inviterGUID,
+    -- questSessionActive (the GUID was the 7th argument before; old = that format, still read)
+    local function Invite(name, guid, old)
+        if old then M.Fire("PARTY_INVITE_REQUEST", name, false, false, false, false, false, guid, false); return end
+        M.Fire("PARTY_INVITE_REQUEST", name, false, false, false, false, false, true, guid, false)
+    end
     local function StatusHas(s) -- the status next to the button (a font string of the tab)
         local stack = { root }
         while #stack > 0 do
@@ -1518,7 +1523,7 @@ do
     M.Advance(31, 1)
     Click(btn)
     M.Fire("WHO_LIST_UPDATE")
-    Invite("Host9 Forever", "Player-1-00000002")
+    Invite("Host9 Forever", "Player-1-00000002", true) -- the format before 70888
     M.group = { M.player, group0[2] }
     M.Fire("GROUP_JOINED", 1, "0")
     M.Fire("GROUP_ROSTER_UPDATE")
