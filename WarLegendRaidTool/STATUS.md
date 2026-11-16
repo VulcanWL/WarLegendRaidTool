@@ -3,6 +3,33 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
+## Maintenant (16/11) : chronos de CdB, barres de capture et de file (non publié)
+
+- **Retour en jeu** (16/11) : « cap de tour parfois invisible, comme Capping », puis « 3 files, deux barres seulement ».
+  `forever-report` : 0 erreur Lua de nos addons, Capping absent du dossier AddOns (les barres vues sont les nôtres) ; les 40
+  lignes de CdB gardées (`/wl bgmsg`) : trois parties d Alterac sans aucune ligne de tour, seulement « claims the Snowfall
+  graveyard » et les cris de guerre : la détection des tours passe par la carte, pas par le chat.
+- **`CapTimers.lua`** (causes probables, lues dans le code : rien n a été observé en jeu) : (1) carte lue à chaque regard
+  (`PlayerMap()`, comme Capping) : à l écran de chargement le jeu peut encore donner la carte quittée, et une carte
+  mémorisée alors n affichait aucune barre de toute la partie ; (2) premier regard sur le CdB (entrée, `/reload`) : barre
+  pleine pour chaque base déjà contestée (Capping ; un joueur arrivant en cours voit l assaut, la barre majore le temps
+  restant) ; les icônes mémorisées ne sont effacées qu au changement de zone (une carte lue comme sa sous-carte garde ses
+  barres) ; (3) lignes de CdB : « claims » était un arrêt, c est un assaut (il tuait la barre de Snowfall lancée par la
+  carte) ; nom du point cherché sans la casse (« Snowfall graveyard » dans la ligne, « Snowfall Graveyard » sur la
+  carte) ; « is under attack … will destroy it » ajouté (ligne jamais vue sur Forever, par précaution), l assaut prime
+  sur sa fin de phrase, « destroyed » arrête ; (4) files : chaque événement `UPDATE_BATTLEFIELD_STATUS` relit toutes les
+  files (`GetMaxBattlefieldID`, 3 au moins, 10 au plus), plus seulement celle de l événement ; une barre de file dont
+  l estimation passe sans nouvel événement devient la barre pleine sans temps au lieu de disparaître (cause la plus
+  probable des « deux barres sur trois ») ; aucune barre de file dans un CdB (comme avant).
+- **Vérifié** : `check.js` 0 ; `smoke --bg` 57 / 57 (14 nouvelles vérifications dans `tools/smoke/battleground.lua` : points
+  de la carte simulés (`C_AreaPoiInfo`), carte quittée à l entrée, base déjà contestée, assaut, prise, lignes de chat
+  telles que Forever les envoie, sous-carte, trois files, file dépassée ; les 10 premières échouent sur l ancien code) ;
+  `smoke` normal (deux passes) vert ; `wow-api` 0 nouveau ; `sync.sh` 1 copié, 0 sauté. Rien testé en jeu.
+- **À tester en jeu** : un CdB (Alterac) : barre à l entrée pour une base déjà contestée, barre d une tour attaquée,
+  disparition à la prise ; trois files : trois barres. Si une tour reste sans barre : « Points de la carte maintenant »
+  pendant l attaque (indices d icône de Forever non vérifiés : `CONTESTED` vient de Capping).
+- **Pas de version** : à publier avec les prochains correctifs (demander avant le tag).
+
 ## Version publiée (15/11) : 1.41.65
 
 - **1.41.65** (tag `v1.41.65`) = relecture de `PvP.lua` (entrée « Maintenant (15/11) » ci-dessous) et de l addon

@@ -422,6 +422,11 @@ local function OnUpdate(_, e)
         if a.paused then
             a.ends = now + a.total -- a bar that waits (queue past its estimate): full, no time, never ends by itself
             a.bar.bar:SetValue(a.total)
+        elseif left <= 0 and a.color == "queue" then
+            -- a queue past its estimate keeps a full bar without a time until its next status event (the bar used
+            -- to go, and a queue the game gave no new estimate for stayed without a bar)
+            a.paused = true
+            a.bar.time:SetText("")
         elseif left <= 0 then
             StopBar(key, true)
             stopped = true
@@ -486,13 +491,20 @@ end
 ---------------------------------------------------------------------------
 -- Base captures (map points of interest)
 ---------------------------------------------------------------------------
-local mapID, capTime, lastIcon = nil, 60, {}
+local capTime, lastIcon = 60, {}
+
+-- the player's map, read at every look as Capping does: at the loading screen the game still gives the map
+-- left behind (the city), and a map remembered then showed no bar for the whole game
+local function PlayerMap()
+    return C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
+end
 
 local function POIs()
     local out = {}
-    if not (mapID and C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIForMap and C_AreaPoiInfo.GetAreaPOIInfo) then return out end
-    for _, id in ipairs(C_AreaPoiInfo.GetAreaPOIForMap(mapID) or {}) do
-        local info = C_AreaPoiInfo.GetAreaPOIInfo(mapID, id)
+    local map = PlayerMap()
+    if not (map and C_AreaPoiInfo and C_AreaPoiInfo.GetAreaPOIForMap and C_AreaPoiInfo.GetAreaPOIInfo) then return out end
+    for _, id in ipairs(C_AreaPoiInfo.GetAreaPOIForMap(map) or {}) do
+        local info = C_AreaPoiInfo.GetAreaPOIInfo(map, id)
         if info then
             out[#out + 1] = { name = W.Safe(info.name), icon = W.Safe(info.textureIndex), atlas = W.Safe(info.atlasName), id = id }
         end
@@ -500,21 +512,11 @@ local function POIs()
     return out
 end
 
--- first look: remember the icons without starting bars (an assault already running is not timed)
-local function Snapshot()
-    wipe(lastIcon)
-    for _, p in ipairs(POIs()) do
-        if p.name then lastIcon[p.name] = p.icon or p.atlas end
-    end
-end
-
+-- The first look at the battleground (entering, a /reload, the map known late) starts a full bar for every base
+-- already contested, as Capping does: a player joining a game in progress sees the assault, the time left is at most
+-- the bar (an assault begun before is shorter). The icons remembered are only cleared at the zone change (as
+-- Capping): a map that flips to a sub-map and back keeps its bars.
 local function POIsUpdated()
-    -- the map was not known yet at the loading screen: read now, the icons seen first are only remembered
-    if not mapID then
-        mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
-        if mapID then Snapshot() end
-        return
-    end
     for _, p in ipairs(POIs()) do
         local key = p.icon or p.atlas
         if p.name and key and lastIcon[p.name] ~= key then
@@ -532,12 +534,14 @@ end
 local poiEv = W.On("AREA_POIS_UPDATED", POIsUpdated, nil, true)
 
 -- The battleground messages as a second source (a battleground whose map icons are not the known ones):
--- "X has assaulted the Farm!" starts the bar of that base in the color of the team the message comes from,
--- "taken" / "defended" stops it. The base is a map point name found in the message, else the words after
--- "assaulted the" / "attaqué". No second bar when the map already started it.
-local ASSAULT = { "assault", "attaqu", "angegriffen", "asalt", "attacc", "атак" }
-local STOP = { "taken", "claims", "pris", "prise", "eingenommen", "tomado", "conquist", "захват",
-    "defend", "défend", "verteidigt", "difes", "защищ" }
+-- "X has assaulted the Farm!", "X claims the Snowfall graveyard!", "The Iceblood Tower is under attack!" start the
+-- bar of that base in the color of the team the message comes from, "taken" / "destroyed" / "defended" stop it.
+-- An assault message wins over its own ending ("... the Horde will destroy it!"). The base is a map point name found
+-- in the message, else the words after "assaulted the" / "attaqué". No second bar when the map already started it.
+local ASSAULT = { "assault", "claims", "attack", "attaqu", "revendique", "angegriffen", "beansprucht", "asalt", "reclama",
+    "attacc", "rivendica", "атак", "претендует" }
+local STOP = { "taken", "destroyed", "pris", "prise", "détruit", "eingenommen", "zerstört", "tomado", "destruido",
+    "conquist", "distrutt", "захват", "разруш", "defend", "défend", "verteidigt", "difes", "защищ" }
 local capOn = false
 
 local function HasAny(text, words)
@@ -546,8 +550,9 @@ local function HasAny(text, words)
 end
 
 local function BaseFromMessage(text)
+    local lower = text:lower() -- "claims the Snowfall graveyard!" names the map point "Snowfall Graveyard"
     for _, p in ipairs(POIs()) do
-        if p.name and p.name ~= "" and text:find(p.name, 1, true) then return p.name, p.icon end
+        if p.name and p.name ~= "" and lower:find(p.name:lower(), 1, true) then return p.name, p.icon end
     end
     local base = text:match("assaulted the (.-)!") or text:match("attaqué[e]? ?l?a? ?l?e? ?(.-)%s*!")
     if base and base ~= "" and #base <= 40 then return base end
@@ -562,7 +567,7 @@ local function BaseMessage(text, team)
     local base, icon = BaseFromMessage(text)
     if not base then return end
     local key = "cap:" .. base
-    if stop then StopBar(key); return end
+    if not assault then StopBar(key); return end
     local a = active[key]
     if a and GetTime() - (a.ends - a.total) < 5 then return end -- just started by the map
     StartBar(key, base, capTime, team, icon and { poi = icon } or 134420, team)
@@ -637,9 +642,9 @@ local function QueueIcon(mapName, default)
     return default
 end
 
-W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
-    queueId = W.Safe(queueId)
-    if not Extras() or not db.queue or not queueId or not GetBattlefieldStatus then return end
+-- one queue's bar from its status (the event names one queue; every queue is read at each event, see below)
+local function QueueStatus(queueId)
+    if not GetBattlefieldStatus then return end
     local status, mapName = GetBattlefieldStatus(queueId)
     status, mapName = W.Safe(status), W.Safe(mapName) or "?"
     local key = "queue:" .. queueId
@@ -673,6 +678,20 @@ W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
         StopBar(key)
         if status == "active" then StopMatching("queue:") end
     end
+end
+
+-- Every queue is read at each status event, not only the one the event names: with three queues one bar stayed
+-- missing (an event without its index, or one missed), and a queue read again costs nothing. The queue count comes
+-- from the game (at least 3, the Classic maximum, never more than 10).
+W.On("UPDATE_BATTLEFIELD_STATUS", function()
+    if not Extras() or not db.queue or not GetBattlefieldStatus then return end
+    local max = (GetMaxBattlefieldID and W.Safe(GetMaxBattlefieldID())) or 0
+    if type(max) ~= "number" then max = 0 end
+    max = math.min(math.max(max, 3), 10)
+    for queueId = 1, max do -- inside a battleground no queue bar at all, as Capping (the others wait for the exit)
+        if W.Safe(GetBattlefieldStatus(queueId)) == "active" then StopMatching("queue:"); return end
+    end
+    for queueId = 1, max do QueueStatus(queueId) end
 end)
 
 ---------------------------------------------------------------------------
@@ -821,10 +840,10 @@ local function Zone()
     StopMatching("cap:")
     StopMatching("flag")
     if not InstanceID() then StopMatching("gates") end
-    if not on then mapID = nil; return end
+    wipe(lastIcon)
+    if not on then return end
     capTime = ZONE_CAPTIME[id] or db.capTime or 60
-    mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player"))
-    Snapshot()
+    POIsUpdated() -- the bases already contested; a map still the one left behind is read again at its first update
 end
 W.On("PLAYER_ENTERING_WORLD", function() if anchor then StopMatching("cap:") end; Zone() end)
 -- a new area inside the same battleground keeps the bars and the score samples
@@ -842,9 +861,8 @@ W.On("PLAYER_ENTERING_WORLD", function() lastZoneInstance = InstanceID() end)
 ---------------------------------------------------------------------------
 local function MapDump()
     if not InstanceID() then W.Print(L("Not in a battleground.")); return end
-    if not mapID then mapID = C_Map and C_Map.GetBestMapForUnit and W.Safe(C_Map.GetBestMapForUnit("player")) end
     local name, _, _, _, _, _, _, id = GetInstanceInfo()
-    local lines = { "instance " .. tostring(W.Safe(id)) .. " " .. tostring(W.Safe(name)) .. ", uiMap " .. tostring(mapID) }
+    local lines = { "instance " .. tostring(W.Safe(id)) .. " " .. tostring(W.Safe(name)) .. ", uiMap " .. tostring(PlayerMap()) }
     for _, p in ipairs(POIs()) do
         lines[#lines + 1] = tostring(p.name) .. "  icon=" .. tostring(p.icon) .. "  atlas=" .. tostring(p.atlas) .. "  poi=" .. tostring(p.id)
     end

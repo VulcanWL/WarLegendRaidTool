@@ -6,6 +6,13 @@ Releases et les tags git.
 
 ## Prochaine version
 
+### Corrigé
+- Chronos de CdB : barres de capture parfois absentes : la carte est relue à chaque fois (comme Capping, plus de carte
+  mémorisée à l'écran de chargement), une base déjà contestée à l'entrée ou après un /reload a sa barre, la ligne
+  « claims the Snowfall graveyard » lance la barre au lieu de l'arrêter.
+- Chronos de CdB : avec trois files d'attente il manquait une barre : toutes les files sont relues à chaque événement,
+  et une file dont l'estimation est dépassée garde sa barre pleine sans temps (elle disparaissait).
+
 ## 1.41.65 (15/11/2026)
 
 ### Ajouté

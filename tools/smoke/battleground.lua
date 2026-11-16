@@ -586,8 +586,12 @@ end
 Section("[7c queue] the queue of the next battleground seen by the battleground timers")
 do
     local status, est, waited, port = "queued", 120000, 10000, 80
+    local q2, q3 = "none", "none" -- two more queues, taken later
     local oldStatus, oldEst, oldWaited, oldPort = GetBattlefieldStatus, GetBattlefieldEstimatedWaitTime, GetBattlefieldTimeWaited, GetBattlefieldPortExpiration
-    GetBattlefieldStatus = function(i) if i == 1 then return status, "Alterac Valley" end return "none" end
+    GetBattlefieldStatus = function(i)
+        if i == 1 then return status, "Alterac Valley" elseif i == 2 then return q2, "Warsong Gulch" elseif i == 3 then return q3, "Arathi Basin" end
+        return "none"
+    end
     GetBattlefieldEstimatedWaitTime = function() return est end
     GetBattlefieldTimeWaited = function() return waited end
     GetBattlefieldPortExpiration = function() return port end
@@ -622,12 +626,138 @@ do
     M.Advance(0.5)
     b = Bars()
     Check("queue bar: the pop, one bar of the time left to enter (80 s)", #b == 1 and math.abs(b[1].max - 80) < 1, Describe(b))
+    -- three queues: every queue is read at each status event, also one without its index (the third bar was missing)
+    q2, q3 = "queued", "queued"
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", nil)
+    M.Advance(0.5)
+    b = Bars()
+    Check("queue bars: three queues, three bars after one status event without an index", #b == 3, Describe(b))
+    q3 = "none"
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
+    b = Bars()
+    Check("queue bars: a queue left loses its bar, the other two stay", #b == 2, Describe(b))
+    -- a queue whose estimate passes with no new status event keeps a full bar without a time (it used to go)
+    status, est, waited = "queued", 30000, 10000
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(25)
+    b = Bars()
+    local av
+    for _, x in ipairs(b) do if x.label == "Alterac Valley" then av = x end end
+    Check("queue bars: a queue past its estimate with no event keeps a full bar without a time", #b == 2 and av and av.time == "", Describe(b))
+    status = "confirm"
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
     status = "active"
     M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
     M.Advance(0.5)
     b = Bars()
     Check("queue bar: entering the battleground leaves no queue bar", #b == 0, Describe(b))
     GetBattlefieldStatus, GetBattlefieldEstimatedWaitTime, GetBattlefieldTimeWaited, GetBattlefieldPortExpiration = oldStatus, oldEst, oldWaited, oldPort
+end
+
+-- the battleground timers' capture bars (CapTimers.lua) from the map points, as Capping reads them: the map still
+-- the one left behind at the loading screen, a base already contested when the player comes in (a full bar at the
+-- first look), an assault, a capture; then the chat lines as the second source ("claims" is an assault, "under
+-- attack ... will destroy it" too, "taken" / "destroyed" end the bar)
+Section("[7e caps] the capture bars of the battleground timers (map points, then the battleground lines)")
+do
+    local AV = 1459
+    local pois = {
+        [1] = { name = "Iceblood Tower", textureIndex = 11 }, -- contested by the Horde before the player came in
+        [2] = { name = "Stormpike Aid Station", textureIndex = 4 }, -- Alliance graveyard, quiet
+        [3] = { name = "Snowfall Graveyard", textureIndex = 15 }, -- neutral
+    }
+    if not M.world then M.SetupWorld() end -- the maps the player can be on (as the open-world bench has them)
+    local oldPoi, oldMap = rawget(_G, "C_AreaPoiInfo"), M.world.player.map
+    C_AreaPoiInfo = {
+        GetAreaPOIForMap = function(map) if map == AV or map == AV + 1 then return { 1, 2, 3 } end return {} end,
+        GetAreaPOIInfo = function(map, id) if map == AV or map == AV + 1 then return pois[id] end return nil end,
+    }
+    local function Bars()
+        local anchor, out, seen = rawget(_G, "WLRTCapTimersAnchor"), {}, {}
+        if not anchor then return out end
+        for _, f in ipairs({ anchor:GetChildren() }) do
+            if not seen[f] and f:IsShown() and f.text and f.time and f.bar then
+                seen[f] = true
+                local _, max = f.bar:GetMinMaxValues()
+                out[#out + 1] = { label = f.text:GetText(), max = max or 0, value = f.bar:GetValue() or 0 }
+            end
+        end
+        table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+        return out
+    end
+    local function Describe(b)
+        local t = {}
+        for _, x in ipairs(b) do t[#t + 1] = string.format("%s max %.0f", tostring(x.label), x.max) end
+        return #b .. " bar(s): " .. table.concat(t, "; ")
+    end
+    local function Has(b, label) for _, x in ipairs(b) do if x.label == label then return x end end end
+    M.world.player.map = 1411 -- the loading screen: the game still gives the map left behind
+    M.instance, M.instanceName, M.instanceID = "pvp", "Alterac Valley", 30
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(0.5)
+    local b = Bars()
+    Check("capture bars: nothing read from the map left behind", #b == 0, Describe(b))
+    M.world.player.map = AV
+    M.Fire("AREA_POIS_UPDATED")
+    M.Advance(0.5)
+    b = Bars()
+    local t = Has(b, "Iceblood Tower")
+    Check("capture bars: the tower already contested gets a full bar (5 min) at the first look of the right map",
+        #b == 1 and t and math.abs(t.max - 300) < 1, Describe(b))
+    pois[2].textureIndex = 13 -- the Horde assaults the Aid Station
+    M.Fire("AREA_POIS_UPDATED")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: an assault seen on the map adds its bar", #b == 2 and Has(b, "Stormpike Aid Station"), Describe(b))
+    pois[1].textureIndex = 10 -- the tower taken by the Horde
+    M.Fire("AREA_POIS_UPDATED")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: a base taken loses its bar", #b == 1 and not Has(b, "Iceblood Tower"), Describe(b))
+    -- the lines as the second source (the map icon did not change)
+    M.Fire("CHAT_MSG_BG_SYSTEM_ALLIANCE", "Olym Xd claims the Snowfall graveyard!  If left unchallenged, the Alliance will control it!") -- the line as Forever sends it (15/11), the map point is "Snowfall Graveyard"
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: \"claims the Snowfall graveyard\" is an assault, a bar", #b == 2 and Has(b, "Snowfall Graveyard"), Describe(b))
+    M.Fire("CHAT_MSG_BG_SYSTEM_ALLIANCE", "The Snowfall Graveyard was taken by the Alliance!")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: \"was taken by\" ends it", #b == 1 and not Has(b, "Snowfall Graveyard"), Describe(b))
+    M.Fire("CHAT_MSG_BG_SYSTEM_ALLIANCE", "The Iceblood Tower is under attack!  If left unchecked, the Alliance will destroy it!")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: \"is under attack ... will destroy it\" is an assault, a bar", #b == 2 and Has(b, "Iceblood Tower"), Describe(b))
+    M.Fire("CHAT_MSG_BG_SYSTEM_ALLIANCE", "The Iceblood Tower was destroyed by the Alliance!")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: \"was destroyed by\" ends it", #b == 1 and not Has(b, "Iceblood Tower"), Describe(b))
+    -- a line while the map just started the same bar: no second bar, the map's time kept
+    pois[3].textureIndex = 3
+    M.Fire("AREA_POIS_UPDATED")
+    M.Fire("CHAT_MSG_BG_SYSTEM_ALLIANCE", "Olym Xd claims the Snowfall graveyard!  If left unchallenged, the Alliance will control it!")
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: the line right after the map icon keeps one bar", #b == 2 and Has(b, "Snowfall Graveyard"), Describe(b))
+    -- the map flips to a sub-map and back (same points): the bars keep their time
+    M.Advance(30)
+    M.world.player.map = AV + 1
+    M.Fire("AREA_POIS_UPDATED")
+    M.world.player.map = AV
+    M.Fire("AREA_POIS_UPDATED")
+    M.Advance(0.5)
+    b = Bars()
+    local sf = Has(b, "Snowfall Graveyard")
+    Check("capture bars: a map read as another map and back keeps the time left (about 269 s of 300)",
+        #b == 2 and sf and sf.value < 275 and sf.value > 260, Describe(b) .. (sf and string.format(" value %.0f", sf.value) or ""))
+    M.instance = nil
+    M.Fire("PLAYER_ENTERING_WORLD", false, false)
+    M.Advance(0.5)
+    b = Bars()
+    Check("capture bars: leaving the battleground clears them", #b == 0, Describe(b))
+    M.instance = "pvp"
+    C_AreaPoiInfo, M.world.player.map = oldPoi, oldMap
 end
 
 -- the battleground timers' appearance options (Capping's): size, pile direction, icon side, time text, fill; then
