@@ -77,14 +77,17 @@ local function attachToPlayerButton(playerButton)
 	frame.SpecClassIcon = frame:CreateTexture(nil, 'BORDER', nil, 2)
 	frame.SpecClassIcon:SetAllPoints()
 
-	frame:HookScript("OnLeave", function(self)
-		if GameTooltip:IsOwned(self) then
+	-- WarLegend: the icon frame takes no mouse (the clicks must reach the secure button under it), so its OnEnter never
+	-- ran and the "Tooltips" option did nothing: the hover is read on the button, the tooltip anchored at the icon
+	playerButton:HookScript("OnLeave", function()
+		if GameTooltip:IsOwned(frame) then
 			GameTooltip:Hide()
 		end
 	end)
 
-	frame:HookScript("OnEnter", function(self)
-		WarLegendPvP:ShowTooltip(self, function()
+	playerButton:HookScript("OnEnter", function()
+		if not frame:IsShown() then return end
+		WarLegendPvP:ShowTooltip(frame, function()
 			local playerDetails = playerButton.PlayerDetails
 			if not playerDetails or not playerDetails.PlayerClass then return end
 			local localizedClass = getLocalizedClass(playerDetails.PlayerClass)

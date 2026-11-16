@@ -3,7 +3,71 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (10/11 nuit) : `/wl verify` de 1.41.64 lu, 2 sondes Dev ajoutées, secret comparé à nil tranché en jeu
+## Version publiée (15/11) : 1.41.65
+
+- **1.41.65** (tag `v1.41.65`) = relecture de `PvP.lua` (entrée « Maintenant (15/11) » ci-dessous) et de l addon
+  `WarLegendRaidTool_PvP` (M8, M10, M14, M28, M29, LOW : entrée du 15/11 ci-dessous, rapport `docs/audit-2026-11-10.md`),
+  cadres de CdB en deux colonnes de 20 à 16-40 joueurs, chronos de CdB comparés ligne à ligne avec Capping 12.1.7 et leur
+  sous-onglet « Apparence ». **Verrou de release levé par l utilisateur pour cette version** (demande « push, recheck then
+  release », 15/11) ; **rien testé en jeu** ; CI verte avant le tag. PR 26 (dependabot, `action-gh-release` 3.0.4) pas fusionnée.
+
+## 15/11 : addon PvP relu (session à part), Capping comparé, apparence des chronos
+
+- **Relecture de `WarLegendRaidTool_PvP`** (session lancée par celle de `PvP.lua`, lecture puis correctifs) : M8 (tableau des
+  scores filtré par l onglet de faction : retour tant que l onglet 2 ou 3 est affiché, tableau entier redemandé à sa
+  fermeture), M10 (`UpdateAllUnitIDs` après un bouton allié créé), M14 (symbole de type pour les `max` premiers boutons d aura
+  seulement), M28 (partants collectés sur toute la boucle, test de combat après), M29 (drapeau des cadres de raid : toutes
+  les textures cachées à chaque appel, `RemarkRaidFrameFlag` après chaque lecture du roster) ; LOW : `Spread` une erreur par
+  message distinct, tooltips de classe sur le bouton (l icône n a pas la souris), ticker de l indicateur de combat coupé sur
+  une ligne reprise ou cachée, `Power:Reset`, couleur de classe par jeton en majuscules (`TargetIndicatorSymbolic` gardé d un
+  nil), `GetColoredName`, espaces finaux de « Alliés » / « Ennemis ». `issecret` testé avant tout `if v then` (U : si un
+  secret ne se teste pas, à voir en jeu). Message une fois si le tableau des scores est secret (`SecretInActivePvPMatch`, U :
+  `/dump issecretvalue(C_PvP.GetScoreInfo(1).name)` en CdB). `Defaults.lua` : 16-40 joueurs en 2 colonnes de 20 (écarts 44
+  ennemis / 200 alliés), cadre aussi large que ses colonnes. Notes longues : dossier partagé des sessions,
+  `pvp-addon-review-2026-11-15.md`.
+- **Chronos de CdB (`CapTimers.lua`) comparés avec Capping 12.1.7** (tous droits réservés : comportement seulement) :
+  déclencheur frFR « a pris le drapeau de » et ruRU corrigés (la barre partait à chaque prise), barres de file en haut de la
+  pile, file dépassée = barre pleine sans temps, son du pop sur Master quand les effets sont coupés (option `popSound`).
+  Banc `battleground.lua` [7c queue] 4 contrôles. **Ouvert (données en jeu)** : indices des points contestés (nous 3/13,
+  8/11, 300 s = fichiers Vanilla ; Capping mainline 4/14, 9/12, 242 s) : « Points de carte maintenant » pendant un assaut
+  d AV ; barres des mines d AV et temps restant WSG (widget 6/630) bloqués pareil ; rendu automatique de quête / gossip AV =
+  nouvelle exception ToS, pas fait sans un oui.
+- **Sous-onglet « Apparence »** (options de Capping, scalaires dans `capTimers`, couleurs `rrggbb`) : `Look(key)` rend la
+  valeur par défaut hors liste (profil venu d ailleurs), `Restyle()` rhabille toutes les barres (aussi en réserve),
+  `W.CapTimersRestyle` pour le banc ; polices et textures = fichiers Blizzard cités par la source Forever. Sélecteur de
+  couleur copié de `PvP.lua` (à remonter dans `Lib.lua`). Banc [7d look] 5 contrôles, 2 mutations vues rouges. **À tester en
+  jeu** : PvP > Chronos de CdB > Apparence, Test, texture / hauteur / pile vers le haut / une couleur ; polices, drapeau
+  MONOCHROME et chemin `SetupColorPickerAndShow` du sélecteur jamais vus en jeu.
+- **Vérifié** (15/11, avant le commit) : check 0, smoke `--quiet` et `--bg --quiet` sans problème, wow-api 0 nouveau,
+  `sync.sh` rien de sauté sauf `STATUS.md`.
+
+## Maintenant (15/11) : `PvP.lua` (onglet Cadres de champ de bataille) relu ligne à ligne, 4 points corrigés
+
+- **Relecture** de `WarLegendRaidTool/PvP.lua` seul (487 lignes, la version 1.41.64) ; l addon `WarLegendRaidTool_PvP`
+  relu dans une session à part (lecture seule, lancée le 15/11). Rien dans les API (`GetBattlefieldStatus`,
+  `C_RestrictedActions` documentés au build 70888), rien côté ToS.
+- **Corrigé (non publié, pas commité)** dans `PvP.lua` : (1) Reset : `db.enabled = true` après `ResetSettings()` (la case
+  lisait `db.enabled`, l addon décide par `ShowBGEInBattleground` remis à true : cadres revenus en BG avec la case
+  décochée) ; (2) `W.LoadPvP` rend false si `W.IsOff("PvPFrames")` (l export / import de profil chargeait l addon module
+  éteint ; compromis : ce profil n a pas de partie pvp) et `W.OnModuleSwitch` appelle `MaybeLoad()` à l allumage si
+  l addon n est pas chargé ; (3) un seul `StopTest(run)` pour le bouton, « Arrêter le test » et le minuteur de 30 s,
+  réessayé toutes les 5 s en combat (« Arrêter le test » en combat laissait le mode test allumé, et le bouton l éteignait
+  en combat sans vérification : cadres sécurisés) ; (4) audit M30 : `RestoreRaidOption()` à `PLAYER_ENTERING_WORLD`
+  remet `raidOptionIsShown` depuis `db.raidOptionWas` (hors combat, hors BG, seulement si la CVar lit encore "0").
+- **Vérifié** : `check.js` 0 problème, `smoke.js --quiet` et `--bg` verts, `wow-api.js check` 0 nouveau, `sync.sh` copié
+  (`_forever_` à jour). Le banc ne couvre ni le chemin de connexion de M30 ni la pop de file (son `GetBattlefieldStatus`
+  ne rend jamais "confirm"). CHANGELOG `## Prochaine version` + `docs/audit-2026-11-10.md` (M30, LOW 370-372) mis à jour.
+- **À tester en jeu** (`/reload`) : onglet PvP > Cadres de champ de bataille : Reset avec la case décochée, la case
+  redevient cochée ; `/wl test` puis « Arrêter le test » pendant un combat (mannequin), les faux joueurs partent à la fin
+  du combat ; module éteint dans Réglages > Modules puis Export de profil : aucun chargement de l addon (`/wl perf` sans
+  « load the battleground frames ») ; cadres de raid Blizzard, hors BG et hors combat : `/console raidOptionIsShown 0` puis
+  `/reload` avec `WarLegendRaidToolDB.pvp.raidOptionWas = "1"` posé, ils reviennent (`raidOptionWas` n est effacé que si
+  la CVar a été écrite ; connexion en combat : à la fin du combat).
+- **Toujours ouvert** (audit 10/11, LOW) : « loaded after the fight » dit hors BG ; onglet ouvert en combat = étiquette
+  grise jusqu au `/reload` (build une fois) ; en français « Barre d énergie : » chevauche sa liste (audit 29/10) ; 6e rangée
+  des cases de modules peut toucher la note du bas (hauteur du panneau non lue dans le code).
+
+## 10/11 nuit : `/wl verify` de 1.41.64 lu, 2 sondes Dev ajoutées, secret comparé à nil tranché en jeu
 
 - **Rapport** collé par l utilisateur (fenêtre `/wl verify`, lu avec `node tools/verify-live.js --decode`) : 1.41.64, build
   70888, Voleur 48, solo, Feralas, royaume `CAMWOW EU5 Realm 8 PvP`. 0 erreur Lua de la session (tous addons), 0 action

@@ -238,9 +238,11 @@ Data.defaultSettings = {
 					BarHeight = 22,
 					BarVerticalGrowdirection = "downwards",
 					BarVerticalSpacing = 1,
-					BarColumns = 1,
+					-- WarLegend: 40 enemies in two columns of 20 (one column of 40 ran below the screen); the gap leaves room
+					-- for the class icon (36 px) that hangs left of each bar
+					BarColumns = 2,
 					BarHorizontalGrowdirection = "rightwards",
-					BarHorizontalSpacing = 100,
+					BarHorizontalSpacing = 44,
 
 					PlayerCount = {
 						Enabled = true,
@@ -371,9 +373,11 @@ Data.defaultSettings = {
 					BarHeight = 22,
 					BarVerticalGrowdirection = "downwards",
 					BarVerticalSpacing = 1,
-					BarColumns = 1,
+					-- WarLegend: 40 allies in two columns of 20 (one column of 40 ran below the screen); the gap leaves room
+					-- for the class icon (36 px) and the dispel debuffs right of a bar, and my buffs left of the next one
+					BarColumns = 2,
 					BarHorizontalGrowdirection = "rightwards",
-					BarHorizontalSpacing = 100,
+					BarHorizontalSpacing = 200,
 
 					PlayerCount = {
 						Enabled = true,

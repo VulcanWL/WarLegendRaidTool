@@ -90,6 +90,9 @@ W.AddFR({
 function W.LoadPvP()
     if loaded then return true end
     if loadFailed or not (C_AddOns and C_AddOns.LoadAddOn) then return false end
+    -- the module switched off (Settings > Modules): nothing loads the addon, not even a profile export / import
+    -- (its events would run and its frames show in the next battleground); that profile then has no pvp part
+    if W.IsOff("PvPFrames") then return false end
     if InCombatLockdown() then
         waitCombat = true
         W.Print(L("Not in combat: the frames are loaded after the fight."))
@@ -122,8 +125,26 @@ W.OnReady(function()
     db = W.DB("pvp", { enabled = true, syncSides = false })
     if type(db.bgMessages) ~= "table" then db.bgMessages = {} end
 end)
-W.On("PLAYER_ENTERING_WORLD", MaybeLoad)
+
+-- The PvP addon hides Blizzard's raid frames in a battleground (CVar raidOptionIsShown, the player's value kept in
+-- db.raidOptionWas) and puts them back on leaving it. After a logout or a crash inside one, that addon is loaded
+-- again only in the next battleground: the value goes back at login, out of combat, while it is still ours ("0").
+local function RestoreRaidOption()
+    if loaded or not db or type(db.raidOptionWas) ~= "string" then return end
+    if InBattleground() or InCombatLockdown() then return end -- in a battleground the addon loads and decides
+    if not (GetCVar and SetCVar) then return end
+    local previous = db.raidOptionWas
+    local ok = pcall(function()
+        if GetCVar("raidOptionIsShown") == "0" then SetCVar("raidOptionIsShown", previous) end
+    end)
+    if ok then db.raidOptionWas = nil end -- a refused CVar: the value is kept for the next time
+end
+W.On("PLAYER_ENTERING_WORLD", function()
+    RestoreRaidOption()
+    MaybeLoad()
+end)
 W.On("PLAYER_REGEN_ENABLED", function()
+    RestoreRaidOption() -- a login in combat: once it is over
     if waitCombat then waitCombat = false; MaybeLoad() end
 end)
 
@@ -364,36 +385,40 @@ end
 
 -- test mode of the frames: on / off, and off by itself after 30 seconds (a newer test keeps its own stop)
 local testRun = 0
+-- ends the test mode (its frames are secure: never in combat, tried again every 5 s until the combat is over);
+-- a newer start or stop takes over (run ~= testRun)
+local function StopTest(run)
+    local pvp = WarLegendPvP
+    if run ~= testRun or not (pvp and pvp.ToggleTestmode and pvp.states and pvp.states.testmodeActive) then return end
+    if InCombatLockdown() then W.After(5, function() StopTest(run) end) else pvp.ToggleTestmode() end
+end
 local function ToggleTest(onlyStart)
     local pvp = WarLegendPvP
     if not (pvp and pvp.ToggleTestmode and pvp.states) then return end
     if pvp.states.testmodeActive then
-        if not onlyStart then pvp.ToggleTestmode() end
+        if not onlyStart then testRun = testRun + 1; StopTest(testRun) end
         return
     end
-    pvp.ToggleTestmode()
+    pvp.ToggleTestmode() -- in combat the addon refuses (secure frames) and says so
     testRun = testRun + 1
     local run = testRun
-    -- in combat at that moment: tried again every 5 s until the combat is over
-    local function Stop()
-        if run ~= testRun or not pvp.states.testmodeActive then return end
-        if InCombatLockdown() then W.After(5, Stop) else pvp.ToggleTestmode() end
-    end
-    W.After(30, Stop)
+    W.After(30, function() StopTest(run) end)
 end
 W.RegisterTest("Battleground frames", function() return db and db.enabled and not InCombatLockdown() end,
     function() if W.LoadPvP() then ToggleTest(true) end end,
     function()
-        local pvp = WarLegendPvP
         testRun = testRun + 1
-        if pvp and pvp.states and pvp.states.testmodeActive and not InCombatLockdown() then pvp.ToggleTestmode() end
+        StopTest(testRun)
     end)
 
 -- switched in Settings > Modules while the PvP addon is loaded: Blizzard's raid frames back (their CVar), or hidden
 -- again in a battleground. Core runs this out of combat.
 W.OnModuleSwitch("PvPFrames", function(on)
     local pvp = WarLegendPvP
-    if not (pvp and pvp.RestoreRaidFrames and pvp.db) then return end
+    if not (pvp and pvp.RestoreRaidFrames and pvp.db) then
+        if on then MaybeLoad() end -- switched on inside a battleground: the frames load now
+        return
+    end
     if on then pvp:ToggleRaidFrames() else pvp:RestoreRaidFrames() end
 end)
 
@@ -443,6 +468,7 @@ W.RegisterModule("PvPFrames", "Battleground frames", function(p)
     W.Button(p, L("Reset"), 110, 22, function()
         W.Confirm(L("Reset all the battleground frame settings?"), function()
             pvp:ResetSettings()
+            db.enabled = true -- the addon's ShowBGEInBattleground is back to true: the main check follows it
             if p:IsShown() then p:Hide(); p:Show() end -- the checkboxes sync on show
         end)
     end):SetPoint("TOPLEFT", 132, -192)

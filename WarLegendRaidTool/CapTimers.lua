@@ -32,6 +32,47 @@ W.AddFR({
     ["Voice countdown"] = "Décompte vocal",
     ["Time to win (final score estimate)"] = "Temps avant la victoire (score final estimé)",
     ["Final: %d - %d"] = "Final : %d - %d",
+    ["Queue pop sound with sound effects off"] = "Son du pop de la file, effets sonores coupés",
+    -- appearance
+    ["Timers"] = "Chronos",
+    ["Appearance"] = "Apparence",
+    ["Texture:"] = "Texture :",
+    ["Font:"] = "Police :",
+    ["Size:"] = "Taille :",
+    ["Outline:"] = "Contour :",
+    ["Width:"] = "Largeur :",
+    ["Height:"] = "Hauteur :",
+    ["Spacing:"] = "Espacement :",
+    ["Text:"] = "Texte :",
+    ["Time:"] = "Temps :",
+    ["Default"] = "Par défaut",
+    ["Noto Sans"] = "Noto Sans",
+    ["Arial Narrow"] = "Arial Narrow",
+    ["Morpheus"] = "Morpheus",
+    ["Skurri"] = "Skurri",
+    ["Capping"] = "Capping",
+    ["Blizzard"] = "Blizzard",
+    ["Flat"] = "Uni",
+    ["Skills bar"] = "Barre de compétence",
+    ["Target frame"] = "Cadre de cible",
+    ["None"] = "Aucun",
+    ["Outline"] = "Contour",
+    ["Thick outline"] = "Contour épais",
+    ["Center"] = "Centre",
+    ["Show the icon"] = "Afficher l'icône",
+    ["Icon on the right"] = "Icône à droite",
+    ["Show the time"] = "Afficher le temps",
+    ["Bars fill up"] = "Les barres se remplissent",
+    ["Grow upwards"] = "Empiler vers le haut",
+    ["Monochrome font"] = "Police sans lissage",
+    ["Colors:"] = "Couleurs :",
+    ["Text"] = "Texte",
+    ["Background"] = "Fond",
+    ["Queue"] = "File d'attente",
+    ["Other"] = "Autre",
+    ["Default appearance"] = "Apparence par défaut",
+    ["Click a square to change its color. Test shows bars while you adjust."] =
+        "Clique sur un carré pour changer sa couleur. Test affiche des barres pendant les réglages.",
 })
 local L = W.L
 local db
@@ -49,25 +90,89 @@ local CONTESTED = {
 -- capture time per battleground instance (Capping's modules); others: db.capTime
 local ZONE_CAPTIME = { [30] = 300, [2197] = 241, [529] = 60, [2107] = 60 }
 local CAPPING_ZONES = { [30] = true, [2197] = true, [529] = true, [2107] = true } -- Alterac, Arathi
-local COLORS = { Alliance = { 0, 0, 1 }, Horde = { 1, 0, 0 }, other = { 1, 1, 0 }, queue = { 0.6, 0.6, 0.6 } }
 local POI_ICONS = 136441 -- Interface/Minimap/POIIcons
 local FLAG_RESPAWN = 12
 
--- "X captured the flag" in each language (BattlegroundTargets / Capping triggers)
+-- "X captured the flag" in each language (BattlegroundTargets / Capping triggers). French: "a pris le drapeau de
+-- la Horde" is the capture, "a pris le drapeau !" alone the pickup (the shorter trigger fired on every pickup)
 local CAPTURED = ({
-    deDE = "errungen!", esES = "capturado la bandera", esMX = "capturado la bandera", frFR = "a pris le drapeau",
-    itIT = "conquistato la bandiera", koKR = "깃발 쟁탈에 성공했습니다!", ptBR = "capturou a Bandeira", ruRU = "захватывает",
+    deDE = "errungen!", esES = "capturado la bandera", esMX = "capturado la bandera", frFR = "a pris le drapeau de",
+    itIT = "conquistato la bandiera", koKR = "깃발 쟁탈에 성공했습니다!", ptBR = "capturou a Bandeira", ruRU = "захватил", -- ru: "захватывает флаг" is the pickup
     zhCN = "夺取", zhTW = "佔據了",
 })[GetLocale()] or "captured the"
 
-local CAP_TEXTURE = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill"
-local CAP_W, CAP_H, CAP_FONT_SIZE = 200, 20, 10
+-- Appearance (Capping's options): fixed lists of the fonts and bar textures every client ships (all used by
+-- Forever's own interface), the labels translated when the tab is built. A setting is read through Look(): a value
+-- outside its list (a profile from another version) gives the default, never a nil size or an unknown file.
+local FONTS = {
+    { "default", "Default" }, -- W.FONT, read when used (a skin's font is only known at ADDON_LOADED)
+    { "noto", "Noto Sans", W.COUNTDOWN_FONT },
+    { "arialn", "Arial Narrow", "Fonts\\ARIALN.TTF" },
+    { "morpheus", "Morpheus", "Fonts\\MORPHEUS.TTF" },
+    { "skurri", "Skurri", "Fonts\\SKURRI.TTF" },
+}
+local TEXTURES = {
+    { "capping", "Capping", "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" },
+    { "blizzard", "Blizzard", W.BAR_TEXTURE },
+    { "flat", "Flat", W.WHITE },
+    { "skills", "Skills bar", "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar" },
+    { "target", "Target frame", "Interface\\TargetingFrame\\UI-TargetingFrame-BarFill" },
+}
+local OUTLINES = { { "", "None" }, { "OUTLINE", "Outline" }, { "THICKOUTLINE", "Thick outline" } }
+local ALIGNS = { { "LEFT", "Left" }, { "CENTER", "Center" }, { "RIGHT", "Right" } }
+local SIDES = { { "LEFT", "Left" }, { "RIGHT", "Right" } }
+local WIDTHS = { 150, 175, 200, 225, 250, 300, 350, 400 }
+local HEIGHTS = { 12, 14, 16, 18, 20, 22, 24, 28, 32 }
+local SPACINGS = { 0, 1, 2, 4, 6, 8, 10 }
+local FONT_SIZES = { 8, 9, 10, 11, 12, 13, 14, 16, 18 }
+local LOOK_LISTS = { width = WIDTHS, height = HEIGHTS, spacing = SPACINGS, fontSize = FONT_SIZES, font = FONTS,
+    outline = OUTLINES, texture = TEXTURES, alignText = ALIGNS, alignTime = SIDES }
+-- colors as "rrggbb" (scalars: in the profiles without a table field); Capping's defaults
+local LOOK_DEFAULTS = { width = 200, height = 20, spacing = 0, fontSize = 10, font = "default", outline = "", mono = false,
+    texture = "capping", icon = true, iconRight = false, timeText = true, fill = false, growUp = false,
+    alignText = "LEFT", alignTime = "RIGHT", cText = "ffffff", cBg = "000000", cAlliance = "0000ff", cHorde = "ff0000",
+    cQueue = "999999", cOther = "ffff00" }
 
 W.OnReady(function()
-    db = W.DB("capTimers", { enabled = true, locked = false, capTime = 60, queue = true, flag = true, win = true,
-        emphasize = true, bigCount = true, voice = true })
+    local defaults = { enabled = true, locked = false, capTime = 60, queue = true, flag = true, win = true,
+        emphasize = true, bigCount = true, voice = true, popSound = true }
+    for k, v in pairs(LOOK_DEFAULTS) do defaults[k] = v end
+    db = W.DB("capTimers", defaults)
     if type(db.point) ~= "table" then db.point = { "TOP", "TOP", 0, -150 } end
 end)
+
+local function InList(list, v)
+    for _, e in ipairs(list) do if (type(e) == "table" and e[1] or e) == v then return true end end
+    return false
+end
+
+-- an appearance setting, or its default when the saved one is not one of the choices
+local function Look(key)
+    local d = LOOK_DEFAULTS[key]
+    local v = db and db[key]
+    if v == nil then return d end
+    local list = LOOK_LISTS[key]
+    if list then return InList(list, v) and v or d end
+    if type(d) == "boolean" then return v == true end
+    if type(v) == "string" and v:match("^%x%x%x%x%x%x$") then return v end -- a color
+    return d
+end
+
+local function RGB(key)
+    local hex = Look(key)
+    return tonumber(hex:sub(1, 2), 16) / 255, tonumber(hex:sub(3, 4), 16) / 255, tonumber(hex:sub(5, 6), 16) / 255
+end
+
+local function Hex(r, g, b)
+    return string.format("%02x%02x%02x", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+end
+
+local function ListPath(list, key)
+    for _, e in ipairs(list) do if e[1] == key then return e[3] end end
+end
+
+local BAR_COLOR = { Alliance = "cAlliance", Horde = "cHorde", queue = "cQueue" }
+local function BarColor(color) return RGB(BAR_COLOR[color] or "cOther") end
 
 local function CappingLoaded()
     return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Capping") or false
@@ -94,7 +199,7 @@ end
 -- Shift-click: /say, Ctrl-click: battleground chat (raid outside one), like Capping
 local function Report(a)
     local channel = IsShiftKeyDown() and "SAY" or (IsControlKeyDown() and "INSTANCE_CHAT") or nil
-    if not channel then return end
+    if not channel or a.paused then return end -- a waiting bar has no time to tell
     if channel == "INSTANCE_CHAT" and not (IsInGroup and IsInGroup(2)) then channel = "RAID" end
     local left = math.max(0, a.ends - GetTime())
     local t = TimeText(left)
@@ -103,9 +208,59 @@ local function Report(a)
     W.SendChat(a.label .. " - " .. t .. (team and (" (" .. team .. ")") or ""), channel)
 end
 
+-- the look of one bar from the settings: size, icon side, texture, fonts, colors, what is shown. Run on every bar
+-- (active and pooled) by Restyle(), and on a pooled bar made before the last change (lookGen) when it starts
+local lookGen = 0
+local function Style(f)
+    local w, h, icon, right = Look("width"), Look("height"), Look("icon"), Look("iconRight")
+    f.look = lookGen
+    f:SetSize(w, h)
+    f.icon:SetSize(h, h)
+    f.icon:ClearAllPoints()
+    f.icon:SetPoint(right and "RIGHT" or "LEFT")
+    f.icon:SetShown(icon)
+    f.bar:ClearAllPoints()
+    if not icon then
+        f.bar:SetAllPoints()
+    elseif right then
+        f.bar:SetPoint("TOPLEFT")
+        f.bar:SetPoint("BOTTOMRIGHT", f.icon, "BOTTOMLEFT")
+    else
+        f.bar:SetPoint("TOPLEFT", f.icon, "TOPRIGHT")
+        f.bar:SetPoint("BOTTOMRIGHT")
+    end
+    local tex = ListPath(TEXTURES, Look("texture")) or TEXTURES[1][3]
+    f.bar:SetStatusBarTexture(tex)
+    f.bg:SetTexture(tex)
+    local r, g, b = RGB("cBg")
+    f.bg:SetVertexColor(r, g, b, 0.75)
+    if f.data then f.bar:SetStatusBarColor(BarColor(f.data.color)) end
+    local flags = Look("outline")
+    if Look("mono") then flags = flags == "" and "MONOCHROME" or (flags .. ", MONOCHROME") end
+    local font, size = ListPath(FONTS, Look("font")) or W.FONT, Look("fontSize")
+    W.SetFont(f.text, font, size, flags)
+    W.SetFont(f.time, font, size, flags)
+    r, g, b = RGB("cText")
+    f.text:SetTextColor(r, g, b)
+    f.time:SetTextColor(r, g, b)
+    -- the time at its side, the text on the rest of the bar (all of it without a time)
+    local timeOn, timeLeft = Look("timeText"), Look("alignTime") == "LEFT"
+    f.time:SetShown(timeOn)
+    f.time:ClearAllPoints()
+    f.time:SetPoint(timeLeft and "LEFT" or "RIGHT", timeLeft and 2 or -2, 0)
+    f.text:ClearAllPoints()
+    if timeOn and timeLeft then
+        f.text:SetPoint("LEFT", f.time, "RIGHT", 2, 0)
+        f.text:SetPoint("RIGHT", -2, 0)
+    else
+        f.text:SetPoint("LEFT", 2, 0)
+        if timeOn then f.text:SetPoint("RIGHT", f.time, "LEFT", -2, 0) else f.text:SetPoint("RIGHT", -2, 0) end
+    end
+    f.text:SetJustifyH(Look("alignText"))
+end
+
 local function NewBar()
     local f = CreateFrame("Frame", nil, anchor)
-    f:SetSize(CAP_W, CAP_H)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
     -- dragging a bar moves its pile: the normal one, or the middle one (emphasized bars)
@@ -121,29 +276,15 @@ local function NewBar()
     end)
     f:SetScript("OnMouseUp", function(self) if self.data then Report(self.data) end end)
     f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetSize(CAP_H, CAP_H)
-    f.icon:SetPoint("LEFT")
     f.bar = CreateFrame("StatusBar", nil, f)
-    f.bar:SetPoint("TOPLEFT", f.icon, "TOPRIGHT")
-    f.bar:SetPoint("BOTTOMRIGHT")
-    f.bar:SetStatusBarTexture(CAP_TEXTURE)
-    local bg = f.bar:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture(CAP_TEXTURE)
-    bg:SetVertexColor(0, 0, 0, 0.75)
+    f.bg = f.bar:CreateTexture(nil, "BACKGROUND")
+    f.bg:SetAllPoints()
     f.time = f.bar:CreateFontString(nil, "OVERLAY")
-    f.time:SetFont(W.FONT, CAP_FONT_SIZE, "")
     f.time:SetShadowOffset(1, -1)
-    f.time:SetTextColor(1, 1, 1)
-    f.time:SetPoint("RIGHT", -2, 0)
     f.text = f.bar:CreateFontString(nil, "OVERLAY")
-    W.SetFont(f.text, W.FONT, CAP_FONT_SIZE, "")
     f.text:SetShadowOffset(1, -1)
-    f.text:SetTextColor(1, 1, 1)
-    f.text:SetPoint("LEFT", 2, 0)
-    f.text:SetPoint("RIGHT", f.time, "LEFT", -2, 0)
-    f.text:SetJustifyH("LEFT")
     f.text:SetWordWrap(false)
+    Style(f)
     return f
 end
 
@@ -154,7 +295,7 @@ local emphAnchor, bigCount
 local function EmphAnchor()
     if emphAnchor then return emphAnchor end
     emphAnchor = CreateFrame("Frame", "WLRTCapTimersEmphasize", UIParent)
-    emphAnchor:SetSize(CAP_W, CAP_H)
+    emphAnchor:SetSize(Look("width"), Look("height"))
     local p = db.emphPoint or { "CENTER", "CENTER", 0, 120 }
     emphAnchor:SetPoint(p[1], UIParent, p[2], p[3], p[4])
     emphAnchor:SetFrameStrata("HIGH")
@@ -181,28 +322,47 @@ local function Layout()
     for _, a in pairs(active) do
         if a.emph then emph[#emph + 1] = a else normal[#normal + 1] = a end
     end
-    local function byEnd(x, y) return x.ends < y.ends end
+    -- the queue bars stay on top of the pile (as Capping pins them), the others by the time left
+    local function byEnd(x, y)
+        if x.pinned ~= y.pinned then return x.pinned end
+        return x.ends < y.ends
+    end
     table.sort(normal, byEnd)
     table.sort(emph, byEnd)
-    for i, a in ipairs(normal) do
-        a.bar:SetParent(anchor)
-        a.bar:SetScale(1)
-        a.bar:ClearAllPoints()
-        a.bar:SetPoint("TOP", anchor, "TOP", 0, -(i - 1) * CAP_H)
-    end
-    if #emph > 0 then
-        local holder = EmphAnchor()
-        for i, a in ipairs(emph) do
+    -- the pile hangs from its anchor (one bar high, so the base never moves with the count), down or up
+    local step, up = Look("height") + Look("spacing"), Look("growUp")
+    local function Stack(bars, holder, scale)
+        for i, a in ipairs(bars) do
             a.bar:SetParent(holder)
-            a.bar:SetScale(EMPH_SCALE)
+            a.bar:SetScale(scale)
             a.bar:ClearAllPoints()
-            a.bar:SetPoint("TOP", holder, "TOP", 0, -(i - 1) * CAP_H)
+            if up then
+                a.bar:SetPoint("BOTTOM", holder, "BOTTOM", 0, (i - 1) * step)
+            else
+                a.bar:SetPoint("TOP", holder, "TOP", 0, -(i - 1) * step)
+            end
         end
     end
-    anchor:SetHeight(math.max(CAP_H, #normal * CAP_H))
+    Stack(normal, anchor, 1)
+    if #emph > 0 then Stack(emph, EmphAnchor(), EMPH_SCALE) end
     -- shown while any bar runs, the emphasized ones too: its OnUpdate is the only timer of every bar, and a
     -- hidden frame gets no OnUpdate (a bar alone in the middle used to freeze at its last 5 seconds)
     anchor:SetShown(next(active) ~= nil)
+end
+
+-- a setting changed: every bar, active or pooled, takes the new look, the piles are rebuilt
+local function Restyle()
+    lookGen = lookGen + 1
+    if anchor then anchor:SetSize(Look("width"), Look("height")) end
+    if emphAnchor then emphAnchor:SetSize(Look("width"), Look("height")) end
+    for _, a in pairs(active) do Style(a.bar) end
+    for _, f in ipairs(pool) do Style(f) end
+    if anchor then Layout() end
+end
+
+-- the bar drains by default; "fill" (Capping's option) makes it fill up as the time passes
+local function BarValue(a, left)
+    return Look("fill") and (a.total - left) or left
 end
 
 local function StopBar(key, noLayout)
@@ -259,11 +419,14 @@ local function OnUpdate(_, e)
     local stopped = false -- bars ending in the same tick: one Layout after the loop
     for key, a in pairs(active) do
         local left = a.ends - now
-        if left <= 0 then
+        if a.paused then
+            a.ends = now + a.total -- a bar that waits (queue past its estimate): full, no time, never ends by itself
+            a.bar.bar:SetValue(a.total)
+        elseif left <= 0 then
             StopBar(key, true)
             stopped = true
         else
-            a.bar.bar:SetValue(left)
+            a.bar.bar:SetValue(BarValue(a, left))
             -- the text changes every 0.1 s under 10 s, every second above: no new string in between
             local step = left < 10 and math.floor(left * 10) or -math.floor(left)
             if a.bar.lastStep ~= step then a.bar.lastStep = step; a.bar.time:SetText(TimeText(left)) end
@@ -276,7 +439,7 @@ end
 local function CreateAnchor()
     if anchor then return end
     anchor = CreateFrame("Frame", "WLRTCapTimersAnchor", UIParent)
-    anchor:SetSize(CAP_W, CAP_H)
+    anchor:SetSize(Look("width"), Look("height"))
     anchor:SetFrameStrata("MEDIUM")
     anchor:SetClampedToScreen(true)
     anchor:SetMovable(true)
@@ -296,10 +459,12 @@ local function StartBar(key, label, secs, color, icon, team)
     CreateAnchor()
     StopBar(key)
     local bar = table.remove(pool) or NewBar()
-    local c = COLORS[color] or COLORS.other
-    bar.bar:SetStatusBarColor(c[1], c[2], c[3])
+    if bar.look ~= lookGen then Style(bar) end
+    bar.bar:SetStatusBarColor(BarColor(color))
     bar.bar:SetMinMaxValues(0, secs)
+    bar.bar:SetValue(Look("fill") and 0 or secs)
     bar.text:SetText(label)
+    bar.time:SetText("") -- a recycled bar keeps no old time (the first OnUpdate writes it, a paused bar never does)
     local poiCoords = (C_Minimap and C_Minimap.GetPOITextureCoords) or GetPOITextureCoords -- WoW Forever: C_Minimap only
     if type(icon) == "table" and icon.poi and poiCoords then
         bar.icon:SetTexture(POI_ICONS)
@@ -309,7 +474,8 @@ local function StartBar(key, label, secs, color, icon, team)
         bar.icon:SetTexture(icon or 134400)
         bar.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     end
-    local a = { bar = bar, ends = GetTime() + secs, total = secs, label = label, team = team, color = color }
+    local a = { bar = bar, ends = GetTime() + secs, total = secs, label = label, team = team, color = color,
+        pinned = key:sub(1, 6) == "queue:" }
     bar.data = a
     bar:Show()
     active[key] = a
@@ -478,17 +644,30 @@ W.On("UPDATE_BATTLEFIELD_STATUS", function(queueId)
     status, mapName = W.Safe(status), W.Safe(mapName) or "?"
     local key = "queue:" .. queueId
     if status == "confirm" then -- the battleground popped: time left to enter
+        local a = active[key]
+        local popped = a and a.color == "other" -- this pop already has its bar: a later status event, not a new pop
         local secs = GetBattlefieldPortExpiration and W.Safe(GetBattlefieldPortExpiration(queueId))
-        if type(secs) == "number" and secs > 0 then StartBar(key, mapName, secs, "other", QueueIcon(mapName, 132327)) end -- its mark, else Ability_TownWatch
+        if type(secs) == "number" and secs > 0 then
+            StartBar(key, mapName, secs, "other", QueueIcon(mapName, 132327)) -- its mark, else Ability_TownWatch
+            -- the pop heard with the sound effects off (Capping's "loud queue"): the game's own sound plays on the
+            -- SFX channel only, ours on the Master channel, once per pop, and only when the game's would be silent
+            if db.popSound and not popped and SOUNDKIT and SOUNDKIT.PVP_THROUGH_QUEUE
+                and C_CVar and C_CVar.GetCVar and C_CVar.GetCVar("Sound_EnableSFX") == "0" then
+                pcall(PlaySound, SOUNDKIT.PVP_THROUGH_QUEUE, "Master")
+            end
+        end
     elseif status == "queued" and GetBattlefieldEstimatedWaitTime and GetBattlefieldTimeWaited then
         local est = (W.Safe(GetBattlefieldEstimatedWaitTime(queueId)) or 0) / 1000
         local waited = (W.Safe(GetBattlefieldTimeWaited(queueId)) or 0) / 1000
         local remain = est - waited
         local a = active[key]
-        if remain > 1 and (not a or math.abs(remain - (a.ends - GetTime())) > 10) then -- not restarted for a 10 s drift
+        if remain > 1 and (not a or a.paused or math.abs(remain - (a.ends - GetTime())) > 10) then -- not restarted for a 10 s drift
             StartBar(key, mapName, remain, "queue", QueueIcon(mapName, 134400))
-        elseif remain <= 1 then
-            StopBar(key)
+        elseif remain <= 1 and not (a and a.paused) then
+            -- past the estimate, or a paused queue (estimate 0): a full grey bar without a time stays, as Capping
+            -- shows it, instead of no bar at all
+            local w = StartBar(key, mapName, 3600, "queue", QueueIcon(mapName, 134400))
+            if w then w.paused = true end
         end
     elseif status == "none" or status == "active" then
         StopBar(key)
@@ -690,48 +869,163 @@ end
 W.RegisterTest("Battleground timers", function() return db and (db.enabled or db.queue or db.flag) end, W.CapTimersTest,
     function() StopMatching("test:"); if bigCount then bigCount:Hide() end end)
 
-W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
-    W.Title(p, L("Battleground timers"))
-    W.Check(p, L("Base capture timers"), function() return db.enabled end,
-        function(v) db.enabled = v; Zone() end):SetPoint("TOPLEFT", 12, -40)
-    W.Check(p, L("Battle start and queue bars"), function() return db.queue end, function(v) db.queue = v end):SetPoint("TOPLEFT", 12, -64)
-    W.Check(p, L("Flag respawn after a capture"), function() return db.flag end, function(v) db.flag = v end):SetPoint("TOPLEFT", 12, -88)
-    W.Check(p, L("BigWigs style: the bar moves to the middle for its last 5 seconds"), function() return db.emphasize end,
-        function(v) db.emphasize = v end):SetPoint("TOPLEFT", 330, -64)
-    W.Check(p, L("Big 5-4-3-2-1 countdown"), function() return db.bigCount end, function(v) db.bigCount = v end)
-        :SetPoint("TOPLEFT", 350, -88)
-    W.Check(p, L("Voice countdown"), function() return db.voice end, function(v) db.voice = v end):SetPoint("TOPLEFT", 350, -112)
-    W.Cycle(p, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
-        function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 520, -112)
-    W.Check(p, L("Time to win (final score estimate)"), function() return db.win end, function(v) db.win = v; Zone() end)
-        :SetPoint("TOPLEFT", 330, -40)
-    W.Check(p, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -112)
-    W.Label(p, L("Capture time (other battlegrounds):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -148)
+-- The game's color picker (as PvP.lua's, local here: that file is edited in another session). onChange(r, g, b) on
+-- every change, and with the old color on cancel.
+local function PickColor(r, g, b, onChange)
+    local CPF = ColorPickerFrame
+    if not CPF then return end
+    local function current()
+        local ok, nr, ng, nb = pcall(CPF.GetColorRGB, CPF)
+        if ok and nr then onChange(nr, ng, nb) end
+    end
+    if CPF.SetupColorPickerAndShow then
+        CPF:SetupColorPickerAndShow({ r = r, g = g, b = b, hasOpacity = false,
+            swatchFunc = current, cancelFunc = function() onChange(r, g, b) end })
+    else
+        CPF.hasOpacity = false
+        CPF.previousValues = { r, g, b }
+        CPF.func = current
+        CPF.cancelFunc = function() onChange(r, g, b) end
+        CPF:SetColorRGB(r, g, b)
+        CPF:Hide()
+        CPF:Show()
+    end
+end
+
+local function BuildTimers(t)
+    W.Check(t, L("Base capture timers"), function() return db.enabled end,
+        function(v) db.enabled = v; Zone() end):SetPoint("TOPLEFT", 12, -4)
+    W.Check(t, L("Battle start and queue bars"), function() return db.queue end, function(v)
+        db.queue = v
+        if not v then StopMatching("queue:"); StopMatching("gates") end -- a waiting bar never ends by itself
+    end):SetPoint("TOPLEFT", 12, -28)
+    W.Check(t, L("Flag respawn after a capture"), function() return db.flag end, function(v) db.flag = v end):SetPoint("TOPLEFT", 12, -52)
+    W.Check(t, L("BigWigs style: the bar moves to the middle for its last 5 seconds"), function() return db.emphasize end,
+        function(v) db.emphasize = v end):SetPoint("TOPLEFT", 330, -28)
+    W.Check(t, L("Big 5-4-3-2-1 countdown"), function() return db.bigCount end, function(v) db.bigCount = v end)
+        :SetPoint("TOPLEFT", 350, -52)
+    W.Check(t, L("Voice countdown"), function() return db.voice end, function(v) db.voice = v end):SetPoint("TOPLEFT", 350, -76)
+    -- right of the capture-time drop-down (280 to 360 at -107)
+    W.Check(t, L("Queue pop sound with sound effects off"), function() return db.popSound end,
+        function(v) db.popSound = v end):SetPoint("TOPLEFT", 380, -104)
+    W.Cycle(t, 130, W.CountdownVoiceValues(), function() return W.DB("ui").countdownVoice or "auto" end,
+        function(v) W.DB("ui").countdownVoice = v; W.CountdownVoice(3) end):SetPoint("TOPLEFT", 520, -76)
+    W.Check(t, L("Time to win (final score estimate)"), function() return db.win end, function(v) db.win = v; Zone() end)
+        :SetPoint("TOPLEFT", 330, -4)
+    W.Check(t, L("Lock the bars"), function() return db.locked end, function(v) db.locked = v end):SetPoint("TOPLEFT", 12, -76)
+    W.Label(t, L("Capture time (other battlegrounds):"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -112)
     local times = {}
     for _, s in ipairs({ 30, 45, 60, 64, 90, 120, 240, 300 }) do times[#times + 1] = { s, string.format(L("%d s"), s) } end
-    W.Cycle(p, 80, times, function() return db.capTime end, function(v) db.capTime = v end):SetPoint("TOPLEFT", 280, -143)
-    W.Button(p, L("Test"), 110, 22, function() W.CapTimersTest() end):SetPoint("TOPLEFT", 16, -178)
-    W.Button(p, L("Reset position"), 160, 22, function()
+    W.Cycle(t, 80, times, function() return db.capTime end, function(v) db.capTime = v end):SetPoint("TOPLEFT", 280, -107)
+    W.Button(t, L("Test"), 110, 22, function() W.CapTimersTest() end):SetPoint("TOPLEFT", 16, -142)
+    W.Button(t, L("Reset position"), 160, 22, function()
         db.point, db.emphPoint = { "TOP", "TOP", 0, -150 }, nil
         if anchor then Place() end
         if emphAnchor then
             emphAnchor:ClearAllPoints()
             emphAnchor:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
         end
-    end):SetPoint("TOPLEFT", 132, -178)
-    W.Button(p, L("Map points now"), 200, 22, MapDump):SetPoint("TOPLEFT", 298, -178)
-    local info = W.Label(p, L("A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."),
+    end):SetPoint("TOPLEFT", 132, -142)
+    W.Button(t, L("Map points now"), 200, 22, MapDump):SetPoint("TOPLEFT", 298, -142)
+    local info = W.Label(t, L("A base assaulted (map icon contested) gets a bar until it is taken: Alterac 5 min, Arathi 1 min, other battlegrounds the time chosen here. Shift-click a bar: /say, Ctrl-click: battleground chat. If a battleground shows no bar, open \"Map points now\" during an assault and send the text."),
         "GameFontHighlightSmall")
-    info:SetPoint("TOPLEFT", 16, -216)
+    info:SetPoint("TOPLEFT", 16, -180)
     info:SetWidth(700)
     info:SetJustifyH("LEFT")
     info:SetTextColor(0.7, 0.7, 0.7)
-    local capping = W.Label(p, L("Capping is loaded: it keeps its queue, gates, flag and Arathi / Alterac bars, these are only for the other battlegrounds."),
+    local capping = W.Label(t, L("Capping is loaded: it keeps its queue, gates, flag and Arathi / Alterac bars, these are only for the other battlegrounds."),
         "GameFontNormalSmall")
-    capping:SetPoint("TOPLEFT", 16, -270)
+    capping:SetPoint("TOPLEFT", 16, -234)
     capping:SetWidth(700)
     capping:SetJustifyH("LEFT")
-    p:HookScript("OnShow", function() capping:SetShown(CappingLoaded()) end)
+    t:HookScript("OnShow", function() capping:SetShown(CappingLoaded()) end)
+end
+
+-- Capping's appearance options: lists (W.Cycle), check boxes, one color square per color, a reset
+local function BuildAppearance(t)
+    local widgets = {} -- re-read after "Default appearance"
+    local function Add(w) widgets[#widgets + 1] = w; return w end
+    local function Set(key) return function(v) db[key] = v; Restyle() end end
+    local function Get(key) return function() return Look(key) end end
+    local function Choices(list)
+        local out = {}
+        for _, e in ipairs(list) do
+            if type(e) == "table" then out[#out + 1] = { e[1], L(e[2]) } else out[#out + 1] = { e, tostring(e) } end
+        end
+        return out
+    end
+    local function Cycle(label, key, list, x, y, w)
+        W.Label(t, L(label), "GameFontHighlightSmall"):SetPoint("TOPLEFT", x, y - 5)
+        Add(W.Cycle(t, w, Choices(list), Get(key), Set(key))):SetPoint("TOPLEFT", x + 60, y)
+    end
+    Cycle("Texture:", "texture", TEXTURES, 16, -4, 120)
+    Cycle("Font:", "font", FONTS, 210, -4, 120)
+    Cycle("Size:", "fontSize", FONT_SIZES, 404, -4, 60)
+    Cycle("Outline:", "outline", OUTLINES, 538, -4, 120)
+    Cycle("Width:", "width", WIDTHS, 16, -34, 70)
+    Cycle("Height:", "height", HEIGHTS, 210, -34, 60)
+    Cycle("Spacing:", "spacing", SPACINGS, 404, -34, 60)
+    Cycle("Text:", "alignText", ALIGNS, 16, -64, 90)
+    Cycle("Time:", "alignTime", SIDES, 210, -64, 90)
+    local function Check(label, key, x, y)
+        Add(W.Check(t, L(label), Get(key), Set(key))):SetPoint("TOPLEFT", x, y)
+    end
+    Check("Show the icon", "icon", 12, -96)
+    Check("Icon on the right", "iconRight", 160, -96)
+    Check("Show the time", "timeText", 330, -96)
+    Check("Bars fill up", "fill", 480, -96)
+    Check("Grow upwards", "growUp", 12, -120)
+    Check("Monochrome font", "mono", 160, -120)
+    W.Label(t, L("Colors:"), "GameFontHighlightSmall"):SetPoint("TOPLEFT", 16, -156)
+    local function Swatch(key, label, x)
+        local b
+        local function Paint() b.color:SetVertexColor(RGB(key)) end
+        b = W.Button(t, "", 22, 22, function()
+            local r, g, bl = RGB(key)
+            PickColor(r, g, bl, function(nr, ng, nb) db[key] = Hex(nr, ng, nb); Paint(); Restyle() end)
+        end)
+        b:SetPoint("TOPLEFT", x, -150)
+        b.color = b:CreateTexture(nil, "OVERLAY")
+        b.color:SetTexture(W.WHITE)
+        b.color:SetPoint("TOPLEFT", 4, -4)
+        b.color:SetPoint("BOTTOMRIGHT", -4, 4)
+        b.Sync = Paint
+        Paint()
+        b:HookScript("OnShow", Paint)
+        W.Label(t, label, "GameFontHighlightSmall"):SetPoint("LEFT", b, "RIGHT", 4, 0)
+        return Add(b)
+    end
+    Swatch("cText", L("Text"), 80)
+    Swatch("cBg", L("Background"), 180)
+    Swatch("cAlliance", FACTION_ALLIANCE or "Alliance", 300)
+    Swatch("cHorde", FACTION_HORDE or "Horde", 400)
+    Swatch("cQueue", L("Queue"), 500)
+    Swatch("cOther", L("Other"), 620)
+    W.Button(t, L("Default appearance"), 160, 22, function()
+        for k, v in pairs(LOOK_DEFAULTS) do db[k] = v end
+        Restyle()
+        for _, w in ipairs(widgets) do w:Sync() end
+    end):SetPoint("TOPLEFT", 16, -186)
+    W.Button(t, L("Test"), 110, 22, function() W.CapTimersTest() end):SetPoint("TOPLEFT", 182, -186)
+    local info = W.Label(t, L("Click a square to change its color. Test shows bars while you adjust."), "GameFontHighlightSmall")
+    info:SetPoint("TOPLEFT", 16, -220)
+    info:SetWidth(700)
+    info:SetJustifyH("LEFT")
+    info:SetTextColor(0.7, 0.7, 0.7)
+end
+
+local tabs
+W.RegisterModule("CapTimers", L("Battleground timers"), function(p)
+    W.Title(p, L("Battleground timers"))
+    tabs = W.SubTabs(p, { L("Timers"), L("Appearance") })
+    BuildTimers(tabs.frames[1])
+    BuildAppearance(tabs.frames[2])
+    tabs:Select(1)
+end, function()
+    if tabs then tabs:Select(tabs.current or 1) end
 end)
+
+-- the bench (tools/smoke/battleground.lua) changes the look and checks the bars
+W.CapTimersRestyle = Restyle
 
 W.slash.caps = function() W.Toggle("CapTimers") end

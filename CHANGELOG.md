@@ -6,6 +6,36 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.65 (15/11/2026)
+
+### Ajouté
+- Chronos de CdB : sous-onglet « Apparence » (les options de Capping) : texture, police, taille, contour, largeur,
+  hauteur, espacement, alignement du texte et du temps, icône (et son côté), temps affiché ou non, barres qui se
+  remplissent, pile vers le haut, couleurs (texte, fond, Alliance, Horde, file, autre), bouton « Apparence par défaut ».
+
+### Corrigé
+- Cadres de champ de bataille : après « Réinitialiser », la case « Afficher les cadres » suit bien le réglage remis par
+  défaut ; « Arrêter le test » en combat arrête le mode test à la fin du combat au lieu de le laisser tourner ; le
+  module désactivé n'est plus chargé par un export ou un import de profil (ce profil n'a alors pas la partie PvP) ; les
+  cadres de raid de Blizzard cachés par une déconnexion ou un plantage en plein champ de bataille reviennent à la
+  connexion suivante.
+- Cadres de champ de bataille : un deuxième joueur parti pendant le même combat ne garde plus sa ligne après le combat ;
+  un allié arrivé pendant un combat a bien son unité (portée, clic de dissipation) dès la fin du combat ; regarder un
+  onglet de faction du tableau des scores ne vide plus les cadres de l'autre camp ; l'icône de drapeau sur les cadres de
+  raid suit le porteur quand le raid se réorganise et disparaît quand il lâche le drapeau ; le tooltip de classe au survol
+  d'une ligne marche (option « Tooltips ») ; une ligne reprise pour un autre joueur ne garde plus sa barre de ressource.
+- Cadres de champ de bataille : si le jeu garde le tableau des scores secret, un message le dit une fois au lieu de
+  cadres vides sans explication.
+- Chronos de CdB (client français) : la barre « Réapparition du drapeau » ne part plus à chaque prise du drapeau,
+  seulement à sa capture.
+
+### Modifié
+- Chronos de CdB, file d'attente : une file qui dépasse son estimation garde une barre pleine sans temps au lieu de
+  disparaître ; les barres de file restent en haut de la pile ; le son de la file qui pop joue aussi quand les effets
+  sonores sont coupés (case « Son du pop de la file », cochée par défaut, sous le décompte vocal).
+- Cadres de champ de bataille à 16-40 joueurs : deux colonnes de 20 au lieu d'une colonne de 40 (qui passait sous
+  l'écran), côté alliés et côté ennemis.
+
 ## 1.41.64 (10/11/2026)
 
 ### Corrigé

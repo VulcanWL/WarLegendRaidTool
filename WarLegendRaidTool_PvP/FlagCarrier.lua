@@ -152,11 +152,10 @@ local function frameUnit(frame)
 end
 
 function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)
-	if hasFlag then
-		-- one carrier per team: the other flags go
-		for frame, tex in pairs(raidFlags) do tex:Hide() end
-	end
-	if not name then return end
+	-- one carrier per team: every flag goes first. On a drop too (audit M29): the carrier's raid frame may have moved
+	-- since the pick-up (roster shift), the icon then stayed on the frame of another ally
+	for frame, tex in pairs(raidFlags) do tex:Hide() end
+	if not name or not hasFlag then return end
 	local carrier = self:GetPlayerbuttonByName(name)
 	if not carrier then return end -- unknown name form: no frame is marked rather than the wrong ones
 	local flagFaction = (self.UserFaction == "Horde") and "Alliance" or "Horde" -- an ally carries the enemy flag
@@ -172,7 +171,17 @@ function WarLegendPvP:MarkRaidFrameFlag(name, hasFlag)
 				raidFlags[frame] = tex
 			end
 			tex:SetTexture(FLAG_ICONS[flagFaction])
-			tex:SetShown(hasFlag and true or false)
+			tex:Show()
+		end
+	end
+end
+
+-- after a roster read (the units of the raid frames moved): the icon put again on the frame of the ally carrying the flag
+function WarLegendPvP:RemarkRaidFrameFlag()
+	if not (self.Allies and self.Allies.Players) then return end
+	for _, playerButton in pairs(self.Allies.Players) do
+		if playerButton.hasFlag and playerButton.PlayerDetails and not playerButton.PlayerDetails.isFakePlayer then
+			return self:MarkRaidFrameFlag(playerButton.PlayerDetails.PlayerName, true)
 		end
 	end
 end

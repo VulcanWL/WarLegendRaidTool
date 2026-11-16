@@ -143,7 +143,7 @@ function castBar:AttachToPlayerButton(playerButton)
 		if duration then
 			local direction = isChannel and Enum.StatusBarTimerDirection.RemainingTime or Enum.StatusBarTimerDirection.ElapsedTime
 			bar:SetTimerDuration(duration, nil, direction)
-		elseif startTime and endTime and not issecret(startTime) and not issecret(endTime) and endTime > startTime then
+		elseif not issecret(startTime) and not issecret(endTime) and startTime and endTime and endTime > startTime then
 			bar:SetMinMaxValues(0, 1)
 			bar.startTime, bar.endTime, bar.isChannel = startTime, endTime, isChannel
 			bar:SetScript("OnUpdate", onUpdateFallback)

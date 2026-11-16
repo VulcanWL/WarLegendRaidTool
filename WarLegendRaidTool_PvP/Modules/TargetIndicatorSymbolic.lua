@@ -71,8 +71,12 @@ function symbolicTargetIndicator:AttachToPlayerButton(playerButton)
 
 				self:SetSizeAndPosition(i)
 			end
-			local classColor = enemyButton.PlayerDetails.PlayerClassColor
-			indicator:SetBackdropColor(classColor.r,classColor.g,classColor.b)
+			local classColor = enemyButton.PlayerDetails and enemyButton.PlayerDetails.PlayerClassColor
+			if classColor then
+				indicator:SetBackdropColor(classColor.r,classColor.g,classColor.b)
+			else
+				indicator:SetBackdropColor(0.5, 0.5, 0.5) -- unknown class token: grey, no error
+			end
 			indicator:Show()
 
 			i = i + 1

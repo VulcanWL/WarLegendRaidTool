@@ -153,6 +153,13 @@ function power:AttachToPlayerButton(playerButton)
 		end
 	end
 
+	-- a row taken again for another player (SetupButtonForNewPlayer): the old player's bar colour and value go
+	function playerButton.Power:Reset()
+		self.powerToken, self.maxValue = nil, 1
+		self:SetMinMaxValues(0, 1)
+		self:SetValue(0)
+	end
+
 	function playerButton.Power:ApplyAllSettings()
 		if not self.config then return end
 		-- power

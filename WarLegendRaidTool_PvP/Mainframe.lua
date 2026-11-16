@@ -223,8 +223,9 @@ local function CreateMainFrame(playerType)
 
 	function mainframe:AddPlayerToSource(source, playerT)
 		self:Debug("AddPlayerToSource", source, playerT)
-		if not playerT.name or issecret(playerT.name) or playerT.name == "" then return end
-		if not playerT.classToken or issecret(playerT.classToken) or playerT.classToken == "" then return end
+		-- issecret first: whether a secret value can even be tested (if v then) is not known on Forever (10/11: == nil can)
+		if issecret(playerT.name) or not playerT.name or playerT.name == "" then return end
+		if issecret(playerT.classToken) or not playerT.classToken or playerT.classToken == "" then return end
 
 		table_insert(self.PlayerSources[source], playerT)
 	end
@@ -813,7 +814,10 @@ local function CreateMainFrame(playerType)
 			if not (top and bottom) then
 				top, bottom = rowsPerColumn * (barHeight or 0) + (rowsPerColumn - 1) * (verticalSpacing or 0), 0
 			end
-			self:SetSize(barWidth, top - bottom)
+			-- WarLegend: as wide as its columns (two of 20 at 40 players): the player count caption and the mouse-wheel
+			-- area of the frame cover them all
+			local usedColumns = math_min(columns, math_max(1, math.ceil(playerCount / math_max(1, rowsPerColumn))))
+			self:SetSize(barWidth * usedColumns + horizontalSpacing * (usedColumns - 1), top - bottom)
 		end
 		-- the next buttons on the next frame, or after the fight if one started
 		if more and not self.positioningAgain then
@@ -851,7 +855,8 @@ local function CreateMainFrame(playerType)
 		local playerDetails = {
 			PlayerName = name,
 			PlayerClass = string.upper(classToken),                  --apparently it can happen that we get a lowercase "druid" from GetBattlefieldScore() in TBCC, IsTBCC
-			PlayerClassColor = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[classToken],
+			-- WarLegend: the upper-cased token, as PlayerClass (a lowercase one gave no colour: the target symbols errored)
+			PlayerClassColor = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[string.upper(classToken)],
 			PlayerSpecName = spec,                                 --set to false since we use Mixin() and Mixin doesnt mixin nil values and therefore we dont overwrite values with nil
 			PlayerRole = specData and specData.roleID,
 			PlayerLevel = false,
@@ -891,30 +896,38 @@ local function CreateMainFrame(playerType)
 
 	function mainframe:CreateOrRemovePlayerButtons()
 		local inCombat = InCombatLockdown()
-		local existingPlayersCount = 0
+		-- WarLegend (audit M28): every row is visited before the combat check. A return inside the loop left the rows
+		-- after the first leaver at status 1: a second leaver of the same fight was then taken for a present player by
+		-- the replay after the fight and kept its row until the next scoreboard that differed
+		local leavers
 		for playerName, playerButton in pairs(self.Players) do
 			if playerButton.status == 2 then --no longer existing
-				if inCombat then
-					return WarLegendPvP:QueueForUpdateAfterCombat(self, "AfterPlayerSourceUpdate")
-				else
-					self:RemovePlayer(playerButton)
-				end
+				leavers = leavers or {}
+				leavers[#leavers + 1] = playerButton
 			else -- == 1 -- set to 2 for the next comparison
 				playerButton.status = 2
-				existingPlayersCount = existingPlayersCount + 1
 			end
 		end
 
+		if inCombat and (leavers or #self.NewPlayersDetails > 0) then
+			-- secure buttons cannot be shown or hidden in a fight: done when it ends, from the sources as they are then
+			return WarLegendPvP:QueueForUpdateAfterCombat(self, "AfterPlayerSourceUpdate")
+		end
+		if leavers then
+			for i = 1, #leavers do self:RemovePlayer(leavers[i]) end
+		end
+
+		local created = false
 		for i = 1, #self.NewPlayersDetails do
-			local playerDetails = self.NewPlayersDetails[i]
-			if inCombat then
-				return WarLegendPvP:QueueForUpdateAfterCombat(self, "AfterPlayerSourceUpdate")
-			else
-				local playerButton = self:SetupButtonForNewPlayer(playerDetails)
-				playerButton.status = 2
-			end
+			local playerButton = self:SetupButtonForNewPlayer(self.NewPlayersDetails[i])
+			playerButton.status = 2
+			created = true
 		end
 		self:SortPlayers(false)
+		-- WarLegend (audit M10): an ally whose button is made here after a fight has no unit yet, and the next roster
+		-- read stops early when nothing changed: its unit is set now (Allies only; out of combat the roster read does
+		-- it again right after, which then changes nothing)
+		if created and self.UpdateAllUnitIDs then self:UpdateAllUnitIDs() end
 	end
 
 	do
@@ -1081,9 +1094,10 @@ function WarLegendPvP.Allies:AddGroupMember(name, isLeader, isAssistant, classTo
 	local raceName, raceFile, raceID = UnitRace(unitID)
 	local GUID = UnitGUID(unitID)
 
-	if not GUID or issecret(GUID) then return end
+	if issecret(GUID) or not GUID then return end
 
-	if name and raceName and classToken then
+	-- a secret race is kept (CreateOrUpdatePlayerDetails drops it), a missing one is not
+	if name and classToken and (issecret(raceName) or raceName) then
 		local specName = WarLegendPvP.specCache[GUID]
 
 		self:AddPlayerToSource(WarLegendPvP.consts.PlayerSources.GroupMembers, {

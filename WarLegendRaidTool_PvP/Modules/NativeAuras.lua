@@ -205,10 +205,13 @@ function NA.RegisterTypeIcon(pb, item)
 	list[#list + 1] = pb
 end
 
-local function TypeIcon(button, unitFrame, slot, box)
+local function TypeIcon(button, unitFrame, slot, box, max)
 	local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
 	local bar = unitFrame.healthBar
 	if not (styles and styles.CustomAsset and button.AddDispelTypeTexture and bar) then return end
+	-- WarLegend (audit M14): the client makes its buttons by batches (10) but shows at most the group's max: a symbol only
+	-- for those, else the secret-visibility branch of LayoutTypeIcons reserved 10 places and pushed the name off the bar
+	if max and slot > max then return end
 	local size = SymbolSize(unitFrame)
 	local holder = CreateFrame("Frame", nil, button) -- child of the aura button: hidden with it
 	-- WarLegend: the button is scaled with its box (NA.SetIconSize); the symbol keeps the unit frame's scale, the name's
@@ -275,7 +278,7 @@ local function InitButton(button, group, glowParent)
 	if group.frameGlow and glowParent then
 		HealthBarColor(button, glowParent)
 		group.made = (group.made or 0) + 1 -- the client makes the buttons of a group in their display order
-		TypeIcon(button, glowParent, group.made, group.box)
+		TypeIcon(button, glowParent, group.made, group.box, group.max or 4)
 	end
 	if Try(button, "SetMouseMotionEnabled", false) == nil then button:EnableMouse(false) end
 end

@@ -5,6 +5,13 @@ local Data = select(2, ...)
 local issecret = issecretvalue or function() return false end -- WoW Forever secret values
 local L = Data.L
 
+-- WarLegend: a text of this file shown through the core's translation (Data.L has no French for it)
+if WLRT and WLRT.AddFR then
+	WLRT.AddFR({
+		["The game keeps the battleground scoreboard secret: no enemy frames."] = "Le jeu garde le tableau des scores secret : pas de cadres ennemis.",
+	})
+end
+
 --upvalues
 local _G = _G
 local math_random = math.random
@@ -589,7 +596,7 @@ end
 function WarLegendPvP.Spread(parent, period, getList, fn)
 	local driver = CreateFrame("Frame", nil, parent)
 	local budget, index = 0, 1
-	local reported -- WarLegend: an error of fn is reported once (a secret value read every frame made ~400 a second)
+	local reported = {} -- WarLegend: each distinct error of fn is reported once (a secret value read every frame made ~400 a second)
 	driver:SetScript("OnUpdate", function(_, elapsed)
 		local list = getList()
 		local n = #list
@@ -603,7 +610,10 @@ function WarLegendPvP.Spread(parent, period, getList, fn)
 			index = index + 1
 			if item then
 				local ok, err = pcall(fn, item)
-				if not ok and not reported then reported = true; geterrorhandler()(err) end
+				if not ok then
+					local key = tostring(err)
+					if not reported[key] then reported[key] = true; geterrorhandler()(err) end
+				end
 			end
 		end
 	end)
@@ -790,6 +800,7 @@ function WarLegendPvP:GetColoredName(playerButton)
 	if not playerButton.PlayerDetails then return end
 	local name = playerButton.PlayerDetails.PlayerName
 	local tbl = playerButton.PlayerDetails.PlayerClassColor
+	if not tbl then return name end
 	return ("|cFF%02x%02x%02x%s|r"):format(tbl.r * 255, tbl.g * 255, tbl.b * 255, name)
 end
 
@@ -1317,10 +1328,11 @@ end
 
 -- readable name of a unit, nil when it is secret
 function WarLegendPvP:GetReadableUnitName(unitID)
+	-- issecret first: whether a secret value can even be tested (if v then) is not known on Forever (10/11: == nil can)
 	local uName = GetUnitName(unitID, true)
-	if uName and not issecret(uName) then return uName end
+	if not issecret(uName) and uName then return uName end
 	local guid = UnitGUID(unitID)
-	if guid and not issecret(guid) then
+	if not issecret(guid) and guid then
 		return nameFromGUID(guid)
 	end
 end
@@ -1786,14 +1798,30 @@ function WarLegendPvP:UPDATE_BATTLEFIELD_SCORE()
 		self.Allies:SetRealPlayerCount(numAllies)
 	end
 
+	-- WarLegend (audit M8): Blizzard's scoreboard filters the API by the faction tab the player looks at
+	-- (SetBattlefieldScoreFaction, tab 1 = all): a filtered board would remove the other side's rows; the whole one is
+	-- asked for again when the board closes (PVPMatchScoreboard_OnHide)
+	if PVPMatchScoreboard and PVPMatchScoreboard.IsShown and PVPMatchScoreboard:IsShown()
+		and PVPMatchScoreboard.selectedTab and PVPMatchScoreboard.selectedTab ~= 1 then
+		return
+	end
+
 	local battlefieldScores = {}
 	local numScores = GetNumBattlefieldScores()
 	self:Debug("numScores", numScores)
+	local secretNames = 0
 	for i = 1, numScores do
 		local score = parseBattlefieldScore(i)
 		if score then
 			table.insert(battlefieldScores, score)
+			if issecret(score.name) then secretNames = secretNames + 1 end
 		end
+	end
+	-- WarLegend: the client can keep the scoreboard secret in a match (SecretInActivePvPMatch): every entry is then dropped
+	-- below and the frames stay empty. Said once, so that it is not taken for a bug of the frames
+	if secretNames > 0 and secretNames == #battlefieldScores then
+		local text = "The game keeps the battleground scoreboard secret: no enemy frames."
+		self:OnetimeInformation(WLRT and WLRT.L and WLRT.L(text) or text)
 	end
 
 	self:Debug("battlefieldScores", battlefieldScores)
@@ -1942,7 +1970,7 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 			-- (EllesmereUI_Colors.lua), then fall back on the name
 			local isMe = UnitIsUnit("raid" .. i, "player")
 			if issecret(isMe) or isMe == nil then isMe = self:IsUserName(name) end
-			if name and not issecret(name) and not isMe and rank and classToken then
+			if not issecret(name) and not issecret(rank) and not issecret(classToken) and name and not isMe and rank and classToken then
 				self.Allies:AddGroupMember(name, rank == 2, rank == 1, classToken, "raid" .. i)
 			end
 		end
@@ -1954,7 +1982,7 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 
 			local classToken = select(2, UnitClass(unitID))
 
-			if name and classToken and not issecret(classToken) then
+			if not issecret(classToken) and name and classToken then
 				self.Allies:AddGroupMember(name, UnitIsGroupLeader(unitID), UnitIsGroupAssistant(unitID), classToken,
 					unitID)
 			end
@@ -1967,6 +1995,8 @@ function WarLegendPvP:GROUP_ROSTER_UPDATE(force)
 		self.UserDetails.isGroupAssistant, self.UserDetails.PlayerClass, "player")
 	self.Allies:AfterPlayerSourceUpdate()
 	self.Allies:UpdateAllUnitIDs()
+	-- WarLegend (audit M29): the raid frames moved with the roster: the flag icon follows the carrier
+	if self.RemarkRaidFrameFlag then self:RemarkRaidFrameFlag() end
 	self.lastRoster = rosterCount
 end
 
@@ -1989,7 +2019,7 @@ function WarLegendPvP:PLAYER_ENTERING_WORLD()
 	self:Debug("zone", zone)
 	if zone == "pvp" then
 		local faction = GetBattlefieldArenaFaction and GetBattlefieldArenaFaction() -- the player's faction in this battleground, 0 for horde, 1 for alliance
-		if faction and not issecret(faction) then
+		if not issecret(faction) and faction then
 			self:SetAllyFaction(faction)
 		else
 			self:SetAllyFaction(WarLegendPvP.UserFaction == "Alliance" and 1 or 0) -- corrected later from the scoreboard

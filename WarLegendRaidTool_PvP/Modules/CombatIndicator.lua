@@ -172,6 +172,7 @@ function combatIndicator:AttachToPlayerButton(playerButton)
 	-- kept its flag, so ApplyAllSettings started no ticker for it in a real battleground
 	function playerButton.CombatIndicator:Reset()
 		self.testmodeEnabled = false -- in test mode the next tick sets it again
+		self:DisableTicker() -- a row taken again: ApplyAllSettings starts the ticker of the new player
 	end
 
 	function playerButton.CombatIndicator:DisableTicker()
@@ -214,7 +215,7 @@ function combatIndicator:AttachToPlayerButton(playerButton)
 		end
 		if self.config.UpdatePeriod and not self.testmodeEnabled then
 			self.Ticker = CTimerNewTicker(self.config.UpdatePeriod, function()
-				self:Update()
+				if playerButton.isShown then self:Update() end -- a hidden row (player gone) reads nothing
 			end)
 		end
 	end

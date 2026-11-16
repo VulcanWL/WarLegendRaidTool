@@ -581,6 +581,126 @@ do
         string.format("recorded at the end: %d, after the score screen was entered again: %d", once, twice))
 end
 
+-- the battleground timers' queue bars (CapTimers.lua): the estimated wait, a wait past its estimate (a full bar
+-- without a time, as Capping shows it), the pop (time left to enter), entering (no queue bar left)
+Section("[7c queue] the queue of the next battleground seen by the battleground timers")
+do
+    local status, est, waited, port = "queued", 120000, 10000, 80
+    local oldStatus, oldEst, oldWaited, oldPort = GetBattlefieldStatus, GetBattlefieldEstimatedWaitTime, GetBattlefieldTimeWaited, GetBattlefieldPortExpiration
+    GetBattlefieldStatus = function(i) if i == 1 then return status, "Alterac Valley" end return "none" end
+    GetBattlefieldEstimatedWaitTime = function() return est end
+    GetBattlefieldTimeWaited = function() return waited end
+    GetBattlefieldPortExpiration = function() return port end
+    local function Bars()
+        local anchor, out, seen = rawget(_G, "WLRTCapTimersAnchor"), {}, {}
+        if not anchor then return out end
+        for _, f in ipairs({ anchor:GetChildren() }) do -- a bar re-parented to the anchor is listed once per SetParent
+            if not seen[f] and f:IsShown() and f.text and f.time and f.bar then
+                seen[f] = true
+                local _, max = f.bar:GetMinMaxValues()
+                out[#out + 1] = { label = f.text:GetText(), time = f.time:GetText() or "", max = max or 0 }
+            end
+        end
+        return out
+    end
+    local function Describe(b)
+        local t = {}
+        for _, x in ipairs(b) do t[#t + 1] = string.format("%s max %.0f time '%s'", tostring(x.label), x.max, x.time) end
+        return #b .. " bar(s): " .. table.concat(t, "; ")
+    end
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
+    local b = Bars()
+    Check("queue bar: the estimated wait left (110 s), one bar", #b == 1 and math.abs(b[1].max - 110) < 1, Describe(b))
+    est, waited = 60000, 90000 -- longer in the queue than the estimate
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
+    b = Bars()
+    Check("queue bar: past the estimate, one full bar without a time", #b == 1 and b[1].time == "" and b[1].max >= 3600, Describe(b))
+    status = "confirm"
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
+    b = Bars()
+    Check("queue bar: the pop, one bar of the time left to enter (80 s)", #b == 1 and math.abs(b[1].max - 80) < 1, Describe(b))
+    status = "active"
+    M.Fire("UPDATE_BATTLEFIELD_STATUS", 1)
+    M.Advance(0.5)
+    b = Bars()
+    Check("queue bar: entering the battleground leaves no queue bar", #b == 0, Describe(b))
+    GetBattlefieldStatus, GetBattlefieldEstimatedWaitTime, GetBattlefieldTimeWaited, GetBattlefieldPortExpiration = oldStatus, oldEst, oldWaited, oldPort
+end
+
+-- the battleground timers' appearance options (Capping's): size, pile direction, icon side, time text, fill; then
+-- settings a profile could bring (wrong types, unknown names) fall back to the defaults without a Lua error
+Section("[7d look] the appearance options of the battleground timers")
+do
+    local look = W.db.capTimers
+    local KEYS = { "width", "height", "spacing", "growUp", "fill", "timeText", "iconRight", "font", "texture", "cHorde", "fontSize" }
+    local saved = {}
+    for _, k in ipairs(KEYS) do saved[k] = look[k] end
+    local function Bars()
+        local anchor, out, seen = rawget(_G, "WLRTCapTimersAnchor"), {}, {}
+        if not anchor then return out end
+        for _, f in ipairs({ anchor:GetChildren() }) do
+            if not seen[f] and f:IsShown() and f.text and f.time and f.bar then
+                seen[f] = true
+                out[#out + 1] = f
+            end
+        end
+        return out
+    end
+    local function Describe(bars)
+        local t = {}
+        for _, f in ipairs(bars) do
+            local point, _, _, _, y = f:GetPoint(1)
+            local ip = f.icon:GetPoint(1)
+            t[#t + 1] = string.format("%s %dx%d %s y=%s icon %s time %s value %.1f", tostring(f.text:GetText()), f:GetWidth(), f:GetHeight(),
+                tostring(point), tostring(y), tostring(ip), tostring(f.time:IsShown()), f.bar:GetValue() or -1)
+        end
+        return #bars .. " bar(s): " .. table.concat(t, "; ")
+    end
+    look.width, look.height, look.spacing, look.growUp, look.fill, look.timeText, look.iconRight = 300, 24, 4, true, true, false, true
+    W.CapTimersRestyle()
+    W.CapTimersTest()
+    M.Advance(0.5)
+    local bars = Bars()
+    local sized, up, noTime, right, filling, n = true, true, true, true, true, 0
+    for _, f in ipairs(bars) do
+        n = n + 1
+        if f:GetWidth() ~= 300 or f:GetHeight() ~= 24 then sized = false end
+        local point, _, _, _, y = f:GetPoint(1)
+        if point ~= "BOTTOM" or (y or 0) % 28 ~= 0 then up = false end
+        if f.time:IsShown() then noTime = false end
+        if f.icon:GetPoint(1) ~= "RIGHT" then right = false end
+        local _, max = f.bar:GetMinMaxValues()
+        if max and max >= 20 and (f.bar:GetValue() or 0) > 5 then filling = false end -- filling: near 0 after 0.5 s
+    end
+    Check("look: the bars take the width and height chosen", n >= 4 and sized, Describe(bars))
+    Check("look: grow upwards piles the bars from the bottom, height plus spacing apart", n >= 4 and up, Describe(bars))
+    Check("look: time text off, icon on the right", n >= 4 and noTime and right, Describe(bars))
+    Check("look: bars fill up instead of draining", n >= 4 and filling, Describe(bars))
+    W.StopTests(true)
+    -- a profile from elsewhere: nothing readable in these, the defaults are used
+    look.width, look.height, look.font, look.texture, look.cHorde, look.fontSize, look.growUp = "huge", 0, "nope", 42, "zz", -3, "yes"
+    look.fill, look.timeText, look.iconRight, look.spacing = false, true, false, 0
+    W.CapTimersRestyle()
+    W.CapTimersTest()
+    M.Advance(0.5)
+    bars = Bars()
+    local defaults, texture = true, true
+    for _, f in ipairs(bars) do
+        if f:GetWidth() ~= 200 or f:GetHeight() ~= 20 then defaults = false end
+        local point = f:GetPoint(1)
+        if point ~= "TOP" or not f.time:IsShown() then defaults = false end
+        if f.bg:GetTexture() ~= "Interface\\RaidFrame\\Raid-Bar-Hp-Fill" then texture = false end
+    end
+    Check("look: settings of the wrong type or unknown names give the default look (200x20, top, time shown, Capping texture)",
+        #bars >= 4 and defaults and texture, Describe(bars))
+    W.StopTests(true)
+    for _, k in ipairs(KEYS) do look[k] = saved[k] end
+    W.CapTimersRestyle()
+end
+
 Section("[8] /wl perf over the whole run (W.BusiestWork, total ms / count)")
 for _, b in ipairs(W.BusiestWork(10)) do Line("%-52s %8.1f ms / %d (max %.1f ms)", b[1], b[4], b[3], b[2]) end
 
