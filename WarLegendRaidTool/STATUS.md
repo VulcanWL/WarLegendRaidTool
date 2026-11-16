@@ -3,7 +3,13 @@
 État du travail, mis à jour à la fin de chaque session (voir `AGENTS.md`). Le plus récent en haut.
 Pas dans le zip des releases.
 
-## Maintenant (16/11) : chronos de CdB, barres de capture et de file (non publié)
+## Version publiée (16/11) : 1.41.66
+
+- **1.41.66** (tag `v1.41.66`) = les correctifs des chronos de CdB de l entrée du 16/11 ci-dessous (commit 8f25a28 + commit de
+  release). **Verrou de release levé par l utilisateur pour cette version** (demande « ok release », 16/11) ; **rien testé en
+  jeu** ; CI verte sur 8f25a28 avant le tag. PR 26 (dependabot) toujours pas fusionnée.
+
+## 16/11 : chronos de CdB, barres de capture et de file
 
 - **Retour en jeu** (16/11) : « cap de tour parfois invisible, comme Capping », puis « 3 files, deux barres seulement ».
   `forever-report` : 0 erreur Lua de nos addons, Capping absent du dossier AddOns (les barres vues sont les nôtres) ; les 40
@@ -28,8 +34,6 @@ Pas dans le zip des releases.
 - **À tester en jeu** : un CdB (Alterac) : barre à l entrée pour une base déjà contestée, barre d une tour attaquée,
   disparition à la prise ; trois files : trois barres. Si une tour reste sans barre : « Points de la carte maintenant »
   pendant l attaque (indices d icône de Forever non vérifiés : `CONTESTED` vient de Capping).
-- **Pas de version** : à publier avec les prochains correctifs (demander avant le tag).
-
 ## Version publiée (15/11) : 1.41.65
 
 - **1.41.65** (tag `v1.41.65`) = relecture de `PvP.lua` (entrée « Maintenant (15/11) » ci-dessous) et de l addon

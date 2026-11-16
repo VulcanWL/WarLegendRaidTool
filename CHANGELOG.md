@@ -6,6 +6,8 @@ Releases et les tags git.
 
 ## Prochaine version
 
+## 1.41.66 (16/11/2026)
+
 ### Corrigé
 - Chronos de CdB : barres de capture parfois absentes : la carte est relue à chaque fois (comme Capping, plus de carte
   mémorisée à l'écran de chargement), une base déjà contestée à l'entrée ou après un /reload a sa barre, la ligne
